@@ -18,7 +18,7 @@ RIGHT:  RED→GREEN: test1→impl1, test2→impl2, ...
 ```
 
 ## Workflow
-1. **Planning** — read `CONTEXT.md` (match domain vocabulary) + respect ADRs. Confirm with user: interface changes, which behaviors to test (prioritize — you can't test everything), identify deep-module opportunities (`gsd-codebase-design`). List behaviors (not impl steps). Get approval.
+1. **Planning** — read `CONTEXT.md` if it exists (match domain vocabulary) + respect ADRs. Confirm with user: interface changes, which behaviors to test (prioritize — you can't test everything), identify deep-module opportunities (`gsd-codebase-design`). List behaviors (not impl steps). Get approval.
 2. **Tracer bullet** — ONE test confirming ONE thing: RED (write test → fails) → GREEN (minimal code → passes). Proves the path end-to-end.
 3. **Incremental loop** — each remaining behavior: RED → GREEN. One test at a time, only enough code to pass, no anticipating future tests, focused on observable behavior.
 4. **Refactor** — after all green: extract duplication, deepen modules, SOLID where natural, consider what new code reveals about old. Run tests after each step. **Never refactor while RED.**

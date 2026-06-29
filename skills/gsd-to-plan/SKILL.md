@@ -1,0 +1,43 @@
+---
+name: gsd-to-plan
+description: Produce an implementation plan from a converged design — no interview, just write the plan. Triggered by `gsd` when the spec/design converges; outputs task-decomposed plan(s) to `.scratch/<feature>/plan.toon`.
+---
+
+# To Plan
+
+Turn a converged design into an executable implementation plan. No interview — the design is settled (`gsd` did that). Read `.scratch/<feature>/spec.md` for the acceptance criteria this plan must deliver. Write the plan.
+
+ ## Output (AXI TOON Format)
+ Write a single consolidated plan file to `.scratch/<feature>/plan.toon`. This format is highly token-efficient, omitting braces, quotes, and markdown boilerplate.
+ 
+ Format:
+ ```
+ plan[count]{id,task,satisfies,files,test,status}:
+   T1,<task description>,AC-1|AC-2,src/auth.ts|src/user.ts,tests/auth.test.ts,pending
+   T2,<task description>,AC-3,src/router.ts,none,pending
+ ```
+ 
+ Columns:
+ - `id` — T1, T2, etc. (numbered sequentially).
+ - `task` — short task description (5-8 words).
+ - `satisfies` — pipe-separated list of AC IDs from `spec.md`.
+ - `files` — pipe-separated list of affected files.
+ - `test` — unit test file/path for TDD (or `none` if test-exempt).
+ - `status` — `pending`, `in_progress`, `done`, or `superseded` (for spec revisions).
+ 
+ Tasks run sequentially inside the plan. For parallelizable streams, write separate `plan.toon` tables or append a `stream` column if needed, but sequential execution is the default.
+
+## Auto-triggers
+- `gsd-codebase-design` — when a task involves designing/redesigning a module interface.
+
+## Rules
+- Decompose by what an implementer can do in one focused pass, not by file type.
+- Mark inter-task dependencies explicitly; never hide a sequencing constraint inside a task.
+- If the design has a gap that blocks planning, STOP — route back to `gsd` (Discussion) → revise `spec.md` → re-plan. Do not invent scope to fill it.
+- No interviews, no scope expansion. The plan reflects the design; it doesn't renegotiate it.
+
+ ## Contextual disclosure (AXI Style)
+ At the end of every response, always append a `Next steps:` block suggesting the specific commands or triggers, e.g.:
+ ```
+ - /gsd (to start execution, resume work, or save progress)
+ ```

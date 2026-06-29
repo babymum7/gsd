@@ -1,0 +1,37 @@
+---
+name: gsd-improve-codebase-architecture
+description: Scan the codebase for deepening opportunities, present them as a visual HTML report, then grill through the one you pick. Triggered as gsd-diagnosing-bugs terminal, or for upkeep.
+---
+
+# Improve Codebase Architecture
+
+Surface architectural friction and propose **deepening opportunities** — refactors turning shallow modules into deep ones. Aim: testability + AI-navigability.
+
+Built on `gsd-codebase-design` vocabulary (**module/interface/depth/seam/adapter/leverage/locality**) and the domain language in `CONTEXT.md`. Use those terms exactly — don't drift to "component/service/API/boundary". ADRs in `docs/adr/` are not re-litigated.
+
+## 1. Explore
+Read `CONTEXT.md` + ADRs in the area first (if they exist). Then walk the codebase (Explore subagent) noting friction: understanding one concept bounces across many small modules; shallow modules (interface ≈ implementation complexity); pure functions extracted only for testability while bugs hide in call-site coupling; seams that leak; untested/hard-to-test parts. Apply the **deletion test**: deleting it concentrates complexity (good) or just moves it (shallow, drop).
+
+ ## 2. Present candidates — Lavish visual review
+ Do NOT write manual HTML files to `/tmp`. Instead, compile the candidates and render them visually by invoking `/gsd-lavish` using the `comparison` and `diagram` playbooks.
+ 
+ Each candidate card in the Lavish interface must show:
+ - **Badge row** — Recommendation strength (`Strong` = emerald, `Worth exploring` = amber, `Speculative` = slate), plus dependency category (`in-process`, `local-substitutable`, `ports & adapters`, `mock`).
+ - **Files** — Monospaced list.
+ - **Before / After diagram** — Side-by-side comparison using Mermaid or HTML cross-sections.
+ - **Problem** — One sentence description of friction/leakage.
+ - **Solution** — One sentence description of consolidate/deepen plan.
+ - **Wins** — Bulleted list of benefits (locality, leverage, testability) using exact glossary terms.
+ - **ADR callout** — One line alert if reopening an existing ADR.
+ 
+ Do NOT propose interfaces or write code yet. Present the candidates via `/gsd-lavish` and ask the user to pick one.
+
+## 3. Grilling loop
+User picks → run `/gsd` (Discussion) to walk the design tree (constraints, dependencies, the deepened module's shape, what survives behind the seam, what tests survive). Keep the model current via `/gsd-domain-modeling` inline: name a deepened module after a concept not in `CONTEXT.md` → add it; sharpen a fuzzy term → update `CONTEXT.md`; user rejects with a load-bearing reason → offer an ADR (only if a future explorer would need it to avoid re-suggesting); explore alternative interfaces → `/gsd-codebase-design` design-it-twice.
+
+ ## Contextual disclosure (AXI Style)
+ At the end of every response, always append a `Next steps:` block suggesting the specific commands or triggers, e.g.:
+ ```
+ Next steps:
+ - /gsd (to discuss the chosen candidate or save progress)
+ ```

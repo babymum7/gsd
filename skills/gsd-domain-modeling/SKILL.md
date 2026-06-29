@@ -7,7 +7,7 @@ description: Build/sharpen the project's domain model — challenge terms, sharp
 
 The *active* discipline: challenge terms, invent edge-case scenarios, and write the glossary/decisions down the moment they crystallize. (Merely reading `CONTEXT.md` for vocabulary is a one-line habit any skill does — this skill is for *changing* the model.)
 
-Triggered by `gsd-grilling` / `gsd-executing-plans` / `gsd-improve-codebase-architecture` when a durable term or decision surfaces; also invokable directly to sharpen the glossary.
+Triggered by `gsd` / `gsd-executing-plans` / `gsd-improve-codebase-architecture` when a durable term or decision surfaces; also invokable directly to sharpen the glossary.
 
 ## Files (lazy — create only when you have something to write)
 - `CONTEXT.md` — the glossary (**this skill is its sole writer**; others read it for vocabulary). Single context at root; if `CONTEXT-MAP.md` exists, multiple contexts (map points to each).

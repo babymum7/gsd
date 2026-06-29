@@ -5,7 +5,7 @@ description: Diagnosis loop for hard bugs and performance regressions. Triggered
 
 # Diagnosing Bugs
 
-A discipline for hard bugs. Read `CONTEXT.md` + relevant ADRs first. Skip phases only when explicitly justified.
+A discipline for hard bugs. Read `CONTEXT.md` + relevant ADRs first (if they exist). Skip phases only when explicitly justified.
 
 ## Phase 1 — Build a feedback loop (THIS is the skill)
 Everything else is mechanical. A **tight** pass/fail signal that goes red on *this* bug → you'll find the cause. No loop → no amount of staring saves you. Be aggressive, creative, refuse to give up.
@@ -36,3 +36,11 @@ Write the regression test **before** the fix — but only if a **correct seam** 
 - [ ] Correct hypothesis stated in the commit message.
 
 Then: what would have prevented this? If it's architectural (no good seam, tangled callers, hidden coupling) → hand off to `gsd-improve-codebase-architecture` with specifics, **after** the fix.
+
+ ## Contextual disclosure (AXI Style)
+ At the end of every response, always append a `Next steps:` block suggesting the specific commands or triggers, e.g.:
+ ```
+ Next steps:
+ - /gsd-executing-plans (to resume plan execution)
+ - /gsd-improve-codebase-architecture (if codebase requires restructuring)
+ ```

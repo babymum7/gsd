@@ -1,6 +1,6 @@
 ---
 name: gsd-lavish
-description: Turn complex/visual agent responses into rich, reviewable HTML artifacts via the lavish-axi CLI. Auto-fires at substantial deliverables (spec, comparison, gsd-review report) — never on inline Q&A.
+description: Turn complex/visual agent responses into rich, reviewable HTML artifacts via the local lavish-axi CLI. Auto-fires at substantial deliverables (spec, comparison, verify report) — never on inline Q&A.
 ---
 
 # Lavish
@@ -11,16 +11,16 @@ Render a substantial deliverable as a reviewable HTML artifact the user annotate
 
 ## Workflow
 1. Create the HTML artifact (default `.gsd-lavish/<name>.html`).
-2. `npx -y lavish-axi <html-file>` — open/resume the gsd-review session in the browser.
-3. `npx -y lavish-axi poll <html-file>` — long-poll for annotations, queued prompts, browser-reported `layout_warnings`. Stays silent until the user acts or the browser reports fresh warnings — **leave it running, never kill it**. If the harness limits foreground runtime, run it as a background task; if killed, just re-run (queued feedback is never lost).
-4. If poll returns `layout_warnings`, fix overflow/clipped/overlapping content and re-check before involving the user.
-5. Apply feedback, then `npx -y lavish-axi poll <html-file> --agent-reply "<message>"` to reply in-browser and keep the loop going.
-6. `npx -y lavish-axi end <html-file>` when finished.
-
-If lavish-axi output shows a follow-up command starting with `lavish-axi`, run it as `npx -y lavish-axi ...`.
+ 2. `node tools/lavish-axi/dist/cli.mjs <html-file>` — open/resume the review session in the browser.
+ 3. `node tools/lavish-axi/dist/cli.mjs poll <html-file>` — long-poll for annotations, queued prompts, browser-reported `layout_warnings`. Stays silent until the user acts or the browser reports fresh warnings — **leave it running, never kill it**. If the harness limits foreground runtime, run it as a background task; if killed, just re-run (queued feedback is never lost).
+ 4. If poll returns `layout_warnings`, fix overflow/clipped/overlapping content and re-check before involving the user.
+ 5. Apply feedback, then `node tools/lavish-axi/dist/cli.mjs poll <html-file> --agent-reply "<message>"` to reply in-browser and keep the loop going.
+ 6. `node tools/lavish-axi/dist/cli.mjs end <html-file>` when finished.
+ 
+ If `lavish-axi` output shows a follow-up command, run it using the local path `node tools/lavish-axi/dist/cli.mjs ...`.
 
 ## Playbooks (open each matching one before writing HTML)
-`npx -y lavish-axi playbook <id>` — one artifact often combines several:
+ `node tools/lavish-axi/dist/cli.mjs playbook <id>` — one artifact often combines several:
 - `diagram` — flows, architecture, state, sequence (use Mermaid, not hand-built boxes)
 - `table` — dense records → scan-friendly
 - `comparison` — options, tradeoffs, current vs target

@@ -1,6 +1,6 @@
 # HTML Report Format
 
-The architectural gsd-review is rendered as a single self-contained HTML file in the OS temp directory. Tailwind and Mermaid both come from CDNs. Mermaid handles graph-shaped diagrams reliably; hand-built divs and inline SVG handle the more editorial visuals (mass diagrams, cross-sections). Mix the two — don't lean on Mermaid for everything, it'll start to look generic.
+ The architectural verify report is rendered as a visual HTML artifact and served via gsd-lavish. Tailwind and Mermaid both come from CDNs. Mermaid handles graph-shaped diagrams reliably; hand-built divs and inline SVG handle the more editorial visuals (mass diagrams, cross-sections). Mix the two — don't lean on Mermaid for everything, it'll start to look generic.
 
 ## Scaffold
 
@@ -9,7 +9,7 @@ The architectural gsd-review is rendered as a single self-contained HTML file in
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <title>Architecture gsd-review — {{repo name}}</title>
+    <title>Architecture Verify — {{repo name}}</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script type="module">
       import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
