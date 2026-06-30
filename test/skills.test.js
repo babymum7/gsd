@@ -395,3 +395,8 @@ test("master states graceful degradation for optional capabilities (browser/lavi
   const gsd = readSkill("gsd");
   assert.match(gsd, /degrad/i, "master must state optional capabilities degrade to terminal when unavailable");
 });
+
+test("master bounds read-only/exploratory questions to the targeted scope (L2)", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /read-only question|exploratory question|a question is not/i, "master must bound read-only questions to the targeted scope, not a tree walk");
+});

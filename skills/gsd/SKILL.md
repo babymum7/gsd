@@ -43,6 +43,7 @@ On entry, analyze the prompt and workspace state to route to the correct sub-flo
 ## Scope discipline — read only what the prompt needs
 Match exploration breadth to prompt complexity; over-exploration drifts from the ask and burns the budget.
 - **Trivial/targeted prompt** → read the named file(s) + their direct imports only. No whole-tree scan, no architecture skill.
+- **Read-only question** ("how does X work?", "where is Y?") → same bound as a targeted change: the named area + its direct imports. A question is not a license to walk the tree — if the answer genuinely needs the whole codebase, that's Route 5 (architecture), not a quick answer.
 - **Whole-codebase work** — an explicit "audit / map / refactor the architecture" — is the ONLY case you walk broadly (scoped per the rules below).
 - **Stay in git scope.** Operate on the current project's git-tracked tree only. Skip non-git subtrees (nested repos, vendored tools, submodules carrying their own `.git`) and dependency/build/output dirs (`node_modules`, `dist`, `build`, `.next`, `target`, …) and anything `.gitignore`'d. These are noise — never the subject of a simple prompt.
 - Locate with `grep`/`glob`; load with `read` (offset/limit). Never open a directory hoping. One relevant file beats ten speculative reads.
