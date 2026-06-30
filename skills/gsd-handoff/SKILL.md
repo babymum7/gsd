@@ -37,7 +37,7 @@ settings[count]{name,value}:
 Forks the conversation — you open a new session referencing the file. `/compact` continues in place; `gsd-handoff` forks.
 
  ## Contextual disclosure (AXI Style)
-Append this `Next steps:` block **only when you are the terminal/standalone response** (directly invoked or the last skill in the chain) — never when firing **inline** inside another skill's response; only the outermost response shows next-steps (`gsd` Conventions → Contextual disclosure). Example:
+Append your `Next steps:` block only as the terminal/standalone response — never when firing inline inside another skill's response (only the outermost shows; see `gsd` Conventions). Example:
  ```
  Next steps:
  - /gsd (to resume work, start planning, or begin execution)

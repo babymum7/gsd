@@ -2,7 +2,7 @@
 name: gsd
 description: Master entry point for all agent actions. Automatically routes, starts, resumes, and coordinates all sub-skills (discussion, planning, executing, verify, handoff, diagnostics) based on user prompt.
 triggers: /gsd on any prompt (entry router; routes 0-6)
-produces: [spec.md, plan.toon]
+produces: [spec.md]
 consumes: [handoff-<n>.toon, plan.toon]
 ---
 
@@ -49,7 +49,7 @@ Match exploration breadth to prompt complexity; over-exploration drifts from the
 - **Delegating exploration** (Explore subagent) → pass these bounds in its prompt; an unscoped explore subagent walks everything.
 
 ## Dynamic Sub-Skill Loading
-To keep startup context light, only `/gsd` is registered/loaded; sub-skills are NOT separate skills. When `/gsd` routes to one, resolve this skill's real directory once, then read the sibling sub-skill:
+To keep startup context light, only `/gsd` is registered/loaded; sub-skills are NOT separate skills — they are sibling directories of `gsd`'s real location. When `/gsd` routes to one, read its `SKILL.md` with your native read tool at `<resolved-gsd-dir>/gsd-<sub>/SKILL.md`. That dir resolves from this skill's own symlink (works from any cwd):
 ```
   LINK=~/.agents/skills/gsd
   SKILLS_DIR="$(dirname "$(readlink "$LINK" 2>/dev/null || echo "$LINK")")"

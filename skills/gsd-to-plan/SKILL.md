@@ -43,7 +43,7 @@ Tasks run sequentially. Parallelism lives in how `gsd-executing-plans` dispatche
 - No interviews, no scope expansion. The plan reflects the design; it doesn't renegotiate it.
 
  ## Contextual disclosure (AXI Style)
-Append this `Next steps:` block **only when you are the terminal/standalone response** (directly invoked or the last skill in the chain) — never when firing **inline** inside another skill's response; only the outermost response shows next-steps (`gsd` Conventions → Contextual disclosure). Example:
+Append your `Next steps:` block only as the terminal/standalone response — never when firing inline inside another skill's response (only the outermost shows; see `gsd` Conventions). Example:
  ```
  - /gsd (to start execution, resume work, or save progress)
  ```
