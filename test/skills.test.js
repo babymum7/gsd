@@ -287,3 +287,63 @@ test("pipeline closure — every consumed artifact is produced by some skill", (
   const orphans = [...consumed].filter((a) => !produced.has(a));
   assert.deepEqual(orphans, [], `consumed artifact with no producer (pipeline gap): ${orphans.join(", ")}`);
 });
+
+
+test("no sub-skill uses the contradictory 'always append/suggest' Next-steps phrasing (P1)", () => {
+  const old = [/At the end of every response, always append/, /At the end of every response, always suggest/];
+  for (const [name, content] of Object.entries(readAllSkills())) {
+    if (name === "gsd") continue; // master is exempt; its End-session block is the human surface
+    for (const re of old) {
+      assert.ok(!re.test(content), `${name} still uses the contradictory Next-steps phrasing: ${re}`);
+    }
+  }
+});
+
+test("sub-skills with a contextual-disclosure section state the terminal/inline rule (P1)", () => {
+  for (const [name, content] of Object.entries(readAllSkills())) {
+    if (name === "gsd") continue; // master's para is the coordinator-level two-surfaces rule (P3), not the per-skill disclosure
+    if (!/Contextual disclosure/.test(content)) continue;
+    assert.match(content, /terminal\/standalone/, `${name}: contextual disclosure must qualify the terminal response`);
+    assert.match(content, /inline/, `${name}: contextual disclosure must say inline firing omits the block`);
+  }
+});
+
+test("Route 0 captures obvious failures; Route 4 is scoped to hard bugs (P2)", () => {
+  const master = readSkill("gsd");
+  assert.ok(master, "gsd master missing");
+  // Route 0 must absorb obvious failing-test/error fixes so trivial ones never reach full diagnosis
+  assert.match(master, /failing-test\/error fix/, "Route 0 must capture obvious failing-test/error fixes");
+  // Route 4 must be scoped to hard/obscure bugs, deferring obvious ones to Route 0
+  assert.match(master, /hard\/obscure/, "Route 4 must be scoped to hard bugs");
+  assert.match(master, /were caught by Route 0/, "Route 4 must defer obvious failures to Route 0");
+});
+
+test("gsd-lavish has an explicit 2-part fire gate, opt-in on ambiguity (P4)", () => {
+  const master = readSkill("gsd");
+  const lavish = readSkill("gsd-lavish");
+  assert.match(master, /Gate \(both must hold\)/, "master lavish auto-trigger must state the 2-part gate");
+  assert.match(master, /opt-in/, "master lavish must be opt-in on ambiguity");
+  assert.match(lavish, /Fire gate \(both must hold\)/, "gsd-lavish SKILL must mirror the gate");
+  assert.match(lavish, /default to terminal output and ask/);
+});
+
+test("gsd-executing-plans declares plan.toon in produces — it updates the progress ledger (P5)", () => {
+  const fm = parseFrontmatter(readSkill("gsd-executing-plans"));
+  const produces = parseList(fm.produces);
+  const consumes = parseList(fm.consumes);
+  assert.ok(produces.includes("plan.toon"), "executing-plans must produce plan.toon (writes status back to the ledger)");
+  assert.ok(consumes.includes("plan.toon"), "executing-plans must still consume plan.toon");
+});
+
+test("master routing has a route trace and a feature list/switch affordance (Minor 1+3)", () => {
+  const master = readSkill("gsd");
+  assert.match(master, /Route trace/, "master must require a route trace on entry");
+  assert.match(master, /auditable/, "route trace must be justified as auditable");
+  assert.match(master, /To list\/switch/, "master must offer a feature list/switch affordance");
+});
+
+test("ponytail states its persistence contract (Minor 2)", () => {
+  const ponytail = readSkill("gsd-ponytail");
+  assert.match(ponytail, /only via a `gsd-handoff`/, "ponytail must state it persists only via a handoff");
+  assert.match(ponytail, /hard reset/, "ponytail must warn a hard reset loses the level");
+});

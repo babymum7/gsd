@@ -25,7 +25,7 @@ The gate before a WIP branch merges to main. Dispatch a **reviewer** subagent (o
 
 
  ## Contextual disclosure (AXI Style)
- At the end of every response, always append a `Next steps:` block suggesting the specific commands or triggers, e.g.:
+Append this `Next steps:` block **only when you are the terminal/standalone response** (directly invoked or the last skill in the chain) — never when firing **inline** inside another skill's response; only the outermost response shows next-steps (`gsd` Conventions → Contextual disclosure). Example:
  ```
  Next steps:
  - /gsd (if spec/design needs revision or to save progress)

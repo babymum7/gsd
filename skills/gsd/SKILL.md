@@ -19,7 +19,7 @@ The single entry point for all workflows. The user invokes `/gsd` on any prompt,
 ## Smart Routing Engine
 On entry, analyze the prompt and workspace state to route to the correct sub-flow:
 0. **Direct / Trivial (check first)**:
-   - Simple question, advisory, or a small targeted change (named file, ≤1 module, no design) → answer directly or `gsd-ponytail` quick-fix. **Do NOT explore broadly or trigger architecture skills.**
+   - Simple question, advisory, a small targeted change (named file, ≤1 module, no design), OR an **obvious** failing-test/error fix (clear single-spot root cause, no investigation needed) → answer directly or `gsd-ponytail` quick-fix. **Do NOT explore broadly or trigger architecture skills.**
 1. **Resume**:
    - If `.scratch/<feature>/handoff-<n>.toon` exists or is passed → Read the handoff file's `mode` and `phase`, automatically load the required sub-skills, and execute the `next_action` directly.
 2. **Review/Diff**:
@@ -28,7 +28,7 @@ On entry, analyze the prompt and workspace state to route to the correct sub-flo
    - If a spec has been created but no plan exists → route to `gsd-to-plan`.
    - If a plan exists and status is pending/in-progress → route to `gsd-executing-plans`.
 4. **Issue/Bug**:
-   - If user reports an error, stack trace, or failing test → route to `gsd-diagnosing-bugs`.
+   - A **hard/obscure** bug — non-obvious cause, hard to reproduce, a real regression, or a failure the per-task fix loop can't resolve → route to `gsd-diagnosing-bugs`. (Obvious single-spot failures were caught by Route 0.)
 5. **Codebase Exploration**:
    - If user asks about architecture, design, or deep module refactoring → route to `gsd-improve-codebase-architecture` (surface friction / audit candidates) or `gsd-codebase-design` (design or redesign one module's interface). Rule: **audit the system → improve; design one interface → codebase-design.**
 6. **New Work / Vague Input**:
@@ -36,7 +36,8 @@ On entry, analyze the prompt and workspace state to route to the correct sub-flo
 
 ## Routing rules
 - **First match wins.** Evaluate routes 0→6 in order and take the first match; Route 0 is the trivial guard — never let a simple prompt fall through to exploration.
-- **Multiple features in flight.** Routes 1/3 key off `.scratch/<feature>/`. If more than one feature dir exists and the prompt doesn't name one, resume the **most-recently-modified** (dir mtime) and name it in your first line so the user can redirect with one word — never silently pick an arbitrary feature.
+- **Multiple features in flight.** Routes 1/3 key off `.scratch/<feature>/`. If more than one feature dir exists and the prompt doesn't name one, resume the **most-recently-modified** (dir mtime) and name it in your first line so the user can redirect with one word — never silently pick an arbitrary feature. **To list/switch**: glob `.scratch/*/spec.md` (or `ls .scratch/`) and resume the named one.
+- **Route trace.** State the chosen route + target skill in one line at the top of your first response (e.g. `Route 4 → gsd-diagnosing-bugs`). Makes routing auditable — the user catches an over-eager route instantly and redirects.
 
 ## Scope discipline — read only what the prompt needs
 Match exploration breadth to prompt complexity; over-exploration drifts from the ask and burns the budget.
@@ -85,7 +86,7 @@ Rules:
 - The fix fast-paths (below) carry no `spec.md` — quick-fix goes through `gsd-verify` (code-quality only); nano-fix verifies inline (no gate).
 
 ## Auto-triggers (supporting skills fire automatically)
- - `gsd-lavish` — the exclusive visual surface for substantial deliverables: an approach comparison, a crystallized `spec.md`, a non-trivial finalized `plan.toon`, the `gsd-verify` report, an architecture audit. Never on inline Qs or mid-execution per-task diffs (those flow through the terminal verify gate).
+ - `gsd-lavish` — the exclusive visual surface for substantial deliverables: an approach comparison, a crystallized `spec.md`, a non-trivial finalized `plan.toon`, the `gsd-verify` report, an architecture audit. **Gate (both must hold):** (1) the artifact is a standalone, reviewable deliverable — not mid-conversation; AND (2) the user gains from annotating it in a browser surface. Never on inline Qs or mid-execution per-task diffs (those flow through the terminal verify gate). **On ambiguity, default to terminal output and ask the user** — lavish is opt-in, never assumed.
 - `gsd-ponytail` — quick-fix entry → short-circuit to fast-path below, skip the body.
 - `gsd-domain-modeling` — durable term/decision crystallizes → capture to `CONTEXT.md`/ADR.
 - `gsd-codebase-design` — a module-interface / deepening decision is in play.
@@ -101,7 +102,7 @@ Assumes a git repo — `git init` if the project is brand-new.
 Skill references — `skill`: refer to or route to a skill (trigger lists, control flow); `/skill`: invoke a skill inline within a step.
 AXI/TOON — **AXI** (Agent eXperience Interface) is the registered `axi` skill (`skill://axi`): ergonomic standards for agent-facing CLI output. **TOON** (Token-Oriented Object Notation, [spec](https://toonformat.dev/reference/spec.html)) is its token-efficient format (~40% smaller than JSON): `table[count]{fields}:` then one comma-separated row per line. `plan.toon` and `handoff-<n>.toon` are TOON; GSD adds `|` as a sub-separator for multi-value fields (e.g. `AC-1|AC-2`) within a field.
 `CONTEXT.md` — project glossary at repo root (sole writer: `gsd-domain-modeling`); `CONTEXT-MAP.md`, if present, indexes multiple contexts. `docs/adr/` holds ADRs. Other skills read these for vocabulary; none but `gsd-domain-modeling` writes `CONTEXT.md`.
-Contextual disclosure — the skill producing the **terminal/standalone** response appends its `Next steps:` (the master's are the non-technical End-session choices below; a sub-skill's are its own triggers). A sub-skill firing **inline** inside another skill's response adds nothing — only the outermost response shows next-steps, avoiding duplicates.
+Contextual disclosure — two end-of-response surfaces, never both at once: (a) the **master** appends non-technical **End-session choices** (numbered human actions, below); (b) a **directly-invoked sub-skill** appends its own **technical triggers** (`Next steps:` + skill commands). A sub-skill firing **inline** inside another skill's response appends nothing — only the outermost response shows, avoiding duplicates. Label cue: `Next steps:` = technical (sub-skill); numbered list = human (master).
 
  ## End-session Suggestions (Human Actions)
  At the end of every response/discussion, instead of listing technical skill commands, present concrete, non-technical choices for the user to select. E.g.:

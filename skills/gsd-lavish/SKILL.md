@@ -10,7 +10,7 @@ consumes: []
 
 Render a substantial deliverable as a reviewable HTML artifact the user annotates and feeds back on. Heavyweight (HTML artifact + local express server + browser surface + long-poll loop) — fire only on real reviewable deliverables.
 
-**Guard — do not fire on inline conversational Q&A.** It breaks discussion rhythm with browser sessions.
+**Fire gate (both must hold):** (1) the artifact is a standalone, reviewable deliverable — not mid-conversation; AND (2) the user gains from annotating it in a browser surface. **Never on inline conversational Q&A** — it breaks discussion rhythm with browser sessions. **On ambiguity, default to terminal output and ask the user** — lavish is opt-in, never assumed.
 
 ## Workflow
 1. Create the HTML artifact (default `.gsd-lavish/<name>.html`).

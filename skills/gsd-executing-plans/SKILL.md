@@ -2,7 +2,7 @@
 name: gsd-executing-plans
 description: Execute implementation plan(s) — dispatch a fresh `task` subagent per task, per-task verify, then the terminal `gsd-verify` gate. Triggered after `gsd-to-plan` (reads `.scratch/<feature>/plan.toon`).
 triggers: plan exists, pending/in-progress (gsd Route 3)
-produces: []
+produces: [plan.toon]
 consumes: [plan.toon]
 ---
 
@@ -53,7 +53,7 @@ All plans done + per-task verifications passed → invoke `gsd-verify` (reviewer
 - Re-dispatch a task the ledger marks done.
 
  ## Contextual disclosure (AXI Style)
- At the end of every response, always suggest next actions using the `/gsd` master entry point:
+Append this `Next steps:` block **only when you are the terminal/standalone response** (directly invoked or the last skill in the chain) — never when firing **inline** inside another skill's response; only the outermost response shows next-steps (`gsd` Conventions → Contextual disclosure). Example:
  ```
  Next steps:
  - /gsd (to check progress, trigger a verify, or save progress)
