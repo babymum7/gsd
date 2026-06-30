@@ -1,6 +1,9 @@
 ---
 name: gsd-executing-plans
 description: Execute implementation plan(s) — dispatch a fresh `task` subagent per task, per-task verify, then the terminal `gsd-verify` gate. Triggered after `gsd-to-plan` (reads `.scratch/<feature>/plan.toon`).
+triggers: plan exists, pending/in-progress (gsd Route 3)
+produces: []
+consumes: [plan.toon]
 ---
 
 # Executing Plans

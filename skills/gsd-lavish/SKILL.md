@@ -1,6 +1,9 @@
 ---
 name: gsd-lavish
 description: Turn complex/visual agent responses into rich, reviewable HTML artifacts via the local lavish-axi CLI. Auto-fires at substantial deliverables (spec, comparison, verify report) — never on inline Q&A.
+triggers: substantial deliverable (spec/plan/verify report/audit) — auto
+produces: []
+consumes: []
 ---
 
 # Lavish

@@ -1,6 +1,9 @@
 ---
 name: gsd-domain-modeling
 description: Build/sharpen the project's domain model — challenge terms, sharpen fuzzy language, capture decisions to `CONTEXT.md`/ADR. Auto-triggered when a durable term/decision crystallizes; also invokable directly to sharpen the glossary.
+triggers: durable term/decision crystallizes (auto); invokable directly
+produces: [CONTEXT.md, CONTEXT-MAP.md, docs/adr/]
+consumes: [CONTEXT.md]
 ---
 
 # Domain Modeling

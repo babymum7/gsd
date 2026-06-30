@@ -1,6 +1,9 @@
 ---
 name: gsd-diagnosing-bugs
 description: Diagnosis loop for hard bugs and performance regressions. Triggered when gsd-executing-plans hits a real bug/regression, or on explicit "diagnose/debug". Six phases — skip only when justified.
+triggers: error/stack/failing test (gsd Route 4); gsd-executing-plans blocker
+produces: []
+consumes: [CONTEXT.md, docs/adr/]
 ---
 
 # Diagnosing Bugs

@@ -1,6 +1,9 @@
 ---
 name: gsd-tdd
 description: Test-driven development — behavior through public interfaces, vertical tracer-bullet slices, red-green-refactor. Triggered by gsd-executing-plans for the per-task unit test.
+triggers: gsd-executing-plans per-task unit test
+produces: []
+consumes: [CONTEXT.md]
 ---
 
 # Test-Driven Development

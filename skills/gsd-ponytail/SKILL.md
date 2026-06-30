@@ -1,6 +1,9 @@
 ---
 name: gsd-ponytail
 description: Force the laziest solution that actually works — simplest, shortest, minimal. YAGNI, stdlib before custom, one line before fifty. Auto-fires on quick-fix entries; toggle /gsd-ponytail lite|full|ultra.
+triggers: quick-fix entry; toggle /gsd-ponytail lite|full|ultra
+produces: []
+consumes: []
 ---
 
 # Ponytail

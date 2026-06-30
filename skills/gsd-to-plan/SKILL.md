@@ -1,6 +1,9 @@
 ---
 name: gsd-to-plan
 description: Produce an implementation plan from a converged design — no interview, just write the plan. Triggered by `gsd` when the spec/design converges; outputs task-decomposed plan(s) to `.scratch/<feature>/plan.toon`.
+triggers: spec converged, no plan yet (gsd Route 3)
+produces: [plan.toon]
+consumes: [spec.md]
 ---
 
 # To Plan

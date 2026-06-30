@@ -1,6 +1,9 @@
 ---
 name: gsd-verify
 description: Terminal commit gate, invoked by `gsd-executing-plans` (or directly for quick-fix). Dispatch a `reviewer` subagent over the full WIP-branch diff; block the main commit on Critical/Important findings. Two verdicts — spec-compliance + code-quality.
+triggers: diff/PR review (gsd Route 2); terminal after gsd-executing-plans; quick-fix gate
+produces: []
+consumes: [spec.md, plan.toon]
 ---
 
 # Verify

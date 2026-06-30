@@ -1,6 +1,9 @@
 ---
 name: gsd-codebase-design
 description: Shared vocabulary for designing deep modules. Use when designing/improving a module's interface, deciding where a seam goes, making code testable or AI-navigable, or when another skill needs the deep-module vocabulary.
+triggers: module-interface/deepening decision (gsd Route 5); invokable
+produces: []
+consumes: []
 ---
 
 # Codebase Design

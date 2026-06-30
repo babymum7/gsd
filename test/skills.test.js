@@ -39,6 +39,11 @@ function parseFrontmatter(content) {
   }
   return fm;
 }
+/** Parse a frontmatter list value like "[a, b]" or "[]" into an array. */
+function parseList(value) {
+  if (!value) return [];
+  return value.replace(/^\[/, "").replace(/\]$/, "").split(",").map((s) => s.trim()).filter(Boolean);
+}
 
 /** Extract every `gsd-xxx` or `/gsd-xxx` reference from markdown text. */
 function extractSkillRefs(content) {
@@ -260,4 +265,25 @@ test("gsd-improve-codebase-architecture scopes its codebase walk", () => {
   const skill = readSkill("gsd-improve-codebase-architecture");
   const explore = skill.split("## 1. Explore")[1]?.split("\n## ")[0] || "";
   assert.match(explore, /git-tracked|git scope|node_modules|relevant area/i, "the Explore step must scope its walk to git-tracked relevant files — not the whole tree");
+});
+
+test("every skill declares triggers/produces/consumes frontmatter", () => {
+  for (const [name, content] of Object.entries(readAllSkills())) {
+    const fm = parseFrontmatter(content);
+    for (const key of ["triggers", "produces", "consumes"]) {
+      assert.ok(key in fm, `${name}: missing '${key}' frontmatter`);
+    }
+  }
+});
+
+test("pipeline closure — every consumed artifact is produced by some skill", () => {
+  const produced = new Set();
+  const consumed = new Set();
+  for (const content of Object.values(readAllSkills())) {
+    const fm = parseFrontmatter(content);
+    for (const a of parseList(fm.produces)) produced.add(a);
+    for (const a of parseList(fm.consumes)) consumed.add(a);
+  }
+  const orphans = [...consumed].filter((a) => !produced.has(a));
+  assert.deepEqual(orphans, [], `consumed artifact with no producer (pipeline gap): ${orphans.join(", ")}`);
 });
