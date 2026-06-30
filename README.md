@@ -70,23 +70,27 @@ To enable seamless session resuming and prevent context rot, the system operates
 
 ---
 
-## Installation & Updates
+## Installation
 
-To clean up old skills and link ONLY the `gsd` master skill (keeping the startup context lightweight):
+Install ONLY the `gsd` master entry — the single trigger that routes and coordinates every sub-skill from context. You never install sub-skills separately:
 
 ```bash
-# 1. Clean old skills
-rm -rf ~/.agents/skills && mkdir -p ~/.agents/skills
-
-# 2. Link only the gsd master entry
-ln -s ~/Documents/getrich/gsd/skills/gsd ~/.agents/skills/gsd
+bash install.sh
 ```
 
-### Dynamic Sub-Skill Loading
-All other sub-skills (TDD, plan execution, debugging, etc.) are kept inside the `/skills/` folder of this repository. When you run `/gsd`, the agent will dynamically load the instructions of those sub-skills from your workspace as needed using the `read` tool.
+`install.sh` symlinks `skills/gsd` into `~/.agents/skills/gsd` and removes any stray sub-skill links from older installs. Invoke `/gsd` on any prompt; it routes internally and loads the right sub-skill on demand.
+
+### How sub-skills load (cross-project)
+Sub-skills are NOT registered skills — they live as siblings of `gsd` in this repo. `/gsd` finds them by resolving its own symlink, so it works from any working directory:
+
+```bash
+SKILLS_DIR="$(dirname "$(readlink ~/.agents/skills/gsd)")"   # → …/this-repo/skills
+```
+
+then reads `$SKILLS_DIR/gsd-<sub>/SKILL.md`. No sub-skill registration needed.
 
 ### Auto-Update
-Since the `gsd` skill is symlinked, any updates to the master entry in this repository (e.g. from `git pull` or manual edits) are **automatically and instantly applied** to `~/.agents/skills/gsd` without any manual commands needed.
+`gsd` is symlinked, so any edit or `git pull` here applies instantly. Re-run `bash install.sh` only if you move the repo.
 
 ### Vendored Tool: Lavish Editor (`tools/lavish-axi`)
 The Lavish Editor CLI is tracked as a **git submodule** pointing to [kunchenguid/lavish-axi](https://github.com/kunchenguid/lavish-axi). To pull upstream changes:

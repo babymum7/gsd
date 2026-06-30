@@ -25,10 +25,13 @@ Turn a converged design into an executable implementation plan. No interview —
  - `test` — unit test file/path for TDD (or `none` if test-exempt).
  - `status` — `pending`, `in_progress`, `done`, or `superseded` (for spec revisions).
  
- Tasks run sequentially inside the plan. For parallelizable streams, write separate `plan.toon` tables or append a `stream` column if needed, but sequential execution is the default.
+Escaping — `,` separates columns and `|` separates values within a field (GSD's sub-separator; canonical TOON also allows `"quoted"` fields — see [spec](https://toonformat.dev/reference/spec.html)). For `plan.toon` keep it simple: a `task` needing a comma or pipe is the wrong shape — rephrase it (5-8 words) or split the task. File paths containing either are unsupported.
+
+Tasks run sequentially. Parallelism lives in how `gsd-executing-plans` dispatches `task` subagents (never on shared code) — never encoded in the plan.
 
 ## Auto-triggers
 - `gsd-codebase-design` — when a task involves designing/redesigning a module interface.
+- `gsd-lavish` — a non-trivial finalized `plan.toon` is a reviewable deliverable.
 
 ## Rules
 - Decompose by what an implementer can do in one focused pass, not by file type.

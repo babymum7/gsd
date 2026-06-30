@@ -12,7 +12,7 @@ Dispatch a fresh `task` subagent (the implementer) per task, verify each, then a
 
 ## Per task
 1. **Dispatch** a fresh `task` subagent with a single task-brief (the one task, the interfaces, the global constraints) — not the whole plan, not prior history.
-2. **Review** the returned diff: hand a `reviewer` subagent the task-brief (expected behavior) + the task's TDD note + the diff file + the BASE recorded before dispatch (never `HEAD~1`, which truncates multi-commit tasks). Require two verdicts: **task-compliance** (TDD test exists, passes, covers the task) AND **code-quality**.
+2. **Review** the returned diff: hand a `reviewer` subagent the task-brief (expected behavior) + the task's TDD note + the diff file + the BASE recorded before dispatch (never `HEAD~1`, which truncates multi-commit tasks). Require two verdicts: **task-compliance** (TDD test exists, passes, covers the task — per-task scope; the terminal whole-branch analogue is `gsd-verify`'s **spec-compliance**) AND **code-quality**.
 3. **Fix loop**: Critical/Important findings → fix subagent → re-verify. Never proceed with open Critical/Important.
 4. **Commit** to `wip/<feature>`. Never commit main during execution.
 5. **Tests**: unit only. E2E excluded from this loop.

@@ -47,8 +47,8 @@ function extractSkillRefs(content) {
   for (const m of content.matchAll(/`gsd-[a-z-]+`/g)) {
     refs.add(m[0].replaceAll("`", ""));
   }
-  // Slash-invoked: /gsd-verify
-  for (const m of content.matchAll(/\/gsd-[a-z-]+/g)) {
+  // Slash-invoked: /gsd-verify — must NOT follow a word char or "/" (skips URL path segments like open-gsd/gsd-core)
+  for (const m of content.matchAll(/(?<![a-z0-9\/])\/gsd-[a-z-]+/g)) {
     refs.add(m[0].slice(1));
   }
   return refs;
@@ -217,4 +217,47 @@ test("TOON format for handoff has required fields", () => {
   assert.ok(handoffSkill, "gsd-handoff/SKILL.md missing");
   assert.match(handoffSkill, /handoff\[.*\]\{.*mode.*phase.*next_action.*\}/s,
     "handoff.toon format missing required fields (mode, phase, next_action)");
+});
+
+test("every markdown-linked local file referenced by a skill exists", () => {
+  const skills = readAllSkills();
+  const failures = [];
+  for (const [skillName, content] of Object.entries(skills)) {
+    const dir = join(SKILLS_DIR, skillName);
+    for (const m of content.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
+      let target = m[1].split(/[#?]/)[0];
+      // skip URLs, mailto, and template placeholders
+      if (!target || /^https?:|^mailto:/.test(target)) continue;
+      if (/[<>{}]/.test(target)) continue;
+      if (!existsSync(join(dir, target))) {
+        failures.push(`${skillName}: references missing file "${target}"`);
+      }
+    }
+  }
+  assert.deepEqual(failures, [], `Missing referenced files:\n${failures.join("\n")}`);
+});
+
+test("the lavish-axi CLI the skills invoke exists", () => {
+  const cli = join(ROOT, "tools/lavish-axi/dist/cli.mjs");
+  assert.ok(existsSync(cli), `gsd-lavish invokes ${cli} but it does not exist (submodule not built?)`);
+});
+
+test("gsd master self-locates sub-skills (only gsd is registered)", () => {
+  const master = readSkill("gsd");
+  const section = master.split("## Dynamic Sub-Skill Loading")[1] || "";
+  assert.match(section, /readlink/, "gsd must self-locate sub-skills via readlink — only gsd is registered, sub-skills are siblings loaded on demand");
+});
+
+test("master enforces scope discipline against over-exploration", () => {
+  const master = readSkill("gsd");
+  const scope = master.split("## Scope discipline")[1] || "";
+  assert.ok(scope.length > 0, "gsd master must have a Scope discipline section");
+  assert.match(scope, /git-scoped|git-tracked|git space/i, "scope discipline must keep exploration inside the project's git scope");
+  assert.match(scope, /node_modules|dependency|non-git/i, "scope discipline must tell the agent to skip dependency/non-git noise dirs");
+});
+
+test("gsd-improve-codebase-architecture scopes its codebase walk", () => {
+  const skill = readSkill("gsd-improve-codebase-architecture");
+  const explore = skill.split("## 1. Explore")[1]?.split("\n## ")[0] || "";
+  assert.match(explore, /git-tracked|git scope|node_modules|relevant area/i, "the Explore step must scope its walk to git-tracked relevant files — not the whole tree");
 });
