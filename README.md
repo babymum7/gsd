@@ -31,9 +31,8 @@ skills/
 │   └── SKILL.md
 ├── gsd-handoff/                      # Handoff contracts & context compaction
 │   └── SKILL.md
-├── gsd-improve-codebase-architecture/ # Deepening scans & HTML reporting
-│   ├── SKILL.md
-│   └── HTML-REPORT.md
+├── gsd-improve-codebase-architecture/ # Deepening scans & visual review
+│   └── SKILL.md
 ├── gsd-lavish/                       # Visual HTML plan reporting & HITL
 │   └── SKILL.md
 ├── gsd-ponytail/                     # Enforcing the YAGNI ladder & lazy code
@@ -78,7 +77,7 @@ Install ONLY the `gsd` master entry — the single trigger that routes and coord
 bash install.sh
 ```
 
-`install.sh` symlinks `skills/gsd` into `~/.agents/skills/gsd` and removes any stray sub-skill links from older installs. Invoke `/gsd` on any prompt; it routes internally and loads the right sub-skill on demand.
+`install.sh` symlinks `skills/gsd` into `~/.agents/skills/gsd`, removes any stray sub-skill links from older installs, and initializes the `lavish-axi` submodule (the optional visual path — skip building it and skills degrade to terminal). Invoke `/gsd` on any prompt; it routes internally and loads the right sub-skill on demand.
 
 ### How sub-skills load (cross-project)
 Sub-skills are NOT registered skills — they live as siblings of `gsd` in this repo. `/gsd` finds them by resolving its own symlink, so it works from any working directory:
@@ -100,10 +99,7 @@ git submodule update --remote tools/lavish-axi
 cd tools/lavish-axi && pnpm install && pnpm run build
 ```
 
-First-time clone requires initializing submodules:
+`bash install.sh` initializes the submodule for you. The visual path is opt-in — to enable it, build the CLI once (skills degrade to terminal if you don't):
 ```bash
-git clone --recurse-submodules <repo-url>
-# or after clone:
-git submodule update --init --recursive
 cd tools/lavish-axi && pnpm install && pnpm run build
 ```

@@ -34,7 +34,7 @@ Tasks run sequentially. Parallelism lives in how `gsd-executing-plans` dispatche
 
 ## Auto-triggers
 - `gsd-codebase-design` — when a task involves designing/redesigning a module interface.
-- `gsd-lavish` — a non-trivial finalized `plan.toon` is a reviewable deliverable.
+- `gsd-lavish` — a non-trivial finalized `plan.toon` is a reviewable deliverable (opt-in: Fire gate must hold AND user accepts).
 
 ## Rules
 - Decompose by what an implementer can do in one focused pass, not by file type.

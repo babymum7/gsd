@@ -16,4 +16,10 @@ for link in "$REG"/gsd-*; do
   [ -L "$link" ] && rm "$link"
 done
 
-echo "Installed: only 'gsd' is registered in $REG (sub-skills load on demand via /gsd)."
+# 3. Ensure the lavish-axi submodule is present (optional visual surface; skills degrade to terminal if absent/unbuilt).
+if [ -f "$REPO/.gitmodules" ]; then
+  git -C "$REPO" submodule update --init --recursive >/dev/null 2>&1 \
+    || echo "  warn: lavish-axi submodule not initialized — lavish HTML path unavailable; skills degrade to terminal."
+fi
+
+echo "Installed: only 'gsd' is registered in $REG (sub-skills load on demand via /gsd). The lavish-axi submodule was initialized; build it (cd tools/lavish-axi && pnpm i && pnpm build) to enable the optional visual path."

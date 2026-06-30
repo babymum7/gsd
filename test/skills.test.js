@@ -347,3 +347,51 @@ test("ponytail states its persistence contract (Minor 2)", () => {
   assert.match(ponytail, /only via a `gsd-handoff`/, "ponytail must state it persists only via a handoff");
   assert.match(ponytail, /hard reset/, "ponytail must warn a hard reset loses the level");
 });
+
+// ── Gap tests added by the gsd-audit pass ────────────────
+
+test("no orphaned files in skill directories (each non-SKILL.md is referenced by a SKILL.md)", () => {
+  const allSkillText = Object.values(readAllSkills()).join("\n");
+  const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
+    const p = join(dir, e.name);
+    return e.isDirectory() ? walk(p) : [p];
+  });
+  const orphans = [];
+  for (const skill of listSkillDirs()) {
+    for (const f of walk(join(SKILLS_DIR, skill))) {
+      const base = f.split("/").pop();
+      if (base !== "SKILL.md" && !allSkillText.includes(base)) orphans.push(f.split("/").slice(-2).join("/"));
+    }
+  }
+  assert.equal(orphans.length, 0, `orphaned files not referenced by any SKILL.md: ${orphans.join(", ")}`);
+});
+
+test("install.sh registers only gsd and initializes the lavish submodule", () => {
+  const sh = readFileSync(join(ROOT, "install.sh"), "utf8");
+  assert.match(sh, /ln -sfn[^\n]*skills\/gsd/, "install.sh must symlink skills/gsd to the registry");
+  assert.doesNotMatch(sh, /ln -sfn[^\n]*skills\/gsd-/, "install.sh must not symlink any gsd- sub-skill");
+  assert.match(sh, /submodule update --init/, "install.sh must initialize the lavish-axi submodule");
+});
+
+test("every gsd-lavish mention is gated by an opt-in cue (no unconditional browser launch)", () => {
+  const cue = /opt-?in|opted in|opts in|default to terminal|if the user (?:opts|wants|accepts)|only if the user/i;
+  const offenders = [];
+  for (const [name, content] of Object.entries(readAllSkills())) {
+    if (name === "gsd-lavish") continue; // defines the gate itself
+    content.split("\n").forEach((line, i) => {
+      if (/gsd-lavish/.test(line) && !cue.test(line)) offenders.push(`${name}:${i + 1}  ${line.trim()}`);
+      });
+  }
+  assert.equal(offenders.length, 0, `lines mention gsd-lavish with no opt-in cue:\n${offenders.join("\n")}`);
+});
+
+test("master defines the Route 0↔4 bug-routing boundary with a fix-loop escalation fallback", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /0↔4/, "master must name the Route 0↔4 boundary");
+  assert.match(gsd, /fails twice/, "master must state the escalation trigger (fix loop fails twice)");
+});
+
+test("master states graceful degradation for optional capabilities (browser/lavish)", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /degrad/i, "master must state optional capabilities degrade to terminal when unavailable");
+});

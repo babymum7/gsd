@@ -13,7 +13,7 @@ The gate before a WIP branch merges to main. Dispatch a **reviewer** subagent (o
  ## Run
  1. Capture the full WIP diff against main: `git diff main...wip/<feature>` → a uniquely-named file.
  2. Dispatch a `reviewer` subagent with the diff file + `.scratch/<feature>/spec.md` + `.scratch/<feature>/plan.toon`.
- 3. Compile the verify findings and invoke `/gsd-lavish` to present the verify report visually to the user.
+ 3. Compile the verify findings and present them in the terminal by default. Offer a browser-reviewed `gsd-lavish` report only if the user opts in — lavish is opt-in, never assumed (Fire gate).
  4. Critical/Important findings block the commit; Minor are logged.
 ## Outcomes
 - **Pass** (no open Critical/Important) → squash `wip/<feature>` → single commit to main. **For UI/UX features, run E2E immediately after** (manual or harness browser tool) — this gate is unit-level; E2E is the only check of the user-facing path. Optionally archive/remove `.scratch/<feature>/`.
