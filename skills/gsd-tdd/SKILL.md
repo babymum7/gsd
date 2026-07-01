@@ -21,7 +21,7 @@ RIGHT:  RED→GREEN: test1→impl1, test2→impl2, ...
 ```
 
 ## Workflow
-1. **Planning** — read `CONTEXT.md` if it exists (match domain vocabulary) + respect ADRs. Confirm with user: interface changes, which behaviors to test (prioritize — you can't test everything), identify deep-module opportunities (`gsd-codebase-design`). List behaviors (not impl steps). Get approval.
+1. **Planning** — read `CONTEXT.md` if it exists (match domain vocabulary) + respect ADRs. Settle interface changes, which behaviors to test (prioritize — you can't test everything), and deep-module opportunities (`gsd-codebase-design`). List behaviors (not impl steps). **Dispatched headless by `gsd-executing-plans`** (the common path): derive all of this from the task-brief — no user to confirm with; the brief + `spec.md` ACs are the contract. **Invoked directly by a user**: confirm the behavior list and get approval before writing tests.
 2. **Tracer bullet** — ONE test confirming ONE thing: RED (write test → fails) → GREEN (minimal code → passes). Proves the path end-to-end.
 3. **Incremental loop** — each remaining behavior: RED → GREEN. One test at a time, only enough code to pass, no anticipating future tests, focused on observable behavior.
 4. **Refactor** — after all green: extract duplication, deepen modules, SOLID where natural, consider what new code reveals about old. Run tests after each step. **Never refactor while RED.**

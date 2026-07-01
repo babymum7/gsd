@@ -18,14 +18,7 @@ Read `CONTEXT.md` + ADRs in the area first (if they exist). Then survey the **re
  ## 2. Present candidates — Lavish visual review
  Do NOT write manual HTML files. Compile the candidates and present them in the terminal by default. Offer a `gsd-lavish` artifact (using the `comparison` and `diagram` playbooks) only if the user opts in — lavish is opt-in, never assumed.
  
- Each candidate card in the Lavish interface must show:
- - **Badge row** — Recommendation strength (`Strong` = emerald, `Worth exploring` = amber, `Speculative` = slate), plus dependency category (`in-process`, `local-substitutable`, `ports & adapters`, `mock`).
- - **Files** — Monospaced list.
- - **Before / After diagram** — Side-by-side comparison using Mermaid or HTML cross-sections.
- - **Problem** — One sentence description of friction/leakage.
- - **Solution** — One sentence description of consolidate/deepen plan.
- - **Wins** — Bulleted list of benefits (locality, leverage, testability) using exact glossary terms.
- - **ADR callout** — One line alert if reopening an existing ADR.
+ Each candidate carries: recommendation strength (`Strong`/`Worth exploring`/`Speculative`) + dependency category (`in-process`/`local-substitutable`/`ports & adapters`/`mock`), the files, a before/after sketch, the friction (one sentence), the deepen plan (one sentence), wins in exact glossary terms (locality, leverage, testability), and an ADR callout if reopening one. Terminal renders this as prose/Mermaid; the visual card layout (badge colors, cross-sections) lives in the `gsd-lavish` `comparison`/`diagram` playbooks and only matters when the user opts into the browser surface.
  
  Do NOT propose interfaces or write code yet. Present the candidates (terminal default; `gsd-lavish` if opted in) and ask the user to pick one.
 

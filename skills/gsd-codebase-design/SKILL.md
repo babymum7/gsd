@@ -32,27 +32,9 @@ Use these terms exactly — don't substitute "component," "service," "API," or "
 
 ## Deep vs shallow
 
-**Deep module** = small interface + lots of implementation:
+**Deep module** — small interface (few methods, simple params) hiding a large implementation (complex logic). Maximize leverage: callers learn little, get much.
 
-```
-┌─────────────────────┐
-│   Small Interface   │  ← Few methods, simple params
-├─────────────────────┤
-│                     │
-│  Deep Implementation│  ← Complex logic hidden
-│                     │
-└─────────────────────┘
-```
-
-**Shallow module** = large interface + little implementation (avoid):
-
-```
-┌─────────────────────────────────┐
-│       Large Interface           │  ← Many methods, complex params
-├─────────────────────────────────┤
-│  Thin Implementation            │  ← Just passes through
-└─────────────────────────────────┘
-```
+**Shallow module** (avoid) — large interface (many methods, complex params) wrapping a thin implementation (just passes through). The interface is nearly as complex as the implementation.
 
 When designing an interface, ask:
 

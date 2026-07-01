@@ -15,9 +15,9 @@ Turn a converged design into an executable implementation plan. No interview —
  
  Format:
  ```
- plan[count]{id,task,satisfies,files,test,status}:
-   T1,<task description>,AC-1|AC-2,src/auth.ts|src/user.ts,tests/auth.test.ts,pending
-   T2,<task description>,AC-3,src/router.ts,none,pending
+plan[count]{id,task,satisfies,files,test,status}:
+  T1,<task description>,AC-1|AC-2,src/auth.ts|src/user.ts,tests/auth.test.ts,pending
+  T2,<task description>,AC-3,src/router.ts,none,pending
  ```
  
  Columns:
@@ -25,12 +25,12 @@ Turn a converged design into an executable implementation plan. No interview —
  - `task` — short task description (5-8 words).
  - `satisfies` — pipe-separated list of AC IDs from `spec.md`.
  - `files` — pipe-separated list of affected files.
- - `test` — unit test file/path for TDD (or `none` if test-exempt).
+- `test` — unit test file/path for TDD (or `none` if test-exempt).
  - `status` — `pending`, `in_progress`, `done`, or `superseded` (for spec revisions).
  
 Escaping — `,` separates columns and `|` separates values within a field (GSD's sub-separator; canonical TOON also allows `"quoted"` fields — see [spec](https://toonformat.dev/reference/spec.html)). For `plan.toon` keep it simple: a `task` needing a comma or pipe is the wrong shape — rephrase it (5-8 words) or split the task. File paths containing either are unsupported.
 
-Tasks run sequentially. Parallelism lives in how `gsd-executing-plans` dispatches `task` subagents (never on shared code) — never encoded in the plan.
+Tasks run sequentially — `gsd-executing-plans` dispatches one `task` subagent at a time, in `id` order. Order the tasks so each runs after what it depends on; the sequence itself carries the dependencies.
 
 ## Auto-triggers
 - `gsd-codebase-design` — when a task involves designing/redesigning a module interface.
@@ -38,7 +38,8 @@ Tasks run sequentially. Parallelism lives in how `gsd-executing-plans` dispatche
 
 ## Rules
 - Decompose by what an implementer can do in one focused pass, not by file type.
-- Mark inter-task dependencies explicitly; never hide a sequencing constraint inside a task.
+- **Cover every AC.** Each AC in `spec.md` MUST appear in some task's `satisfies`. Before finishing, cross-check the union of all `satisfies` against the AC list — a missing AC is an incomplete plan, not a verify-time surprise.
+- Encode every inter-task dependency in the task order — a dependent task gets a later `id`. Never bury a sequencing constraint in `task` prose.
 - If the design has a gap that blocks planning, STOP — route back to `gsd` (Discussion) → revise `spec.md` → re-plan. Do not invent scope to fill it.
 - No interviews, no scope expansion. The plan reflects the design; it doesn't renegotiate it.
 

@@ -391,6 +391,13 @@ test("master defines the Route 0↔4 bug-routing boundary with a fix-loop escala
   assert.match(gsd, /fails twice/, "master must state the escalation trigger (fix loop fails twice)");
 });
 
+test("Route 3 relevance guard prevents swallowing unrelated prompts when a plan exists", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /relates to that feature/, "Route 3 must require prompt relevance to the existing feature");
+  assert.match(gsd, /falls through|fall through/, "Route 3 must let unrelated prompts fall through, not swallow them");
+  assert.match(gsd, /not a claim on every prompt/, "an existing plan must not claim every prompt");
+});
+
 test("master states graceful degradation for optional capabilities (browser/lavish)", () => {
   const gsd = readSkill("gsd");
   assert.match(gsd, /degrad/i, "master must state optional capabilities degrade to terminal when unavailable");
@@ -399,4 +406,86 @@ test("master states graceful degradation for optional capabilities (browser/lavi
 test("master bounds read-only/exploratory questions to the targeted scope (L2)", () => {
   const gsd = readSkill("gsd");
   assert.match(gsd, /read-only question|exploratory question|a question is not/i, "master must bound read-only questions to the targeted scope, not a tree walk");
+});
+
+// ── Gap tests added by the second gsd-audit pass ─────────
+
+test("gsd-tdd Planning distinguishes headless dispatch from direct user invocation", () => {
+  const tdd = readSkill("gsd-tdd");
+  assert.ok(tdd, "gsd-tdd missing");
+  // Dispatched headless by executing-plans: no user, derive from the task-brief — must NOT block on approval
+  assert.match(tdd, /headless/i, "gsd-tdd Planning must name the headless dispatch path");
+  assert.match(tdd, /task-brief/, "gsd-tdd headless path must derive behaviors from the task-brief");
+  // Direct invocation still confirms with the user
+  assert.match(tdd, /[Ii]nvoked directly/, "gsd-tdd must keep the direct-invocation confirm path");
+});
+
+test("gsd-verify owns an E2E gate that blocks the merge for user-facing features", () => {
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /E2E gate/, "gsd-verify must define an explicit E2E gate");
+  assert.match(verify, /blocks the merge/, "the E2E gate must block the merge, not run as an afterthought");
+  assert.match(verify, /E2E-exempt/, "gsd-verify must let pure non-UI changes opt out explicitly");
+});
+
+test("gsd-executing-plans defers E2E to the gsd-verify gate (no orphaned E2E)", () => {
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /E2E is excluded from this per-task loop/, "executing-plans must state E2E is excluded by design");
+  assert.match(exec, /owned by the `gsd-verify` E2E gate/, "executing-plans must hand E2E ownership to gsd-verify");
+});
+
+test("master mirrors the user's language, anchored to the user's own prompt (ignores injected text)", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /Respond in the user's language/, "master must instruct responding in the user's language");
+  assert.match(gsd, /verbatim/, "master must exempt code/identifiers/paths from translation");
+  // The language anchor is the user's prompt — injected advisory/system/tool text must not switch it
+  assert.match(gsd, /user's own prompt/, "master must anchor on the user's own prompt");
+  assert.match(gsd, /advisory|system-directive/, "master must say injected text never switches the response language");
+});
+
+test("CONTEXT.md has a single writer: only gsd-domain-modeling declares it in produces", () => {
+  const writers = [];
+  for (const name of listSkillDirs()) {
+    const produces = parseList(parseFrontmatter(readSkill(name)).produces);
+    if (produces.includes("CONTEXT.md")) writers.push(name);
+  }
+  assert.deepEqual(writers, ["gsd-domain-modeling"], `exactly gsd-domain-modeling may produce CONTEXT.md; got: ${writers.join(", ")}`);
+});
+
+test("gsd-domain-modeling declares itself the sole writer of CONTEXT.md", () => {
+  const dm = readSkill("gsd-domain-modeling");
+  assert.match(dm, /sole writer/, "gsd-domain-modeling must declare itself CONTEXT.md's sole writer");
+});
+
+test("lavish CLI resolves to the vendored local tool (no global/bare drift)", () => {
+  const offenders = [];
+  for (const [name, content] of Object.entries(readAllSkills())) {
+    content.split("\n").forEach((line, i) => {
+      // Only check lines that reference the lavish-axi binary or cli.mjs
+      if (!/cli\.mjs|lavish-axi/.test(line)) return;
+      // Accepted: vendored path (direct invocation or variable assignment)
+      if (/tools\/lavish-axi\/dist\/cli\.mjs/.test(line)) return;
+      // Accepted: using the resolved $CLI variable
+      if (/\$CLI/.test(line)) return;
+      // Accepted: frontmatter metadata (name/description/triggers/produces/consumes)
+      if (/^\s*(name|description|triggers|produces|consumes):/.test(line)) return;
+      // Reject: anything else — global (npx/pnpm dlx/yarn/bun lavish-axi) or bare (lavish-axi <file>)
+      offenders.push(`${name}:${i + 1}  ${line.trim()}`);
+    });
+  }
+  assert.equal(offenders.length, 0,
+    `lavish must use the vendored tools/lavish-axi/dist/cli.mjs or $CLI variable — no global/bare invocations:\n${offenders.join("\n")}`);
+});
+
+test("gsd-lavish resolves CLI path cross-project via symlink (not bare relative path)", () => {
+  const lavish = readSkill("gsd-lavish");
+  assert.match(lavish, /readlink/, "gsd-lavish must resolve its CLI via readlink symlink resolution");
+  assert.match(lavish, /\$CLI/, "gsd-lavish must use a $CLI variable for invocations");
+});
+
+test("gsd-codebase-design defines deep vs shallow in prose (not ASCII art)", () => {
+  const design = readSkill("gsd-codebase-design");
+  const section = design.split("## Deep vs shallow")[1]?.split("\n## ")[0] || "";
+  assert.match(section, /Deep module.*small interface/i, "deep module definition must be in prose");
+  assert.match(section, /Shallow module.*large interface/i, "shallow module definition must be in prose");
+  assert.ok(!/┌─/.test(section), "deep vs shallow section should not contain ASCII box art");
 });

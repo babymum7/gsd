@@ -61,14 +61,6 @@ To enable seamless session resuming and prevent context rot, the system operates
 
 ---
 
-## Current State of the Project
-
- *   **Consolidation**: Complete. The master entry `gsd/` and all supporting sub-skills are grouped under `/skills/`.
- *   **Prefix Retention**: Complete. All directory names, skill frontmatter metadata, and internal references/cross-triggers contain the `gsd-` prefix (with the master entry named `gsd`).
-*   **Branch status**: Ready for execution.
-
----
-
 ## Installation
 
 Install ONLY the `gsd` master entry — the single trigger that routes and coordinates every sub-skill from context. You never install sub-skills separately:
@@ -87,6 +79,8 @@ SKILLS_DIR="$(dirname "$(readlink ~/.agents/skills/gsd)")"   # → …/this-repo
 ```
 
 then reads `$SKILLS_DIR/gsd-<sub>/SKILL.md`. No sub-skill registration needed.
+
+You only ever type `/gsd` (plus what you want, in plain language). The `/gsd-<sub>` names that appear in the skills are the agent's own internal calls after it routes — not commands you register or invoke yourself.
 
 ### Auto-Update
 `gsd` is symlinked, so any edit or `git pull` here applies instantly. Re-run `bash install.sh` only if you move the repo.

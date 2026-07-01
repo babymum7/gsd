@@ -10,14 +10,20 @@ consumes: [handoff-<n>.toon, plan.toon]
 
 The single entry point for all workflows. The user invokes `/gsd` on any prompt, and the agent determines the appropriate sub-flow to execute or resume.
 
+**Respond in the user's language.** `gsd` is the entry prompt — detect the language of the **user's own prompt** and reply in it (questions, recommendations, spec/plan prose, end-session choices). The anchor is the user's established language: ignore the language of injected `<advisory>`/`<system-directive>`/tool output — they never switch your response language. Switch only when the **user themselves** writes in a different language. Keep code, identifiers, file paths, TOON keys, AC IDs, and skill names verbatim — only prose is translated.
+
 ## System map
 **Pipeline:** `gsd` (Master Entry & Discussion) → `gsd-to-plan` → `gsd-executing-plans` → `gsd-verify` → main.
 **Auto-composed:** `gsd-lavish` (render deliverables, **opt-in**), `gsd-ponytail` (minimize code), `gsd-domain-modeling` (glossary), `gsd-codebase-design` (module vocab), `gsd-handoff` (resume), `gsd-tdd` (unit tests), `gsd-diagnosing-bugs` (debug), `gsd-improve-codebase-architecture` (deepening).
 **Feedback loops:** `gsd-verify`/`gsd-executing-plans`/`gsd-to-plan` → `gsd` (spec gap — the sub-skill **stops** and routes back to `/gsd` Discussion: "Spec escalation" / "Spec flawed"; revise `spec.md` under fresh AC IDs, then re-plan the affected tasks); `gsd-diagnosing-bugs` → `gsd-improve-codebase-architecture`.
 **Manual/proactive:** any skill is also directly invokable — `/gsd-improve-codebase-architecture` (audit deepening), `/gsd-diagnosing-bugs` (stuck), `/gsd-domain-modeling` (sharpen glossary), `/gsd-codebase-design` (interface design).
 
+**Invocation model.** The end user installs and types only `/gsd` (plus natural-language intent); `/gsd` reads the prompt + state and routes. The `/gsd-<sub>` forms above are the **agent's own inline calls** after routing — not commands the user registers or memorizes. `install.sh` registers only `gsd`.
+
 ## Smart Routing Engine
 On entry, analyze the prompt and workspace state to route to the correct sub-flow:
+
+**Step 0 — Detect state first (before matching routes).** Glob `.scratch/*/` for `spec.md` / `plan.toon` / `handoff-*.toon`, and scan the prompt for a pasted diff/PR. Workspace state — not just the prompt's wording — drives Routes 1/2/3: a "continue"/"resume" prompt with a live `handoff-*.toon` is Route 1 even when it reads like new work; a feature ask **related to** an existing feature with a `plan.toon` is Route 3; an **unrelated** feature ask with a `plan.toon` is Route 6 (new work), not Route 3.
 0. **Direct / Trivial (check first)**:
    - Simple question, advisory, a small targeted change (named file, ≤1 module, no design), OR an **obvious** failing-test/error fix (clear single-spot root cause, no investigation needed) → answer directly or `gsd-ponytail` quick-fix. **Do NOT explore broadly or trigger architecture skills.**
 1. **Resume**:
@@ -26,7 +32,7 @@ On entry, analyze the prompt and workspace state to route to the correct sub-flo
    - If the prompt contains a diff, PR description, or asks for code review → route to `gsd-verify`.
 3. **Spec/Plan**:
    - If a spec has been created but no plan exists → route to `gsd-to-plan`.
-   - If a plan exists and status is pending/in-progress → route to `gsd-executing-plans`.
+   - If a plan exists and status is pending/in-progress AND the prompt relates to that feature's tasks → route to `gsd-executing-plans`. A prompt about a different concern (new feature, unrelated bug/question) falls through to Route 4/5/6 — an existing plan is not a claim on every prompt.
 4. **Issue/Bug**:
    - A **hard/obscure** bug — non-obvious cause, hard to reproduce, a real regression, or a failure the per-task fix loop can't resolve → route to `gsd-diagnosing-bugs`. (Obvious single-spot failures were caught by Route 0.)
 5. **Codebase Exploration**:
@@ -36,9 +42,13 @@ On entry, analyze the prompt and workspace state to route to the correct sub-flo
 
 ## Routing rules
 - **First match wins.** Evaluate routes 0→6 in order and take the first match; Route 0 is the trivial guard — never let a simple prompt fall through to exploration.
-- **Multiple features in flight.** Routes 1/3 key off `.scratch/<feature>/`. If more than one feature dir exists and the prompt doesn't name one, resume the **most-recently-modified** (dir mtime) and name it in your first line so the user can redirect with one word — never silently pick an arbitrary feature. **To list/switch**: glob `.scratch/*/spec.md` (or `ls .scratch/`) and resume the named one.
+- **Multiple features in flight.** Routes 1/3 key off `.scratch/<feature>/`. If more than one feature dir exists and the prompt doesn't name one: among **relevant** live features (resume-style or feature-related prompts), resume the **most-recently-modified** (dir mtime) and name it in your first line so the user can redirect — never silently pick an arbitrary feature. If the prompt is unrelated to all existing features (new work), fall through to Route 6. **To list/switch**: glob `.scratch/*/spec.md` (or `ls .scratch/`) and resume the named one.
 - **Route trace.** State the chosen route + target skill in one line at the top of your first response (e.g. `Route 4 → gsd-diagnosing-bugs`). Makes routing auditable — the user catches an over-eager route instantly and redirects.
 - **Route 0↔4 boundary.** Route 0 if you can name the single spot and write the fix without investigation; otherwise Route 4. Unsure → start at Route 0; if the fix loop fails twice, escalate to Route 4 (don't keep retrying the same one-spot guess).
+- **Route 3 relevance guard.** A pending plan routes to execution ONLY when the prompt relates to that feature's tasks. Unrelated prompt + existing plan → fall through (the user may be starting new work or asking an unrelated question).
+
+## Routing examples
+Typo/named-spot fix → 0 (nano). "can't repro" bug → 4. "add feature X" → 6. "resume" + handoff → 1. Pasted diff → 2. "how does X work?" → 0 (read-only). "audit architecture" → 5. Existing plan + unrelated ask → 6 (relevance guard).
 
 ## Scope discipline — read only what the prompt needs
 Match exploration breadth to prompt complexity; over-exploration drifts from the ask and burns the budget.
@@ -50,13 +60,12 @@ Match exploration breadth to prompt complexity; over-exploration drifts from the
 - **Delegating exploration** (Explore subagent) → pass these bounds in its prompt; an unscoped explore subagent walks everything.
 
 ## Dynamic Sub-Skill Loading
-To keep startup context light, only `/gsd` is registered/loaded; sub-skills are NOT separate skills — they are sibling directories of `gsd`'s real location. When `/gsd` routes to one, read its `SKILL.md` with your native read tool at `<resolved-gsd-dir>/gsd-<sub>/SKILL.md`. That dir resolves from this skill's own symlink (works from any cwd):
+Only `/gsd` is registered; sub-skills are siblings loaded on demand. Resolve from this skill's symlink (any cwd):
 ```
-  LINK=~/.agents/skills/gsd
-  SKILLS_DIR="$(dirname "$(readlink "$LINK" 2>/dev/null || echo "$LINK")")"
-  # then: read "$SKILLS_DIR/gsd-<sub-skill>/SKILL.md"
+  SKILLS_DIR="$(dirname "$(readlink ~/.agents/skills/gsd 2>/dev/null || echo ~/.agents/skills/gsd)")"
+  # read "$SKILLS_DIR/gsd-<sub>/SKILL.md"
 ```
-`readlink` follows this skill's own symlink to its real location, so it works from any working directory. Fallback: if `~/.agents/skills/gsd` is a real directory (not a symlink — e.g. copied, not `install.sh`'d), `|| echo "$LINK"` uses it directly. If a sibling `gsd-<sub-skill>/SKILL.md` then can't be read, the install is incomplete — re-run `install.sh` (it symlinks the repo, bringing the siblings) rather than guessing.
+Fallback: real dir (not symlink) → `|| echo` uses it directly. Sibling missing → re-run `install.sh`, don't guess.
 
 ## Entry — Discussion Mode
 - Pastes plan/spec/diff → **stress-test**.
@@ -88,7 +97,7 @@ Rules:
 - The fix fast-paths (below) carry no `spec.md` — quick-fix goes through `gsd-verify` (code-quality only); nano-fix verifies inline (no gate).
 
 ## Triggers (supporting skills fire automatically — except lavish, which is opt-in)
- - `gsd-lavish` — the exclusive visual surface for substantial deliverables (approach comparison, a crystallized `spec.md`, a non-trivial finalized `plan.toon`, the `gsd-verify` report, an architecture audit). **Opt-in, never auto-fired** — even when the gate holds, the user must accept before a browser launches; default to terminal, ask first. **Gate (both must hold):** (1) the artifact is a standalone, reviewable deliverable — not mid-conversation; AND (2) the user gains from annotating it in a browser surface. Never on inline Qs or mid-execution per-task diffs (those flow through the terminal verify gate).
+ - `gsd-lavish` — opt-in visual surface for substantial, standalone deliverables (spec, approach comparison, finalized `plan.toon`, verify report, architecture audit). **Never auto-fired**: default to terminal, ask first. **Gate (both must hold):** (1) a reviewable deliverable, not mid-conversation; AND (2) the user gains from annotating it in a browser. Never on inline Qs or per-task diffs.
 - `gsd-ponytail` — quick-fix entry → short-circuit to fast-path below, skip the body.
 - `gsd-domain-modeling` — durable term/decision crystallizes → capture to `CONTEXT.md`/ADR.
 - `gsd-codebase-design` — a module-interface / deepening decision is in play.
@@ -99,13 +108,11 @@ Rules:
 - **Quick-fix** — a real but small fix (no design, ≤1 module): set `gsd-ponytail`, fix directly, write a minimal `plan.toon` (1-2 tasks) to `.scratch/<feature>/`, commit to `wip/<feature>` → `/gsd-verify` (code-quality only, no `spec.md`) → main. Skips the Discussion body, not the `gsd-verify` gate.
 
 ## Conventions
-`<feature>` = the feature slug. All artifacts live under `.scratch/<feature>/` — create with `mkdir -p .scratch/<feature>/` before first write. Artifacts: `spec.md`, `plan.toon`, `handoff-<n>.toon`. The working branch is `wip/<feature>`.
-Assumes a git repo — `git init` if the project is brand-new.
-Skill references — `skill`: refer to or route to a skill (trigger lists, control flow); `/skill`: invoke a skill inline within a step.
-AXI/TOON — **AXI** (Agent eXperience Interface) is the registered `axi` skill (`skill://axi`): ergonomic standards for agent-facing CLI output. **TOON** (Token-Oriented Object Notation, [spec](https://toonformat.dev/reference/spec.html)) is its token-efficient format (~40% smaller than JSON): `table[count]{fields}:` then one comma-separated row per line. `plan.toon` and `handoff-<n>.toon` are TOON; GSD adds `|` as a sub-separator for multi-value fields (e.g. `AC-1|AC-2`) within a field.
-`CONTEXT.md` — project glossary at repo root (sole writer: `gsd-domain-modeling`); `CONTEXT-MAP.md`, if present, indexes multiple contexts. `docs/adr/` holds ADRs. Other skills read these for vocabulary; none but `gsd-domain-modeling` writes `CONTEXT.md`.
-Contextual disclosure — two end-of-response surfaces, never both at once: (a) the **master** appends non-technical **End-session choices** (numbered human actions, below); (b) a **directly-invoked sub-skill** appends its own **technical triggers** (`Next steps:` + skill commands). A sub-skill firing **inline** inside another skill's response appends nothing — only the outermost response shows, avoiding duplicates. Label cue: `Next steps:` = technical (sub-skill); numbered list = human (master).
-Graceful degradation — optional capabilities (the browser surface, lavish) are assumed absent by default; if unavailable (unbuilt submodule, no browser tool), fall back to terminal output silently, never error. A missing lavish path degrades to terminal, not failure.
+`<feature>` = feature slug. Artifacts under `.scratch/<feature>/` (`mkdir -p .scratch/<feature>/` before first write): `spec.md`, `plan.toon`, `handoff-<n>.toon`. Branch: `wip/<feature>`. Git repo assumed (`git init` if new). Skill refs: `skill` = refer/route; `/skill` = invoke inline.
+**TOON** (Token-Oriented Object Notation, [spec](https://toonformat.dev/reference/spec.html)) — ~40% smaller than JSON: `table[count]{fields}:` then one comma-separated row/line. `plan.toon`/`handoff-<n>.toon` are TOON; GSD adds `|` as sub-separator (e.g. `AC-1|AC-2`).
+`CONTEXT.md` — project glossary at repo root (sole writer: `gsd-domain-modeling`); `CONTEXT-MAP.md` indexes multiple contexts; `docs/adr/` holds ADRs.
+Contextual disclosure — two surfaces, never both: (a) **master** → numbered human end-session choices; (b) **directly-invoked sub-skill** → `Next steps:` + commands. Inline firing appends nothing. Cue: `Next steps:` = technical; numbered = human.
+Graceful degradation — optional capabilities (browser, lavish) assumed absent; unavailable → terminal silently. Missing lavish → terminal, not error.
 
  ## End-session Suggestions (Human Actions)
  At the end of every response/discussion, instead of listing technical skill commands, present concrete, non-technical choices for the user to select. E.g.:
