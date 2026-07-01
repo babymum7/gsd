@@ -11,7 +11,7 @@ consumes: [plan.toon]
 Dispatch a fresh `task` subagent (the implementer) per task, verify each, then a terminal gsd-verify. Markdown-skill authoring and trivial edits are done directly (skip this).
 
  ## Intake
- Read the consolidated plan `.scratch/<feature>/plan.toon`. Tasks run sequentially. Do not dispatch parallel tasks on shared code.
+ Read the consolidated plan `.scratch/<feature>/plan.toon` (skip the `schema:v1` header; tasks start at the `plan[` table). Tasks run sequentially. Do not dispatch parallel tasks on shared code.
 
 ## Per task
 1. **Dispatch** a fresh `task` subagent with a single task-brief (the one task, the interfaces, the global constraints) — not the whole plan, not prior history.

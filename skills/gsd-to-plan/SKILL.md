@@ -11,10 +11,11 @@ consumes: [spec.md]
 Turn a converged design into an executable implementation plan. No interview — the design is settled (`gsd` did that). Read `.scratch/<feature>/spec.md` for the acceptance criteria this plan must deliver. Write the plan.
 
  ## Output (AXI TOON Format)
- Write a single consolidated plan file to `.scratch/<feature>/plan.toon`. This format is highly token-efficient, omitting braces, quotes, and markdown boilerplate.
+ Write a single consolidated plan file to `.scratch/<feature>/plan.toon`. This format is highly token-efficient, omitting braces, quotes, and markdown boilerplate. The first line declares the schema version (`schema:v1`) — future parsers can detect/migrate old files; consumers read from the `plan[` table.
  
  Format:
  ```
+schema:v1
 plan[count]{id,task,satisfies,files,test,status}:
   T1,<task description>,AC-1|AC-2,src/auth.ts|src/user.ts,tests/auth.test.ts,pending
   T2,<task description>,AC-3,src/router.ts,none,pending

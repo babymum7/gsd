@@ -24,6 +24,7 @@ The single entry point for all workflows. The user invokes `/gsd` on any prompt,
 On entry, analyze the prompt and workspace state to route to the correct sub-flow:
 
 **Step 0 — Detect state first (before matching routes).** Glob `.scratch/*/` for `spec.md` / `plan.toon` / `handoff-*.toon`, and scan the prompt for a pasted diff/PR. Workspace state — not just the prompt's wording — drives Routes 1/2/3: a "continue"/"resume" prompt with a live `handoff-*.toon` is Route 1 even when it reads like new work; a feature ask **related to** an existing feature with a `plan.toon` is Route 3; an **unrelated** feature ask with a `plan.toon` is Route 6 (new work), not Route 3.
+**Git repo guard.** Run `git rev-parse --is-inside-work-tree`. Not in a repo → `git init` before any workspace-backed write/commit path (nano-fix, quick-fix, resume/execute/verify against a branch). Read-only Route 0 and pasted-diff review (Route 2) can run without git.
 0. **Direct / Trivial (check first)**:
    - Simple question, advisory, a small targeted change (named file, ≤1 module, no design), OR an **obvious** failing-test/error fix (clear single-spot root cause, no investigation needed) → answer directly or `gsd-ponytail` quick-fix. **Do NOT explore broadly or trigger architecture skills.**
 1. **Resume**:
@@ -45,6 +46,7 @@ On entry, analyze the prompt and workspace state to route to the correct sub-flo
 - **Multiple features in flight.** Routes 1/3 key off `.scratch/<feature>/`. If more than one feature dir exists and the prompt doesn't name one: among **relevant** live features (resume-style or feature-related prompts), resume the **most-recently-modified** (dir mtime) and name it in your first line so the user can redirect — never silently pick an arbitrary feature. If the prompt is unrelated to all existing features (new work), fall through to Route 6. **To list/switch**: glob `.scratch/*/spec.md` (or `ls .scratch/`) and resume the named one.
 - **Route trace.** State the chosen route + target skill in one line at the top of your first response (e.g. `Route 4 → gsd-diagnosing-bugs`). Makes routing auditable — the user catches an over-eager route instantly and redirects.
 - **Route 0↔4 boundary.** Route 0 if you can name the single spot and write the fix without investigation; otherwise Route 4. Unsure → start at Route 0; if the fix loop fails twice, escalate to Route 4 (don't keep retrying the same one-spot guess).
+- **Route 0→5 escalation.** A Route 0 read-only question that grows past the targeted scope (≥3 unrelated files, or broad cross-module understanding needed) → escalate to Route 5. Don't keep reading speculatively under Route 0.
 - **Route 3 relevance guard.** A pending plan routes to execution ONLY when the prompt relates to that feature's tasks. Unrelated prompt + existing plan → fall through (the user may be starting new work or asking an unrelated question).
 
 ## Routing examples

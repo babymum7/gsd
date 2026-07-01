@@ -391,6 +391,22 @@ test("master defines the Route 0↔4 bug-routing boundary with a fix-loop escala
   assert.match(gsd, /fails twice/, "master must state the escalation trigger (fix loop fails twice)");
 });
 
+test("master has a git repo guard qualifying read-only vs write/commit paths", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /git rev-parse/, "master must check git repo status");
+  assert.match(gsd, /git init/, "master must git init when not in a repo");
+  assert.match(gsd, /read-only.*without git|works without git/i, "read-only Route 0 must be explicitly git-free");
+  assert.match(gsd, /pasted-diff.*without git|Route 2.*without git/i, "pasted-diff review (Route 2) must be explicitly git-free — it is read-only");
+  const guardLine = gsd.split("\n").find(l => l.includes("Git repo guard")) || "";
+  assert.ok(!/Routes\s*1.\s*3/.test(guardLine), "git guard line must not blanket-require git for Routes 1–3 (Route 2 pasted-diff is read-only)");
+});
+
+test("master has a Route 0→5 escalation rule for scope blow-up", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /0→5/, "master must name the Route 0→5 escalation");
+  assert.match(gsd, /escalate to Route 5/, "master must state the escalation target");
+});
+
 test("Route 3 relevance guard prevents swallowing unrelated prompts when a plan exists", () => {
   const gsd = readSkill("gsd");
   assert.match(gsd, /relates to that feature/, "Route 3 must require prompt relevance to the existing feature");
@@ -488,4 +504,20 @@ test("gsd-codebase-design defines deep vs shallow in prose (not ASCII art)", () 
   assert.match(section, /Deep module.*small interface/i, "deep module definition must be in prose");
   assert.match(section, /Shallow module.*large interface/i, "shallow module definition must be in prose");
   assert.ok(!/┌─/.test(section), "deep vs shallow section should not contain ASCII box art");
+});
+
+test("plan.toon declares schema version and every consumer tolerates the header", () => {
+  const toPlan = readSkill("gsd-to-plan");
+  assert.match(toPlan, /schema:v1/, "gsd-to-plan must write schema:v1 in the format");
+  // Every skill that consumes plan.toon must mention schema:v1 in its own SKILL.md
+  // (sub-skills load independently — a note only in the writer is invisible to consumers)
+  const consumers = ["gsd-executing-plans", "gsd-verify", "gsd-handoff"];
+  for (const skill of consumers) {
+    const content = readSkill(skill);
+    assert.match(
+      content,
+      /schema:v1/,
+      `${skill} consumes plan.toon but its SKILL.md has no schema:v1 tolerance note`,
+    );
+  }
 });
