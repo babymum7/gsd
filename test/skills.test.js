@@ -622,3 +622,10 @@ test("quick-fix path captures <base> before branching (P0-b)", () => {
   assert.match(quickFix, /capture.*<base>/i, "quick-fix must capture <base> before branching");
   assert.match(quickFix, /base:<base>/, "quick-fix must write base:<base> in plan.toon");
 });
+
+test("master handles ponytail manual toggle explicitly (P0-a)", () => {
+  const gsd = readSkill("gsd");
+  const triggers = gsd.split("## Triggers")[1]?.split("## ")[0] || "";
+  assert.match(triggers, /Manual toggle/i, "master must handle ponytail manual toggle");
+  assert.match(triggers, /stop ponytail|normal mode/i, "master must handle ponytail stop/normal");
+});

@@ -101,7 +101,7 @@ Rules:
 
 ## Triggers (supporting skills fire automatically — except lavish, which is opt-in)
  - `gsd-lavish` — opt-in visual surface for substantial, standalone deliverables (spec, approach comparison, finalized `plan.toon`, verify report, architecture audit). **Never auto-fired**: default to terminal, ask first. **Gate (both must hold):** (1) a reviewable deliverable, not mid-conversation; AND (2) the user gains from annotating it in a browser. Never on inline Qs or per-task diffs.
-- `gsd-ponytail` — quick-fix entry → short-circuit to fast-path below, skip the body.
+- `gsd-ponytail` — quick-fix entry → short-circuit to fast-path below, skip the body. **Manual toggle**: if the user says "ponytail <level>" or "stop ponytail"/"normal mode", set/clear the level and acknowledge — no routing needed.
 - `gsd-domain-modeling` — durable term/decision crystallizes → capture to `CONTEXT.md`/ADR.
 - `gsd-codebase-design` — a module-interface / deepening decision is in play.
 - `gsd-handoff` — pause/breakpoint (user-triggered or context-pressure).
