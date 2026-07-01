@@ -108,7 +108,7 @@ Rules:
 
 ## Fix fast-paths (skip the Discussion body)
 - **Nano-fix** — a one-line / purely mechanical change (typo, literal, import, rename, format): fix in place, commit to the current branch, verify **inline** ("the diff does exactly what the prompt asked, nothing more"). No `.scratch/`, no `plan.toon`, no `wip/` branch, no `gsd-verify` gate. The shortest path — don't dress up a one-liner.
-- **Quick-fix** — a real but small fix (no design, ≤1 module): set `gsd-ponytail`, fix directly, write a minimal `plan.toon` (1-2 tasks) to `.scratch/<feature>/`, commit to `wip/<feature>` → `gsd-verify` (code-quality only, no `spec.md`) → `<base>`. Skips the Discussion body, not the `gsd-verify` gate.
+- **Quick-fix** — a real but small fix (no design, ≤1 module): set `gsd-ponytail`, fix directly, capture `<base>` (`git branch --show-current`) then write a minimal `plan.toon` (`schema:v1` + `base:<base>` + 1-2 tasks) to `.scratch/<feature>/`, `git checkout -b wip/<feature>`, commit → `gsd-verify` (code-quality only, no `spec.md`) → `<base>`. Skips the Discussion body, not the `gsd-verify` gate.
 
 ## Feature cleanup
 "abandon/drop/delete feature X" → confirm name → read `<base>` from plan.toon → `git checkout <base>` (can't delete a branch you're on) → `git branch -d wip/<feature>` (safe delete; only `-D` after explicit force-confirm if unmerged) → `rm -rf .scratch/<feature>/`. If `git status --short` is dirty, warn before proceeding.

@@ -614,3 +614,11 @@ test("handoff format declares schema version (P3)", () => {
   const handoff = readSkill("gsd-handoff");
   assert.match(handoff, /schema:v1/, "handoff format must include schema:v1 header");
 });
+
+test("quick-fix path captures <base> before branching (P0-b)", () => {
+  const gsd = readSkill("gsd");
+  const fastPaths = gsd.split("Fix fast-paths")[1]?.split("## ")[0] || "";
+  const quickFix = fastPaths.split("Quick-fix")[1] || "";
+  assert.match(quickFix, /capture.*<base>/i, "quick-fix must capture <base> before branching");
+  assert.match(quickFix, /base:<base>/, "quick-fix must write base:<base> in plan.toon");
+});
