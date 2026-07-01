@@ -15,6 +15,7 @@ Numbering: glob existing `handoff-*.toon`, use `max + 1`. If the target already 
  A gsd-handoff file MUST use the following token-efficient TOON format:
  
  ```
+schema:v1
  handoff[1]{mode,phase,next_action}:
    <skill-name>,<phase-description>,<single next step to take>
  decisions[count]{topic,decision}:

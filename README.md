@@ -27,7 +27,7 @@ skills/
 │   └── SKILL.md
 ├── gsd-executing-plans/              # Task execution & subagent dispatching
 │   └── SKILL.md
- ├── gsd/                              # Master Entry: routing, discussion & requirements
+├── gsd/                              # Master Entry: routing, discussion & requirements
 │   └── SKILL.md
 ├── gsd-handoff/                      # Handoff contracts & context compaction
 │   └── SKILL.md

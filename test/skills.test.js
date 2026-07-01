@@ -599,3 +599,18 @@ test("master notes skill:// limitation for unregistered sub-skills (P0-c)", () =
   const gsd = readSkill("gsd");
   assert.match(gsd, /skill:\/\/.*cannot resolve|skill:\/\/.*unregistered/i, "master must note skill:// limitation");
 });
+
+test("master has a safe feature-cleanup flow (P2)", () => {
+  const gsd = readSkill("gsd");
+  const cleanup = gsd.split("Feature cleanup")[1]?.split("## ")[0] || "";
+  assert.ok(cleanup.length > 0, "master must have a Feature cleanup section");
+  assert.match(cleanup, /git checkout <base>/, "cleanup must checkout <base> before deleting the WIP branch");
+  assert.match(cleanup, /git branch -d/, "cleanup must prefer safe delete (-d) first");
+  assert.match(cleanup, /-D.*force/i, "cleanup must only use -D after explicit force confirmation");
+  assert.match(cleanup, /dirty|status/i, "cleanup must check git status before proceeding");
+});
+
+test("handoff format declares schema version (P3)", () => {
+  const handoff = readSkill("gsd-handoff");
+  assert.match(handoff, /schema:v1/, "handoff format must include schema:v1 header");
+});
