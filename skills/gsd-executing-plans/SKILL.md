@@ -11,14 +11,15 @@ consumes: [plan.toon]
 Dispatch a fresh `task` subagent (the implementer) per task, verify each, then a terminal gsd-verify. Markdown-skill authoring and trivial edits are done directly (skip this).
 
  ## Intake
- Read the consolidated plan `.scratch/<feature>/plan.toon` (skip the `schema:v1` header; tasks start at the `plan[` table). Tasks run sequentially. Do not dispatch parallel tasks on shared code.
+ Read the consolidated plan `.scratch/<feature>/plan.toon` (skip the `schema:v1` header and `base:` line; tasks start at the `plan[` table). Tasks run sequentially. Do not dispatch parallel tasks on shared code.
+ **Create branch** (if not on `wip/<feature>` yet): capture `BASE=$(git branch --show-current)` first, then `git checkout -b wip/<feature>`. Persist `base:$BASE` in `plan.toon` immediately after `schema:v1` if not already there (see gsd Conventions).
 
 ## Per task
 1. **Dispatch** a fresh `task` subagent with a single task-brief (the one task, the interfaces, the global constraints) — not the whole plan, not prior history.
 2. **Review** the returned diff: hand a `reviewer` subagent the task-brief (expected behavior) + the task's TDD note + the diff file + the BASE recorded before dispatch (never `HEAD~1`, which truncates multi-commit tasks). Require two verdicts: **task-compliance** (TDD test exists, passes, covers the task — per-task scope; the terminal whole-branch analogue is `gsd-verify`'s **spec-compliance**) AND **code-quality**.
 3. **Fix loop**: Critical/Important findings → fix subagent → re-verify. Never proceed with open Critical/Important.
-4. **Commit** to `wip/<feature>`. Never commit main during execution.
-5. **Tests**: unit only. E2E is excluded from this per-task loop by design — it's owned by the `gsd-verify` E2E gate, which runs the end-to-end user path once over the whole branch before the main merge.
+4. **Commit** to `wip/<feature>`. Never commit <base> during execution.
+5. **Tests**: unit only. E2E is excluded from this per-task loop by design — it's owned by the `gsd-verify` E2E gate, which runs the end-to-end user path once over the whole branch before the <base> merge.
 
 > **Subagent failure** (no diff / errored — not a verify finding): re-dispatch with a sharper brief. Repeats → route to `gsd-diagnosing-bugs` (real blocker, not unfinished work).
 
@@ -36,7 +37,7 @@ If a task reveals an **acceptance criterion is itself wrong/incomplete** (not a 
  Update each task's status column directly inside `.scratch/<feature>/plan.toon` (e.g. from `pending` -> `in_progress` -> `done`). After resume, check `plan.toon` + `git log` — never re-dispatch a task marked `done`.
 
 ## Terminal — gsd-verify gate
-All plans done + per-task verifications passed → invoke `gsd-verify` (reviewer subagent over the full WIP diff). Pass → squash `wip/<feature>` → one commit to main. Fail → fix loop, re-verify.
+All plans done + per-task verifications passed → invoke `gsd-verify` (reviewer subagent over the full WIP diff). Pass → squash `wip/<feature>` → one commit to <base>. Fail → fix loop, re-verify.
 
  
  ## Git conflict resolution
@@ -47,13 +48,12 @@ All plans done + per-task verifications passed → invoke `gsd-verify` (reviewer
  4. Solve the conflicts using the `edit` tool, cleanly removing markers (`<<<<<<<`, `=======`, `>>>>>>>`).
  5. Run `git add` to mark resolved. If the conflict is too complex to resolve mechanically, run `git merge --abort` and notify `Main` via `irc`.
 ## Never
-- Commit main during execution.
+- Commit <base> during execution.
 - Skip per-task verify, or accept a report missing either verdict.
 - Parallel `task` subagents on shared code. Hand a subagent its task-brief, not the whole plan.
 - Re-dispatch a task the ledger marks done.
 
- ## Contextual disclosure (AXI Style)
-Append your `Next steps:` block only as the terminal/standalone response — never when firing inline inside another skill's response (only the outermost shows; see `gsd` Conventions). Example:
+ ## Contextual disclosure (see gsd Conventions). Example:
  ```
  Next steps:
  - /gsd (to check progress, trigger a verify, or save progress)

@@ -11,11 +11,12 @@ consumes: [spec.md]
 Turn a converged design into an executable implementation plan. No interview — the design is settled (`gsd` did that). Read `.scratch/<feature>/spec.md` for the acceptance criteria this plan must deliver. Write the plan.
 
  ## Output (AXI TOON Format)
- Write a single consolidated plan file to `.scratch/<feature>/plan.toon`. This format is highly token-efficient, omitting braces, quotes, and markdown boilerplate. The first line declares the schema version (`schema:v1`) — future parsers can detect/migrate old files; consumers read from the `plan[` table.
+ Write a single consolidated plan file to `.scratch/<feature>/plan.toon`. This format is highly token-efficient, omitting braces, quotes, and markdown boilerplate. The first line declares the schema version (`schema:v1`); the second line is `base:<base>` (the repo's default branch, captured per gsd Conventions); consumers read from the `plan[` table.
  
  Format:
  ```
 schema:v1
+base:<base>
 plan[count]{id,task,satisfies,files,test,status}:
   T1,<task description>,AC-1|AC-2,src/auth.ts|src/user.ts,tests/auth.test.ts,pending
   T2,<task description>,AC-3,src/router.ts,none,pending
@@ -44,8 +45,7 @@ Tasks run sequentially — `gsd-executing-plans` dispatches one `task` subagent 
 - If the design has a gap that blocks planning, STOP — route back to `gsd` (Discussion) → revise `spec.md` → re-plan. Do not invent scope to fill it.
 - No interviews, no scope expansion. The plan reflects the design; it doesn't renegotiate it.
 
- ## Contextual disclosure (AXI Style)
-Append your `Next steps:` block only as the terminal/standalone response — never when firing inline inside another skill's response (only the outermost shows; see `gsd` Conventions). Example:
+ ## Contextual disclosure (see gsd Conventions). Example:
  ```
  - /gsd (to start execution, resume work, or save progress)
  ```

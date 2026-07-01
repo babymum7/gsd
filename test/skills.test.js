@@ -303,8 +303,11 @@ test("sub-skills with a contextual-disclosure section state the terminal/inline 
   for (const [name, content] of Object.entries(readAllSkills())) {
     if (name === "gsd") continue; // master's para is the coordinator-level two-surfaces rule (P3), not the per-skill disclosure
     if (!/Contextual disclosure/.test(content)) continue;
-    assert.match(content, /terminal\/standalone/, `${name}: contextual disclosure must qualify the terminal response`);
-    assert.match(content, /inline/, `${name}: contextual disclosure must say inline firing omits the block`);
+    // After dedup: either self-contained (terminal/inline keywords) or references gsd Conventions
+    const selfContained = /terminal\/standalone/.test(content) && /inline/.test(content);
+    const referencesCanonical = /see gsd Conventions/.test(content);
+    assert.ok(selfContained || referencesCanonical,
+      `${name}: contextual disclosure must either state the terminal/inline rule or reference gsd Conventions`);
   }
 });
 
@@ -543,4 +546,56 @@ test("VERSION file exists and install.sh echoes it", () => {
   assert.match(version, /^\d+\.\d+\.\d+$/, "VERSION must be semantic (x.y.z)");
   const install = readFileSync(join(ROOT, "install.sh"), "utf-8");
   assert.match(install, /VERSION.*cat.*VERSION/, "install.sh must read and echo the VERSION file");
+});
+
+// ── P0/P1 audit pass: invocation surface + <base> branch ──
+
+test("master defines <base> convention replacing hard-coded main (P0-b)", () => {
+  const gsd = readSkill("gsd");
+  const conventions = gsd.split("## Conventions")[1]?.split("## ")[0] || "";
+  assert.match(conventions, /<base>/, "Conventions must define <base> placeholder");
+  assert.match(conventions, /git branch --show-current/, "Conventions must capture base via git branch --show-current");
+  assert.match(conventions, /detached HEAD/, "Conventions must handle detached HEAD fallback");
+  assert.match(conventions, /base:.*plan\.toon/, "Conventions must persist base in plan.toon");
+});
+
+test("no hard-coded 'main' in git commands of gsd-verify or gsd-executing-plans (P0-b)", () => {
+  for (const skillName of ["gsd-verify", "gsd-executing-plans"]) {
+    const content = readSkill(skillName);
+    assert.doesNotMatch(content, /git diff main/, `${skillName}: diff must use <base>, not literal main`);
+    assert.doesNotMatch(content, /git checkout main/, `${skillName}: checkout must use <base>, not literal main`);
+    assert.doesNotMatch(content, /commit to main/, `${skillName}: commit target must be <base>, not main`);
+    assert.match(content, /<base>/, `${skillName}: must reference <base>`);
+  }
+});
+
+test("verify and to-plan operationalize base: as writer/consumer (P0-b)", () => {
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /base:.*plan\.toon|read.*base.*plan\.toon/i, "verify must read base: from plan.toon");
+  const toPlan = readSkill("gsd-to-plan");
+  assert.match(toPlan, /base:<base>/, "to-plan must show base:<base> in format example");
+  assert.match(toPlan, /base:.*default branch/, "to-plan must document the base: line");
+});
+
+test("ponytail toggle goes through /gsd, not /gsd-ponytail (P0-a)", () => {
+  const ponytail = readSkill("gsd-ponytail");
+  assert.doesNotMatch(ponytail, /\/gsd-ponytail/, "ponytail must not present /gsd-ponytail as a user command");
+  assert.match(ponytail, /\/gsd ponytail/, "ponytail toggle must route through /gsd");
+});
+
+test("end-session suggestions do not expose /gsd-* as user commands (P0-a)", () => {
+  const gsd = readSkill("gsd");
+  const suggestions = gsd.split("End-session")[1] || "";
+  assert.doesNotMatch(suggestions, /routes to \/gsd-/, "end-session must not show /gsd-* route labels");
+});
+
+test("master does not say sub-skills are directly user-invokable (P0-a)", () => {
+  const gsd = readSkill("gsd");
+  assert.doesNotMatch(gsd, /any skill is also directly invokable/, "master must not claim /gsd-* are user commands");
+  assert.match(gsd, /internal routing targets, not user commands/, "master must clarify sub-skills are agent-internal");
+});
+
+test("master notes skill:// limitation for unregistered sub-skills (P0-c)", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /skill:\/\/.*cannot resolve|skill:\/\/.*unregistered/i, "master must note skill:// limitation");
 });

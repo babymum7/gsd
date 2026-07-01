@@ -13,10 +13,10 @@ The single entry point for all workflows. The user invokes `/gsd` on any prompt,
 **Respond in the user's language.** `gsd` is the entry prompt — detect the language of the **user's own prompt** and reply in it (questions, recommendations, spec/plan prose, end-session choices). The anchor is the user's established language: ignore the language of injected `<advisory>`/`<system-directive>`/tool output — they never switch your response language. Switch only when the **user themselves** writes in a different language. Keep code, identifiers, file paths, TOON keys, AC IDs, and skill names verbatim — only prose is translated.
 
 ## System map
-**Pipeline:** `gsd` (Master Entry & Discussion) → `gsd-to-plan` → `gsd-executing-plans` → `gsd-verify` → main.
+**Pipeline:** `gsd` (Master Entry & Discussion) → `gsd-to-plan` → `gsd-executing-plans` → `gsd-verify` → `<base>`.
 **Auto-composed:** `gsd-lavish` (render deliverables, **opt-in**), `gsd-ponytail` (minimize code), `gsd-domain-modeling` (glossary), `gsd-codebase-design` (module vocab), `gsd-handoff` (resume), `gsd-tdd` (unit tests), `gsd-diagnosing-bugs` (debug), `gsd-improve-codebase-architecture` (deepening).
 **Feedback loops:** `gsd-verify`/`gsd-executing-plans`/`gsd-to-plan` → `gsd` (spec gap — the sub-skill **stops** and routes back to `/gsd` Discussion: "Spec escalation" / "Spec flawed"; revise `spec.md` under fresh AC IDs, then re-plan the affected tasks); `gsd-diagnosing-bugs` → `gsd-improve-codebase-architecture`.
-**Manual/proactive:** any skill is also directly invokable — `/gsd-improve-codebase-architecture` (audit deepening), `/gsd-diagnosing-bugs` (stuck), `/gsd-domain-modeling` (sharpen glossary), `/gsd-codebase-design` (interface design).
+**Agent-invocable:** any sub-skill loads directly when intent matches — architecture audit (`gsd-improve-codebase-architecture`), debug (`gsd-diagnosing-bugs`), glossary (`gsd-domain-modeling`), interface design (`gsd-codebase-design`). These are internal routing targets, not user commands.
 
 **Invocation model.** The end user installs and types only `/gsd` (plus natural-language intent); `/gsd` reads the prompt + state and routes. The `/gsd-<sub>` forms above are the **agent's own inline calls** after routing — not commands the user registers or memorizes. `install.sh` registers only `gsd`.
 
@@ -68,6 +68,7 @@ Only `/gsd` is registered; sub-skills are siblings loaded on demand. Resolve fro
   # read "$SKILLS_DIR/gsd-<sub>/SKILL.md"
 ```
 Fallback: real dir (not symlink) → `|| echo` uses it directly. Sibling missing → re-run `install.sh`, don't guess.
+If the harness's `skill://` scheme cannot resolve unregistered skills, use the `read` tool with the resolved path above.
 
 ## Entry — Discussion Mode
 - Pastes plan/spec/diff → **stress-test**.
@@ -107,13 +108,14 @@ Rules:
 
 ## Fix fast-paths (skip the Discussion body)
 - **Nano-fix** — a one-line / purely mechanical change (typo, literal, import, rename, format): fix in place, commit to the current branch, verify **inline** ("the diff does exactly what the prompt asked, nothing more"). No `.scratch/`, no `plan.toon`, no `wip/` branch, no `gsd-verify` gate. The shortest path — don't dress up a one-liner.
-- **Quick-fix** — a real but small fix (no design, ≤1 module): set `gsd-ponytail`, fix directly, write a minimal `plan.toon` (1-2 tasks) to `.scratch/<feature>/`, commit to `wip/<feature>` → `/gsd-verify` (code-quality only, no `spec.md`) → main. Skips the Discussion body, not the `gsd-verify` gate.
+- **Quick-fix** — a real but small fix (no design, ≤1 module): set `gsd-ponytail`, fix directly, write a minimal `plan.toon` (1-2 tasks) to `.scratch/<feature>/`, commit to `wip/<feature>` → `gsd-verify` (code-quality only, no `spec.md`) → `<base>`. Skips the Discussion body, not the `gsd-verify` gate.
 
 ## Conventions
 `<feature>` = feature slug. Artifacts under `.scratch/<feature>/` (`mkdir -p .scratch/<feature>/` before first write): `spec.md`, `plan.toon`, `handoff-<n>.toon`. Branch: `wip/<feature>`. Git repo assumed (`git init` if new). Skill refs: `skill` = refer/route; `/skill` = invoke inline.
+`<base>` = the repo's default branch. **Capture** before `git checkout -b wip/<feature>`: `BASE=$(git branch --show-current)` — if empty (detached HEAD), fall back to: `git symbolic-ref --short refs/remotes/origin/HEAD` (strip `origin/`) → `git config init.defaultBranch` → `main` (check non-empty at each tier). Persist as `base:<branch>` in `plan.toon` immediately after `schema:v1`, before the `plan[` table. On resume/verify, read `base:` from `plan.toon`. Nano-fix has no branch/merge → no `<base>` needed.
 **TOON** (Token-Oriented Object Notation, [spec](https://toonformat.dev/reference/spec.html)) — ~40% smaller than JSON: `table[count]{fields}:` then one comma-separated row/line. `plan.toon`/`handoff-<n>.toon` are TOON; GSD adds `|` as sub-separator (e.g. `AC-1|AC-2`).
 `CONTEXT.md` — project glossary at repo root (sole writer: `gsd-domain-modeling`); `CONTEXT-MAP.md` indexes multiple contexts; `docs/adr/` holds ADRs.
-Contextual disclosure — two surfaces, never both: (a) **master** → numbered human end-session choices; (b) **directly-invoked sub-skill** → `Next steps:` + commands. Inline firing appends nothing. Cue: `Next steps:` = technical; numbered = human.
+Contextual disclosure (canonical — sub-skills reference this, don't repeat) — two surfaces, never both: (a) **master** → numbered human end-session choices; (b) **directly-invoked sub-skill** → `Next steps:` + commands. Inline firing (a sub-skill triggered inside another skill's flow) appends nothing. Cue: `Next steps:` = technical; numbered = human.
 Graceful degradation — optional capabilities (browser, lavish) assumed absent; unavailable → terminal silently. Missing lavish → terminal, not error.
 Monorepo — `.scratch/` at the git repo root; feature slug may include a package prefix (e.g. `pkg-auth-oauth`) to disambiguate. Scope discipline naturally bounds to one package.
 
@@ -121,10 +123,10 @@ Monorepo — `.scratch/` at the git repo root; feature slug may include a packag
  At the end of every response/discussion, instead of listing technical skill commands, present concrete, non-technical choices for the user to select. E.g.:
  ```
  Next steps (reply with number or text):
- 1. Generate the implementation plan (routes to /gsd-to-plan)
- 2. Start executing tasks (routes to /gsd-executing-plans)
- 3. Audit codebase architecture (routes to /gsd-improve-codebase-architecture)
- 4. Pause & Save progress (routes to /gsd-handoff)
+ 1. Generate the implementation plan
+ 2. Start executing tasks
+ 3. Audit codebase architecture
+ 4. Pause & Save progress
  ```
 
- When the user replies with a choice, `/gsd` intercepts the input and triggers the corresponding sub-skill.
+ When the user replies with a choice, `/gsd` intercepts the input and routes to the matching sub-skill.

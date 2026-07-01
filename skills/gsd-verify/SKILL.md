@@ -1,6 +1,6 @@
 ---
 name: gsd-verify
-description: Terminal commit gate, invoked by `gsd-executing-plans` (or directly for quick-fix). Dispatch a `reviewer` subagent over the full WIP-branch diff; block the main commit on Critical/Important findings. Two verdicts — spec-compliance + code-quality.
+description: Terminal commit gate, invoked by `gsd-executing-plans` (or directly for quick-fix). Dispatch a `reviewer` subagent over the full WIP-branch diff; block the <base> commit on Critical/Important findings. Two verdicts — spec-compliance + code-quality.
 triggers: diff/PR review (gsd Route 2); terminal after gsd-executing-plans; quick-fix gate
 produces: []
 consumes: [spec.md, plan.toon]
@@ -8,17 +8,17 @@ consumes: [spec.md, plan.toon]
 
 # Verify
 
-The gate before a WIP branch merges to main. Dispatch a **reviewer** subagent (or any available code-review agent in your harness) over the full `wip/<feature>` diff and require two verdicts: **spec-compliance** (every acceptance criterion in `spec.md` met + every task's TDD test green + no code outside the plan — whole-branch terminal scope; the per-task analogue is `gsd-executing-plans`' **task-compliance**) and **code-quality** (universal standards: correctness, security, dead code, `AGENTS.md` conventions). No `spec.md` (quick-fix/trivial path) → spec-compliance is N/A; judge code-quality + that the diff matches the stated fix (no scope creep).
+The gate before a WIP branch merges to <base>. Dispatch a **reviewer** subagent (or any available code-review agent in your harness) over the full `wip/<feature>` diff and require two verdicts: **spec-compliance** (every acceptance criterion in `spec.md` met + every task's TDD test green + no code outside the plan — whole-branch terminal scope; the per-task analogue is `gsd-executing-plans`' **task-compliance**) and **code-quality** (universal standards: correctness, security, dead code, `AGENTS.md` conventions). No `spec.md` (quick-fix/trivial path) → spec-compliance is N/A; judge code-quality + that the diff matches the stated fix (no scope creep).
 
  ## Run
- 1. Capture the full WIP diff against main: `git diff main...wip/<feature>` → a uniquely-named file.
- 2. Dispatch a `reviewer` subagent with the diff file + `.scratch/<feature>/plan.toon` (starts with `schema:v1` metadata; the `plan[` table is the task data) (+ `.scratch/<feature>/spec.md` if it exists — quick-fix has none).
+ 1. Read `<base>` from the `base:` line in `.scratch/<feature>/plan.toon` (or detect per gsd Conventions if absent). Capture the full WIP diff: `git diff <base>...wip/<feature>` → a uniquely-named file.
+ 2. Dispatch a `reviewer` subagent with the diff file + `.scratch/<feature>/plan.toon` (starts with `schema:v1` + `base:` metadata; the `plan[` table is the task data) (+ `.scratch/<feature>/spec.md` if it exists — quick-fix has none).
  3. Compile the verify findings and present them in the terminal by default. Offer a browser-reviewed `gsd-lavish` report only if the user opts in — lavish is opt-in, never assumed (Fire gate).
  4. Critical/Important findings block the commit; Minor are logged.
  5. **Whole-branch green**: run the project's full build + test suite once over the merged branch state (not just the per-task tests). A red build or suite blocks the merge like a Critical finding. No build/test tooling exists → say so explicitly.
 ## Outcomes
-- **Pass** (no open Critical/Important) → **E2E gate first for UI/UX or user-facing features**: this reviewer pass is unit-level, so before merging run the end-to-end user path (harness browser tool, or a manual script when no browser) and assert the actual user-facing outcome — a failing/un-runnable E2E blocks the merge exactly like a Critical finding. Pure non-UI changes (libs, internal APIs, refactors) are E2E-exempt — say so explicitly. Then squash `wip/<feature>` → single commit to main. Optionally archive/remove `.scratch/<feature>/`.
-  - **Stale main**: if `main` advanced while the feature was in flight, the squash-merge may conflict. Rebase `wip/<feature>` onto current `main` (or merge `main` in) and resolve before the final commit — use the `:conflicts` selector + `edit` like `gsd-executing-plans`' conflict step. Re-run this verify gate (and the E2E gate) after resolving, since the rebase introduced new code. Conflict too tangled to resolve mechanically → STOP and route back to `gsd` rather than force the merge.
+- **Pass** (no open Critical/Important) → **E2E gate first for UI/UX or user-facing features**: this reviewer pass is unit-level, so before merging run the end-to-end user path (harness browser tool, or a manual script when no browser) and assert the actual user-facing outcome — a failing/un-runnable E2E blocks the merge exactly like a Critical finding. Pure non-UI changes (libs, internal APIs, refactors) are E2E-exempt — say so explicitly. Then squash `wip/<feature>` → single commit to <base>. Optionally archive/remove `.scratch/<feature>/`.
+  - **Stale <base>**: if `<base>` advanced while the feature was in flight, the squash-merge may conflict. Rebase `wip/<feature>` onto current `<base>` (or merge `<base>` in) and resolve before the final commit — use the `:conflicts` selector + `edit` like `gsd-executing-plans`' conflict step. Re-run this verify gate (and the E2E gate) after resolving, since the rebase introduced new code. Conflict too tangled to resolve mechanically → STOP and route back to `gsd` rather than force the merge.
 - **Fail** → route back to `gsd-executing-plans` (fix subagent on the specific findings), then re-verify.
  - **Spec flawed** — an acceptance criterion is itself wrong/incomplete (contradictory, or correctly met yet obviously wrong): do NOT pass. Route back to `gsd` (Discussion) → revise `spec.md` → re-plan. (Distinct from Fail: Fail fixes code against a correct spec.)
 
@@ -26,10 +26,9 @@ The gate before a WIP branch merges to main. Dispatch a **reviewer** subagent (o
 - `gsd-lavish` — the verify report is a substantial deliverable; render it visually if the user wants.
 
 
- ## Contextual disclosure (AXI Style)
-Append your `Next steps:` block only as the terminal/standalone response — never when firing inline inside another skill's response (only the outermost shows; see `gsd` Conventions). Example:
+ ## Contextual disclosure (see gsd Conventions). Example:
  ```
  Next steps:
  - /gsd (if spec/design needs revision or to save progress)
- - git checkout main (to merge when verify passes)
+ - git checkout <base> (to merge when verify passes)
  ```

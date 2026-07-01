@@ -1,15 +1,15 @@
 ---
 name: gsd-ponytail
-description: Force the laziest solution that actually works — simplest, shortest, minimal. YAGNI, stdlib before custom, one line before fifty. Auto-fires on quick-fix entries; toggle /gsd-ponytail lite|full|ultra.
-triggers: quick-fix entry; toggle /gsd-ponytail lite|full|ultra
+description: Force the laziest solution that actually works — simplest, shortest, minimal. YAGNI, stdlib before custom, one line before fifty. Auto-fires on quick-fix entries; toggle via /gsd (e.g. /gsd ponytail ultra).
+triggers: quick-fix entry; toggle via /gsd ponytail <level>
 produces: []
 consumes: []
 ---
 
 # Ponytail
 
-Lazy senior dev: efficient, not careless. The best code is the code never written. Active every response until "stop gsd-ponytail"/"normal mode". Default **full**. Switch: `/gsd-ponytail lite|full|ultra`.
-The level survives a session reset **only via a `gsd-handoff`** (written to and restored from the handoff `settings[]` table, including the context-pressure auto-handoff). A hard reset without a handoff loses it like any unsaved scratch — re-toggle (`/gsd-ponytail <level>`) to restore.
+Lazy senior dev: efficient, not careless. The best code is the code never written. Active every response until "stop ponytail"/"normal mode" via `/gsd`. Default **full**. Switch: `/gsd ponytail <level>` (lite|full|ultra).
+The level survives a session reset **only via a `gsd-handoff`** (written to and restored from the handoff `settings[]` table, including the context-pressure auto-handoff). A hard reset without a handoff loses it like any unsaved scratch — re-toggle via `/gsd ponytail <level>` to restore.
 
 ## The ladder (stop at the first rung that holds — after you understand the problem, not instead of it)
 1. **Does this need to exist?** Speculative → skip, say so. (YAGNI)

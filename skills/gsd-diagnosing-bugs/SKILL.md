@@ -40,10 +40,8 @@ Write the regression test **before** the fix — but only if a **correct seam** 
 
 Then: what would have prevented this? If it's architectural (no good seam, tangled callers, hidden coupling) → hand off to `gsd-improve-codebase-architecture` with specifics, **after** the fix.
 
- ## Contextual disclosure (AXI Style)
-Append your `Next steps:` block only as the terminal/standalone response — never when firing inline inside another skill's response (only the outermost shows; see `gsd` Conventions). Example:
+ ## Contextual disclosure (see gsd Conventions). Example:
  ```
  Next steps:
- - /gsd-executing-plans (to resume plan execution)
- - /gsd-improve-codebase-architecture (if codebase requires restructuring)
+ - /gsd (to resume execution or address codebase restructuring)
  ```
