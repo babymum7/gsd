@@ -115,6 +115,7 @@ Rules:
 `CONTEXT.md` — project glossary at repo root (sole writer: `gsd-domain-modeling`); `CONTEXT-MAP.md` indexes multiple contexts; `docs/adr/` holds ADRs.
 Contextual disclosure — two surfaces, never both: (a) **master** → numbered human end-session choices; (b) **directly-invoked sub-skill** → `Next steps:` + commands. Inline firing appends nothing. Cue: `Next steps:` = technical; numbered = human.
 Graceful degradation — optional capabilities (browser, lavish) assumed absent; unavailable → terminal silently. Missing lavish → terminal, not error.
+Monorepo — `.scratch/` at the git repo root; feature slug may include a package prefix (e.g. `pkg-auth-oauth`) to disambiguate. Scope discipline naturally bounds to one package.
 
  ## End-session Suggestions (Human Actions)
  At the end of every response/discussion, instead of listing technical skill commands, present concrete, non-technical choices for the user to select. E.g.:

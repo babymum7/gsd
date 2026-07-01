@@ -9,6 +9,7 @@ consumes: [plan.toon]
 # Handoff
 
  Compacts the conversation into `.scratch/<feature>/handoff-<n>.toon` so another session (or a fresh context) can resume without re-deriving state. Triggered at pauses, breakpoints, or context-pressure.
+Numbering: glob existing `handoff-*.toon`, use `max + 1`. If the target already exists (concurrent sessions), re-glob and increment until free — never use a suffixed variant (the Read rule expects `handoff-<n>.toon` only).
  
  ## Write — the resume contract (AXI TOON Format)
  A gsd-handoff file MUST use the following token-efficient TOON format:

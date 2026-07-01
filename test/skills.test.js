@@ -521,3 +521,26 @@ test("plan.toon declares schema version and every consumer tolerates the header"
     );
   }
 });
+
+test("master has monorepo guidance in Conventions", () => {
+  const gsd = readSkill("gsd");
+ const conventions = gsd.split("## Conventions")[1]?.split("## ")[0] || "";
+  assert.match(conventions, /monorepo/i, "Conventions must mention monorepo handling");
+  assert.match(conventions, /\.scratch.*repo root/i, "Conventions must place .scratch at repo root for monorepos");
+});
+
+test("gsd-handoff handles numbering collision without breaking the read contract", () => {
+  const handoff = readSkill("gsd-handoff");
+  assert.match(handoff, /max \+ 1|max\+1/i, "handoff must use max+1 numbering");
+  assert.match(handoff, /re-glob|increment until free/i, "handoff must retry-increment on collision");
+  assert.match(handoff, /never.*suffixed/i, "handoff must forbid suffixed variants that break the read contract");
+});
+
+test("VERSION file exists and install.sh echoes it", () => {
+  const versionPath = join(ROOT, "VERSION");
+  assert.ok(existsSync(versionPath), "VERSION file must exist at repo root");
+  const version = readFileSync(versionPath, "utf-8").trim();
+  assert.match(version, /^\d+\.\d+\.\d+$/, "VERSION must be semantic (x.y.z)");
+  const install = readFileSync(join(ROOT, "install.sh"), "utf-8");
+  assert.match(install, /VERSION.*cat.*VERSION/, "install.sh must read and echo the VERSION file");
+});

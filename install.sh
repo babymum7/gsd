@@ -22,4 +22,5 @@ if [ -f "$REPO/.gitmodules" ]; then
     || echo "  warn: lavish-axi submodule not initialized — lavish HTML path unavailable; skills degrade to terminal."
 fi
 
-echo "Installed: only 'gsd' is registered in $REG (sub-skills load on demand via /gsd). The lavish-axi submodule was initialized; build it (cd tools/lavish-axi && pnpm i && pnpm build) to enable the optional visual path."
+VERSION="$(cat "$REPO/VERSION" 2>/dev/null || echo unknown)"
+echo "Installed GSD v$VERSION: only 'gsd' is registered in $REG (sub-skills load on demand via /gsd). The lavish-axi submodule was initialized; build it (cd tools/lavish-axi && pnpm i && pnpm build) to enable the optional visual path."
