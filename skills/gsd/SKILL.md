@@ -22,6 +22,7 @@ The single entry point for all workflows. The user invokes `/gsd` on any prompt,
 
 ## Smart Routing Engine
 On entry, analyze the prompt and workspace state to route to the correct sub-flow:
+**Clarify-when-materially-ambiguous.** Across all routes — clarify with ONE question (plus your best-guess recommendation) only when the ambiguity would change the route, scope, or action, or risks wasted/destructive work. If the intent is clear or a safe default exists, proceed and state the assumption. Don't interrogate; don't stall on a defaultable answer.
 
 **Step 0 — Detect state first (before matching routes).** Glob `.scratch/*/` for `spec.md` / `plan.toon` / `handoff-*.toon`, and scan the prompt for a pasted diff/PR. Workspace state — not just the prompt's wording — drives Routes 1/2/3: a "continue"/"resume" prompt with a live `handoff-*.toon` is Route 1 even when it reads like new work; a feature ask **related to** an existing feature with a `plan.toon` is Route 3; an **unrelated** feature ask with a `plan.toon` is Route 6 (new work), not Route 3.
 **Git repo guard.** Run `git rev-parse --is-inside-work-tree`. Not in a repo → `git init` before any workspace-backed write/commit path (nano-fix, quick-fix, resume/execute/verify against a branch). Read-only Route 0 and pasted-diff review (Route 2) can run without git.

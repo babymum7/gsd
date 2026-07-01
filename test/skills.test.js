@@ -629,3 +629,11 @@ test("master handles ponytail manual toggle explicitly (P0-a)", () => {
   assert.match(triggers, /Manual toggle/i, "master must handle ponytail manual toggle");
   assert.match(triggers, /stop ponytail|normal mode/i, "master must handle ponytail stop/normal");
 });
+
+test("master has universal clarify-when-materially-ambiguous principle", () => {
+  const gsd = readSkill("gsd");
+  const engine = gsd.split("## Smart Routing Engine")[1] || gsd;
+  assert.match(engine, /clarify.*ambiguous|ambiguous.*clarif/i, "must have clarify-when-materially-ambiguous principle");
+  assert.match(engine, /all routes|regardless of route/i, "principle must apply to all routes, not just Discussion");
+  assert.match(engine, /safe default/i, "must say proceed-with-safe-default when not materially ambiguous");
+});
