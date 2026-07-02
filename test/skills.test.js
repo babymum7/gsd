@@ -715,3 +715,28 @@ test("intent-signal table has all 8 rows with correct route+skill mapping (table
   const r4Row = table.split("\n").find(l => l.includes("gsd-diagnosing-bugs")) || "";
   assert.ok(!/\berror\b/.test(r4Row), "Route 4 row must NOT contain bare 'error'");
 });
+
+test("master covers multi-feature resume rule (most-recently-modified + name it)", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /most-recently-modified/i, "must say resume most-recently-modified feature");
+  assert.match(gsd, /name it in.*first line|name.*redirect/i, "must tell agent to name the feature so user can redirect");
+});
+
+test("master requires Step 0 state detection before route matching", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /Step 0.*Detect state/i, "must have Step 0 state-first detection");
+  assert.match(gsd, /workspace state.*drives/i, "must say workspace state drives routing");
+});
+
+test("master documents spec-gap feedback loops (sub-skills route back to Discussion)", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /spec.*gap|spec.*flawed|spec escalation/i, "must document spec-gap/spec-escalation feedback");
+  assert.match(gsd, /route.*back.*gsd|routes back.*discussion/i, "must say sub-skills route back to gsd Discussion");
+});
+
+test("gsd-verify blocks merge on Critical/Important findings", () => {
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /critical/i, "must mention Critical verdict");
+  assert.match(verify, /important/i, "must mention Important verdict");
+  assert.match(verify, /block/i, "must say it blocks the merge");
+});
