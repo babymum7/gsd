@@ -694,3 +694,24 @@ test("gsd description is keyword-rich for harness auto-discovery", () => {
   assert.match(desc, /domain model/i, "description must mention domain modeling");
   assert.match(desc, /\/gsd/i, "description must say the command is /gsd");
 });
+
+test("intent-signal table has all 8 rows with correct route+skill mapping (table-scoped)", () => {
+  const gsd = readSkill("gsd");
+  // Isolate ONLY the table region: between header and the footnote/Route 0
+  const tableStart = gsd.indexOf("| Prompt asks to");
+  const tableEnd = gsd.indexOf("*TDD");
+  assert.ok(tableStart > 0 && tableEnd > tableStart, "signal table region must exist");
+  const table = gsd.slice(tableStart, tableEnd);
+  // Each row: signal keywords → correct route number + skill name
+  assert.match(table, /review.*2.*gsd-verify/i, "row 1: review → 2 · gsd-verify");
+  assert.match(table, /diagnose.*4.*gsd-diagnosing-bugs/i, "row 2: diagnose → 4 · gsd-diagnosing-bugs");
+  assert.match(table, /audit.*5.*gsd-improve/i, "row 3: audit → 5 · gsd-improve-codebase-architecture");
+  assert.match(table, /design.*5.*gsd-codebase-design/i, "row 4: design → 5 · gsd-codebase-design");
+  assert.match(table, /domain.*5.*gsd-domain-modeling/i, "row 5: domain → 5 · gsd-domain-modeling");
+  assert.match(table, /resume.*1.*gsd-handoff/i, "row 6: resume → 1 · gsd-handoff");
+  assert.match(table, /pause.*meta.*gsd-handoff/i, "row 7: pause → meta · gsd-handoff");
+  assert.match(table, /lavish.*meta.*gsd-lavish/i, "row 8: lavish → meta · gsd-lavish");
+  // Route 4 row must NOT contain bare 'error' (table-scoped, not whole-engine)
+  const r4Row = table.split("\n").find(l => l.includes("gsd-diagnosing-bugs")) || "";
+  assert.ok(!/\berror\b/.test(r4Row), "Route 4 row must NOT contain bare 'error'");
+});

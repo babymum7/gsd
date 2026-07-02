@@ -1,6 +1,6 @@
 ---
 name: gsd-improve-codebase-architecture
-description: Scan the codebase for deepening opportunities, present them as a visual HTML report, then grill through the one you pick. Triggered as gsd-diagnosing-bugs terminal, or for upkeep.
+description: Scan the codebase for deepening opportunities, present candidates (terminal by default; lavish visual opt-in), then grill through the one you pick. Triggered as gsd-diagnosing-bugs terminal, or for upkeep.
 triggers: architecture/refactor (gsd Route 5); upkeep; gsd-diagnosing-bugs terminal
 produces: []
 consumes: [CONTEXT.md, docs/adr/]

@@ -47,5 +47,6 @@ Tasks run sequentially — `gsd-executing-plans` dispatches one `task` subagent 
 
  ## Contextual disclosure (see gsd Conventions). Example:
  ```
- - /gsd (to start execution, resume work, or save progress)
+Next steps:
+- /gsd (to start execution, resume work, or save progress)
  ```

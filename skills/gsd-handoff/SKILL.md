@@ -1,7 +1,7 @@
 ---
 name: gsd-handoff
 description: Compact the current conversation into a resume-aware gsd-handoff document for another agent/session. Triggered at pauses/breakpoints; read back on resume.
-triggers: pause/breakpoint/context-pressure
+triggers: resume/continue (read existing); pause/breakpoint/context-pressure (write new)
 produces: [handoff-<n>.toon]
 consumes: [plan.toon]
 ---

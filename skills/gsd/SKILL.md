@@ -39,7 +39,7 @@ On entry, analyze the prompt and workspace state to route to the correct sub-flo
 | pause / save / handoff / breakpoint | meta · `gsd-handoff` (write) |
 | lavish / visual report / "render this" / HTML artifact | meta · `gsd-lavish` (opt-in) |
 
-*TDD / ponytail / YAGNI / minimal are execution preferences, not routes — capture in Discussion/plan or apply during Route 0/3. Lavish is opt-in — explicit user request ("use lavish", "visual report") satisfies the opt-in gate; the deliverable gate (reviewable artifact, not mid-conversation) still applies.*
+*TDD / ponytail / YAGNI / minimal are execution preferences, not routes — capture in Discussion/plan or apply during Route 0/3. Lavish is opt-in — explicit user request ("use lavish", "visual report") satisfies the opt-in gate; the 2-part deliverable Gate (both must hold — see Triggers §) still applies.*
 0. **Direct / Trivial (check first)**:
    - Simple question, advisory, a small targeted change (named file, ≤1 module, no design), OR an **obvious** failing-test/error fix (clear single-spot root cause, no investigation needed) → answer directly or `gsd-ponytail` quick-fix. **Do NOT explore broadly or trigger architecture skills.**
 1. **Resume**:
@@ -88,7 +88,7 @@ If the harness's `skill://` scheme cannot resolve unregistered skills, use the `
 ## Entry — Discussion Mode
 - Pastes plan/spec/diff → **stress-test**.
 - Vague one-liner → **discovery**.
-- Ambiguous → ONE disambiguating question.
+- Materially ambiguous → ONE disambiguating question (see Clarify principle above).
 - Pure question/advisory/exploration (no code change intended) → **answer directly**; no spec/plan.
 ## Body
 Recommend an answer for every question. One design branch at a time.
