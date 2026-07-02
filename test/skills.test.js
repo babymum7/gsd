@@ -637,3 +637,31 @@ test("master has universal clarify-when-materially-ambiguous principle", () => {
   assert.match(engine, /all routes|regardless of route/i, "principle must apply to all routes, not just Discussion");
   assert.match(engine, /safe default/i, "must say proceed-with-safe-default when not materially ambiguous");
 });
+
+test("master has intent-signal table with frontmatter-derived aliases", () => {
+  const gsd = readSkill("gsd");
+  const engine = gsd.split("## Smart Routing Engine")[1]?.split("## Scope discipline")[0] || gsd;
+  // Table exists with the right header
+  assert.match(engine, /intent signal/i, "must have intent-signal section");
+  assert.match(engine, /\| Prompt asks to/i, "must have a signal table");
+  // Key aliases from sub-skill frontmatter
+  assert.match(engine, /diagnose.*debug|debug.*diagnose/i, "must include diagnose/debug aliases");
+  assert.match(engine, /review.*verify|verify.*review/i, "must include verify/review aliases");
+  assert.match(engine, /audit.*refactor|refactor.*audit/i, "must include audit/refactor aliases");
+  assert.match(engine, /domain.*glossary|glossary.*domain/i, "must include domain/glossary aliases");
+});
+
+test("signal table splits resume (read) vs pause/save (write)", () => {
+  const gsd = readSkill("gsd");
+  const engine = gsd.split("## Smart Routing Engine")[1]?.split("## Scope discipline")[0] || gsd;
+  assert.match(engine, /resume.*read|read.*resume/i, "resume must map to handoff read");
+  assert.match(engine, /pause.*save.*write|save.*pause.*write/i, "pause/save must map to handoff write");
+});
+
+test("signal table has mention-is-not-ask guard and signals-precede-Route-0 rule", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /mentioning.*passing|passing.*mention/i, "must warn that mention ≠ ask");
+  assert.match(gsd, /signals precede route 0/i, "must state signals-precede-Route-0 rule");
+  // TDD/ponytail must NOT be routes
+  assert.match(gsd, /TDD.*preference|preference.*TDD/i, "TDD must be noted as preference, not route");
+});
