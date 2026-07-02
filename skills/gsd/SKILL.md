@@ -1,6 +1,6 @@
 ---
 name: gsd
-description: Master entry point for all agent actions. Automatically routes, starts, resumes, and coordinates all sub-skills (discussion, planning, executing, verify, handoff, diagnostics) based on user prompt.
+description: "Master entry point for all coding tasks. Routes, starts, resumes, and coordinates sub-skills automatically — new features, debugging, code review, architecture/refactoring, testing, domain modeling. One skill, one command: /gsd."
 triggers: /gsd on any prompt (entry router; routes 0-6)
 produces: [spec.md]
 consumes: [handoff-<n>.toon, plan.toon]

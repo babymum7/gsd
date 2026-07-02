@@ -682,3 +682,15 @@ test("Route 4 signal row excludes bare 'error' (obvious errors stay Route 0)", (
   // Routing examples must show the negative case
   assert.match(gsd, /obvious error.*→ 0/i, "examples must show obvious error → Route 0");
 });
+
+test("gsd description is keyword-rich for harness auto-discovery", () => {
+  const gsd = readSkill("gsd");
+  const desc = gsd.match(/^description:\s*(.+)$/m)?.[1] || "";
+  // Must cover the main coding intents so harness auto-suggests /gsd
+  assert.match(desc, /debug/i, "description must mention debugging");
+  assert.match(desc, /review/i, "description must mention code review");
+  assert.match(desc, /architect|refactor/i, "description must mention architecture/refactoring");
+  assert.match(desc, /test/i, "description must mention testing");
+  assert.match(desc, /domain model/i, "description must mention domain modeling");
+  assert.match(desc, /\/gsd/i, "description must say the command is /gsd");
+});
