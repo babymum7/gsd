@@ -31,14 +31,15 @@ On entry, analyze the prompt and workspace state to route to the correct sub-flo
 | Prompt asks to... | → Route · skill |
 |---|---|
 | review diff / PR / "check my code" / verify | 2 · `gsd-verify` |
-| diagnose / debug / error / stack trace / "can't reproduce" / regression | 4 · `gsd-diagnosing-bugs` |
+| diagnose / debug / "can't reproduce" / regression / flaky / intermittent / non-obvious stack trace | 4 · `gsd-diagnosing-bugs` |
 | audit / refactor / improve architecture / upkeep | 5 · `gsd-improve-codebase-architecture` |
 | design / redesign a module or interface / deepening | 5 · `gsd-codebase-design` |
 | model the domain / glossary / ubiquitous language / domain terms | 5 · `gsd-domain-modeling` |
 | resume / continue (when `handoff-<n>.toon` exists) | 1 · `gsd-handoff` (read) |
 | pause / save / handoff / breakpoint | meta · `gsd-handoff` (write) |
+| lavish / visual report / "render this" / HTML artifact | meta · `gsd-lavish` (opt-in) |
 
-*TDD / ponytail / YAGNI / minimal are execution preferences, not routes — capture in Discussion/plan or apply during Route 0/3.*
+*TDD / ponytail / YAGNI / minimal are execution preferences, not routes — capture in Discussion/plan or apply during Route 0/3. Lavish is opt-in — explicit user request ("use lavish", "visual report") satisfies the opt-in gate; the deliverable gate (reviewable artifact, not mid-conversation) still applies.*
 0. **Direct / Trivial (check first)**:
    - Simple question, advisory, a small targeted change (named file, ≤1 module, no design), OR an **obvious** failing-test/error fix (clear single-spot root cause, no investigation needed) → answer directly or `gsd-ponytail` quick-fix. **Do NOT explore broadly or trigger architecture skills.**
 1. **Resume**:
@@ -64,7 +65,7 @@ On entry, analyze the prompt and workspace state to route to the correct sub-flo
 - **Route 3 relevance guard.** A pending plan routes to execution ONLY when the prompt relates to that feature's tasks. Unrelated prompt + existing plan → fall through (the user may be starting new work or asking an unrelated question).
 
 ## Routing examples
-Typo/named-spot fix → 0 (nano). "how does X work?" → 0 (read-only). Pasted diff / "review this" / verify → 2. "continue" + handoff → 1. "pause" / "save" → handoff (write). "diagnose" / "can't reproduce" / "debug" → 4. "audit architecture" / "refactor" → 5. "design module" / "domain model" → 5. "add feature X" → 6. Existing plan + unrelated ask → 6 (relevance guard). "architecture is fine, fix typo" → 0 (mention ≠ ask).
+Typo/named-spot fix → 0 (nano). "how does X work?" → 0 (read-only). Pasted diff / "review this" / verify → 2. "continue" + handoff → 1. "pause" / "save" → handoff (write). "diagnose" / "can't reproduce" / "debug" → 4. Obvious error with clear stack trace → 0 (not 4 — single-spot fix). "audit architecture" / "refactor" → 5. "design module" / "domain model" → 5. "use lavish" → lavish (opt-in, check deliverable gate). "add feature X" → 6. Existing plan + unrelated ask → 6 (relevance guard). "architecture is fine, fix typo" → 0 (mention ≠ ask).
 
 ## Scope discipline — read only what the prompt needs
 Match exploration breadth to prompt complexity; over-exploration drifts from the ask and burns the budget.
@@ -114,7 +115,7 @@ Rules:
 - The fix fast-paths (below) carry no `spec.md` — quick-fix goes through `gsd-verify` (code-quality only); nano-fix verifies inline (no gate).
 
 ## Triggers (supporting skills fire automatically — except lavish, which is opt-in)
- - `gsd-lavish` — opt-in visual surface for substantial, standalone deliverables (spec, approach comparison, finalized `plan.toon`, verify report, architecture audit). **Never auto-fired**: default to terminal, ask first. **Gate (both must hold):** (1) a reviewable deliverable, not mid-conversation; AND (2) the user gains from annotating it in a browser. Never on inline Qs or per-task diffs.
+ - `gsd-lavish` — opt-in visual surface for substantial, standalone deliverables (spec, approach comparison, finalized `plan.toon`, verify report, architecture audit). **Never auto-fired**: default to terminal, ask first. **Explicit user request** ("use lavish", "visual report", "render this") satisfies the opt-in gate — then check the **Gate (both must hold):** (1) a reviewable deliverable, not mid-conversation; AND (2) the user gains from annotating it in a browser. Never on inline Qs or per-task diffs.
 - `gsd-ponytail` — quick-fix entry → short-circuit to fast-path below, skip the body. **Manual toggle**: if the user says "ponytail <level>" or "stop ponytail"/"normal mode", set/clear the level and acknowledge — no routing needed.
 - `gsd-domain-modeling` — durable term/decision crystallizes → capture to `CONTEXT.md`/ADR.
 - `gsd-codebase-design` — a module-interface / deepening decision is in play.

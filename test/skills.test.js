@@ -665,3 +665,20 @@ test("signal table has mention-is-not-ask guard and signals-precede-Route-0 rule
   // TDD/ponytail must NOT be routes
   assert.match(gsd, /TDD.*preference|preference.*TDD/i, "TDD must be noted as preference, not route");
 });
+
+test("signal table includes lavish as opt-in action, not a route", () => {
+  const gsd = readSkill("gsd");
+  const engine = gsd.split("## Smart Routing Engine")[1]?.split("## Scope discipline")[0] || gsd;
+  assert.match(engine, /lavish.*opt-in|opt-in.*lavish/i, "lavish must appear as opt-in in signal table");
+  assert.match(engine, /visual report|render this|HTML artifact/i, "must include lavish aliases");
+});
+
+test("Route 4 signal row excludes bare 'error' (obvious errors stay Route 0)", () => {
+  const gsd = readSkill("gsd");
+  const engine = gsd.split("## Smart Routing Engine")[1]?.split("## Scope discipline")[0] || gsd;
+ const r4Row = engine.split("\n").find(l => l.includes("gsd-diagnosing-bugs") && l.includes("|")) || "";
+  assert.ok(!/\berror\b/.test(r4Row), "Route 4 row must NOT contain bare 'error' — obvious errors are Route 0");
+  assert.match(r4Row, /non-obvious/i, "stack-trace qualifier must say 'non-obvious'");
+  // Routing examples must show the negative case
+  assert.match(gsd, /obvious error.*→ 0/i, "examples must show obvious error → Route 0");
+});
