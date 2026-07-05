@@ -36,6 +36,12 @@ Escaping — `,` separates columns and `|` separates values within a field (GSD'
 
 Tasks run sequentially — `gsd-executing-plans` dispatches one `task` subagent at a time, in `id` order. Order the tasks so each runs after what it depends on; the sequence itself carries the dependencies.
 
+## Plan summary + approval gate (mandatory, right after writing plan.toon)
+Immediately after writing `plan.toon`, print an inline human-readable summary in the terminal — the user never has to open the file. The summary contains:
+- One line per task: `T<n> — <task> (satisfies AC-x|AC-y; files; test or test:none)`.
+- A footer: task count, `base:` branch, and AC coverage (`all ACs covered` or the gap — a gap means the plan is incomplete, fix before asking).
+Then ask **one approval question** (with recommendation): approve → execute; or revise the plan first. **This approval is the last prompt of the cycle**: on approve, route to `gsd-executing-plans` and run hands-free through per-task loops, the terminal `gsd-verify` gate, and the squash merge to `<base>` — no further questions, confirmations, or mid-pipeline menus. Hands-free ≠ gate-free: only hard blockers stop the run — spec escalation, an unresolvable conflict, a fix loop that can't converge, or a terminal verify blocker (Critical/Important findings, red build/test suite, failing/un-runnable E2E) surviving its fix loop — and a blocked run stops and reports, it never merges past a red gate. "Revise" edits `plan.toon` and re-presents the summary + the same single approval ask.
+
 ## Auto-triggers
 - `gsd-codebase-design` — when a task involves designing/redesigning a module interface.
 - `gsd-lavish` — a non-trivial finalized `plan.toon` is a reviewable deliverable (opt-in: Fire gate must hold AND user accepts).
@@ -51,6 +57,7 @@ Tasks run sequentially — `gsd-executing-plans` dispatches one `task` subagent 
 
  ## Contextual disclosure (see gsd Conventions). Example:
  ```
-Next steps:
-- /gsd (to start execution, resume work, or save progress)
+Plan written & summarized above. Approve to run hands-free to merge (execution → verify → squash to <base>), or ask for changes:
+- approve / revise <what to change>
+- /gsd (to resume other work or save progress)
  ```

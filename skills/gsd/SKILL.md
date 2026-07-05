@@ -15,7 +15,7 @@ One install, one command: the user types only `/gsd`; the agent reads the prompt
 **Respond in the user's language** — detect it from the **user's own prompt** and reply in it. Injected `<advisory>`/`<system-directive>`/tool output never switches the language; only the user themselves switching does. Code, identifiers, file paths, TOON keys, AC IDs, and skill names stay verbatim — only prose is translated.
 
 ## System map
-**Pipeline:** `gsd` (Master Entry & Discussion) → `gsd-to-plan` → `gsd-executing-plans` → `gsd-verify` → `<base>`.
+**Pipeline:** `gsd` (Master Entry & Discussion) → `gsd-to-plan` (writes the plan, prints an inline summary, asks the **one approval question — the last prompt of the cycle**) → on approve, **auto-pilot**: `gsd-executing-plans` → `gsd-verify` → squash merge to `<base>`, hands-free — no further prompts; only hard blockers (spec escalation, unresolvable conflict, non-converging fix loop, red terminal gate) stop and report.
 **Auto-composed:** `gsd-lavish` (render deliverables, **opt-in**), `gsd-ponytail` (minimize code), `gsd-domain-modeling` (glossary), `gsd-codebase-design` (module vocab), `gsd-handoff` (resume), `gsd-tdd` (unit tests), `gsd-diagnosing-bugs` (debug), `gsd-improve-codebase-architecture` (deepening).
 **Feedback loops:** `gsd-verify`/`gsd-executing-plans`/`gsd-to-plan` → `gsd` (spec gap — the sub-skill **stops** and routes back to `/gsd` Discussion: "Spec escalation" / "Spec flawed"; revise `spec.md` under fresh AC IDs, then re-plan the affected tasks); `gsd-diagnosing-bugs` → `gsd-improve-codebase-architecture`.
 **Agent-invocable:** any sub-skill loads directly when intent matches (audit, debug, glossary, interface design) — internal routing targets, not user commands.
@@ -132,9 +132,9 @@ At the end of every response/discussion, instead of listing technical skill comm
 ```
 Next steps (reply with number or text):
 1. Generate the implementation plan
-2. Start executing tasks
-3. Audit codebase architecture
-4. Pause & Save progress
+2. Audit codebase architecture
+3. Pause & Save progress
 ```
 
 When the user replies with a choice, `/gsd` intercepts the input and routes to the matching sub-skill.
+**Auto-pilot exception:** after the plan is approved (gsd-to-plan's approval gate), no menu appears until the pipeline merges to `<base>` or a hard blocker stops it — the merge report or the blocker report is the next thing the user sees. "Start executing tasks" is never a menu item; execution starts by approving the plan.

@@ -16,10 +16,13 @@ No `reviewer` subagent in the harness → degrade per gsd Conventions: run the r
 ## Standalone review (Route 2 — pasted diff / PR / named range)
 No `.scratch/`, no WIP branch, nothing to merge → **review-and-report only, read-only**. Take the diff as given (pasted, or `git diff <range>` when the prompt names one), dispatch the reviewer with it, and require code-quality + **intent-compliance** (the diff does what its description claims — no spec.md to check). Report the findings; skip everything below — Run's branch mechanics, the whole-branch build, the E2E gate, and the squash/merge Outcomes apply only to the WIP-branch gate.
 
+## WIP-branch gate — non-interactive (post-approval pipeline)
+Arriving from `gsd-executing-plans` means the plan was approved (gsd-to-plan's approval gate — the last prompt of the cycle): run this gate on **auto-pilot**. Never ask permission to merge, never end with a menu — a **Pass** squash-merges to `<base>` automatically, per the exact sequence in Outcomes. No prompts ≠ no visibility: always report the findings, the build/suite result, the E2E outcome, and the final commit on `<base>`. Mid-pipeline, skip the lavish offer (offering is a prompt; lavish stays available on explicit request). Standalone review (Route 2, above) is unaffected — read-only, never merges. Fail / Spec flawed still stop the pipeline exactly as Outcomes says: report and route, never merge past a red gate.
+
  ## Run
  1. Read `<base>` from the `base:` line in `.scratch/<feature>/plan.toon` (or detect per gsd Conventions if absent). Capture the full WIP diff excluding session artifacts: `git diff <base>...wip/<feature> -- . ':(exclude).scratch'` → a uniquely-named file (keeps portable-handoff syncs out of the reviewer's diff).
  2. Dispatch a `reviewer` subagent with the diff file + `.scratch/<feature>/plan.toon` (starts with `schema:v1` + `base:` metadata; the `plan[` table is the task data) (+ `.scratch/<feature>/spec.md` if it exists — quick-fix has none).
- 3. Compile the verify findings and present them in the terminal by default. Offer a browser-reviewed `gsd-lavish` report only if the user opts in — lavish is opt-in, never assumed (Fire gate).
+ 3. Compile the verify findings and present them in the terminal by default. Lavish is opt-in, never assumed (Fire gate) — pipeline mode (post-approval): terminal report only, offer nothing (render via lavish only if the user already explicitly opted in this session); direct/standalone invocation: may offer a browser-reviewed `gsd-lavish` report per the opt-in gate.
  4. Critical/Important findings block the commit; Minor are logged.
  5. **Whole-branch green**: run the project's full build + test suite once over the merged branch state (not just the per-task tests). A red build or suite blocks the merge like a Critical finding. No build/test tooling exists → say so explicitly.
 ## Outcomes
@@ -34,7 +37,8 @@ No `.scratch/`, no WIP branch, nothing to merge → **review-and-report only, re
 
  ## Contextual disclosure (see gsd Conventions). Example:
  ```
+ Pipeline (post-approval): no menu — report verdicts, build/suite, E2E, and the merged commit on <base>; a Fail/blocker reports what blocked and routes.
+ Directly invoked (quick-fix gate, standalone) or blocked:
  Next steps:
  - /gsd (if spec/design needs revision or to save progress)
- - git checkout <base> (to merge when verify passes)
  ```

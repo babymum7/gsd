@@ -12,6 +12,9 @@ consumes: [plan.toon]
 
 Dispatch a fresh `task` subagent (the implementer) per task, verify each, then a terminal gsd-verify. Markdown-skill authoring and trivial edits are done directly (skip this).
 
+## Auto-pilot (no-prompt contract)
+Entering this skill means the plan is **already approved** (gsd-to-plan's approval gate — the last prompt of the cycle). From here to the `<base>` merge, run **hands-free**: no questions, confirmations, or end-of-response menus between tasks, before the terminal `gsd-verify` gate, or before the squash merge. Report progress (task started/committed, verdicts, findings fixed) — visibility stays, prompts go. The ONLY stops are hard blockers: spec escalation, a merge conflict too tangled to resolve mechanically, a fix loop that can't converge (→ `gsd-diagnosing-bugs`), or a failing terminal verify that survives its fix loop. A blocker stop reports what blocked and why — it never silently merges.
+
  ## Intake
  Read the consolidated plan `.scratch/<feature>/plan.toon` (skip the `schema:v1` header and `base:` line; tasks start at the `plan[` table). Tasks run sequentially. Do not dispatch parallel tasks on shared code.
  **Branch** (if not on `wip/<feature>` yet): the branch already exists (resume/rerun — check `git branch --list wip/<feature>`) → `git checkout wip/<feature>`. Else, creation depends on `base:` in `plan.toon`: present → it is authoritative, `git checkout -b wip/<feature> <base>` (never recapture from whatever branch you happen to be on); absent → capture `BASE=$(git branch --show-current)` first, `git checkout -b wip/<feature>`, and persist `base:$BASE` immediately after `schema:v1` (see gsd Conventions).
@@ -40,7 +43,7 @@ If a task reveals an **acceptance criterion is itself wrong/incomplete** (not a 
  Update each task's status column directly inside `.scratch/<feature>/plan.toon` (e.g. from `pending` -> `in_progress` -> `done`). After resume, check `plan.toon` + `git log` — never re-dispatch a task marked `done`.
 
 ## Terminal — gsd-verify gate
-All plans done + per-task verifications passed → invoke `gsd-verify` (reviewer subagent over the full WIP diff). Pass → squash `wip/<feature>` → one commit to <base>. Fail → fix loop, re-verify.
+All plans done + per-task verifications passed → invoke `gsd-verify` **immediately** (reviewer subagent over the full WIP diff) — no prompt, no menu; auto-pilot carries through the gate. Pass → squash `wip/<feature>` → one commit to <base>, automatically. Fail → fix loop, re-verify.
 
  
  ## Git conflict resolution
@@ -55,9 +58,12 @@ All plans done + per-task verifications passed → invoke `gsd-verify` (reviewer
 - Skip per-task verify, or accept a report missing either verdict.
 - Parallel `task` subagents on shared code. Hand a subagent its task-brief, not the whole plan.
 - Re-dispatch a task the ledger marks done.
+- Prompt, ask, or menu mid-pipeline after plan approval — auto-pilot runs to merge or to a blocker.
+- Merge past a red gate: a blocker stops and reports, never auto-merges anyway.
 
  ## Contextual disclosure (see gsd Conventions). Example:
  ```
- Next steps:
- - /gsd (to check progress, trigger a verify, or save progress)
+ Auto-pilot appends nothing mid-run. Only a blocker stop (or direct invocation outside the pipeline) discloses:
+ Blocked at <task/gate>: <why>. Next steps:
+ - /gsd (to revise the spec, resume after the fix, or save progress)
  ```

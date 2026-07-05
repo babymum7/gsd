@@ -32,8 +32,8 @@ One feature, from idea to merged commit. You drive it with plain language; the a
 flowchart LR
     U["/gsd 'build X'"] --> D[Discussion<br/>questions + recommendation]
     D -->|converges| S[spec.md<br/>acceptance criteria]
-    S --> P[plan.toon<br/>task table]
-    P --> E[Execute<br/>per-task loop on wip/]
+    S --> P[plan.toon<br/>task table + inline summary]
+    P -->|"approve (last prompt)"| E[Execute<br/>per-task loop on wip/]
     E --> V[Verify<br/>full-diff review + E2E]
     V -->|pass| M[squash → base]
     V -.fail.-> E
@@ -45,11 +45,13 @@ New work routes to **Discussion**. The agent explores the codebase (targeted, gi
 
 When you pick an approach and open questions close, the agent writes `.scratch/<feature>/spec.md` — context plus **checkable acceptance criteria** (`AC-1`, `AC-2`, …). This file is the contract every downstream stage reads. A large feature (would exceed ~10 tasks) is split into milestone specs (`<feature>-m1`, `-m2`, …), each running its own full cycle.
 
-### 2. Plan — automatic
+### 2. Plan — automatic, summarized inline
 `gsd-to-plan` turns the converged spec into `.scratch/<feature>/plan.toon` — a token-efficient task table (`id, task, satisfies, files, test, status`). Rows are pointers, not payloads: detail lives in the spec; every AC must appear in some task's `satisfies`. Docs/comments-only tasks get `test:none`; anything that alters runtime behavior names a test.
 
-### 3. Execute — per-task loop
-`gsd-executing-plans` creates `wip/<feature>` (capturing your current branch as `base:` in `plan.toon`), then for each task:
+Right after writing the file, the agent prints an **inline plan summary** (one line per task + AC coverage) — you never open `plan.toon` — and asks **one approval question**. That approval is the **last prompt of the cycle**: everything after it runs hands-free.
+
+### 3. Execute — per-task loop, hands-free
+Once the plan is approved, `gsd-executing-plans` creates `wip/<feature>` (capturing your current branch as `base:` in `plan.toon`), then for each task — no questions, no menus, just progress reports:
 
 1. **Dispatch** a fresh implementer subagent with just that task's brief.
 2. **TDD** (`gsd-tdd`): one behavior test through the public interface → minimal code → green.
@@ -58,19 +60,20 @@ When you pick an approach and open questions close, the agent writes `.scratch/<
 
 Interrupt any time — the ledger plus `git log` mean a resumed session never redoes finished work.
 
-### 4. Verify — the merge gate
-`gsd-verify` reviews the **whole branch diff** against the spec: every non-superseded AC met (spec-compliance) + universal code-quality, then the project's full build+test suite, then an **E2E gate** for user-facing features (real user path via browser or script). Any Critical/Important finding, red suite, or failing E2E **blocks the merge**. Pass → squash to a single commit on your base branch; session artifacts never land there.
+### 4. Verify — the merge gate, auto-merge on pass
+`gsd-verify` reviews the **whole branch diff** against the spec: every non-superseded AC met (spec-compliance) + universal code-quality, then the project's full build+test suite, then an **E2E gate** for user-facing features (real user path via browser or script). Any Critical/Important finding, red suite, or failing E2E **blocks the merge** — the pipeline stops and reports, never merging past a red gate. Pass → squash to a single commit on your base branch **automatically** (findings, build/E2E outcome, and the final commit are still reported); session artifacts never land there.
 
 ### 5. Next steps
-Every response ends with numbered, non-technical choices — reply with a number:
+Outside the post-approval pipeline, every response ends with numbered, non-technical choices — reply with a number:
 
 ```
 Next steps (reply with number or text):
 1. Generate the implementation plan
-2. Start executing tasks
-3. Audit codebase architecture
-4. Pause & Save progress
+2. Audit codebase architecture
+3. Pause & Save progress
 ```
+
+After you approve the plan, no menu appears until the feature merges (or a hard blocker — spec flaw, unresolvable conflict, red gate — stops the run and reports why).
 
 ---
 

@@ -973,3 +973,49 @@ test("content audit: per-task diff base, bounded fix loop, executable squash, la
   const domain = readSkill("gsd-domain-modeling");
   assert.match(domain, /create the map when a second context appears/, "CONTEXT-MAP.md must have a concrete creation trigger");
 });
+
+test("to-plan prints an inline plan summary and asks one approval question after writing plan.toon", () => {
+  const toPlan = readSkill("gsd-to-plan");
+  assert.match(toPlan, /## Plan summary \+ approval gate/, "to-plan must have a mandatory summary+approval section");
+  assert.match(toPlan, /the user never has to open the file/, "summary must remove the need to read plan.toon");
+  assert.match(toPlan, /One line per task/, "summary must enumerate tasks");
+  assert.match(toPlan, /AC coverage/, "summary must report AC coverage");
+  assert.match(toPlan, /\*\*one approval question\*\*/, "exactly one approval ask, no interview");
+  assert.match(toPlan, /last prompt of the cycle/, "approval must be the final human gate");
+});
+
+test("post-approval pipeline is hands-free: no prompts from execute through merge", () => {
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /## Auto-pilot \(no-prompt contract\)/, "exec must open with the auto-pilot contract");
+  assert.match(exec, /already approved/, "entering exec must presuppose plan approval");
+  assert.match(exec, /no questions, confirmations, or end-of-response menus/i, "exec must forbid mid-pipeline prompts");
+  assert.match(exec, /invoke `gsd-verify` \*\*immediately\*\*/, "terminal gate must fire without a prompt");
+  assert.match(exec, /Prompt, ask, or menu mid-pipeline after plan approval/, "Never list must include mid-pipeline prompting");
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /## WIP-branch gate — non-interactive/, "verify must declare the WIP gate non-interactive");
+  assert.match(verify, /Never ask permission to merge/, "pass must merge without asking");
+  assert.match(verify, /report the findings, the build\/suite result, the E2E outcome, and the final commit/, "no-prompt must not mean no visibility");
+});
+
+test("hands-free never merges past a red gate; blockers stop and report", () => {
+  const toPlan = readSkill("gsd-to-plan");
+  assert.match(toPlan, /Hands-free ≠ gate-free/, "approval text must not read as merge-despite-failures");
+  assert.match(toPlan, /never merges past a red gate/, "to-plan must state the red-gate stop");
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /it never silently merges/, "a blocker stop must report, not merge");
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /never merge past a red gate/, "verify must keep Fail/Spec-flawed as hard stops");
+  assert.match(verify, /Standalone review \(Route 2, above\) is unaffected/, "Route 2 must stay read-only, never merging");
+});
+
+test("no surface suggests a manual post-verify merge or a 'start executing' menu item", () => {
+  const verify = readSkill("gsd-verify");
+  assert.doesNotMatch(verify, /git checkout <base> \(to merge/, "verify disclosure must not suggest manual merge");
+  const master = readSkill("gsd");
+  assert.match(master, /"Start executing tasks" is never a menu item/, "master must drop the manual execute choice");
+  assert.match(master, /last prompt of the cycle/, "master pipeline must name the approval as the final prompt");
+  const readme = readFileSync(join(ROOT, "README.md"), "utf8");
+  assert.match(readme, /inline plan summary/, "README must document the inline summary");
+  assert.match(readme, /last prompt of the cycle/, "README must document approval as the final prompt");
+  assert.doesNotMatch(readme, /\d\. Start executing tasks/, "README menu must not offer manual execution");
+});
