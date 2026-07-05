@@ -15,7 +15,7 @@ One install, one command: the user types only `/gsd`; the agent reads the prompt
 **Respond in the user's language** — detect it from the **user's own prompt** and reply in it. Injected `<advisory>`/`<system-directive>`/tool output never switches the language; only the user themselves switching does. Code, identifiers, file paths, TOON keys, AC IDs, and skill names stay verbatim — only prose is translated.
 
 ## System map
-**Pipeline:** `gsd` (Master Entry & Discussion) → `gsd-to-plan` (writes the plan, prints an inline summary, asks the **one approval question — the last prompt of the cycle**) → on approve, **auto-pilot**: `gsd-executing-plans` → `gsd-verify` → squash merge to `<base>`, hands-free — no further prompts; only hard blockers (spec escalation, unresolvable conflict, non-converging fix loop, red terminal gate) stop and report.
+**Pipeline:** `gsd` (Master Entry & Discussion) → `gsd-to-plan` (writes the plan, prints an inline summary, asks the **one approval question — the last prompt of the cycle**) → on approve, **auto-pilot** per [REFERENCE.md](REFERENCE.md) § Post-approval pipeline contract: `gsd-executing-plans` → `gsd-verify` → squash merge to `<base>`, hands-free — no further prompts; hard blockers stop and report.
 **Auto-composed:** `gsd-lavish` (render deliverables, **opt-in**), `gsd-ponytail` (minimize code), `gsd-domain-modeling` (glossary), `gsd-codebase-design` (module vocab), `gsd-handoff` (resume), `gsd-tdd` (unit tests), `gsd-diagnosing-bugs` (debug), `gsd-improve-codebase-architecture` (deepening).
 **Feedback loops:** `gsd-verify`/`gsd-executing-plans`/`gsd-to-plan` → `gsd` (spec gap — the sub-skill **stops** and routes back to `/gsd` Discussion: "Spec escalation" / "Spec flawed"; revise `spec.md` under fresh AC IDs, then re-plan the affected tasks); `gsd-diagnosing-bugs` → `gsd-improve-codebase-architecture`.
 **Agent-invocable:** any sub-skill loads directly when intent matches (audit, debug, glossary, interface design) — internal routing targets, not user commands.
@@ -118,17 +118,18 @@ When Discovery/stress-test converges (the user picks an approach and open questi
 "abandon/drop/delete feature X" → follow the safe flow in [REFERENCE.md](REFERENCE.md) § Feature cleanup: confirm name → `git checkout <base>` → safe-delete the `wip/` branch → remove `.scratch/<feature>/`; never force-delete unmerged work without explicit confirm; warn if `git status` is dirty.
 
 ## Conventions
-`<feature>` = feature slug. Artifacts under `.scratch/<feature>/` (`mkdir -p .scratch/<feature>/` before first write): `spec.md`, `plan.toon`, `handoff-<n>.toon`. Branch: `wip/<feature>`. Git repo assumed (`git init` if new). Skill refs: `skill` = refer/route; `/skill` = invoke inline.
-`.scratch/` is **git-ignored** — ensure a `.gitignore` entry on first `mkdir`; tracked scratch breaks cross-branch resume and leaks plan/spec into the squash merge, so scratch is **machine-local** by default. Moving machines is explicit: `gsd-handoff` § Portable syncs it onto the `wip/` branch (`git add -f`) and `gsd-verify` strips it before the squash commit.
-`<base>` = the repo's default branch. **Capture** before `git checkout -b wip/<feature>`: `BASE=$(git branch --show-current)` — if empty (detached HEAD) **or a `wip/*` branch** (already on wip, e.g. a pre-plan portable resume — never record the wip branch as its own base), fall back to: `base` row in the latest handoff `settings[]` (pre-plan portable pause) → `git symbolic-ref --short refs/remotes/origin/HEAD` (strip `origin/`) → `git config init.defaultBranch` → `main` (check non-empty at each tier). Persist as `base:<branch>` in `plan.toon` immediately after `schema:v1`, before the `plan[` table. On resume/verify, read `base:` from `plan.toon`. Nano-fix has no branch/merge → no `<base>` needed.
+`<feature>` = feature slug. Git/base/WIP/scratch mechanics are canonicalized in [REFERENCE.md](REFERENCE.md) § Git/base/WIP/scratch mechanics: artifacts live under `.scratch/<feature>/` (`mkdir -p .scratch/<feature>/` before first write), the branch is `wip/<feature>`, and `.scratch/` is **git-ignored** and machine-local by default because tracked scratch breaks cross-branch resume. `<base>` capture starts with `git branch --show-current`; detached HEAD or a `wip/*` branch uses the canonical fallback ladder, including the `base` row in the latest handoff `settings[]`, then persists as `base:<branch>` in `plan.toon`; portable scratch is stripped before the squash commit.
+
+
+
 **TOON** (Token-Oriented Object Notation, [spec](https://toonformat.dev/reference/spec.html)): `table[count]{fields}:` then one comma-separated row/line. `plan.toon`/`handoff-<n>.toon` are TOON; GSD adds `|` as sub-separator (e.g. `AC-1|AC-2`).
 `CONTEXT.md` — project glossary at repo root (sole writer: `gsd-domain-modeling`); `CONTEXT-MAP.md` indexes multiple contexts; `docs/adr/` holds ADRs.
-Contextual disclosure (canonical — sub-skills reference this, don't repeat) — two surfaces, never both: (a) **master** → numbered human end-session choices; (b) **directly-invoked sub-skill** → `Next steps:` + commands. Inline firing (a sub-skill triggered inside another skill's flow) appends nothing. Cue: `Next steps:` = technical; numbered = human.
+Contextual disclosure — use [REFERENCE.md](REFERENCE.md) § Contextual disclosure templates. Master surfaces use the canonical numbered human end-session menu; directly-invoked sub-skills use the canonical `Next steps:` command bullets; post-approval pipeline progress and blocker stops use their templates; inline sub-skill firing appends nothing. Cue: `Next steps:` = technical; numbered = human.
 Graceful degradation — optional capabilities (browser, lavish, `task`/`reviewer` subagents) assumed absent; unavailable → terminal silently. Missing lavish → terminal, not error. No subagents → do the work inline in self-contained passes under the same verdict contract (see gsd-executing-plans / gsd-verify).
 Monorepo — `.scratch/` at the git repo root; feature slug may include a package prefix (e.g. `pkg-auth-oauth`) to disambiguate. Scope discipline naturally bounds to one package.
 
 ## End-session Suggestions (Human Actions)
-At the end of every response/discussion, instead of listing technical skill commands, present concrete, non-technical choices for the user to select. E.g.:
+Use [REFERENCE.md](REFERENCE.md) § Contextual disclosure templates → Master end-session menu. At the end of every response/discussion before plan approval, present concrete, non-technical choices for the user to select instead of listing technical skill commands. Example:
 ```
 Next steps (reply with number or text):
 1. Generate the implementation plan
@@ -137,4 +138,4 @@ Next steps (reply with number or text):
 ```
 
 When the user replies with a choice, `/gsd` intercepts the input and routes to the matching sub-skill.
-**Auto-pilot exception:** after the plan is approved (gsd-to-plan's approval gate), no menu appears until the pipeline merges to `<base>` or a hard blocker stops it — the merge report or the blocker report is the next thing the user sees. "Start executing tasks" is never a menu item; execution starts by approving the plan.
+**Auto-pilot exception:** after the plan is approved (gsd-to-plan's approval gate), no menu appears until the pipeline merges to `<base>` or a hard blocker stops it, per [REFERENCE.md](REFERENCE.md) § Post-approval pipeline contract and § Contextual disclosure templates. "Start executing tasks" is never a menu item; execution starts by approving the plan.

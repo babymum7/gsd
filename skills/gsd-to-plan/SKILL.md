@@ -13,7 +13,9 @@ consumes: [spec.md]
 Turn a converged design into an executable implementation plan. No interview — the design is settled (`gsd` did that). Read `.scratch/<feature>/spec.md` for the acceptance criteria this plan must deliver. Write the plan.
 
  ## Output (AXI TOON Format)
- Write a single consolidated plan file to `.scratch/<feature>/plan.toon`. This format is highly token-efficient, omitting braces, quotes, and markdown boilerplate. The first line declares the schema version (`schema:v1`); the second line is `base:<base>` (the repo's default branch, captured per gsd Conventions — already on `wip/<feature>` from a pre-plan portable resume? read the `base` row from the latest handoff `settings[]`, never the wip branch itself); consumers read from the `plan[` table.
+ Write a single consolidated plan file to `.scratch/<feature>/plan.toon`. This format is highly token-efficient, omitting braces, quotes, and markdown boilerplate. The first line declares the schema version (`schema:v1`); the second line is `base:<base>` (the repo's default branch captured per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics; already on `wip/<feature>` from a pre-plan portable resume? read the `base` row from the latest handoff `settings[]`, never the wip branch itself); consumers read from the `plan[` table.
+
+
  
  Format:
  ```
@@ -40,11 +42,11 @@ Tasks run sequentially — `gsd-executing-plans` dispatches one `task` subagent 
 Immediately after writing `plan.toon`, print an inline human-readable summary in the terminal — the user never has to open the file. The summary contains:
 - One line per task: `T<n> — <task> (satisfies AC-x|AC-y; files; test or test:none)`.
 - A footer: task count, `base:` branch, and AC coverage (`all ACs covered` or the gap — a gap means the plan is incomplete, fix before asking).
-Then ask **one approval question** (with recommendation): approve → execute; or revise the plan first. **This approval is the last prompt of the cycle**: on approve, route to `gsd-executing-plans` and run hands-free through per-task loops, the terminal `gsd-verify` gate, and the squash merge to `<base>` — no further questions, confirmations, or mid-pipeline menus. Hands-free ≠ gate-free: only hard blockers stop the run — spec escalation, an unresolvable conflict, a fix loop that can't converge, or a terminal verify blocker (Critical/Important findings, red build/test suite, failing/un-runnable E2E) surviving its fix loop — and a blocked run stops and reports, it never merges past a red gate. "Revise" edits `plan.toon` and re-presents the summary + the same single approval ask.
+Then ask **one approval question** using [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates → Direct sub-skill Next steps adapted as the approval gate: approve → execute; or revise the plan first. **This approval is the last prompt of the cycle**; on approve, route to `gsd-executing-plans` and follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Post-approval pipeline contract. Local responsibility here is only to make the final prompt explicit and block approval until AC coverage is complete. "Revise" edits `plan.toon` and re-presents the summary + the same single approval ask.
 
 ## Auto-triggers
 - `gsd-codebase-design` — when a task involves designing/redesigning a module interface.
-- `gsd-lavish` — a non-trivial finalized `plan.toon` is a reviewable deliverable (opt-in: Fire gate must hold AND user accepts).
+- `gsd-lavish` — a non-trivial finalized `plan.toon` is an offer-eligible deliverable only before approval: follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish opt-in gate taxonomy, and launch lavish only after explicit opt-in plus the Fire gate. After the approval question is answered, post-approval pipeline no-offer mode begins.
 
 ## Rules
 - Decompose by what an implementer can do in one focused pass, not by file type.
@@ -55,9 +57,5 @@ Then ask **one approval question** (with recommendation): approve → execute; o
 - If the design has a gap that blocks planning, STOP — route back to `gsd` (Discussion) → revise `spec.md` → re-plan. Do not invent scope to fill it.
 - No interviews, no scope expansion. The plan reflects the design; it doesn't renegotiate it.
 
- ## Contextual disclosure (see gsd Conventions). Example:
- ```
-Plan written & summarized above. Approve to run hands-free to merge (execution → verify → squash to <base>), or ask for changes:
-- approve / revise <what to change>
-- /gsd (to resume other work or save progress)
- ```
+## Contextual disclosure
+Use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates. This skill's standalone terminal surface is the plan summary + approval gate: one approval question, then no further menus or offers after approval. Inline firing appends nothing.

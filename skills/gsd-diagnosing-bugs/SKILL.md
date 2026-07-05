@@ -28,7 +28,7 @@ Run it, watch red. Confirm it's the *user's* failure (not a nearby one) and repr
 Generate **3–5 ranked hypotheses** before testing any (single-hypothesis anchors). Each **falsifiable**: "If <X> is the cause, <changing Y> makes the bug disappear." Can't state a prediction → it's a vibe, discard. Show the ranked list to the user (cheap checkpoint, they re-rank with domain knowledge) — don't block if AFK.
 
 ## Phase 4 — Instrument
-Each probe maps to a Phase-3 prediction. **One variable at a time.** Preference: debugger/REPL breakpoint > targeted logs at hypothesis-distinguishing boundaries > never "log everything and grep". Tag every debug log `[DEBUG-xxxx]` (cleanup = one grep). **Perf branch**: establish a baseline measurement, then bisect — measure first, fix second.
+Each probe maps to a Phase-3 prediction. **One variable at a time.** Preference: debugger/REPL breakpoint > targeted logs at hypothesis-distinguishing seams > never "log everything and grep". Tag every debug log `[DEBUG-xxxx]` (cleanup = one grep). **Perf branch**: establish a baseline measurement, then bisect — measure first, fix second.
 
 ## Phase 5 — Fix + regression test
 Write the regression test **before** the fix — but only if a **correct seam** exists (one exercising the real bug pattern at the call site). No correct seam → that *is* the finding; note it (architecture prevents locking the bug down). If a seam exists: turn the minimized repro into a failing test → fail → fix → pass → re-run the Phase-1 loop on the original scenario.

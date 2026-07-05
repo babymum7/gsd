@@ -59,6 +59,15 @@ function extractSkillRefs(content) {
   return refs;
 }
 
+function extractPeerSection(content, heading) {
+  const marker = `## ${heading}\n`;
+  const start = content.indexOf(marker);
+  if (start === -1) return "";
+  const section = content.slice(start + marker.length);
+  const nextPeer = section.indexOf("\n## ");
+  return nextPeer === -1 ? section : section.slice(0, nextPeer);
+}
+
 // ── Tests ────────────────────────────────────────────────
 
 test("every skill directory has a SKILL.md", () => {
@@ -304,9 +313,9 @@ test("sub-skills with a contextual-disclosure section state the terminal/inline 
   for (const [name, content] of Object.entries(readAllSkills())) {
     if (name === "gsd") continue; // master's para is the coordinator-level two-surfaces rule (P3), not the per-skill disclosure
     if (!/Contextual disclosure/.test(content)) continue;
-    // After dedup: either self-contained (terminal/inline keywords) or references gsd Conventions
+    // After dedup: either self-contained (terminal/inline keywords), references old gsd Conventions, or references the canonical templates.
     const selfContained = /terminal\/standalone/.test(content) && /inline/.test(content);
-    const referencesCanonical = /see gsd Conventions/.test(content);
+    const referencesCanonical = /see gsd Conventions/.test(content) || /Contextual disclosure templates/.test(content);
     assert.ok(selfContained || referencesCanonical,
       `${name}: contextual disclosure must either state the terminal/inline rule or reference gsd Conventions`);
   }
@@ -507,6 +516,50 @@ test("gsd-codebase-design defines deep vs shallow in prose (not ASCII art)", () 
   assert.match(section, /Deep module.*small interface/i, "deep module definition must be in prose");
   assert.match(section, /Shallow module.*large interface/i, "shallow module definition must be in prose");
   assert.ok(!/┌─/.test(section), "deep vs shallow section should not contain ASCII box art");
+});
+
+test("gsd-codebase-design carries its vocabulary into actionable companion guidance", () => {
+  const design = readSkill("gsd-codebase-design");
+  const glossary = design.split("## Glossary")[1]?.split("\n## ")[0] || "";
+  for (const term of ["Module", "Interface", "Implementation", "Depth", "Seam", "Adapter", "Leverage", "Locality"]) {
+    assert.match(glossary, new RegExp(`\\*\\*${term}\\*\\*`), `glossary must define ${term}`);
+  }
+
+  const deepening = readFileSync(join(SKILLS_DIR, "gsd-codebase-design", "DEEPENING.md"), "utf8");
+  const designItTwice = readFileSync(join(SKILLS_DIR, "gsd-codebase-design", "DESIGN-IT-TWICE.md"), "utf8");
+  assert.match(designItTwice, /adapter seam for cross-seam dependencies/i, "DESIGN-IT-TWICE must frame remote dependencies with an adapter seam");
+  assert.doesNotMatch(designItTwice, /\bports?\s*(?:&|and)\s*adapters?\b|\bports?-and-adapters?\b/i, "DESIGN-IT-TWICE must not revert the adapter seam to ports-and-adapters terminology");
+  assert.doesNotMatch(deepening, /\bports?\s*(?:&|and)\s*adapters?\b|\bports?-and-adapters?\b/i, "DEEPENING must not revert adapter guidance to ports-and-adapters terminology");
+  assert.match(designItTwice, /compare[\s\S]{0,250}\*\*depth\*\*[\s\S]{0,100}\*\*locality\*\*[\s\S]{0,100}\*\*seam placement\*\*/i, "DESIGN-IT-TWICE must compare alternatives by depth, locality, and seam placement");
+
+  assert.match(deepening, /^### 3\. Remote but owned \(Adapters\)$/m, "DEEPENING must classify remote-but-owned dependencies as Adapters");
+  const remoteOwned = deepening.split("### 3. Remote but owned (Adapters)")[1]?.split("\n### ")[0] || "";
+  assert.match(remoteOwned, /Define an \*\*interface\*\* at the seam/, "remote-but-owned guidance must place an interface at the seam");
+  assert.match(remoteOwned, /transport is injected as an \*\*adapter\*\*[\s\S]*in-memory adapter[\s\S]*HTTP\/gRPC\/queue adapter/, "remote-but-owned guidance must supply test and production adapters at that seam");
+});
+
+test("design-context skill prose avoids substituting component/service/API/boundary", () => {
+  const designContexts = {
+    "gsd-codebase-design/SKILL.md": readSkill("gsd-codebase-design"),
+    "gsd-codebase-design/DEEPENING.md": readFileSync(join(SKILLS_DIR, "gsd-codebase-design", "DEEPENING.md"), "utf8"),
+    "gsd-codebase-design/DESIGN-IT-TWICE.md": readFileSync(join(SKILLS_DIR, "gsd-codebase-design", "DESIGN-IT-TWICE.md"), "utf8"),
+    "gsd-improve-codebase-architecture/SKILL.md": readSkill("gsd-improve-codebase-architecture"),
+    "gsd-diagnosing-bugs/SKILL.md": readSkill("gsd-diagnosing-bugs"),
+    "gsd-tdd/SKILL.md": readSkill("gsd-tdd"),
+  };
+  assert.doesNotMatch(readSkill("gsd-handoff"), /Sync seams/, "git autosync timing must not misuse the design seam vocabulary");
+  const banned = /\b(component|components|service|services|API|APIs|boundary|boundaries)\b/;
+  const explicitRejection = /\b(Avoid|_Avoid_|don't substitute|don't drift|Rejected framings|overloaded with DDD|component\/service\/API\/boundary)\b/i;
+  const offenders = [];
+
+  for (const [file, content] of Object.entries(designContexts)) {
+    content.split("\n").forEach((line, index) => {
+      if (!banned.test(line) || explicitRejection.test(line)) return;
+      offenders.push(`${file}:${index + 1} ${line.trim()}`);
+    });
+  }
+
+  assert.deepEqual(offenders, [], `Design vocabulary drifted from module/interface/implementation/depth/seam/adapter/leverage/locality:\n${offenders.join("\n")}`);
 });
 
 test("plan.toon declares schema version and every consumer tolerates the header", () => {
@@ -833,6 +886,7 @@ test("REFERENCE.md carries load-on-demand payloads; master links but never dupli
   assert.match(ref, /checkable/, "AC rules move with the template");
   assert.match(ref, /## Milestones/, "full milestone rule must live in REFERENCE");
   assert.match(ref, /## Feature cleanup/, "cleanup flow must live in REFERENCE");
+  assert.match(ref, /## Post-approval pipeline contract/, "canonical post-approval pipeline contract must live in REFERENCE");
   const master = readSkill("gsd");
   assert.match(master, /\[REFERENCE\.md\]\(REFERENCE\.md\)/, "master must markdown-link REFERENCE.md (loaded on route, not at entry)");
   assert.ok(!/## Acceptance Criteria/.test(master), "spec template must not be duplicated in master");
@@ -984,30 +1038,166 @@ test("to-plan prints an inline plan summary and asks one approval question after
   assert.match(toPlan, /last prompt of the cycle/, "approval must be the final human gate");
 });
 
-test("post-approval pipeline is hands-free: no prompts from execute through merge", () => {
+test("canonical post-approval pipeline contract defines approval-to-merge behavior (AC-1)", () => {
+  const ref = readFileSync(join(SKILLS_DIR, "gsd", "REFERENCE.md"), "utf8");
+  const contract = extractPeerSection(ref, "Post-approval pipeline contract");
+  assert.match(contract, /Approval is the last prompt/, "approval must be defined as the final human gate");
+  assert.match(contract, /Hands-free after approval/, "contract must require hands-free execution after approval");
+  assert.match(contract, /`gsd-executing-plans`[\s\S]*`gsd-verify`/, "hands-free path must run through execute and verify");
+  assert.match(contract, /Pass merges automatically/, "passing terminal gate must auto-merge");
+  assert.match(contract, /squash-merges `wip\/<feature>` to `<base>`/, "merge must be a squash to base");
+  assert.match(contract, /spec flaws\/escalations/, "spec flaws must stop the pipeline");
+  assert.match(contract, /unresolvable conflicts/, "unresolvable conflicts must stop the pipeline");
+  assert.match(contract, /non-converging task or verify fix loops/, "non-converging fix loops must stop the pipeline");
+  assert.match(contract, /Critical\/Important review findings/, "Critical/Important findings must stop the pipeline");
+  assert.match(contract, /red build\/test suite/, "red build/test suite must stop the pipeline");
+  assert.match(contract, /failing\/unrunnable required E2E/, "failing or unrunnable E2E must stop the pipeline");
+  assert.match(contract, /does not merge/, "blockers must prevent merging");
+});
+
+test("pipeline skills consume canonical post-approval contract without owning divergent full definitions (AC-2)", () => {
+  const ref = readFileSync(join(SKILLS_DIR, "gsd", "REFERENCE.md"), "utf8");
+  assert.match(ref, /## Post-approval pipeline contract/, "reference must own the canonical contract");
+  const consumers = ["gsd", "gsd-to-plan", "gsd-executing-plans", "gsd-verify"];
+  for (const name of consumers) {
+    const content = readSkill(name);
+    assert.match(content, /Post-approval pipeline contract/, `${name} must reference the canonical contract`);
+  }
+  const allSkillText = consumers.map((name) => readSkill(name)).join("\n");
+  assert.equal((allSkillText.match(/## Post-approval pipeline contract/g) || []).length, 0, "pipeline skill files must not duplicate the canonical section heading");
   const exec = readSkill("gsd-executing-plans");
-  assert.match(exec, /## Auto-pilot \(no-prompt contract\)/, "exec must open with the auto-pilot contract");
-  assert.match(exec, /already approved/, "entering exec must presuppose plan approval");
+  assert.match(exec, /## Auto-pilot \(canonical contract implementation\)/, "exec must locally implement the canonical contract");
   assert.match(exec, /no questions, confirmations, or end-of-response menus/i, "exec must forbid mid-pipeline prompts");
   assert.match(exec, /invoke `gsd-verify` \*\*immediately\*\*/, "terminal gate must fire without a prompt");
-  assert.match(exec, /Prompt, ask, or menu mid-pipeline after plan approval/, "Never list must include mid-pipeline prompting");
   const verify = readSkill("gsd-verify");
   assert.match(verify, /## WIP-branch gate — non-interactive/, "verify must declare the WIP gate non-interactive");
   assert.match(verify, /Never ask permission to merge/, "pass must merge without asking");
   assert.match(verify, /report the findings, the build\/suite result, the E2E outcome, and the final commit/, "no-prompt must not mean no visibility");
-});
-
-test("hands-free never merges past a red gate; blockers stop and report", () => {
-  const toPlan = readSkill("gsd-to-plan");
-  assert.match(toPlan, /Hands-free ≠ gate-free/, "approval text must not read as merge-despite-failures");
-  assert.match(toPlan, /never merges past a red gate/, "to-plan must state the red-gate stop");
-  const exec = readSkill("gsd-executing-plans");
-  assert.match(exec, /it never silently merges/, "a blocker stop must report, not merge");
-  const verify = readSkill("gsd-verify");
-  assert.match(verify, /never merge past a red gate/, "verify must keep Fail/Spec-flawed as hard stops");
   assert.match(verify, /Standalone review \(Route 2, above\) is unaffected/, "Route 2 must stay read-only, never merging");
 });
 
+test("canonical contextual disclosure templates cover every surface (AC-3)", () => {
+  const ref = readFileSync(join(SKILLS_DIR, "gsd", "REFERENCE.md"), "utf8");
+  const templates = extractPeerSection(ref, "Contextual disclosure templates");
+  assert.match(templates, /### Master end-session menu/, "master numbered menu template must be canonical");
+  assert.match(templates, /Next steps \(reply with number or text\):/, "master menu must be numbered human choices");
+  assert.match(templates, /### Direct sub-skill Next steps/, "direct sub-skill template must be canonical");
+  assert.match(templates, /Next steps:\n- \/gsd/, "direct sub-skill template must use technical command bullets");
+  assert.match(templates, /### Post-approval pipeline progress/, "pipeline progress template must be canonical");
+  assert.match(templates, /<phase>: <observable fact>\. Next: <automatic next action>\./, "pipeline progress must be status, not a choice");
+  assert.match(templates, /### Blocker stop/, "blocker stop template must be canonical");
+  assert.match(templates, /Blocked at <task\/gate>: <why>/, "blockers must name where and why they stopped");
+  assert.match(templates, /Stopped before merge; <base> is unchanged/, "blockers must explicitly preserve base");
+  assert.match(templates, /### Standalone review\/report surface/, "standalone review/report template must be canonical");
+  assert.match(templates, /Review report:[\s\S]*Verdict:[\s\S]*Findings:/, "standalone reports must have verdict and findings fields");
+});
+
+test("skills consume contextual disclosure templates consistently (AC-4)", () => {
+  const master = readSkill("gsd");
+  assert.match(master, /Contextual disclosure templates/, "master must reference canonical disclosure templates");
+  assert.match(master, /Master end-session menu/, "master must use the master menu template");
+  assert.match(master, /"Start executing tasks" is never a menu item/, "master must forbid manual execute menu items");
+
+  const toPlan = readSkill("gsd-to-plan");
+  assert.match(toPlan, /Contextual disclosure templates/, "to-plan must reference canonical disclosure templates");
+  assert.match(toPlan, /one approval question/, "to-plan must keep one approval prompt");
+  assert.match(toPlan, /no further menus or offers after approval/, "to-plan must preserve post-approval no-menu semantics");
+
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /Post-approval pipeline progress/, "exec must use pipeline progress template");
+  assert.match(exec, /Blocker stop/, "exec must use blocker stop template");
+  assert.match(exec, /no `Next steps:`/, "exec must forbid mid-pipeline Next steps prompts");
+  assert.match(exec, /invoke `gsd-verify` \*\*immediately\*\*/, "exec must proceed to verify without manual start/continue prompt");
+
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /Standalone review\/report surface/, "verify Route 2 must use standalone report template");
+  assert.match(verify, /Post-approval pipeline progress/, "verify WIP gate must use pipeline progress template");
+  assert.match(verify, /Blocker stop/, "verify WIP gate must use blocker stop template");
+  assert.match(verify, /Never ask permission to merge/, "verify must not ask for a manual post-verify merge");
+  assert.doesNotMatch(verify, /git checkout <base> \(to merge/, "verify must not disclose a manual merge command");
+
+  const handoff = readSkill("gsd-handoff");
+  assert.match(handoff, /Contextual disclosure templates → Direct sub-skill Next steps/, "handoff must use direct sub-skill template");
+  assert.match(handoff, /Inline firing from `\/gsd` appends nothing/, "handoff must not append inline disclosure");
+});
+
+test("canonical lavish opt-in gate taxonomy distinguishes all required modes (AC-5)", () => {
+  const ref = readFileSync(join(SKILLS_DIR, "gsd", "REFERENCE.md"), "utf8");
+  const taxonomy = extractPeerSection(ref, "Lavish opt-in gate taxonomy");
+  assert.match(taxonomy, /Explicit opt-in/, "taxonomy must define explicit opt-in");
+  assert.match(taxonomy, /Offer-eligible deliverable/, "taxonomy must define offer-eligible deliverables");
+  assert.match(taxonomy, /Post-approval pipeline no-offer mode/, "taxonomy must define no-offer pipeline mode");
+  assert.match(taxonomy, /Graceful terminal degradation/, "taxonomy must define graceful terminal degradation");
+  assert.match(taxonomy, /Both checks must hold/, "taxonomy must retain the 2-part Fire gate");
+  assert.match(taxonomy, /Inline Q&A[\s\S]*never offer-eligible/, "inline Q&A must not be eligible for lavish offers");
+  assert.match(taxonomy, /Missing CLI[\s\S]*degrades to[\s\S]*terminal prose/, "missing lavish capability must degrade to terminal prose");
+});
+
+test("skills consume lavish opt-in taxonomy without post-approval prompt drift (AC-6)", () => {
+  const consumers = ["gsd-lavish", "gsd-to-plan", "gsd-verify", "gsd-improve-codebase-architecture"];
+  for (const name of consumers) {
+    const content = readSkill(name);
+    assert.match(content, /Lavish opt-in gate taxonomy/, `${name} must reference the canonical taxonomy`);
+  }
+
+  const lavish = readSkill("gsd-lavish");
+  assert.match(lavish, /Fire gate \(both must hold\)/, "gsd-lavish must keep the Fire gate local implementation");
+  assert.match(lavish, /post-approval pipeline no-offer mode[\s\S]*asking is forbidden/i, "gsd-lavish must not prompt in pipeline no-offer mode");
+  assert.match(lavish, /Degrade to terminal/, "gsd-lavish must keep terminal degradation");
+
+  const toPlan = readSkill("gsd-to-plan");
+  assert.match(toPlan, /After the approval question is answered, post-approval pipeline no-offer mode begins/, "to-plan must start no-offer mode after approval");
+
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /post-approval\) is no-offer mode/, "verify must treat WIP gate as no-offer mode");
+  assert.match(verify, /offer nothing/, "verify must not offer lavish mid-pipeline");
+  assert.match(verify, /Standalone review[\s\S]*offer-eligible/, "standalone verify reports may still be offer-eligible");
+
+  const architecture = extractPeerSection(readSkill("gsd-improve-codebase-architecture"), "2. Present candidates — terminal default, lavish opt-in");
+  assert.match(architecture, /Before plan approval[\s\S]*may offer lavish when both Fire gate checks[\s\S]*hold/i, "architecture audits may offer lavish pre-approval when both Fire gate checks hold");
+  assert.match(architecture, /post-approval pipeline no-offer mode is not active/i, "architecture audits must respect post-approval no-offer mode");
+  assert.match(architecture, /An offer is not launch consent/i, "an eligible lavish offer must not count as consent to launch");
+  assert.match(architecture, /launch `gsd-lavish` only after explicit opt-in/i, "architecture audits must launch lavish only after explicit opt-in");
+});
+
+
+test("canonical git mechanics define base, WIP, scratch, and conflicts (AC-7)", () => {
+  const ref = readFileSync(join(SKILLS_DIR, "gsd", "REFERENCE.md"), "utf8");
+  const mechanics = ref.split("## Git/base/WIP/scratch mechanics")[1]?.split("## Feature cleanup")[0] || "";
+  assert.match(mechanics, /Base detection/, "canonical mechanics must define base detection");
+  assert.match(mechanics, /git branch --show-current/, "base capture must start from current branch");
+  assert.match(mechanics, /empty \(detached HEAD\)[\s\S]*`wip\/\*` branch/, "base detection must not self-reference detached or WIP state");
+  assert.match(mechanics, /handoff `settings\[\]`[\s\S]*origin\/HEAD[\s\S]*init\.defaultBranch[\s\S]*main/, "base fallback ladder must be canonical");
+  assert.match(mechanics, /base:<branch>[\s\S]*immediately after `schema:v1`/, "base must persist in plan.toon before plan table");
+  assert.match(mechanics, /WIP branch lifecycle[\s\S]*wip\/<feature>/, "canonical mechanics must define WIP lifecycle");
+  assert.match(mechanics, /Scratch sync and strip[\s\S]*git add -f[\s\S]*git push -u origin wip\/<feature>/, "canonical mechanics must define portable scratch sync");
+  assert.match(mechanics, /git rm -r --cached --ignore-unmatch \.scratch\/<feature>/, "canonical mechanics must define scratch stripping before base commit");
+  assert.match(mechanics, /Conflict handling[\s\S]*:conflicts[\s\S]*do not route to `gsd-diagnosing-bugs`/, "canonical mechanics must define conflict handling as a blocker, not a bug route");
+});
+
+test("listed skills consume canonical git mechanics instead of long fallback drift (AC-8)", () => {
+  const consumers = ["gsd", "gsd-to-plan", "gsd-executing-plans", "gsd-handoff", "gsd-verify"];
+  for (const name of consumers) {
+    assert.match(readSkill(name), /Git\/base\/WIP\/scratch mechanics/, `${name} must reference canonical git mechanics`);
+  }
+
+  const master = readSkill("gsd");
+  assert.doesNotMatch(master, /fall back to: `base` row[\s\S]*git symbolic-ref[\s\S]*init\.defaultBranch[\s\S]*main/, "gsd must not own the full base fallback ladder");
+
+  const toPlan = readSkill("gsd-to-plan");
+  assert.doesNotMatch(toPlan, /git symbolic-ref[\s\S]*init\.defaultBranch[\s\S]*main/, "to-plan must defer base fallback details");
+
+  const exec = readSkill("gsd-executing-plans");
+  assert.doesNotMatch(exec, /git branch --show-current[\s\S]*git symbolic-ref[\s\S]*init\.defaultBranch[\s\S]*main/, "exec must defer base fallback details");
+  assert.match(exec, /TASK_BASE=\$\(git rev-parse HEAD\)/, "exec must preserve per-task diff base contract");
+
+  const handoff = readSkill("gsd-handoff");
+  assert.doesNotMatch(handoff, /1\. `git checkout wip\/<feature>`[\s\S]*2\. Uncommitted code changes[\s\S]*3\. `git add -f \.scratch\/<feature>\/`[\s\S]*4\. \*\*always\*\* `git push -u origin wip\/<feature>`/, "handoff must not duplicate the full portable sync sequence");
+
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /git checkout <base>` → `git merge --squash wip\/<feature>` → `git rm -r --cached --ignore-unmatch \.scratch\/<feature>`/, "verify must preserve the exact executable squash sequence");
+  assert.doesNotMatch(verify, /git symbolic-ref[\s\S]*init\.defaultBranch[\s\S]*main/, "verify must defer base fallback details");
+});
 test("no surface suggests a manual post-verify merge or a 'start executing' menu item", () => {
   const verify = readSkill("gsd-verify");
   assert.doesNotMatch(verify, /git checkout <base> \(to merge/, "verify disclosure must not suggest manual merge");

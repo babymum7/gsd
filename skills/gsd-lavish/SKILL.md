@@ -10,9 +10,9 @@ consumes: []
 
 > **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Invoked standalone with its `consumes:` artifacts missing → load the `gsd` skill and enter through its router (it detects workspace state); don't improvise missing context.
 
-Render a substantial deliverable as a reviewable HTML artifact the user annotates and feeds back on. Heavyweight (HTML artifact + local express server + browser surface + long-poll loop) — fire only on real reviewable deliverables.
+Render a substantial deliverable as a reviewable HTML artifact the user annotates and feeds back on. Heavyweight (HTML artifact + local express server + browser surface + long-poll loop) — fire only under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish opt-in gate taxonomy.
 
-**Fire gate (both must hold):** (1) the artifact is a standalone, reviewable deliverable — not mid-conversation; AND (2) the user gains from annotating it in a browser surface. **Never on inline conversational Q&A** — it breaks discussion rhythm with browser sessions. **On ambiguity, default to terminal output and ask the user** — lavish is opt-in, never assumed.
+**Fire gate (both must hold):** (1) the artifact is a standalone, reviewable deliverable — not mid-conversation; AND (2) the user gains from annotating it in a browser surface. **Never on inline conversational Q&A** — it breaks discussion rhythm with browser sessions. **On ambiguity, default to terminal output and ask the user** — lavish is opt-in, never assumed. In post-approval pipeline no-offer mode, asking is forbidden: render only when the user already explicitly opted in; otherwise terminal-only.
 
 ## Path resolution (cross-project)
 The CLI lives in the GSD repo, not the user's project. Resolve from the registered symlink (any cwd):

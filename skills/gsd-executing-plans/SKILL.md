@@ -12,18 +12,18 @@ consumes: [plan.toon]
 
 Dispatch a fresh `task` subagent (the implementer) per task, verify each, then a terminal gsd-verify. Markdown-skill authoring and trivial edits are done directly (skip this).
 
-## Auto-pilot (no-prompt contract)
-Entering this skill means the plan is **already approved** (gsd-to-plan's approval gate — the last prompt of the cycle). From here to the `<base>` merge, run **hands-free**: no questions, confirmations, or end-of-response menus between tasks, before the terminal `gsd-verify` gate, or before the squash merge. Report progress (task started/committed, verdicts, findings fixed) — visibility stays, prompts go. The ONLY stops are hard blockers: spec escalation, a merge conflict too tangled to resolve mechanically, a fix loop that can't converge (→ `gsd-diagnosing-bugs`), or a failing terminal verify that survives its fix loop. A blocker stop reports what blocked and why — it never silently merges.
+## Auto-pilot (canonical contract implementation)
+Entering this skill means the plan is **already approved** (gsd-to-plan's approval gate — the last prompt of the cycle). Implement [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Post-approval pipeline contract locally and disclose only via [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates → Post-approval pipeline progress or Blocker stop: no questions, confirmations, or end-of-response menus — and no `Next steps:` — between tasks, before the terminal `gsd-verify` gate, or before the squash merge. Report progress (task started/committed, verdicts, findings fixed) — visibility stays, prompts go. Stop only for this skill's blockers: spec escalation, a merge conflict too tangled to resolve mechanically, a fix loop that can't converge (→ `gsd-diagnosing-bugs`), or a failing terminal verify that survives its fix loop. A blocker stop reports what blocked and why — it never silently merges.
 
  ## Intake
  Read the consolidated plan `.scratch/<feature>/plan.toon` (skip the `schema:v1` header and `base:` line; tasks start at the `plan[` table). Tasks run sequentially. Do not dispatch parallel tasks on shared code.
- **Branch** (if not on `wip/<feature>` yet): the branch already exists (resume/rerun — check `git branch --list wip/<feature>`) → `git checkout wip/<feature>`. Else, creation depends on `base:` in `plan.toon`: present → it is authoritative, `git checkout -b wip/<feature> <base>` (never recapture from whatever branch you happen to be on); absent → capture `BASE=$(git branch --show-current)` first, `git checkout -b wip/<feature>`, and persist `base:$BASE` immediately after `schema:v1` (see gsd Conventions).
+ **Branch** (if not on `wip/<feature>` yet): follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics. If the branch already exists (resume/rerun), `git checkout wip/<feature>`. Otherwise create from authoritative `base:` with `git checkout -b wip/<feature> <base>`; never recapture when `base:` is present. Old plan missing `base:` → use the canonical base-detection ladder, then persist `base:<base>` immediately after `schema:v1` before continuing.
 
 ## Per task
 1. **Dispatch** a fresh `task` subagent with a single task-brief (the one task, its `satisfies` ACs from `spec.md`, the interfaces, the global constraints) — not the whole plan, not prior history. Record `TASK_BASE=$(git rev-parse HEAD)` before dispatch — the review-diff base for this task.
 2. **Review** the returned diff: hand a `reviewer` subagent the task-brief (expected behavior) + the task's TDD note (its `test` column in `plan.toon`) + the diff file. Capture that diff from the recorded `TASK_BASE` (never `HEAD~1`, which truncates multi-commit tasks; never the branch-wide `base:` — that's `gsd-verify`'s scope) excluding session artifacts: `git diff $TASK_BASE -- . ':(exclude).scratch'` — a portable-handoff sync makes scratch tracked; keep it out of review. Require two verdicts: **task-compliance** (TDD test exists, passes, covers the task — per-task scope; the terminal whole-branch analogue is `gsd-verify`'s **spec-compliance**) AND **code-quality**. A `test:none` task (test-exempt per `gsd-to-plan`) drops the TDD check — task-compliance is then "the diff does the brief, nothing more".
 3. **Fix loop**: Critical/Important findings → fix subagent → re-verify. Never proceed with open Critical/Important. The same finding surviving two fix rounds = a failure the fix loop can't resolve → route to `gsd-diagnosing-bugs` instead of a third identical attempt.
-4. **Commit** to `wip/<feature>` — code only: never stage `.scratch/` in a task commit (the ledger update in the working tree is enough; `gsd-handoff`'s portable sync commit is the sole exception). Never commit <base> during execution. **Autosync on** (handoff `settings[]`) → after the task commit, sync scratch **iff dirty** (`git status --short .scratch/<feature>` non-empty → the pathspec'd commit from `gsd-handoff` § Portable; a clean-scratch commit exits non-zero), then **always** `git push` — push is unconditional so code commits travel even when the ledger didn't change. No remote → skip the sync/push and stay machine-local (graceful degradation per `gsd-handoff` § Portable), don't error the task loop.
+4. **Commit** to `wip/<feature>` — code only: never stage `.scratch/` in a task commit (the ledger update in the working tree is enough; `gsd-handoff`'s portable sync commit is the sole exception). Never commit <base> during execution. **Autosync on** (handoff `settings[]`) → use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics scratch sync: after the task commit, sync scratch iff dirty, then **always** `git push`; No remote → skip the sync/push and stay machine-local (graceful degradation per `gsd-handoff` § Portable), don't error the task loop.
 5. **Tests**: unit only. E2E is excluded from this per-task loop by design — it's owned by the `gsd-verify` E2E gate, which runs the end-to-end user path once over the whole branch before the <base> merge.
 
 > **Subagent failure** (no diff / errored — not a verify finding): re-dispatch with a sharper brief. Repeats → route to `gsd-diagnosing-bugs` (real blocker, not unfinished work).
@@ -47,23 +47,16 @@ All plans done + per-task verifications passed → invoke `gsd-verify` **immedia
 
  
  ## Git conflict resolution
- If a merge, cherry-pick, or apply fails due to merge conflicts:
- 1. Do NOT treat it as a code bug (do not route to `gsd-diagnosing-bugs`).
- 2. Run `git status` to locate conflicted files.
- 3. Use the `read` tool with the `:conflicts` selector (e.g., `read path/to/file:conflicts`) to view the conflicting chunks.
- 4. Solve the conflicts using the `edit` tool, cleanly removing markers (`<<<<<<<`, `=======`, `>>>>>>>`).
-5. Run `git add` to mark resolved. If the conflict is too complex to resolve mechanically, run `git merge --abort` and surface it to the user (or the parent agent, e.g. via `irc` where the harness has one).
+ If a merge, cherry-pick, or apply fails due to merge conflicts, follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics → Conflict handling. Do NOT treat it as a code bug (do not route to `gsd-diagnosing-bugs`); if too complex to resolve mechanically, abort when possible and surface it to the user (or the parent agent, e.g. via `irc` where the harness has one) using the blocker template.
+
+
 ## Never
 - Commit <base> during execution.
 - Skip per-task verify, or accept a report missing either verdict.
 - Parallel `task` subagents on shared code. Hand a subagent its task-brief, not the whole plan.
 - Re-dispatch a task the ledger marks done.
-- Prompt, ask, or menu mid-pipeline after plan approval — auto-pilot runs to merge or to a blocker.
+- Prompt, ask, emit `Next steps:`, or menu mid-pipeline after plan approval — auto-pilot runs per the canonical post-approval pipeline contract and Contextual disclosure templates to merge or to a blocker.
 - Merge past a red gate: a blocker stops and reports, never auto-merges anyway.
 
- ## Contextual disclosure (see gsd Conventions). Example:
- ```
- Auto-pilot appends nothing mid-run. Only a blocker stop (or direct invocation outside the pipeline) discloses:
- Blocked at <task/gate>: <why>. Next steps:
- - /gsd (to revise the spec, resume after the fix, or save progress)
- ```
+## Contextual disclosure
+Use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates. In the approved pipeline, use only the Post-approval pipeline progress template for status and the Blocker stop template when stopping; inline firing appends nothing. Direct invocation outside the pipeline uses Direct sub-skill Next steps.
