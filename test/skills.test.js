@@ -960,3 +960,14 @@ test("install.sh auto-builds lavish when pnpm exists, degrades to terminal other
   assert.match(sh, /build failed[^\n]*degrade to terminal/, "a failed build must warn and degrade, not abort the install");
   assert.match(sh, /LAVISH_STATE/, "final echo must report the real lavish state");
 });
+
+test("content audit: per-task diff base, bounded fix loop, executable squash, lavish degradation", () => {
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /TASK_BASE=\$\(git rev-parse HEAD\)/, "per-task review diff base must be recorded before dispatch, distinct from the branch base:");
+  assert.doesNotMatch(exec, /git diff <BASE>/, "the ambiguous <BASE> placeholder (colliding with base:) must be gone");
+  assert.match(exec, /two fix rounds[^\n]*gsd-diagnosing-bugs/, "the per-task fix loop must be bounded with an escalation");
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /git checkout <base>` → `git merge --squash wip\/<feature>`/, "the squash must be an exact executable sequence");
+  const lavish = readSkill("gsd-lavish");
+  assert.match(lavish, /\$CLI` missing[\s\S]{0,80}Degrade to terminal/, "lavish must define its own missing-CLI degradation");
+});

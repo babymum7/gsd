@@ -15,7 +15,7 @@ The *active* discipline: challenge terms, invent edge-case scenarios, and write 
 Triggered by `gsd` / `gsd-executing-plans` / `gsd-improve-codebase-architecture` when a durable term or decision surfaces; also invokable directly to sharpen the glossary.
 
 ## Files (lazy — create only when you have something to write)
-- `CONTEXT.md` — the glossary (**this skill is its sole writer**; others read it for vocabulary). Single context at root; if `CONTEXT-MAP.md` exists, multiple contexts (map points to each).
+- `CONTEXT.md` — the glossary (**this skill is its sole writer**; others read it for vocabulary). Single context at root; if `CONTEXT-MAP.md` exists, multiple contexts (map points to each) — create the map when a second context appears (two areas legitimately define the same term differently).
 - `docs/adr/` — architectural decisions.
 
 ## During discussion

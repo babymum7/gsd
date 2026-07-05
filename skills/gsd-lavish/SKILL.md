@@ -21,6 +21,7 @@ SKILLS_DIR="$(dirname "$(readlink ~/.agents/skills/gsd 2>/dev/null || echo ~/.ag
 CLI="$SKILLS_DIR/../tools/lavish-axi/dist/cli.mjs"
 ```
 Then every invocation below uses `node "$CLI"`.
+`$CLI` missing (`[ -f "$CLI" ]` fails — submodule not built)? **Degrade to terminal**: deliver the same content as terminal prose, say the visual path is unavailable, and point at `bash install.sh` (auto-builds when pnpm exists). Never block or fail the deliverable on the visual path.
 
 ## Workflow
 1. Create the HTML artifact (default `.gsd-lavish/<name>.html`).
