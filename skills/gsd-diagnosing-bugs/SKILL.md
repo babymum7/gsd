@@ -1,12 +1,14 @@
 ---
 name: gsd-diagnosing-bugs
-description: Diagnosis loop for hard bugs and performance regressions. Triggered when gsd-executing-plans hits a real bug/regression, or on explicit "diagnose/debug". Six phases — skip only when justified.
+description: Internal GSD sub-skill (routed via /gsd). Diagnosis loop for hard bugs and performance regressions. Triggered when gsd-executing-plans hits a real bug/regression, or on explicit "diagnose/debug". Six phases — skip only when justified.
 triggers: hard bug / regression / non-obvious error (gsd Route 4); gsd-executing-plans blocker
 produces: []
 consumes: [CONTEXT.md, docs/adr/]
 ---
 
 # Diagnosing Bugs
+
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Invoked standalone with its `consumes:` artifacts missing → load the `gsd` skill and enter through its router (it detects workspace state); don't improvise missing context.
 
 A discipline for hard bugs. Read `CONTEXT.md` + relevant ADRs first (if they exist). Skip phases only when explicitly justified.
 

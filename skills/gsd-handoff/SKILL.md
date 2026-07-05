@@ -1,12 +1,14 @@
 ---
 name: gsd-handoff
-description: Compact the current conversation into a resume-aware gsd-handoff document for another agent/session. Triggered at pauses/breakpoints; read back on resume.
+description: Internal GSD sub-skill (routed via /gsd). Compact the current conversation into a resume-aware gsd-handoff document for another agent/session. Triggered at pauses/breakpoints; read back on resume.
 triggers: resume/continue (read existing); pause/breakpoint/context-pressure (write new)
 produces: [handoff-<n>.toon]
 consumes: [plan.toon]
 ---
 
 # Handoff
+
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Invoked standalone with its `consumes:` artifacts missing → load the `gsd` skill and enter through its router (it detects workspace state); don't improvise missing context.
 
  Compacts the conversation into `.scratch/<feature>/handoff-<n>.toon` so another session (or a fresh context) can resume without re-deriving state. Triggered at pauses, breakpoints, or context-pressure.
 Numbering: glob existing `handoff-*.toon`, use `max + 1`. If the target already exists (concurrent sessions), re-glob and increment until free — never use a suffixed variant (the Read rule expects `handoff-<n>.toon` only).

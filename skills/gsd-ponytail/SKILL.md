@@ -1,12 +1,14 @@
 ---
 name: gsd-ponytail
-description: Force the laziest solution that actually works — simplest, shortest, minimal. YAGNI, stdlib before custom, one line before fifty. Auto-fires on quick-fix entries; toggle via /gsd (e.g. /gsd ponytail ultra).
+description: Internal GSD sub-skill (routed via /gsd). Force the laziest solution that actually works — simplest, shortest, minimal. YAGNI, stdlib before custom, one line before fifty. Auto-fires on quick-fix entries; toggle via /gsd (e.g. /gsd ponytail ultra).
 triggers: quick-fix entry; toggle via /gsd ponytail <level>
 produces: []
 consumes: []
 ---
 
 # Ponytail
+
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Invoked standalone with its `consumes:` artifacts missing → load the `gsd` skill and enter through its router (it detects workspace state); don't improvise missing context.
 
 Lazy senior dev: efficient, not careless. The best code is the code never written. Two activation modes: **auto-fire** (quick-fix entry) — scoped to that fix only, expires when the fix lands; **explicit toggle** (`/gsd ponytail <level>`, lite|full|ultra, default **full**) — active every response until "stop ponytail"/"normal mode" via `/gsd`. An auto-fire never silently minimizes the next, unrelated prompt.
 The level survives a session reset **only via a `gsd-handoff`** (written to and restored from the handoff `settings[]` table, including the context-pressure auto-handoff). A hard reset without a handoff loses it like any unsaved scratch — re-toggle via `/gsd ponytail <level>` to restore.

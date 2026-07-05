@@ -1,0 +1,94 @@
+[
+  {
+    "id": "nano-typo",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "fix the typo in README.md line 3: 'teh' -> 'the'",
+    "route": "0",
+    "skill": "none"
+  },
+  {
+    "id": "readonly-question",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "how does the auth middleware validate tokens?",
+    "route": "0",
+    "skill": "none"
+  },
+  {
+    "id": "obvious-error",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "tests fail with `TypeError: cfg.retries is undefined` at src/http.js:12 — fix it",
+    "route": "0",
+    "skill": "none",
+    "accept": [{ "route": "0", "skill": "gsd-ponytail" }]
+  },
+  {
+    "id": "review-diff",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "review this diff:\n--- a/src/auth.js\n+++ b/src/auth.js\n@@ -10,3 +10,6 @@\n+  if (!token) return null;\n+  const claims = jwt.decode(token);\n+  return claims;",
+    "route": "2",
+    "skill": "gsd-verify"
+  },
+  {
+    "id": "resume-handoff",
+    "state": ".scratch/oauth-login/handoff-2.toon and plan.toon exist",
+    "prompt": "continue",
+    "route": "1",
+    "skill": "gsd-handoff"
+  },
+  {
+    "id": "pause-save",
+    "state": ".scratch/oauth-login/plan.toon exists; task 3 of 6 in progress",
+    "prompt": "pause here, I'll pick this up on my laptop tonight",
+    "route": "meta",
+    "skill": "gsd-handoff"
+  },
+  {
+    "id": "hard-bug",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "users report intermittent 401s in production but I can't reproduce locally",
+    "route": "4",
+    "skill": "gsd-diagnosing-bugs"
+  },
+  {
+    "id": "arch-audit",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "audit the architecture of this codebase and tell me where the friction is",
+    "route": "5",
+    "skill": "gsd-improve-codebase-architecture"
+  },
+  {
+    "id": "new-feature",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "add OAuth login support",
+    "route": "6",
+    "skill": "none"
+  },
+  {
+    "id": "plan-related",
+    "state": ".scratch/oauth-login/spec.md and plan.toon exist; tasks 2-5 pending",
+    "prompt": "implement the token refresh task next",
+    "route": "3",
+    "skill": "gsd-executing-plans"
+  },
+  {
+    "id": "plan-unrelated",
+    "state": ".scratch/oauth-login/spec.md and plan.toon exist; tasks 2-5 pending",
+    "prompt": "add a CSV export button to the reports page",
+    "route": "6",
+    "skill": "none"
+  },
+  {
+    "id": "mention-not-ask",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "the architecture is fine overall, just fix the typo in utils.py",
+    "route": "0",
+    "skill": "none"
+  },
+  {
+    "id": "catalog",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "what can you do? list your skills",
+    "route": "meta",
+    "skill": "catalog"
+  }
+]

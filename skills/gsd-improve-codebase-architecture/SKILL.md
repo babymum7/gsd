@@ -1,12 +1,14 @@
 ---
 name: gsd-improve-codebase-architecture
-description: Scan the codebase for deepening opportunities, present candidates (terminal by default; lavish visual opt-in), then grill through the one you pick. Triggered as gsd-diagnosing-bugs terminal, or for upkeep.
+description: Internal GSD sub-skill (routed via /gsd). Scan the codebase for deepening opportunities, present candidates (terminal by default; lavish visual opt-in), then grill through the one you pick. Triggered as gsd-diagnosing-bugs terminal, or for upkeep.
 triggers: architecture/refactor (gsd Route 5); upkeep; gsd-diagnosing-bugs terminal
 produces: []
 consumes: [CONTEXT.md, docs/adr/]
 ---
 
 # Improve Codebase Architecture
+
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Invoked standalone with its `consumes:` artifacts missing → load the `gsd` skill and enter through its router (it detects workspace state); don't improvise missing context.
 
 Surface architectural friction and propose **deepening opportunities** — refactors turning shallow modules into deep ones. Aim: testability + AI-navigability.
 

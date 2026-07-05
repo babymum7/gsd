@@ -1,12 +1,14 @@
 ---
 name: gsd-tdd
-description: Test-driven development — behavior through public interfaces, vertical tracer-bullet slices, red-green-refactor. Triggered by gsd-executing-plans for the per-task unit test.
+description: Internal GSD sub-skill (routed via /gsd). Test-driven development — behavior through public interfaces, vertical tracer-bullet slices, red-green-refactor. Triggered by gsd-executing-plans for the per-task unit test.
 triggers: gsd-executing-plans per-task unit test
 produces: []
 consumes: [CONTEXT.md]
 ---
 
 # Test-Driven Development
+
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Invoked standalone with its `consumes:` artifacts missing → load the `gsd` skill and enter through its router (it detects workspace state); don't improvise missing context.
 
 Tests verify **behavior through public interfaces**, not implementation. Code can change entirely; tests shouldn't. A good test reads like a spec ("user can checkout with valid cart") and survives refactors. A bad test is coupled to implementation (mocks internals, tests privates) — it breaks on refactor though behavior is unchanged.
 

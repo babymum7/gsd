@@ -1,12 +1,14 @@
 ---
 name: gsd-domain-modeling
-description: Build/sharpen the project's domain model — challenge terms, sharpen fuzzy language, capture decisions to `CONTEXT.md`/ADR. Auto-triggered when a durable term/decision crystallizes; also invokable directly to sharpen the glossary.
+description: Internal GSD sub-skill (routed via /gsd). Build/sharpen the project's domain model — challenge terms, sharpen fuzzy language, capture decisions to `CONTEXT.md`/ADR. Auto-triggered when a durable term/decision crystallizes; also invokable directly to sharpen the glossary.
 triggers: durable term/decision crystallizes (auto); invokable directly
 produces: [CONTEXT.md, CONTEXT-MAP.md, docs/adr/]
 consumes: [CONTEXT.md]
 ---
 
 # Domain Modeling
+
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Invoked standalone with its `consumes:` artifacts missing → load the `gsd` skill and enter through its router (it detects workspace state); don't improvise missing context.
 
 The *active* discipline: challenge terms, invent edge-case scenarios, and write the glossary/decisions down the moment they crystallize. (Merely reading `CONTEXT.md` for vocabulary is a one-line habit any skill does — this skill is for *changing* the model.)
 

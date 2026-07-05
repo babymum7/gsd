@@ -18,9 +18,9 @@ Install ONLY the `gsd` master entry — the single trigger that routes and coord
 bash install.sh
 ```
 
-`install.sh` symlinks `skills/gsd` into `~/.agents/skills/gsd`, removes any stray sub-skill links from older installs, and initializes the `lavish-axi` submodule (the optional visual path — skip building it and skills degrade to terminal). Invoke `/gsd` on any prompt; it routes internally and loads the right sub-skill on demand.
+`install.sh` symlinks **every** `skills/gsd*` directory into `~/.agents/skills/` (master + all sub-skills) and initializes the `lavish-axi` submodule (the optional visual path — skip building it and skills degrade to terminal). Registering all skills lets the agent load `skill://gsd-<sub>` directly — no path-resolution turn. Invoke `/gsd` on any prompt; it routes internally.
 
-You only ever type `/gsd` (plus what you want, in plain language). The `/gsd-<sub>` names that appear in the skills are the agent's own internal calls after it routes — not commands you register or invoke yourself.
+You only ever type `/gsd` (plus what you want, in plain language). The `/gsd-<sub>` names that appear in the skills are the agent's own internal calls after it routes — never commands you invoke yourself.
 
 ---
 
@@ -133,16 +133,14 @@ skills/
 └── gsd-lavish/                       # Visual HTML reporting & HITL (opt-in)
 ```
 
-Sub-skills are NOT registered skills — they live as siblings of `gsd` in this repo. `/gsd` finds them by resolving its own symlink, so it works from any working directory:
+All skills are registered, but `/gsd` is the orchestrator: sub-skills carry a **direct-invocation guard** — selected standalone with their consumed artifacts missing, they route back through `gsd` instead of improvising. Partial/old installs degrade gracefully: `gsd` resolves its own symlink and reads siblings directly:
 
 ```bash
 SKILLS_DIR="$(dirname "$(readlink ~/.agents/skills/gsd)")"   # → …/this-repo/skills
 ```
 
-then reads `$SKILLS_DIR/gsd-<sub>/SKILL.md`. No sub-skill registration needed.
-
 ### Auto-Update
-`gsd` is symlinked, so any edit or `git pull` here applies instantly. Re-run `bash install.sh` only if you move the repo.
+All skills are symlinked, so any edit or `git pull` here applies instantly. Re-run `bash install.sh` only if you move the repo or a new sub-skill directory appears.
 
 ### Vendored Tool: Lavish Editor (`tools/lavish-axi`)
 The Lavish Editor CLI is tracked as a **git submodule** pointing to [kunchenguid/lavish-axi](https://github.com/kunchenguid/lavish-axi). `bash install.sh` initializes the submodule. The visual path is opt-in — to enable it, build the CLI once (skills degrade to terminal if you don't):

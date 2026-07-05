@@ -247,10 +247,11 @@ test("the lavish-axi CLI the skills invoke exists", () => {
   assert.ok(existsSync(cli), `gsd-lavish invokes ${cli} but it does not exist (submodule not built?)`);
 });
 
-test("gsd master self-locates sub-skills (only gsd is registered)", () => {
+test("gsd master loads registered sub-skills directly, readlink only as fallback", () => {
   const master = readSkill("gsd");
   const section = master.split("## Dynamic Sub-Skill Loading")[1] || "";
-  assert.match(section, /readlink/, "gsd must self-locate sub-skills via readlink — only gsd is registered, sub-skills are siblings loaded on demand");
+  assert.match(section, /load one directly \(`skill:\/\/gsd-<sub>`/, "primary path must be the registered skill — no resolution turn");
+  assert.match(section, /\*\*Fallback \(partial\/old install\):\*\*[\s\S]*readlink/, "readlink must appear only under the fallback");
 });
 
 test("master enforces scope discipline against over-exploration", () => {
@@ -369,10 +370,9 @@ test("no orphaned files in skill directories (each non-SKILL.md is referenced by
   assert.equal(orphans.length, 0, `orphaned files not referenced by any SKILL.md: ${orphans.join(", ")}`);
 });
 
-test("install.sh registers only gsd and initializes the lavish submodule", () => {
+test("install.sh registers all gsd skills and initializes the lavish submodule", () => {
   const sh = readFileSync(join(ROOT, "install.sh"), "utf8");
-  assert.match(sh, /ln -sfn[^\n]*skills\/gsd/, "install.sh must symlink skills/gsd to the registry");
-  assert.doesNotMatch(sh, /ln -sfn[^\n]*skills\/gsd-/, "install.sh must not symlink any gsd- sub-skill");
+  assert.match(sh, /ln -sfn[^\n]*\$dir/, "install.sh must symlink the gsd* skills to the registry");
   assert.match(sh, /submodule update --init/, "install.sh must initialize the lavish-axi submodule");
 });
 
@@ -595,9 +595,10 @@ test("master does not say sub-skills are directly user-invokable (P0-a)", () => 
   assert.match(gsd, /internal routing targets, not user commands/, "master must clarify sub-skills are agent-internal");
 });
 
-test("master notes skill:// limitation for unregistered sub-skills (P0-c)", () => {
+test("master documents registered skill:// loading with read fallback (P0-c)", () => {
   const gsd = readSkill("gsd");
-  assert.match(gsd, /skill:\/\/.*cannot resolve|skill:\/\/.*unregistered/i, "master must note skill:// limitation");
+  assert.match(gsd, /`skill:\/\/gsd-<sub>`, registered/, "hard rule must name the registered skill:// path first");
+  assert.match(gsd, /`skill:\/\/` can't resolve a `gsd-<sub>`/, "fallback must trigger only when skill:// can't resolve");
 });
 
 test("master has a safe feature-cleanup flow (P2)", () => {
@@ -897,13 +898,65 @@ test("pre-plan portable handoff: base survives the machine switch", () => {
   assert.match(master, /`base` row in the latest handoff `settings\[\]`/, "capture chain must fall back to the handoff base row");
 });
 
-test("sub-skill discovery is imperative: route = read file, catalog on capability asks", () => {
+test("sub-skill loading is imperative: route = load skill, catalog on capability asks", () => {
   const gsd = readSkill("gsd");
-  assert.match(gsd, /\*\*Route = read the sub-skill file \(hard rule\)\.\*\*/, "master must open with the route-equals-read hard rule");
+  assert.match(gsd, /\*\*Route = load the sub-skill \(hard rule\)\.\*\*/, "master must open with the route-equals-load hard rule");
   assert.match(gsd, /never execute a sub-flow from memory or from its one-line description/, "rule must forbid acting from summaries");
-  assert.match(gsd, /\*\*Load timing:\*\*/, "loading section must state when to read the sub-skill file");
-  assert.match(gsd, /discovered by reading files, not by the harness/, "master must state the harness never suggests sub-skills");
-  assert.match(gsd, /glob `\$SKILLS_DIR\/gsd-\*\/SKILL\.md`/, "capability asks must enumerate sibling frontmatter via glob");
-  assert.match(gsd, /Never answer from this file's System map alone/, "catalog must come from sibling files, not the system map");
+  assert.match(gsd, /\*\*Load timing:\*\*/, "loading section must state when to load the sub-skill file");
+  assert.doesNotMatch(gsd, /discovered by reading files, not by the harness/, "stale sibling-only discovery claim must be gone");
+  assert.match(gsd, /enumerate the registered `gsd-\*` skills/, "catalog must prefer registered skills over path glob");
+  assert.match(gsd, /partial install → glob `\$SKILLS_DIR\/gsd-\*\/SKILL\.md`/, "path glob must be the partial-install fallback only");
+  assert.match(gsd, /Never answer from this file's System map alone/, "catalog must come from skill files, not the system map");
   assert.match(gsd, /very next tool call/, "route trace must be followed immediately by loading the target skill");
+  assert.doesNotMatch(gsd, /make reading that skill's SKILL\.md/, "trace rule must load via skill://, not force a file-read turn");
+  assert.match(gsd, /`skill:\/\/gsd-<sub>`; `read` fallback only if unresolved/, "trace rule must name skill:// first with read as fallback");
+});
+
+test("all skills registered: sub-skills declare internality and a direct-invocation guard", () => {
+  const sh = readFileSync(join(ROOT, "install.sh"), "utf8");
+  assert.match(sh, /for dir in "\$REPO"\/skills\/gsd\*/, "install.sh must loop over every skills/gsd* dir");
+  assert.match(sh, /ln -sfn "\$dir" "\$REG\/\$\(basename "\$dir"\)"/, "install.sh must symlink each skill into the registry");
+  assert.doesNotMatch(sh, /\[ -L "\$link" \] && rm/, "install.sh must not unregister sub-skills anymore");
+  for (const name of listSkillDirs()) {
+    if (name === "gsd") continue;
+    const c = readSkill(name);
+    assert.match(c, /Internal GSD sub-skill \(routed via \/gsd\)/, `${name} description must declare internality`);
+    assert.match(c, /Direct invocation guard/, `${name} must carry the direct-invocation guard`);
+  }
+});
+
+test("System map names every sub-skill on disk (discovery completeness)", () => {
+  const gsd = readSkill("gsd");
+  const map = gsd.split("## System map")[1]?.split("## Smart Routing Engine")[0] || "";
+  for (const name of listSkillDirs()) {
+    if (name === "gsd") continue;
+    assert.ok(map.includes("`" + name + "`"), `${name} must be listed in the master System map — an installed but unlisted skill is invisible to /gsd discovery and the skill catalog`);
+  }
+});
+
+test("eval harness: fixtures well-formed, routes valid, target skills exist", () => {
+  const fixtures = JSON.parse(readFileSync(join(ROOT, "test", "eval", "fixtures.json"), "utf8"));
+  assert.ok(fixtures.length >= 10, "eval needs a meaningful fixture set");
+  const dirs = new Set(listSkillDirs());
+  const routes = new Set(["0", "1", "2", "3", "4", "5", "6", "meta"]);
+  for (const fx of fixtures) {
+    for (const want of [fx, ...(fx.accept ?? [])]) {
+      assert.ok(routes.has(want.route), `${fx.id}: invalid route ${want.route}`);
+      assert.ok(
+        want.skill === "none" || want.skill === "catalog" || dirs.has(want.skill),
+        `${fx.id}: expected skill ${want.skill} does not exist on disk`,
+      );
+    }
+    assert.ok(fx.id && fx.state && fx.prompt, `fixture missing id/state/prompt`);
+  }
+  // Runner stays opt-in: present, but never picked up by `node --test` (not *.test.js).
+  assert.ok(existsSync(join(ROOT, "test", "eval", "route-eval.mjs")));
+});
+
+test("install.sh auto-builds lavish when pnpm exists, degrades to terminal otherwise", () => {
+  const sh = readFileSync(join(ROOT, "install.sh"), "utf8");
+  assert.match(sh, /command -v pnpm/, "build must be gated on pnpm availability");
+  assert.match(sh, /! -f "\$LAVISH\/dist\/cli\.mjs"/, "build must fire only when dist/cli.mjs is missing");
+  assert.match(sh, /build failed[^\n]*degrade to terminal/, "a failed build must warn and degrade, not abort the install");
+  assert.match(sh, /LAVISH_STATE/, "final echo must report the real lavish state");
 });

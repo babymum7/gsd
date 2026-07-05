@@ -1,12 +1,14 @@
 ---
 name: gsd-lavish
-description: Turn complex/visual agent responses into rich, reviewable HTML artifacts via the local lavish-axi CLI. Renders a substantial deliverable (spec, comparison, verify report) as a browser-reviewed artifact ONLY when its 2-part Fire gate holds — never on inline Q&A.
+description: Internal GSD sub-skill (routed via /gsd). Turn complex/visual agent responses into rich, reviewable HTML artifacts via the local lavish-axi CLI. Renders a substantial deliverable (spec, comparison, verify report) as a browser-reviewed artifact ONLY when its 2-part Fire gate holds — never on inline Q&A.
 triggers: substantial deliverable (spec/plan/verify report/audit) — opt-in (2-part Fire gate; user must accept)
 produces: []
 consumes: []
 ---
 
 # Lavish
+
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Invoked standalone with its `consumes:` artifacts missing → load the `gsd` skill and enter through its router (it detects workspace state); don't improvise missing context.
 
 Render a substantial deliverable as a reviewable HTML artifact the user annotates and feeds back on. Heavyweight (HTML artifact + local express server + browser surface + long-poll loop) — fire only on real reviewable deliverables.
 

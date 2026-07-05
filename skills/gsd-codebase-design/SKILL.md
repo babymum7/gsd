@@ -1,12 +1,14 @@
 ---
 name: gsd-codebase-design
-description: Shared vocabulary for designing deep modules. Use when designing/improving a module's interface, deciding where a seam goes, making code testable or AI-navigable, or when another skill needs the deep-module vocabulary.
+description: Internal GSD sub-skill (routed via /gsd). Shared vocabulary for designing deep modules. Use when designing/improving a module's interface, deciding where a seam goes, making code testable or AI-navigable, or when another skill needs the deep-module vocabulary.
 triggers: module-interface/deepening decision (gsd Route 5); invokable
 produces: []
 consumes: []
 ---
 
 # Codebase Design
+
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Invoked standalone with its `consumes:` artifacts missing → load the `gsd` skill and enter through its router (it detects workspace state); don't improvise missing context.
 
 Design **deep modules**: a lot of behaviour behind a small interface, placed at a clean seam, testable through that interface. Use this language and these principles wherever code is being designed or restructured. The aim is leverage for callers, locality for maintainers, and testability for everyone.
 
