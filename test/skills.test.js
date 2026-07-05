@@ -970,4 +970,6 @@ test("content audit: per-task diff base, bounded fix loop, executable squash, la
   assert.match(verify, /git checkout <base>` → `git merge --squash wip\/<feature>`/, "the squash must be an exact executable sequence");
   const lavish = readSkill("gsd-lavish");
   assert.match(lavish, /\$CLI` missing[\s\S]{0,80}Degrade to terminal/, "lavish must define its own missing-CLI degradation");
+  const domain = readSkill("gsd-domain-modeling");
+  assert.match(domain, /create the map when a second context appears/, "CONTEXT-MAP.md must have a concrete creation trigger");
 });
