@@ -18,7 +18,7 @@ Install ONLY the `gsd` master entry — the single trigger that routes and coord
 bash install.sh
 ```
 
-`install.sh` symlinks **every** `skills/gsd*` directory into `~/.agents/skills/` (master + all sub-skills) and initializes the `lavish-axi` submodule (the optional visual path — skip building it and skills degrade to terminal). Registering all skills lets the agent load `skill://gsd-<sub>` directly — no path-resolution turn. Invoke `/gsd` on any prompt; it routes internally.
+`install.sh` symlinks **every** `skills/gsd*` directory into `~/.agents/skills/` (master + all sub-skills), initializes the `lavish-axi` submodule, and — when `pnpm` is available — builds the optional visual path automatically (no pnpm or a failed build → skills degrade to terminal). Registering all skills lets the agent load `skill://gsd-<sub>` directly — no path-resolution turn. Invoke `/gsd` on any prompt; it routes internally.
 
 You only ever type `/gsd` (plus what you want, in plain language). The `/gsd-<sub>` names that appear in the skills are the agent's own internal calls after it routes — never commands you invoke yourself.
 
@@ -143,7 +143,7 @@ SKILLS_DIR="$(dirname "$(readlink ~/.agents/skills/gsd)")"   # → …/this-repo
 All skills are symlinked, so any edit or `git pull` here applies instantly. Re-run `bash install.sh` only if you move the repo or a new sub-skill directory appears.
 
 ### Vendored Tool: Lavish Editor (`tools/lavish-axi`)
-The Lavish Editor CLI is tracked as a **git submodule** pointing to [kunchenguid/lavish-axi](https://github.com/kunchenguid/lavish-axi). `bash install.sh` initializes the submodule. The visual path is opt-in — to enable it, build the CLI once (skills degrade to terminal if you don't):
+The Lavish Editor CLI is tracked as a **git submodule** pointing to [kunchenguid/lavish-axi](https://github.com/kunchenguid/lavish-axi). `bash install.sh` initializes the submodule and builds the CLI automatically when `pnpm` is available. No pnpm? Build once manually (skills degrade to terminal until then):
 
 ```bash
 cd tools/lavish-axi && pnpm install && pnpm run build
@@ -157,8 +157,14 @@ cd tools/lavish-axi && pnpm install && pnpm run build
 ```
 
 ### Tests
-The skill set is a **string contract** — 86 tests pin routing rules, artifact formats, gates, and degradation paths:
+The skill set is a **string contract** — the suite pins routing rules, artifact formats, gates, and degradation paths:
 
 ```bash
 node --test test/skills.test.js
+```
+
+A second, **opt-in** harness proves a model *reading* the master skill actually routes correctly: 13 workspace-state + prompt fixtures, checked in two modes (`classify` — route/skill decision as JSON; `trace` — the literal `Route N → gsd-*` first line). It calls an OpenAI-compatible endpoint and is never part of `node --test`:
+
+```bash
+GSD_EVAL_KEY=sk-... node test/eval/route-eval.mjs   # GSD_EVAL_URL / GSD_EVAL_MODEL to override
 ```
