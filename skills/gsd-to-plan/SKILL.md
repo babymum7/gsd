@@ -11,7 +11,7 @@ consumes: [spec.md]
 Turn a converged design into an executable implementation plan. No interview — the design is settled (`gsd` did that). Read `.scratch/<feature>/spec.md` for the acceptance criteria this plan must deliver. Write the plan.
 
  ## Output (AXI TOON Format)
- Write a single consolidated plan file to `.scratch/<feature>/plan.toon`. This format is highly token-efficient, omitting braces, quotes, and markdown boilerplate. The first line declares the schema version (`schema:v1`); the second line is `base:<base>` (the repo's default branch, captured per gsd Conventions); consumers read from the `plan[` table.
+ Write a single consolidated plan file to `.scratch/<feature>/plan.toon`. This format is highly token-efficient, omitting braces, quotes, and markdown boilerplate. The first line declares the schema version (`schema:v1`); the second line is `base:<base>` (the repo's default branch, captured per gsd Conventions — already on `wip/<feature>` from a pre-plan portable resume? read the `base` row from the latest handoff `settings[]`, never the wip branch itself); consumers read from the `plan[` table.
  
  Format:
  ```
@@ -27,7 +27,7 @@ plan[count]{id,task,satisfies,files,test,status}:
  - `task` — short task description (5-8 words).
  - `satisfies` — pipe-separated list of AC IDs from `spec.md`.
  - `files` — pipe-separated list of affected files.
-- `test` — unit test file/path for TDD (or `none` if test-exempt).
+- `test` — unit test file/path for TDD, or `none` if test-exempt. Test-exempt covers ONLY docs/comments/metadata or mechanically verifiable non-behavioral changes; anything that alters runtime behavior (including config) names a unit/integration test or a self-check command. `none` on logic-bearing code is a planning error.
  - `status` — `pending`, `in_progress`, `done`, or `superseded` (for spec revisions).
  
 Escaping — `,` separates columns and `|` separates values within a field (GSD's sub-separator; canonical TOON also allows `"quoted"` fields — see [spec](https://toonformat.dev/reference/spec.html)). For `plan.toon` keep it simple: a `task` needing a comma or pipe is the wrong shape — rephrase it (5-8 words) or split the task. File paths containing either are unsupported.
@@ -40,6 +40,8 @@ Tasks run sequentially — `gsd-executing-plans` dispatches one `task` subagent 
 
 ## Rules
 - Decompose by what an implementer can do in one focused pass, not by file type.
+- **Rows are pointers, not payloads.** Detail lives in `spec.md` ACs (what must be true) and the dispatch-time task-brief `gsd-executing-plans` composes from the *current* code state (how) — never pre-written into the plan, where it goes stale after the first diff lands. A task needing a paragraph to describe is two tasks.
+- **Right-size the plan.** Task count proportional to the ask: quick-fix 1-2, typical feature 3-7. A plan pushing past ~10 tasks or containing independently-shippable chunks is a milestone smell — STOP, route back to `gsd` (Discussion) to split into milestone features (`<feature>-m1`, `-m2`, …), each with its own spec→plan→verify→merge cycle. Never one giant plan on one long-lived branch.
 - **Cover every AC.** Each AC in `spec.md` MUST appear in some task's `satisfies`. Before finishing, cross-check the union of all `satisfies` against the AC list — a missing AC is an incomplete plan, not a verify-time surprise.
 - Encode every inter-task dependency in the task order — a dependent task gets a later `id`. Never bury a sequencing constraint in `task` prose.
 - If the design has a gap that blocks planning, STOP — route back to `gsd` (Discussion) → revise `spec.md` → re-plan. Do not invent scope to fill it.

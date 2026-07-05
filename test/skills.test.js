@@ -604,10 +604,13 @@ test("master has a safe feature-cleanup flow (P2)", () => {
   const gsd = readSkill("gsd");
   const cleanup = gsd.split("Feature cleanup")[1]?.split("## ")[0] || "";
   assert.ok(cleanup.length > 0, "master must have a Feature cleanup section");
-  assert.match(cleanup, /git checkout <base>/, "cleanup must checkout <base> before deleting the WIP branch");
-  assert.match(cleanup, /git branch -d/, "cleanup must prefer safe delete (-d) first");
-  assert.match(cleanup, /-D.*force/i, "cleanup must only use -D after explicit force confirmation");
-  assert.match(cleanup, /dirty|status/i, "cleanup must check git status before proceeding");
+  assert.match(cleanup, /REFERENCE\.md/, "master cleanup must point at the load-on-demand flow");
+  const ref = readFileSync(join(SKILLS_DIR, "gsd", "REFERENCE.md"), "utf8");
+  const flow = ref.split("Feature cleanup")[1] || "";
+  assert.match(flow, /git checkout <base>/, "cleanup must checkout <base> before deleting the WIP branch");
+  assert.match(flow, /git branch -d/, "cleanup must prefer safe delete (-d) first");
+  assert.match(flow, /-D.*force/i, "cleanup must only use -D after explicit force confirmation");
+  assert.match(flow, /dirty|status/i, "cleanup must check git status before proceeding");
 });
 
 test("handoff format declares schema version (P3)", () => {
@@ -695,7 +698,7 @@ test("gsd description is keyword-rich for harness auto-discovery", () => {
   assert.match(desc, /\/gsd/i, "description must say the command is /gsd");
 });
 
-test("intent-signal table has all 8 rows with correct route+skill mapping (table-scoped)", () => {
+test("intent-signal table has all 9 rows with correct route+skill mapping (table-scoped)", () => {
   const gsd = readSkill("gsd");
   // Isolate ONLY the table region: between header and the footnote/Route 0
   const tableStart = gsd.indexOf("| Prompt asks to");
@@ -711,6 +714,7 @@ test("intent-signal table has all 8 rows with correct route+skill mapping (table
   assert.match(table, /resume.*1.*gsd-handoff/i, "row 6: resume → 1 · gsd-handoff");
   assert.match(table, /pause.*meta.*gsd-handoff/i, "row 7: pause → meta · gsd-handoff");
   assert.match(table, /lavish.*meta.*gsd-lavish/i, "row 8: lavish → meta · gsd-lavish");
+  assert.match(table, /list skills.*meta.*skill catalog/i, "row 9: capability discovery → meta · skill catalog");
   // Route 4 row must NOT contain bare 'error' (table-scoped, not whole-engine)
   const r4Row = table.split("\n").find(l => l.includes("gsd-diagnosing-bugs")) || "";
   assert.ok(!/\berror\b/.test(r4Row), "Route 4 row must NOT contain bare 'error'");
@@ -739,4 +743,167 @@ test("gsd-verify blocks merge on Critical/Important findings", () => {
   assert.match(verify, /critical/i, "must mention Critical verdict");
   assert.match(verify, /important/i, "must mention Important verdict");
   assert.match(verify, /block/i, "must say it blocks the merge");
+});
+
+// ── Gap tests added by the third gsd-audit pass ──────────
+
+test("gsd-verify defines a standalone Route 2 review mode (read-only, no merge)", () => {
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /## Standalone review/, "must split Route 2 review from the WIP gate");
+  assert.match(verify, /review-and-report only, read-only/, "standalone mode must be read-only report-only");
+  assert.match(verify, /apply only to the WIP-branch gate/, "merge mechanics must be scoped to the WIP gate");
+});
+
+test("gsd-verify spec-compliance excludes superseded ACs", () => {
+  assert.match(readSkill("gsd-verify"), /non-superseded acceptance criterion/);
+});
+
+test("missing reviewer degrades to self-review with unchanged blocking semantics", () => {
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /No `reviewer` subagent/, "verify must state the no-reviewer fallback");
+  assert.match(verify, /same blocking semantics/, "degraded self-review must not weaken the gate");
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /No subagents in the harness/, "executing-plans must state the no-subagent fallback");
+  assert.match(exec, /same blocking semantics/, "inline execution must keep the verdict contract");
+  assert.match(readSkill("gsd"), /`task`\/`reviewer` subagents/, "master degradation line must cover subagents");
+});
+
+test("executing-plans resumes an existing wip branch and creates from persisted base", () => {
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /branch already exists/, "must handle resume/rerun when wip/<feature> exists");
+  assert.match(exec, /git checkout wip\/<feature>/, "must check out the existing branch, not recreate it");
+  assert.match(exec, /git checkout -b wip\/<feature> <base>/, "creation must start from the persisted base");
+  assert.match(exec, /never recapture/, "a present base: is authoritative");
+});
+
+test("test:none is defined by to-plan and adapted by the per-task review", () => {
+  const plan = readSkill("gsd-to-plan");
+  assert.match(plan, /test-exempt covers ONLY docs\/comments\/metadata or mechanically verifiable non-behavioral/i,
+    "to-plan must bound the exemption");
+  assert.match(plan, /alters runtime behavior \(including config\)/, "behavior-altering config is not exempt");
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /`test:none` task .*drops the TDD check/, "per-task review must adapt for test:none");
+});
+
+test("master right-sizes the recommendation and spec to the ask (anti-over-engineering)", () => {
+  const master = readSkill("gsd");
+  assert.match(master, /smallest approach that meets the ask/, "must default to the smallest sufficient approach");
+  assert.match(master, /Never pad a spec with speculative scope/, "must forbid speculative spec padding");
+});
+
+test("conflict escalation has no hard harness coupling (irc optional)", () => {
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /surface it to the user/, "escalation must target the user/parent, not a specific tool");
+  assert.match(exec, /where the harness has one/, "irc must be optional, not assumed");
+});
+
+test("ponytail auto-fire is scoped to the fix; only the explicit toggle persists", () => {
+  const p = readSkill("gsd-ponytail");
+  assert.match(p, /scoped to that fix only/, "auto-fire must not leak past the quick-fix");
+  assert.match(p, /explicit toggle/, "persistence belongs to the explicit toggle");
+  assert.match(p, /never silently minimizes the next, unrelated prompt/);
+});
+
+test("to-plan calibrates detail: rows are pointers, task-brief carries the how", () => {
+  const plan = readSkill("gsd-to-plan");
+  assert.match(plan, /Rows are pointers, not payloads/, "plan detail must live in spec + dispatch-time brief");
+  assert.match(plan, /task needing a paragraph .*is two tasks/i, "must cap per-task detail");
+});
+
+test("large features split into milestone features, never one giant plan", () => {
+  const plan = readSkill("gsd-to-plan");
+  assert.match(plan, /~10 tasks/, "to-plan must name a size smell");
+  assert.match(plan, /milestone features \(`<feature>-m1`/, "to-plan must route back to gsd for the split");
+  const master = readSkill("gsd");
+  assert.match(master, /Large feature → milestone specs/, "master Convergence must own the split");
+  assert.match(master, /landing on `<base>` before the next/, "milestones must merge sequentially, not stack branches");
+});
+
+test(".scratch is git-ignored so resume survives branch switches", () => {
+  const master = readSkill("gsd");
+  assert.match(master, /`\.scratch\/` is \*\*git-ignored\*\*/, "Conventions must declare .scratch untracked");
+  assert.match(master, /breaks cross-branch resume/, "must state the load-bearing reason");
+});
+
+test("REFERENCE.md carries load-on-demand payloads; master links but never duplicates them", () => {
+  const ref = readFileSync(join(SKILLS_DIR, "gsd", "REFERENCE.md"), "utf8");
+  assert.match(ref, /## spec\.md — template & rules/, "spec template section must exist");
+  assert.match(ref, /## Acceptance Criteria/, "the template itself must live in REFERENCE");
+  assert.match(ref, /checkable/, "AC rules move with the template");
+  assert.match(ref, /## Milestones/, "full milestone rule must live in REFERENCE");
+  assert.match(ref, /## Feature cleanup/, "cleanup flow must live in REFERENCE");
+  const master = readSkill("gsd");
+  assert.match(master, /\[REFERENCE\.md\]\(REFERENCE\.md\)/, "master must markdown-link REFERENCE.md (loaded on route, not at entry)");
+  assert.ok(!/## Acceptance Criteria/.test(master), "spec template must not be duplicated in master");
+});
+
+test("portable handoff: scratch travels via wip branch with full hygiene", () => {
+  const handoff = readSkill("gsd-handoff");
+  assert.match(handoff, /## Portable handoff/, "handoff must define the cross-machine mode");
+  assert.match(handoff, /git checkout wip\/<feature>/, "sync must sit on the wip branch first");
+  assert.match(handoff, /git add -f \.scratch\/<feature>\//, "sync must force-add the ignored scratch");
+  assert.match(handoff, /chore\(gsd\): wip snapshot/, "portable handoff must snapshot uncommitted mid-task code");
+  assert.match(handoff, /Never snapshot silently/, "snapshot must be consent-gated, not automatic");
+  assert.match(handoff, /\*\*skip\*\* — dirty code stays local/, "dirty files must not block scratch sync (skip option)");
+  assert.match(handoff, /:\(exclude\)\.scratch/, "snapshot commit must exclude scratch (scratch has its own commit)");
+  assert.match(handoff, /-- \.scratch\/<feature>/, "sync commit must be pathspec'd to scratch only");
+  assert.match(handoff, /git push/, "portable handoff must push the wip branch");
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /git rm -r --cached --ignore-unmatch \.scratch\/<feature>/, "strip must be a safe no-op on non-portable runs");
+  assert.match(verify, /:\(exclude\)\.scratch/, "terminal reviewer diff must exclude scratch paths");
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /:\(exclude\)\.scratch/, "per-task review diff must exclude scratch paths");
+  assert.match(exec, /never stage `\.scratch\/` in a task commit/, "task commits must be code-only");
+  const master = readSkill("gsd");
+  assert.match(master, /machine-local/, "Conventions must state scratch is machine-local by default");
+  assert.match(master, /git switch --track origin\/wip\/<feature>/, "Step 0 must recover remote-only wip branches");
+  assert.match(master, /git fetch --prune/, "Step 0 must fetch before listing remote wip branches");
+});
+
+test("autosync: opt-in toggle persisted via settings[], synced per pause and per task", () => {
+  const handoff = readSkill("gsd-handoff");
+  assert.match(handoff, /\*\*Autosync\*\* — `\/gsd autosync on\|off`, \*\*tri-state\*\*/, "autosync must be tri-state: unset asks, on syncs, off stays quiet");
+  assert.match(handoff, /unset \(no `settings\[\]` row, the default\) = ask-once/, "unset must trigger the ask-once, not silence");
+  assert.match(handoff, /`off` = remembered decline, no asking/, "explicit off must be durable and never re-ask");
+  assert.match(handoff, /\*\*Ask-once on first pause\*\*/, "first pause must offer the sync choice");
+  assert.match(handoff, /yes \/ no \/ always/, "ask-once must offer one-time, decline, and persistent options");
+  assert.match(handoff, /skips the question — it IS the consent/, "cross-machine phrasing must bypass the ask-once");
+  assert.match(handoff, /`autosync,on` and `autosync,off` are both explicit user choices worth a row/, "settings note must allow the explicit off row");
+  assert.match(handoff, /[Pp]ersisted like `ponytail_level` via `settings\[\]`/, "autosync must reuse the settings[] persistence contract");
+  assert.match(handoff, /Requires a remote: none → stay machine-local and say so/, "autosync must degrade gracefully without a remote");
+  assert.match(handoff, /active non-default toggles only/, "settings template rows must be marked as examples, not defaults");
+  assert.match(handoff, /omit the table entirely when nothing is toggled/, "settings table must be omitted when no toggle is active");
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /\*\*Autosync on\*\* \(handoff `settings\[\]`\)/, "executing-plans must re-sync scratch per task when autosync is on");
+  const master = readSkill("gsd");
+  assert.match(exec, /iff dirty/, "autosync must guard the scratch commit on dirtiness");
+  assert.match(exec, /\*\*always\*\* `git push`/, "push must be unconditional so code commits travel");
+  assert.match(master, /"autosync on\/off" → persist the explicit row/, "master must intercept the autosync toggle like ponytail");
+  assert.match(master, /never cleared back to unset/, "explicit off must persist as a row, not clear to unset");
+  assert.match(exec, /No remote → skip the sync\/push and stay machine-local/, "per-task autosync must degrade without a remote, not error");
+});
+
+test("pre-plan portable handoff: base survives the machine switch", () => {
+  const handoff = readSkill("gsd-handoff");
+  assert.match(handoff, /no wip branch yet \(paused before execution/, "portable step 1 must bootstrap the wip branch pre-plan");
+  assert.match(handoff, /record `base,<base>` in this handoff's `settings\[\]`/, "bootstrapped base must persist in the handoff settings");
+  assert.match(handoff, /pre-plan portable sync records `base,<branch>`/, "settings note must carve out the base row exception");
+  assert.match(handoff, /restore the toggle `settings\[\]` values \(`ponytail_level`, `autosync`\)/, "resume must restore only real toggles");
+  assert.match(handoff, /A `base` row is metadata, not a toggle — don't "restore" it/, "base row must not be restored as a session toggle");
+  const toPlan = readSkill("gsd-to-plan");
+  assert.match(toPlan, /read the `base` row from the latest handoff `settings\[\]`, never the wip branch itself/, "to-plan must source base from the handoff when already on wip");
+  const master = readSkill("gsd");
+  assert.match(master, /or a `wip\/\*` branch/, "capture chain must treat show-current on wip/* as invalid");
+  assert.match(master, /`base` row in the latest handoff `settings\[\]`/, "capture chain must fall back to the handoff base row");
+});
+
+test("sub-skill discovery is imperative: route = read file, catalog on capability asks", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /\*\*Route = read the sub-skill file \(hard rule\)\.\*\*/, "master must open with the route-equals-read hard rule");
+  assert.match(gsd, /never execute a sub-flow from memory or from its one-line description/, "rule must forbid acting from summaries");
+  assert.match(gsd, /\*\*Load timing:\*\*/, "loading section must state when to read the sub-skill file");
+  assert.match(gsd, /discovered by reading files, not by the harness/, "master must state the harness never suggests sub-skills");
+  assert.match(gsd, /glob `\$SKILLS_DIR\/gsd-\*\/SKILL\.md`/, "capability asks must enumerate sibling frontmatter via glob");
+  assert.match(gsd, /Never answer from this file's System map alone/, "catalog must come from sibling files, not the system map");
+  assert.match(gsd, /very next tool call/, "route trace must be followed immediately by loading the target skill");
 });

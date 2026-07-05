@@ -12,16 +12,17 @@ Dispatch a fresh `task` subagent (the implementer) per task, verify each, then a
 
  ## Intake
  Read the consolidated plan `.scratch/<feature>/plan.toon` (skip the `schema:v1` header and `base:` line; tasks start at the `plan[` table). Tasks run sequentially. Do not dispatch parallel tasks on shared code.
- **Create branch** (if not on `wip/<feature>` yet): capture `BASE=$(git branch --show-current)` first, then `git checkout -b wip/<feature>`. Persist `base:$BASE` in `plan.toon` immediately after `schema:v1` if not already there (see gsd Conventions).
+ **Branch** (if not on `wip/<feature>` yet): the branch already exists (resume/rerun — check `git branch --list wip/<feature>`) → `git checkout wip/<feature>`. Else, creation depends on `base:` in `plan.toon`: present → it is authoritative, `git checkout -b wip/<feature> <base>` (never recapture from whatever branch you happen to be on); absent → capture `BASE=$(git branch --show-current)` first, `git checkout -b wip/<feature>`, and persist `base:$BASE` immediately after `schema:v1` (see gsd Conventions).
 
 ## Per task
 1. **Dispatch** a fresh `task` subagent with a single task-brief (the one task, the interfaces, the global constraints) — not the whole plan, not prior history.
-2. **Review** the returned diff: hand a `reviewer` subagent the task-brief (expected behavior) + the task's TDD note + the diff file + the BASE recorded before dispatch (never `HEAD~1`, which truncates multi-commit tasks). Require two verdicts: **task-compliance** (TDD test exists, passes, covers the task — per-task scope; the terminal whole-branch analogue is `gsd-verify`'s **spec-compliance**) AND **code-quality**.
+2. **Review** the returned diff: hand a `reviewer` subagent the task-brief (expected behavior) + the task's TDD note + the diff file + the BASE recorded before dispatch (never `HEAD~1`, which truncates multi-commit tasks). Capture that diff excluding session artifacts (`git diff <BASE> -- . ':(exclude).scratch'` — a portable-handoff sync makes scratch tracked; keep it out of review). Require two verdicts: **task-compliance** (TDD test exists, passes, covers the task — per-task scope; the terminal whole-branch analogue is `gsd-verify`'s **spec-compliance**) AND **code-quality**. A `test:none` task (test-exempt per `gsd-to-plan`) drops the TDD check — task-compliance is then "the diff does the brief, nothing more".
 3. **Fix loop**: Critical/Important findings → fix subagent → re-verify. Never proceed with open Critical/Important.
-4. **Commit** to `wip/<feature>`. Never commit <base> during execution.
+4. **Commit** to `wip/<feature>` — code only: never stage `.scratch/` in a task commit (the ledger update in the working tree is enough; `gsd-handoff`'s portable sync commit is the sole exception). Never commit <base> during execution. **Autosync on** (handoff `settings[]`) → after the task commit, sync scratch **iff dirty** (`git status --short .scratch/<feature>` non-empty → the pathspec'd commit from `gsd-handoff` § Portable; a clean-scratch commit exits non-zero), then **always** `git push` — push is unconditional so code commits travel even when the ledger didn't change. No remote → skip the sync/push and stay machine-local (graceful degradation per `gsd-handoff` § Portable), don't error the task loop.
 5. **Tests**: unit only. E2E is excluded from this per-task loop by design — it's owned by the `gsd-verify` E2E gate, which runs the end-to-end user path once over the whole branch before the <base> merge.
 
 > **Subagent failure** (no diff / errored — not a verify finding): re-dispatch with a sharper brief. Repeats → route to `gsd-diagnosing-bugs` (real blocker, not unfinished work).
+> **No subagents in the harness** (no `task`/`reviewer` tool): degrade per gsd Conventions — implement the task yourself inline, then run the review as a separate self-contained pass against the same task-brief and both verdicts. Degraded self-review keeps the same blocking semantics: open Critical/Important still stops the loop.
 
 ## Spec escalation
 If a task reveals an **acceptance criterion is itself wrong/incomplete** (not a code bug — the spec contradicts real intent, or is impossible/ambiguous), STOP the task. Do not patch code to fit a flawed criterion. Route back to `gsd` (Discussion) → revise `spec.md` → re-plan the affected tasks under **fresh IDs**, marking the ledger entries they replace as **superseded** — so a spec revision that invalidates an already-done task is re-dispatched, not blocked by the dedup rule. (Distinct from the fix loop, which fixes code not matching a correct spec.)
@@ -46,7 +47,7 @@ All plans done + per-task verifications passed → invoke `gsd-verify` (reviewer
  2. Run `git status` to locate conflicted files.
  3. Use the `read` tool with the `:conflicts` selector (e.g., `read path/to/file:conflicts`) to view the conflicting chunks.
  4. Solve the conflicts using the `edit` tool, cleanly removing markers (`<<<<<<<`, `=======`, `>>>>>>>`).
- 5. Run `git add` to mark resolved. If the conflict is too complex to resolve mechanically, run `git merge --abort` and notify `Main` via `irc`.
+5. Run `git add` to mark resolved. If the conflict is too complex to resolve mechanically, run `git merge --abort` and surface it to the user (or the parent agent, e.g. via `irc` where the harness has one).
 ## Never
 - Commit <base> during execution.
 - Skip per-task verify, or accept a report missing either verdict.
