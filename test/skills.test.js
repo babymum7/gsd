@@ -390,7 +390,7 @@ test("no gsd-lavish mention describes an unconditional browser launch", () => {
   // the browser flow must carry a consent cue. Offer/ask/menu lines legitimately lack one —
   // asking is mandatory, launching waits for the user to accept.
   const launchVerb = /\b(launch|launching|launches|fire|firing|render|rendering)\b/i;
-  const consent = /opt-?in|opted in|opts in|the user (?:accepts|picks|opts|wants)|picking|only (?:after|when|on) [^.]*(?:accept|opt|pick|request|explicit)|waits for the user to accept|prior explicit opt-in|explicit request/i;
+  const consent = /opt-?in|opted in|opts in|the user (?:accepts|picks|opts|wants)|picking|only (?:after|when|on) [^.]*(?:accept|opt|pick|request|explicit)|waits for the user to accept|launch on accept|prior explicit opt-in|explicit request/i;
   const offenders = [];
   for (const [name, content] of Object.entries(readAllSkills())) {
     if (name === "gsd-lavish") continue; // defines the gate itself
@@ -413,12 +413,27 @@ test("offer-eligible deliverables must proactively ask for visual review (the or
   const master = readSkill("gsd");
   assert.match(master, /MUST proactively ask before launching/, "master must require a proactive ask on eligible deliverables");
   assert.doesNotMatch(master, /auto-\*?offers\*?/, "master must not frame lavish as auto-offering (user rejected 'auto')");
+  // System map summary line must not label lavish as bare "opt-in" — it must carry ask-first framing.
+  const sysMapLavish = master.match(/\*\*Auto-composed:\*\*[^\n]*`gsd-lavish` \(([^)]*)\)/)?.[1] || "";
+  assert.match(sysMapLavish, /ask first|launch on accept/i, "System map lavish label must state ask-first/launch-on-accept, not bare 'opt-in'");
 
   const toPlan = readSkill("gsd-to-plan");
   assert.match(toPlan, /you MUST surface the visual-review option/, "to-plan must fold the visual-review ask into the approval gate");
 
   const verify = readSkill("gsd-verify");
   assert.match(verify, /standalone review MUST ask whether to review visually/, "verify standalone report must ask for visual review when eligible");
+
+  // Frontmatter `description:` lines are read first by catalog/routing — a bare "lavish ... opt-in"
+  // there re-seeds the silent bias. If a description mentions lavish/visual opt-in, it must carry
+  // ask-first or launch-on-accept framing.
+  const fmOffenders = [];
+  for (const [name, content] of Object.entries(readAllSkills())) {
+    const desc = content.match(/^description:.*$/m)?.[0] || "";
+    if (/lavish|visual/i.test(desc) && /opt-?in/i.test(desc) && !/ask first|launch on accept|ask.*eligible/i.test(desc)) {
+      fmOffenders.push(`${name}: ${desc.trim()}`);
+    }
+  }
+  assert.equal(fmOffenders.length, 0, `frontmatter descriptions frame lavish as bare opt-in (no ask-first/launch-on-accept):\n${fmOffenders.join("\n")}`);
 });
 
 test("master defines the Route 0↔4 bug-routing boundary with a fix-loop escalation fallback", () => {
