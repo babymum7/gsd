@@ -1087,7 +1087,11 @@ test("content audit: per-task diff base, bounded fix loop, executable squash, la
   const lavish = readSkill("gsd-lavish");
   assert.match(lavish, /\$CLI` missing[\s\S]{0,80}Degrade to terminal/, "lavish must define its own missing-CLI degradation");
   const domain = readSkill("gsd-domain-modeling");
-  assert.match(domain, /create the map when a second context appears/, "CONTEXT-MAP.md must have a concrete creation trigger");
+  assert.match(domain, /created \*\*only\*\* when a second context appears/, "CONTEXT-MAP.md must have a concrete creation trigger");
+  // The map must carry a schema + read/selection rule, not just a trigger — else it's a declared-but-shapeless artifact.
+  assert.match(domain, /# Context Map[\s\S]*\| Context \| Glossary \| Owns \|/, "CONTEXT-MAP.md must show its table schema, not just name the file");
+  assert.match(domain, /docs\/context\/<area>\/CONTEXT\.md/, "map must define the per-area glossary path convention");
+  assert.match(domain, /consult it first and pick the relevant area/, "map must carry a read/selection rule, not just an index");
 });
 
 test("to-plan prints an inline plan summary and asks one approval question after writing plan.toon", () => {

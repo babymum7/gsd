@@ -15,7 +15,16 @@ The *active* discipline: challenge terms, invent edge-case scenarios, and write 
 Triggered by `gsd` / `gsd-executing-plans` / `gsd-improve-codebase-architecture` when a durable term or decision surfaces; also invokable directly to sharpen the glossary.
 
 ## Files (lazy — create only when you have something to write)
-- `CONTEXT.md` — the glossary (**this skill is its sole writer**; others read it for vocabulary). Single context at root; if `CONTEXT-MAP.md` exists, multiple contexts (map points to each) — create the map when a second context appears (two areas legitimately define the same term differently).
+- `CONTEXT.md` — the glossary (**this skill is its sole writer**; others read it for vocabulary). Single context at root — most projects never need more.
+- `CONTEXT-MAP.md` — the index of contexts, created **only** when a second context appears (two areas legitimately define the same term differently — e.g. `Order` in Sales vs Fulfilment). Until then there is one root `CONTEXT.md` and no map. When you split: create `docs/context/<area>/CONTEXT.md` per area, then write the map at root pointing at each. Format — a table of area → path → the terms it owns; keep it in sync when a context is added, moved, or a term changes owner:
+  ```
+  # Context Map
+  | Context | Glossary | Owns |
+  |---------|----------|------|
+  | Sales | docs/context/sales/CONTEXT.md | Order, Customer, Quote |
+  | Fulfilment | docs/context/fulfilment/CONTEXT.md | Order, Shipment, Pick |
+  ```
+  A term defined in two contexts (`Order` above) is expected — the map is what makes the clash explicit; each context's own `CONTEXT.md` defines its meaning. **Read/selection rule**: when `CONTEXT-MAP.md` exists, consult it first and pick the relevant area's `docs/context/<area>/CONTEXT.md` before using or editing a term; a new area-specific glossary means adding/updating its row.
 - `docs/adr/` — architectural decisions.
 
 ## During discussion
