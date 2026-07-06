@@ -8,14 +8,23 @@ Not needed at routing time. Load this file when the matching flow below fires (i
 # <feature>
 ## Context
 <1-3 sentences: why this exists, current pain>
+## Design & Invariants (Optional)
+- **Constraints/Invariants**: <conditions/rules that must remain true, e.g. "Do not add new dependencies", "Keep memory allocations to zero in critical paths">
+- **Non-Goals**: <what NOT to do, e.g. "No need to implement retry logic for this phase">
+- **Shared Interfaces**: <the public seams/methods/types decided during Discussion>
 ## Acceptance Criteria
 - AC-1: <one verifiable outcome a reviewer can check in isolation>
+  - Check: <acceptance-check sketch — the action + the expected observable result, e.g. "POST /login with a wrong password → 401 + `{error:'invalid'}`". A sketch, not a runnable command; the exact command is finalized in the dispatch-time task-brief.>
 - AC-2: <...>
+  - Check: <...>
 ```
 
 Rules:
 - Every AC is **checkable** ("endpoint returns 200 with `{ok:true}`", "user sees the badge") — never a task ("implement logging"). A reviewer reading only the AC knows how to confirm it.
 - AC IDs are stable: `gsd-to-plan`/`gsd-verify` reference them. A spec revision re-issues fresh ACs and marks the replaced ones superseded.
+- **Design & Invariants** (optional section) captures only durable decisions, constraints, and non-goals decided during Discussion, not speculative implementation steps. Its absence means "none" (no extra constraints), and does not grant license to infer design details at dispatch-time.
+- **ACs pin the final behavior — the convergence contract.** Each AC states an observable outcome (a user-visible result, a return value, a state transition) precise enough that any implementer, regardless of model or approach, converges to the *same* end behavior even if the code differs. Creativity belongs in Discussion (exploring approaches, suggesting design); once an AC is written it is a fixed target, not a suggestion. Vague ACs are the root cause of divergent results across agents — sharpen the AC, don't over-specify the implementation.
+- **Every AC carries a `Check:` — the acceptance-check sketch is the convergence gate.** Before an AC is written to `spec.md`, sketch the acceptance check that proves it: the action plus the expected observable result. This is the writability test — if you *cannot* sketch a concrete expected result (the AC is "user sees an error" with no stated shape/where/when), the AC is not yet converged: stop, sharpen it in Discussion, don't write it. The sketch is a spec-time oracle proving the AC is testable and unambiguous, NOT a runnable command — the exact command is finalized against live code in the dispatch-time task-brief. `gsd-executing-plans` quotes the AC's `Check:` sketch into the task-brief's `Acceptance Check` field and specializes it there; the per-task agent never improvises the oracle.
 
 ## Milestones — large features
 

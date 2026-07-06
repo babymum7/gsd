@@ -92,6 +92,7 @@ Real dir (not symlink) → `|| echo` uses it directly. Sibling missing → re-ru
 - Materially ambiguous → ONE disambiguating question (see Clarify principle above).
 - Pure question/advisory/exploration (no code change intended) → **answer directly**; no spec/plan.
 ## Body
+- **Discussion is where creativity lives.** This is the phase to explore, suggest alternatives, and let the model's judgment shape the design — divergent thinking is *wanted* here. Convergence ends it: once the user picks an approach, that creativity is captured in `spec.md` as fixed **ACs** (the observable end behavior) plus **Design & Invariants** (the durable design decisions, non-goals, and shared interfaces chosen). Downstream (plan/execute/verify) is convergent — every agent aims at the same pinned behavior *and* the same architecture, no re-creativity. Room to explore up front; one target at the end.
 Recommend an answer for every question. One design branch at a time.
 - **Independent Qs** → batch (each with a recommendation). **Dependent** → sequential. Never batch a dependent chain.
 - **Discovery**: explore (targeted, git-scoped — see Scope discipline) → clarifying Qs → 2-3 approaches + tradeoffs + recommendation.
@@ -99,8 +100,9 @@ Recommend an answer for every question. One design branch at a time.
 - **Right-size the recommendation**: recommend the smallest approach that meets the ask (ponytail-ladder thinking); a small ask converges to a 2-4-AC spec. Never pad a spec with speculative scope — retries, telemetry, config, abstractions nobody asked for are added when asked, not by default.
 
 ## Convergence — write `spec.md`
-When Discovery/stress-test converges (the user picks an approach and open questions close), write `.scratch/<feature>/spec.md` BEFORE routing to `gsd-to-plan` — the contract every downstream skill reads. Load [REFERENCE.md](REFERENCE.md) for the template + AC rules (checkable outcomes, stable IDs, superseded on revision). Two rules shape the split itself:
+When Discovery/stress-test converges (the user picks an approach and open questions close), write `.scratch/<feature>/spec.md` BEFORE routing to `gsd-to-plan` — the contract every downstream skill reads. Load [REFERENCE.md](REFERENCE.md) for the template + AC rules (checkable outcomes, stable IDs, superseded on revision). These rules shape the split itself:
 - **Large feature → milestone specs**: `<feature>-m1/`, `-m2/`, … — each landing on `<base>` before the next is specced in detail (full rule: [REFERENCE.md](REFERENCE.md)).
+- **Every AC needs a `Check:` sketch — the convergence gate.** For each AC, sketch its acceptance check (the action + expected observable result) per [REFERENCE.md](REFERENCE.md) § spec.md rules. Can't sketch a concrete expected result → the AC is still vague: sharpen it in Discussion before writing `spec.md`, don't converge on a fuzzy AC. The sketch is a spec-time oracle (not a runnable command); `gsd-executing-plans` carries it into the task-brief and specializes it against live code.
 - The fix fast-paths (below) carry no `spec.md` — quick-fix goes through `gsd-verify` (code-quality only); nano-fix verifies inline (no gate).
 
 ## Triggers (supporting skills fire automatically — except lavish, which is opt-in)

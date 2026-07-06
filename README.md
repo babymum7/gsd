@@ -43,7 +43,7 @@ flowchart LR
 ### 1. Discuss — `/gsd build feature X`
 New work routes to **Discussion**. The agent explores the codebase (targeted, git-scoped — no tree-wide crawling), asks clarifying questions only when the answer changes route/scope/action, stress-tests the idea (risks, edge cases, missing decisions), and recommends the **smallest approach that meets the ask** — a small ask converges to a 2–4-AC spec, never padded with retries/telemetry/config nobody asked for.
 
-When you pick an approach and open questions close, the agent writes `.scratch/<feature>/spec.md` — context plus **checkable acceptance criteria** (`AC-1`, `AC-2`, …). This file is the contract every downstream stage reads. A large feature (would exceed ~10 tasks) is split into milestone specs (`<feature>-m1`, `-m2`, …), each running its own full cycle.
+When you pick an approach and open questions close, the agent writes `.scratch/<feature>/spec.md` — context plus **checkable acceptance criteria** (`AC-1`, `AC-2`, …), each carrying a `Check:` sketch (the action + expected observable result). That sketch is the convergence gate: an AC you can't sketch a concrete expected result for is still vague and gets sharpened in Discussion before the spec is written — and it becomes the spec-time oracle the execute stage specializes into a real command. This file is the contract every downstream stage reads. A large feature (would exceed ~10 tasks) is split into milestone specs (`<feature>-m1`, `-m2`, …), each running its own full cycle.
 
 ### 2. Plan — automatic, summarized inline
 `gsd-to-plan` turns the converged spec into `.scratch/<feature>/plan.toon` — a token-efficient task table (`id, task, satisfies, files, test, status`). Rows are pointers, not payloads: detail lives in the spec; every AC must appear in some task's `satisfies`. Docs/comments-only tasks get `test:none`; anything that alters runtime behavior names a test.
@@ -56,12 +56,13 @@ Once the plan is approved, `gsd-executing-plans` creates `wip/<feature>` (captur
 1. **Dispatch** a fresh implementer subagent with just that task's brief.
 2. **TDD** (`gsd-tdd`): one behavior test through the public interface → minimal code → green.
 3. **Review**: a reviewer subagent checks the task diff — task-compliance AND code-quality. Critical/Important findings loop back until fixed.
-4. **Commit** to `wip/<feature>` (code only) and mark the task `done` in the ledger.
+4. **Acceptance**: when the task's AC is runnable now, a targeted acceptance check exercises that AC end-to-end (curl/CLI/headless-browser/script) before the commit; a slice not yet independently runnable records an explicit `Acceptance Check: deferred` and is re-exercised at the terminal gate.
+5. **Commit** to `wip/<feature>` (code only) and mark the task `done` in the ledger.
 
 Interrupt any time — the ledger plus `git log` mean a resumed session never redoes finished work.
 
 ### 4. Verify — the merge gate, auto-merge on pass
-`gsd-verify` reviews the **whole branch diff** against the spec: every non-superseded AC met (spec-compliance) + universal code-quality, then the project's full build+test suite, then an **E2E gate** for user-facing features (real user path via browser or script). Any Critical/Important finding, red suite, or failing E2E **blocks the merge** — the pipeline stops and reports, never merging past a red gate. Pass → squash to a single commit on your base branch **automatically** (findings, build/E2E outcome, and the final commit are still reported); session artifacts never land there.
+`gsd-verify` reviews the **whole branch diff** against the spec: every non-superseded AC met (spec-compliance) + universal code-quality, then the project's full build+test suite, then an **acceptance/E2E gate** — the end-to-end user path for user-facing features (real user path via browser or script) *plus* an acceptance check for every non-superseded AC that is runtime-observable, absorbing any per-task `Acceptance Check: deferred`. Any Critical/Important finding, red suite, or failing acceptance/E2E **blocks the merge** — the pipeline stops and reports, never merging past a red gate. Pass → squash to a single commit on your base branch **automatically** (findings, build/E2E outcome, and the final commit are still reported); session artifacts never land there.
 
 ### 5. Next steps
 Outside the post-approval pipeline, every response ends with numbered, non-technical choices — reply with a number:

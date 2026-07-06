@@ -448,17 +448,22 @@ test("gsd-tdd Planning distinguishes headless dispatch from direct user invocati
   assert.match(tdd, /[Ii]nvoked directly/, "gsd-tdd must keep the direct-invocation confirm path");
 });
 
-test("gsd-verify owns an E2E gate that blocks the merge for user-facing features", () => {
+test("gsd-verify owns an acceptance/E2E gate that blocks the merge, absorbing deferrals", () => {
   const verify = readSkill("gsd-verify");
-  assert.match(verify, /E2E gate/, "gsd-verify must define an explicit E2E gate");
-  assert.match(verify, /blocks the merge/, "the E2E gate must block the merge, not run as an afterthought");
-  assert.match(verify, /E2E-exempt/, "gsd-verify must let pure non-UI changes opt out explicitly");
+  assert.match(verify, /acceptance\/E2E gate/, "gsd-verify must define an explicit acceptance/E2E gate");
+  assert.match(verify, /blocks the merge/, "the gate must block the merge, not run as an afterthought");
+  assert.match(verify, /every non-superseded AC that is runtime-observable/, "the gate must exercise every runtime-observable AC");
+  assert.match(verify, /Acceptance Check: deferred/, "the gate must explicitly absorb per-task deferrals");
+  assert.match(verify, /acceptance-exempt/, "gsd-verify must let ACs with no runtime-observable behavior opt out explicitly");
 });
 
-test("gsd-executing-plans defers E2E to the gsd-verify gate (no orphaned E2E)", () => {
+test("gsd-executing-plans runs targeted per-task acceptance, deferring only non-runnable slices to the terminal gate", () => {
   const exec = readSkill("gsd-executing-plans");
-  assert.match(exec, /E2E is excluded from this per-task loop/, "executing-plans must state E2E is excluded by design");
-  assert.match(exec, /owned by the `gsd-verify` E2E gate/, "executing-plans must hand E2E ownership to gsd-verify");
+  assert.match(exec, /Per-task acceptance \/ targeted E2E/, "executing-plans must run targeted per-task acceptance when the AC is runnable now");
+  assert.match(exec, /Acceptance Check: deferred/, "executing-plans must state the explicit deferral form for non-runnable slices");
+  assert.match(exec, /Whole-journey E2E stays terminal/, "the whole user journey must stay owned by the terminal gate");
+  assert.match(exec, /every non-superseded AC that is runtime-observable/, "executing-plans must not claim a stronger guarantee than the verify contract");
+  assert.doesNotMatch(exec, /E2E is excluded from this per-task loop/, "the old blanket per-task E2E exclusion must be gone");
 });
 
 test("master mirrors the user's language, anchored to the user's own prompt (ignores injected text)", () => {
@@ -1208,4 +1213,73 @@ test("no surface suggests a manual post-verify merge or a 'start executing' menu
   assert.match(readme, /inline plan summary/, "README must document the inline summary");
   assert.match(readme, /last prompt of the cycle/, "README must document approval as the final prompt");
   assert.doesNotMatch(readme, /\d\. Start executing tasks/, "README menu must not offer manual execution");
+});
+
+test("executing-plans defines the deterministic task-brief template", () => {
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /# Task Brief: <ID> - <Task Description>/, "must define the task-brief header");
+  assert.match(exec, /## Context & Objectives/, "must define Context & Objectives section");
+  assert.match(exec, /## Implementation Scope/, "must define Implementation Scope section");
+  assert.match(exec, /## Verification & Done Criteria/, "must define Verification & Done Criteria section");
+  assert.match(exec, /none\/unknown/, "must state fields can be none/unknown");
+  assert.match(exec, /MUST NOT invent design decisions/, "must forbid inventing design decisions");
+  assert.match(exec, /escalate to spec revision/, "must require escalation if missing decision is load-bearing");
+});
+
+test("REFERENCE.md spec.md template includes Design & Invariants", () => {
+  const ref = readFileSync(join(SKILLS_DIR, "gsd", "REFERENCE.md"), "utf8");
+  assert.match(ref, /## Design & Invariants \(Optional\)/, "spec template must have Design & Invariants");
+  assert.match(ref, /Constraints\/Invariants/, "spec template must list constraints/invariants");
+  assert.match(ref, /Non-Goals/, "spec template must list non-goals");
+  assert.match(ref, /not speculative implementation steps/, "rule must forbid speculative implementation steps");
+  assert.match(ref, /absence means "none".*not.*license to infer/, "rule must baseline absence to none");
+});
+
+test("to-plan references the deterministic task-brief template", () => {
+  const toPlan = readSkill("gsd-to-plan");
+  assert.match(toPlan, /deterministic task-brief template/, "to-plan must reference the deterministic template");
+});
+
+test("spec ACs pin final behavior as the convergence contract", () => {
+  const ref = readFileSync(join(SKILLS_DIR, "gsd", "REFERENCE.md"), "utf8");
+  assert.match(ref, /ACs pin the final behavior/, "spec rules must name ACs as the convergence contract");
+  assert.match(ref, /converges? to the \*same\* end behavior/, "ACs must make every implementer converge to the same behavior");
+  assert.match(ref, /Creativity belongs in Discussion/, "creativity must be scoped to Discussion, not implementation");
+});
+
+test("master scopes creativity to Discussion, convergence downstream", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /Discussion is where creativity lives/, "master must name Discussion as the creative phase");
+  assert.match(gsd, /Downstream \(plan\/execute\/verify\) is convergent/, "downstream must be convergent, not creative");
+  assert.match(gsd, /same pinned behavior \*and\* the same architecture/, "convergence must cover both behavior (ACs) and design (Design & Invariants)");
+});
+
+test("task-brief carries an Acceptance Check for the task's AC", () => {
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /- \*\*Acceptance Check:\*\*/, "task-brief template must include an Acceptance Check field");
+  assert.match(exec, /before the commit/, "behavior verification must gate the commit, not follow it");
+  assert.doesNotMatch(exec, /done\|e2e:deferred/, "deferral must not overload the plan.toon status cell");
+});
+test("every AC carries a Check sketch — the convergence gate", () => {
+  const ref = readFileSync(join(SKILLS_DIR, "gsd", "REFERENCE.md"), "utf8");
+  // spec.md template pairs each AC with a Check sketch
+  assert.match(ref, /- Check: <acceptance-check sketch/, "spec template must pair each AC with a Check sketch");
+  assert.match(ref, /A sketch, not a runnable command/, "Check must be a spec-time sketch, not a runnable command");
+  // rule: the sketch is the writability/convergence gate
+  assert.match(ref, /the acceptance-check sketch is the convergence gate/, "rules must name the sketch as the convergence gate");
+  assert.match(ref, /cannot\* sketch a concrete expected result.*not yet converged/s, "an un-sketchable AC must block convergence");
+});
+
+test("master gates convergence on a Check sketch per AC", () => {
+  const gsd = readSkill("gsd");
+  assert.match(gsd, /Every AC needs a `Check:` sketch — the convergence gate/, "master Convergence must gate on a Check sketch");
+  assert.match(gsd, /Can't sketch a concrete expected result → the AC is still vague/, "master must send un-sketchable ACs back to Discussion");
+  assert.match(gsd, /spec-time oracle \(not a runnable command\)/, "master must frame the sketch as a spec-time oracle");
+});
+
+test("task-brief specializes the AC Check sketch, never invents an oracle", () => {
+  const exec = readSkill("gsd-executing-plans");
+  assert.match(exec, /start from the `Check:` sketch of each AC/, "Acceptance Check must start from the spec's Check sketch");
+  assert.match(exec, /never invent an oracle the spec didn't sketch/, "dispatcher must not improvise an oracle absent from the spec");
+  assert.match(exec, /unsketched `Check:` is a spec gap → escalate/, "a missing Check sketch must escalate to spec revision");
 });

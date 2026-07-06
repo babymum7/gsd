@@ -50,7 +50,7 @@ Then ask **one approval question** using [../gsd/REFERENCE.md](../gsd/REFERENCE.
 
 ## Rules
 - Decompose by what an implementer can do in one focused pass, not by file type.
-- **Rows are pointers, not payloads.** Detail lives in `spec.md` ACs (what must be true) and the dispatch-time task-brief `gsd-executing-plans` composes from the *current* code state (how) — never pre-written into the plan, where it goes stale after the first diff lands. A task needing a paragraph to describe is two tasks.
+- **Rows are pointers, not payloads.** Detail lives in `spec.md` ACs (what must be true) and the dispatch-time task-brief `gsd-executing-plans` composes from the *current* code state (how) using the deterministic task-brief template — never pre-written into the plan, where it goes stale after the first diff lands. A task needing a paragraph to describe is two tasks.
 - **Right-size the plan.** Task count proportional to the ask: quick-fix 1-2, typical feature 3-7. A plan pushing past ~10 tasks or containing independently-shippable chunks is a milestone smell — STOP, route back to `gsd` (Discussion) to split into milestone features (`<feature>-m1`, `-m2`, …), each with its own spec→plan→verify→merge cycle. Never one giant plan on one long-lived branch.
 - **Cover every AC.** Each AC in `spec.md` MUST appear in some task's `satisfies`. Before finishing, cross-check the union of all `satisfies` against the AC list — a missing AC is an incomplete plan, not a verify-time surprise.
 - Encode every inter-task dependency in the task order — a dependent task gets a later `id`. Never bury a sequencing constraint in `task` prose.
