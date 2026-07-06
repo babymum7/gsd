@@ -331,11 +331,11 @@ test("Route 0 captures obvious failures; Route 4 is scoped to hard bugs (P2)", (
   assert.match(master, /were caught by Route 0/, "Route 4 must defer obvious failures to Route 0");
 });
 
-test("gsd-lavish has an explicit 2-part fire gate, opt-in on ambiguity (P4)", () => {
+test("gsd-lavish has an explicit 2-part fire gate and ask-first launch consent (P4)", () => {
   const master = readSkill("gsd");
   const lavish = readSkill("gsd-lavish");
-  assert.match(master, /Gate \(both must hold\)/, "master lavish auto-trigger must state the 2-part gate");
-  assert.match(master, /opt-in/, "master lavish must be opt-in on ambiguity");
+  assert.match(master, /Gate \(both must hold\)/, "master lavish trigger must state the 2-part gate");
+  assert.match(master, /MUST proactively ask before launching/, "master must require asking first before launching, not bare opt-in");
   assert.match(lavish, /Fire gate \(both must hold\)/, "gsd-lavish SKILL must mirror the gate");
   assert.match(lavish, /default to terminal output and ask/);
 });
@@ -485,6 +485,18 @@ test("gsd-tdd Planning distinguishes headless dispatch from direct user invocati
   assert.match(tdd, /task-brief/, "gsd-tdd headless path must derive behaviors from the task-brief");
   // Direct invocation still confirms with the user
   assert.match(tdd, /[Ii]nvoked directly/, "gsd-tdd must keep the direct-invocation confirm path");
+});
+
+test("gsd-tdd refactoring.md is a concrete refactor loop, not a sparse checklist", () => {
+  // Regression against the sparse-doc bug: refactoring.md was an 11-line bullet list with no
+  // safety loop, example, or stop rule. It must carry the same depth as tests.md / mocking.md.
+  const refactoring = readFileSync(join(SKILLS_DIR, "gsd-tdd", "refactoring.md"), "utf8");
+  assert.match(refactoring, /Never refactor while RED/i, "must forbid refactoring on RED");
+  assert.match(refactoring, /[Rr]un tests?.*(each|between|after)|tests? (green|between each)/, "must require running tests between structural steps");
+  assert.match(refactoring, /One change at a time/i, "safety loop must isolate one structural change at a time");
+  assert.match(refactoring, /BEFORE[\s\S]*AFTER/, "must carry a concrete before/after example pair like tests.md/mocking.md");
+  assert.match(refactoring, /when to stop|Boundary|gold-plate/i, "must define a stop boundary so refactoring isn't endless polishing");
+  assert.ok(refactoring.split("\n").length > 40, "refactoring.md must be a developed doc, not a sparse checklist");
 });
 
 test("gsd-verify owns an acceptance/E2E gate that blocks the merge, absorbing deferrals", () => {
@@ -767,11 +779,17 @@ test("signal table has mention-is-not-ask guard and signals-precede-Route-0 rule
   assert.match(gsd, /TDD.*preference|preference.*TDD/i, "TDD must be noted as preference, not route");
 });
 
-test("signal table includes lavish as opt-in action, not a route", () => {
+test("signal table frames lavish as ask-first launch-on-accept, not a route", () => {
   const gsd = readSkill("gsd");
   const engine = gsd.split("## Smart Routing Engine")[1]?.split("## Scope discipline")[0] || gsd;
-  assert.match(engine, /lavish.*opt-in|opt-in.*lavish/i, "lavish must appear as opt-in in signal table");
-  assert.match(engine, /visual report|render this|HTML artifact/i, "must include lavish aliases");
+  // The row must map the lavish aliases to the meta lane (gsd-lavish), not a numbered route.
+  const lavishRow = engine.split("\n").find(l => l.includes("gsd-lavish") && l.includes("|")) || "";
+  assert.match(lavishRow, /visual report|render this|HTML artifact/i, "signal row must carry the lavish aliases");
+  assert.match(lavishRow, /meta/, "signal row must map lavish to the meta lane, not a numbered route");
+  // The signal note must carry ask-first / launch-on-accept framing, not bare opt-in that re-seeds silence.
+  assert.match(engine, /ask first/i, "signal note must state lavish asks first on an offer-eligible deliverable");
+  assert.match(engine, /launch|launches/i, "signal note must distinguish launching from asking");
+  assert.match(engine, /accept|explicit request|picking the offer/i, "signal note must gate launching on the user accepting");
 });
 
 test("Route 4 signal row excludes bare 'error' (obvious errors stay Route 0)", () => {
