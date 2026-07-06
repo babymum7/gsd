@@ -40,7 +40,7 @@ On entry, analyze the prompt and workspace state to route to the correct sub-flo
 | lavish / visual report / "render this" / HTML artifact | meta · `gsd-lavish` (opt-in) |
 | list skills / capabilities / "what can you do" / discover internal skills | meta · **skill catalog** — enumerate the registered `gsd-*` skills (System map names → load each frontmatter via `skill://`; partial install → glob `$SKILLS_DIR/gsd-*/SKILL.md`), present the catalog + a recommendation. Never answer from this file's System map alone. |
 
-*TDD / ponytail / YAGNI / minimal are execution preferences, not routes — capture in Discussion/plan or apply during Route 0/3. Lavish is opt-in — explicit user request ("use lavish", "visual report") satisfies the opt-in gate; the 2-part Gate (Triggers §) still applies.*
+*TDD / ponytail / YAGNI / minimal are execution preferences, not routes — capture in Discussion/plan or apply during Route 0/3. On an offer-eligible deliverable lavish must *ask first* (the ask rides an existing surface — a menu line or one inline "review visually?"); **launching** the browser flow waits for the user to accept — an explicit request ("use lavish", "visual report") or picking the offer satisfies it. Never auto-launch. The 2-part Gate (Triggers §) still applies.*
 0. **Direct / Trivial (check first)**:
    - Simple question, advisory, a small targeted change (named file, ≤1 module, no design), OR an **obvious** failing-test/error fix (clear single-spot root cause, no investigation needed) → answer directly or `gsd-ponytail` quick-fix. **Do NOT explore broadly or trigger architecture skills.**
 1. **Resume**:
@@ -105,8 +105,8 @@ When Discovery/stress-test converges (the user picks an approach and open questi
 - **Every AC needs a `Check:` sketch — the convergence gate.** For each AC, sketch its acceptance check (the action + expected observable result) per [REFERENCE.md](REFERENCE.md) § spec.md rules. Can't sketch a concrete expected result → the AC is still vague: sharpen it in Discussion before writing `spec.md`, don't converge on a fuzzy AC. The sketch is a spec-time oracle (not a runnable command); `gsd-executing-plans` carries it into the task-brief and specializes it against live code.
 - The fix fast-paths (below) carry no `spec.md` — quick-fix goes through `gsd-verify` (code-quality only); nano-fix verifies inline (no gate).
 
-## Triggers (supporting skills fire automatically — except lavish, which is opt-in)
- - `gsd-lavish` — opt-in visual surface for substantial, standalone deliverables (spec, comparison, finalized `plan.toon`, verify report, audit). **Never auto-fired**: default to terminal, ask first; explicit user request ("use lavish", "visual report") satisfies the opt-in — then check the **Gate (both must hold):** (1) a reviewable deliverable, not mid-conversation; AND (2) annotating it in a browser adds value. Never on inline Qs or per-task diffs.
+## Triggers (supporting skills fire automatically; lavish must *ask first*, launches only on accept)
+ - `gsd-lavish` — visual surface for substantial, standalone deliverables (spec, comparison, finalized `plan.toon`, verify report, audit). **You MUST proactively ask before launching, and launch only when the user accepts** (per [REFERENCE.md](REFERENCE.md) § Lavish opt-in gate taxonomy): when the deliverable is offer-eligible and the **Gate (both must hold)** clears — (1) a reviewable deliverable, not mid-conversation; AND (2) annotating it in a browser adds value — surface the option folded into the surface already shown (one numbered end-session menu choice, e.g. "Review the spec visually"; or a single inline "review this visually?" line) — never a second prompt, never a new question around plan approval. Launching the browser flow waits for the user to accept. Never auto-launch, never on inline Qs or per-task diffs. Silently skipping the offer on an eligible deliverable is the bug this fixes.
 - `gsd-ponytail` — quick-fix entry → short-circuit to fast-path below, skip the body. **Manual toggle**: if the user says "ponytail <level>" or "stop ponytail"/"normal mode", set/clear the level and acknowledge — no routing needed.
 - `gsd-domain-modeling` — durable term/decision crystallizes → capture to `CONTEXT.md`/ADR.
 - `gsd-codebase-design` — a module-interface / deepening decision is in play.
@@ -131,12 +131,13 @@ Graceful degradation — optional capabilities (browser, lavish, `task`/`reviewe
 Monorepo — `.scratch/` at the git repo root; feature slug may include a package prefix (e.g. `pkg-auth-oauth`) to disambiguate. Scope discipline naturally bounds to one package.
 
 ## End-session Suggestions (Human Actions)
-Use [REFERENCE.md](REFERENCE.md) § Contextual disclosure templates → Master end-session menu. At the end of every response/discussion before plan approval, present concrete, non-technical choices for the user to select instead of listing technical skill commands. Example:
+Use [REFERENCE.md](REFERENCE.md) § Contextual disclosure templates → Master end-session menu. At the end of every response/discussion before plan approval, present concrete, non-technical choices for the user to select instead of listing technical skill commands. When the just-produced deliverable is lavish offer-eligible (a finalized spec, plan summary, verify report, or audit that clears the 2-part Gate), one choice MUST offer the visual review — folded into this same menu, never a second prompt. Example:
 ```
 Next steps (reply with number or text):
 1. Generate the implementation plan
-2. Audit codebase architecture
-3. Pause & Save progress
+2. Review the spec visually
+3. Audit codebase architecture
+4. Pause & Save progress
 ```
 
 When the user replies with a choice, `/gsd` intercepts the input and routes to the matching sub-skill.

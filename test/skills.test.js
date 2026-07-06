@@ -385,16 +385,40 @@ test("install.sh registers all gsd skills and initializes the lavish submodule",
   assert.match(sh, /submodule update --init/, "install.sh must initialize the lavish-axi submodule");
 });
 
-test("every gsd-lavish mention is gated by an opt-in cue (no unconditional browser launch)", () => {
-  const cue = /opt-?in|opted in|opts in|default to terminal|if the user (?:opts|wants|accepts)|only if the user/i;
+test("no gsd-lavish mention describes an unconditional browser launch", () => {
+  // The invariant is narrow: a line that actually describes *launching/firing/rendering*
+  // the browser flow must carry a consent cue. Offer/ask/menu lines legitimately lack one —
+  // asking is mandatory, launching waits for the user to accept.
+  const launchVerb = /\b(launch|launching|launches|fire|firing|render|rendering)\b/i;
+  const consent = /opt-?in|opted in|opts in|the user (?:accepts|picks|opts|wants)|picking|only (?:after|when|on) [^.]*(?:accept|opt|pick|request|explicit)|waits for the user to accept|prior explicit opt-in|explicit request/i;
   const offenders = [];
   for (const [name, content] of Object.entries(readAllSkills())) {
     if (name === "gsd-lavish") continue; // defines the gate itself
     content.split("\n").forEach((line, i) => {
-      if (/gsd-lavish/.test(line) && !cue.test(line)) offenders.push(`${name}:${i + 1}  ${line.trim()}`);
-      });
+      if (/gsd-lavish/.test(line) && launchVerb.test(line) && !consent.test(line)) {
+        offenders.push(`${name}:${i + 1}  ${line.trim()}`);
+      }
+    });
   }
-  assert.equal(offenders.length, 0, `lines mention gsd-lavish with no opt-in cue:\n${offenders.join("\n")}`);
+  assert.equal(offenders.length, 0, `lines describe launching gsd-lavish with no consent cue:\n${offenders.join("\n")}`);
+});
+
+test("offer-eligible deliverables must proactively ask for visual review (the original bug)", () => {
+  // The bug: lavish stayed invisible unless explicitly demanded. Each deliverable-producing
+  // surface MUST proactively ask — not merely *may offer*.
+  const ref = readFileSync(join(SKILLS_DIR, "gsd", "REFERENCE.md"), "utf8");
+  assert.match(ref, /Offer-eligible deliverable → ask first, mandatory/, "taxonomy must make the visual-review ask mandatory, not optional");
+  assert.match(ref, /MUST proactively ask|never stays silent waiting to be asked/, "taxonomy must forbid silent-until-asked behavior");
+
+  const master = readSkill("gsd");
+  assert.match(master, /MUST proactively ask before launching/, "master must require a proactive ask on eligible deliverables");
+  assert.doesNotMatch(master, /auto-\*?offers\*?/, "master must not frame lavish as auto-offering (user rejected 'auto')");
+
+  const toPlan = readSkill("gsd-to-plan");
+  assert.match(toPlan, /you MUST surface the visual-review option/, "to-plan must fold the visual-review ask into the approval gate");
+
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /standalone review MUST ask whether to review visually/, "verify standalone report must ask for visual review when eligible");
 });
 
 test("master defines the Route 0↔4 bug-routing boundary with a fix-loop escalation fallback", () => {
@@ -1129,7 +1153,7 @@ test("skills consume contextual disclosure templates consistently (AC-4)", () =>
 test("canonical lavish opt-in gate taxonomy distinguishes all required modes (AC-5)", () => {
   const ref = readFileSync(join(SKILLS_DIR, "gsd", "REFERENCE.md"), "utf8");
   const taxonomy = extractPeerSection(ref, "Lavish opt-in gate taxonomy");
-  assert.match(taxonomy, /Explicit opt-in/, "taxonomy must define explicit opt-in");
+  assert.match(taxonomy, /Explicit acceptance = launch consent/, "taxonomy must define explicit acceptance as launch consent");
   assert.match(taxonomy, /Offer-eligible deliverable/, "taxonomy must define offer-eligible deliverables");
   assert.match(taxonomy, /Post-approval pipeline no-offer mode/, "taxonomy must define no-offer pipeline mode");
   assert.match(taxonomy, /Graceful terminal degradation/, "taxonomy must define graceful terminal degradation");
@@ -1158,8 +1182,8 @@ test("skills consume lavish opt-in taxonomy without post-approval prompt drift (
   assert.match(verify, /offer nothing/, "verify must not offer lavish mid-pipeline");
   assert.match(verify, /Standalone review[\s\S]*offer-eligible/, "standalone verify reports may still be offer-eligible");
 
-  const architecture = extractPeerSection(readSkill("gsd-improve-codebase-architecture"), "2. Present candidates — terminal default, lavish opt-in");
-  assert.match(architecture, /Before plan approval[\s\S]*may offer lavish when both Fire gate checks[\s\S]*hold/i, "architecture audits may offer lavish pre-approval when both Fire gate checks hold");
+  const architecture = extractPeerSection(readSkill("gsd-improve-codebase-architecture"), "2. Present candidates — terminal default, lavish offer when eligible");
+  assert.match(architecture, /Before plan approval[\s\S]*MUST surface the lavish option/i, "architecture audits must proactively surface lavish pre-approval when offer-eligible and both Fire gate checks hold");
   assert.match(architecture, /post-approval pipeline no-offer mode is not active/i, "architecture audits must respect post-approval no-offer mode");
   assert.match(architecture, /An offer is not launch consent/i, "an eligible lavish offer must not count as consent to launch");
   assert.match(architecture, /launch `gsd-lavish` only after explicit opt-in/i, "architecture audits must launch lavish only after explicit opt-in");

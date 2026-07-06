@@ -24,7 +24,7 @@ Browser artifacts follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish op
  ## Run
  1. Read `<base>` from the `base:` line in `.scratch/<feature>/plan.toon` (or apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics base detection if absent). Capture the full WIP diff excluding session artifacts: `git diff <base>...wip/<feature> -- . ':(exclude).scratch'` → a uniquely-named file (keeps portable-handoff syncs out of the reviewer's diff).
  2. Dispatch a `reviewer` subagent with the diff file + `.scratch/<feature>/plan.toon` (starts with `schema:v1` + `base:` metadata; the `plan[` table is the task data) (+ `.scratch/<feature>/spec.md` if it exists — quick-fix has none).
-3. Compile the verify findings and present them in the terminal by default. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish opt-in gate taxonomy: pipeline mode (post-approval) is no-offer mode, so use only the Post-approval pipeline progress or Blocker stop template unless the user already explicitly opted in; direct/standalone invocation may offer a browser-reviewed `gsd-lavish` report only when the report is offer-eligible and the Fire gate holds, using the Standalone review/report surface template.
+3. Compile the verify findings and present them in the terminal by default. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish opt-in gate taxonomy: pipeline mode (post-approval) is no-offer mode, so use only the Post-approval pipeline progress or Blocker stop template unless the user already explicitly opted in; direct/standalone invocation MUST surface a browser-reviewed `gsd-lavish` report option when the report is offer-eligible and the Fire gate holds, folded into the Standalone review/report surface template — never a second prompt, launch only on explicit opt-in.
  4. Critical/Important findings block the commit; Minor are logged.
  5. **Whole-branch green**: run the project's full build + test suite once over the merged branch state (not just the per-task tests). A red build or suite blocks the merge like a Critical finding. No build/test tooling exists → say so explicitly.
 ## Outcomes
@@ -33,8 +33,8 @@ Browser artifacts follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish op
 - **Fail** → route back to `gsd-executing-plans` (fix subagent on the specific findings), then re-verify.
  - **Spec flawed** — an acceptance criterion is itself wrong/incomplete (contradictory, or correctly met yet obviously wrong): do NOT pass. Route back to `gsd` (Discussion) → revise `spec.md` → re-plan. (Distinct from Fail: Fail fixes code against a correct spec.)
 
-## Auto-triggers
-- `gsd-lavish` — the verify report is a substantial deliverable; use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish opt-in gate taxonomy to decide explicit opt-in, offer eligibility, post-approval no-offer mode, and terminal degradation.
+## Visual-review ask
+- `gsd-lavish` — the verify report is a substantial deliverable; use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish opt-in gate taxonomy: standalone review MUST ask whether to review visually when the report is offer-eligible and the Fire gate holds, launching only when the user accepts; the WIP-branch gate (post-approval) is no-offer mode. Apply that section for offer eligibility, post-approval no-offer mode, and terminal degradation.
 
 
 ## Contextual disclosure

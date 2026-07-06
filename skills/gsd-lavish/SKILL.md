@@ -1,7 +1,7 @@
 ---
 name: gsd-lavish
 description: Internal GSD sub-skill (routed via /gsd). Turn complex/visual agent responses into rich, reviewable HTML artifacts via the local lavish-axi CLI. Renders a substantial deliverable (spec, comparison, verify report) as a browser-reviewed artifact ONLY when its 2-part Fire gate holds — never on inline Q&A.
-triggers: substantial deliverable (spec/plan/verify report/audit) — opt-in (2-part Fire gate; user must accept)
+triggers: substantial deliverable (spec/plan/verify report/audit) — ask before launching when offer-eligible; launch only when the user accepts (2-part Fire gate)
 produces: []
 consumes: []
 ---
@@ -12,7 +12,7 @@ consumes: []
 
 Render a substantial deliverable as a reviewable HTML artifact the user annotates and feeds back on. Heavyweight (HTML artifact + local express server + browser surface + long-poll loop) — fire only under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish opt-in gate taxonomy.
 
-**Fire gate (both must hold):** (1) the artifact is a standalone, reviewable deliverable — not mid-conversation; AND (2) the user gains from annotating it in a browser surface. **Never on inline conversational Q&A** — it breaks discussion rhythm with browser sessions. **On ambiguity, default to terminal output and ask the user** — lavish is opt-in, never assumed. In post-approval pipeline no-offer mode, asking is forbidden: render only when the user already explicitly opted in; otherwise terminal-only.
+**Fire gate (both must hold):** (1) the artifact is a standalone, reviewable deliverable — not mid-conversation; AND (2) the user gains from annotating it in a browser surface. When both hold and the deliverable is offer-eligible, **you MUST ask first** (fold the offer into the surface already shown — a menu line or one inline "review this visually?" — never a second prompt); **launching** the browser flow then waits for the user to accept. **Never on inline conversational Q&A** — it breaks discussion rhythm with browser sessions. **On ambiguity about whether to launch, default to terminal output and ask** — launching is opt-in, never assumed; asking on an eligible deliverable is mandatory, not optional. In post-approval pipeline no-offer mode, asking is forbidden too: render only when the user already explicitly opted in; otherwise terminal-only.
 
 ## Path resolution (cross-project)
 The CLI lives in the GSD repo, not the user's project. Resolve from the registered symlink (any cwd):

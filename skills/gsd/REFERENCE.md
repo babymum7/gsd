@@ -50,10 +50,11 @@ Use only from `gsd` discussion/resume surfaces before plan approval:
 ```
 Next steps (reply with number or text):
 1. <human outcome, e.g. Generate the implementation plan>
-2. <human outcome, e.g. Audit codebase architecture>
-3. <human outcome, e.g. Pause & Save progress>
+2. <human outcome, e.g. Review the spec visually>
+3. <human outcome, e.g. Audit codebase architecture>
+4. <human outcome, e.g. Pause & Save progress>
 ```
-Rules: choices are numbered, concrete, and non-technical; do not list skill commands; never include "Start executing tasks". After the plan approval question, this menu is suppressed until the pipeline merges to `<base>` or stops on a blocker.
+Rules: choices are numbered, concrete, and non-technical; do not list skill commands; never include "Start executing tasks". When the just-produced deliverable is lavish offer-eligible (clears the 2-part Fire gate — a finalized spec, plan summary, verify report, or audit), one choice MUST be the visual review, folded into this menu — never a second prompt (per § Lavish opt-in gate taxonomy). After the plan approval question, this menu is suppressed until the pipeline merges to `<base>` or stops on a blocker.
 
 ### Direct sub-skill Next steps
 
@@ -99,14 +100,15 @@ Rules: review/report surfaces are read-only unless explicitly in the WIP-branch 
 
 This is the canonical taxonomy for `gsd-lavish` and every skill that may surface a browser-reviewed artifact. `gsd-lavish`, `gsd-to-plan`, `gsd-verify`, and `gsd-improve-codebase-architecture` reference this section instead of inventing local opt-in rules.
 
-- **Explicit opt-in.** The user directly asks for a lavish/browser/visual report, or accepts an offered lavish surface. Explicit opt-in satisfies the consent requirement; the Fire gate must still hold before launching the browser flow.
-- **Offer-eligible deliverable.** Before plan approval, a finalized standalone deliverable may offer lavish only when both Fire gate checks hold: (1) it is reviewable outside the current conversation, and (2) browser annotation adds value. Examples: substantial specs, finalized `plan.toon` summaries, standalone verify reports, architecture audits/comparisons. Inline Q&A, transient progress, and per-task diffs are never offer-eligible.
+- **Explicit acceptance = launch consent.** The user directly asks for a lavish/browser/visual report, or accepts an offered one. Acceptance is what authorizes *launching the browser flow* — it is NOT a precondition for *asking*. The Fire gate must still hold before launch.
+- **Offer-eligible deliverable → ask first, mandatory.** When a finalized standalone deliverable is offer-eligible (both Fire gate checks hold: reviewable outside the conversation AND browser annotation adds value), the surfacing skill MUST proactively ask whether to review it visually — it does not merely *may*, and it never stays silent waiting to be asked. Fold the question into the surface already being shown (the master end-session menu as one numbered choice, e.g. "Review the spec visually"; or a single inline "review this visually?" line when no menu is present) — never as a second, separate prompt. Launching waits for the user to accept; asking does not. Examples: substantial specs, finalized `plan.toon` summaries, standalone verify reports, architecture audits/comparisons. Inline Q&A, transient progress, and per-task diffs are never offer-eligible. Asking costs one menu line; the user ignores it at no cost. The failure mode this fixes: staying silent so lavish never appears unless explicitly demanded.
+- **One prompt, not two.** The offer rides an existing surface; it never adds a prompt. In particular it never introduces a second question around `gsd-to-plan`'s approval — plan approval stays the last prompt of the cycle. Pre-approval, the offer is one option in the end-session menu; it is not a standalone gate.
 - **Post-approval pipeline no-offer mode.** After `gsd-to-plan` approval, the post-approval pipeline contract wins: do not ask, offer, menu, or pause for lavish. Use terminal progress/blocker templates only. If the user explicitly opted into lavish before or during the same session, a skill may render the relevant report without adding any new prompt; otherwise stay terminal-only.
 - **Graceful terminal degradation.** Lavish is optional. Missing CLI, unavailable browser, failed lavish build, or unsuitable Fire gate degrades to the same content in terminal prose; never block, fail, or weaken the deliverable because the visual path is unavailable.
 
 ### Fire gate
 
-Both checks must hold before launching `gsd-lavish`: (1) the artifact is a standalone, reviewable deliverable — not mid-conversation; and (2) the user gains from annotating it in a browser surface. On ambiguity, choose terminal output; outside the post-approval no-offer mode, ask only whether the user wants the lavish artifact.
+Both checks must hold before **launching** `gsd-lavish`: (1) the artifact is a standalone, reviewable deliverable — not mid-conversation; and (2) the user gains from annotating it in a browser surface. When both hold and the deliverable is offer-eligible, asking whether to review it visually is mandatory (per "Offer-eligible deliverable → ask first" above); launching still waits for the user to accept. On ambiguity about whether to *launch*, choose terminal output. Outside the post-approval no-offer mode, the ask rides the existing surface — never a second prompt.
 
 ## Git/base/WIP/scratch mechanics
 
