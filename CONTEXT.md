@@ -1,0 +1,7 @@
+# GSD Domain Context
+
+**Artifact Contract**: The canonical rule that classifies repository artifacts per Invocation Mode as Required, Optional, Produced, or Fallback. Flat frontmatter `consumes:`/`produces:` arrays are catalog unions of what any mode may read or write, not runtime preconditions; missing Optional state is normal, while missing Required state follows the mode's recovery, reconstruction, or blocker path. _Avoid_: dependency list, mandatory consumes.
+
+**Invocation Mode**: A named execution path through one skill with its own artifact requirements, fallback behavior, output authority, and prompt policy—for example standalone review versus the post-approval WIP gate. It is selected from explicit intent and entry context before Required-artifact validation; artifact presence alone never determines it, and handoff `mode`/`phase` values remain open and opaque. _Avoid_: route (the master selects a skill; the skill then selects its invocation mode).
+
+**Context Harvest**: Scope-bounded inspection of code and docs already relevant to the current route to identify durable project terms or architectural decisions. It creates or updates `CONTEXT.md`/ADRs only when evidence clears the domain/ADR thresholds; absence or uncertainty never triggers a broad repository scan. _Avoid_: documentation bootstrap, full-repo glossary scan.

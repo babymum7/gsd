@@ -18,8 +18,14 @@
     "state": "clean repo; no .scratch/ directory",
     "prompt": "tests fail with `TypeError: cfg.retries is undefined` at src/http.js:12 — fix it",
     "route": "0",
-    "skill": "none",
-    "accept": [{ "route": "0", "skill": "gsd-ponytail" }]
+    "skill": "gsd-ponytail"
+  },
+  {
+    "id": "behavioral-one-line",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "fix the known off-by-one at src/range.js:42 by changing `i < end` to `i <= end`",
+    "route": "0",
+    "skill": "gsd-ponytail"
   },
   {
     "id": "review-diff",

@@ -8,9 +8,17 @@ consumes: [spec.md, plan.toon]
 
 # Verify
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Invoked standalone with its `consumes:` artifacts missing → load the `gsd` skill and enter through its router (it detects workspace state); don't improvise missing context.
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
 
-The gate before a WIP branch merges to <base>. Dispatch a **reviewer** subagent (or any available code-review agent in your harness) over the full `wip/<feature>` diff and require two verdicts: **spec-compliance** (every non-superseded acceptance criterion in `spec.md` met + every task's TDD test green + no code outside the plan — whole-branch terminal scope; the per-task analogue is `gsd-executing-plans`' **task-compliance**) and **code-quality** (universal standards: correctness, security, dead code, `AGENTS.md` conventions). No `spec.md` (quick-fix/trivial path) → spec-compliance is N/A; judge code-quality + that the diff matches the stated fix (no scope creep).
+## Invocation modes
+
+| Mode | Required | Optional | Produced | Missing required |
+|---|---|---|---|---|
+| Standalone review (Route 2) | — | `spec.md`; `plan.toon` (supplied context only; no gate authority) | — | — |
+| Planned WIP gate | `spec.md`; `plan.toon` | — | — | Missing `spec.md` or `plan.toon`: stop before review or merge with the Blocker stop, then recover or re-plan through `/gsd`; never fabricate either artifact |
+| Quick-fix WIP gate | `plan.toon` | `spec.md` (absent by design) | — | Missing `plan.toon`: stop before review or merge, then recover the real quick-fix plan through `/gsd`; never fabricate it |
+
+In either WIP mode, dispatch a **reviewer** subagent (or any available code-review agent in your harness) over the full `wip/<feature>` diff. Planned WIP requires **spec-compliance** (every non-superseded acceptance criterion in `spec.md` met + every task's TDD test green + no code outside the plan — whole-branch terminal scope; the per-task analogue is `gsd-executing-plans`' **task-compliance**) and **code-quality** (universal standards: correctness, security, dead code, `AGENTS.md` conventions). Quick-fix has no `spec.md`, so spec-compliance is N/A; judge code-quality + that the diff matches the stated fix with no scope creep.
 No `reviewer` subagent in the harness → degrade per gsd Conventions: run the review yourself as a separate self-contained pass with the same two verdicts. Degraded self-review keeps the same blocking semantics — Critical/Important findings still block — and the report names itself self-review.
 
 ## Standalone review (Route 2 — pasted diff / PR / named range)
@@ -18,6 +26,8 @@ No `.scratch/`, no WIP branch, nothing to merge → **review-and-report only, re
 
 ## WIP-branch gate — non-interactive (post-approval pipeline)
 Arriving from `gsd-executing-plans` means the plan was approved (gsd-to-plan's approval gate — the last prompt of the cycle): implement [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Post-approval pipeline contract at the terminal gate and disclose only via § Contextual disclosure templates → Post-approval pipeline progress or Blocker stop. Never ask permission to merge, never end with a menu — a **Pass** squash-merges to `<base>` automatically, per the exact sequence in Outcomes. No prompts ≠ no visibility: always report the findings, the build/suite result, the E2E outcome, and the final commit on `<base>`. Mid-pipeline, skip the lavish offer (offering is a prompt; lavish stays available on explicit request). Standalone review (Route 2, above) is unaffected — read-only, never merges. Fail / Spec flawed still stop the pipeline exactly as Outcomes says: report and route; do not ask what to do next.
+
+Quick-fix reaches this same WIP gate with its minimal `plan.toon` and no `spec.md`. Spec-compliance is N/A, but the Run, whole-branch build, applicable behavior/E2E checks, blockers, and merge sequence still apply.
 
 Browser artifacts follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish opt-in gate taxonomy. In this WIP gate, post-approval pipeline no-offer mode applies: offer nothing and render only after prior explicit opt-in. Standalone review (Route 2, above) remains offer-eligible when the Fire gate holds.
 

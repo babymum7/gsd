@@ -8,9 +8,16 @@ consumes: [CONTEXT.md, docs/adr/]
 
 # Diagnosing Bugs
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Invoked standalone with its `consumes:` artifacts missing → load the `gsd` skill and enter through its router (it detects workspace state); don't improvise missing context.
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
 
-A discipline for hard bugs. Read `CONTEXT.md` + relevant ADRs first (if they exist). Skip phases only when explicitly justified.
+## Invocation modes
+
+| Mode | Required | Optional | Produced | Missing required |
+|---|---|---|---|---|
+| Route 4 diagnosis | — | `CONTEXT.md`; `docs/adr/` | — | — |
+| Execution-blocker diagnosis | — | `CONTEXT.md`; `docs/adr/` | — | — |
+
+A discipline for hard bugs. After selecting the diagnosis mode, read `CONTEXT.md` and only relevant ADRs if they exist. Skip phases only when explicitly justified.
 
 ## Phase 1 — Build a feedback loop (THIS is the skill)
 Everything else is mechanical. A **tight** pass/fail signal that goes red on *this* bug → you'll find the cause. No loop → no amount of staring saves you. Be aggressive, creative, refuse to give up.
@@ -41,6 +48,11 @@ Write the regression test **before** the fix — but only if a **correct seam** 
 - [ ] Correct hypothesis stated in the commit message.
 
 Then: what would have prevented this? If it's architectural (no good seam, tangled callers, hidden coupling) → hand off to `gsd-improve-codebase-architecture` with specifics, **after** the fix.
+
+## Optional context signal
+Diagnosis harvest is optional and bounded to the minimized bug path. Reuse only the prompt/trace, reproduction, hypotheses, and code/docs already relevant to the diagnosis; never widen into a repository glossary/ADR scan or create missing scaffolds. Trigger `gsd-domain-modeling` only if that evidence reveals a recurring project-specific term or explicit decision/rationale signal. Generic error vocabulary, a one-off identifier, implementation detail, and code shape without rationale are no-op. Diagnosis never writes domain artifacts itself.
+
+In Route 4 pre-approval work, domain modeling may ask its one focused question only for material meaning/ownership/trade-off ambiguity. In Execution-blocker diagnosis, approval has already happened: ask zero documentation questions; send load-bearing AC/interface/invariant ambiguity to `gsd-executing-plans`' Spec escalation, otherwise skip the documentation write and continue the diagnosis.
 
  ## Contextual disclosure (see gsd Conventions). Example:
  ```
