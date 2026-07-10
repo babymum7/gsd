@@ -3,7 +3,7 @@ name: gsd-handoff
 description: Internal GSD sub-skill (routed via /gsd). Compact the current conversation into a resume-aware gsd-handoff document for another agent/session. Triggered at pauses/breakpoints; read back on resume.
 triggers: resume/continue (read existing); pause/breakpoint/context-pressure (write new)
 produces: [handoff-<n>.toon]
-consumes: [handoff-<n>.toon, plan.toon, spec.md]
+consumes: [handoff-<n>.toon, plan.toon, spec.md, docs/gsd/<feature>/milestones.toon]
 ---
 
 # Handoff
@@ -16,7 +16,7 @@ consumes: [handoff-<n>.toon, plan.toon, spec.md]
 |---|---|---|---|---|
 | Pre-plan handoff write | — | `spec.md`; `plan.toon` (absent by design) | `handoff-<n>.toon` | — |
 | Execution handoff write | `plan.toon` | `spec.md` | `handoff-<n>.toon` | Missing `plan.toon`: stop and recover or block through `/gsd`; never record invented execution state |
-| Pre-plan resume | `handoff-<n>.toon` | `spec.md`; `plan.toon` (absent by design) | — | Missing `handoff-<n>.toon`: return once to `/gsd` state detection and preserve explicit intent; never infer a mode or invent the handoff or a plan |
+| Pre-plan resume | `handoff-<n>.toon` | `spec.md`; `plan.toon` (absent by design) | — | Missing `handoff-<n>.toon`: return once to `/gsd` state detection to recover the next pending milestone from Fallback `docs/gsd/<feature>/milestones.toon` when the scratch directory is absent; if no valid ledger exists, return once to `/gsd` state detection and preserve explicit intent; never infer a mode or invent the handoff or a plan |
 | Execution resume | `handoff-<n>.toon`; `plan.toon` | `spec.md` | — | Missing `handoff-<n>.toon`: reconstruct from Fallback `plan.toon` plus git log and status/diff, with `spec.md` when present. Missing `plan.toon` in a claimed execution resume: stop and recover or block through `/gsd`; never fabricate either artifact |
 
  Compacts the conversation into `.scratch/<feature>/handoff-<n>.toon` so another session (or a fresh context) can resume without re-deriving state. Triggered at pauses, breakpoints, or context-pressure.
@@ -56,8 +56,9 @@ On the other machine, `git checkout wip/<feature>` materializes `.scratch/<featu
 
 ## Read (on resume)
  If no file is passed, read the highest-numbered `handoff-<n>.toon` in `.scratch/<feature>/`. Open it, preserve its `mode` and `phase` exactly (including unknown values), and jump to `next_action`; never re-infer the mode or re-litigate resolved decisions. A pre-plan resume does not require `plan.toon`. If the recorded mode resumes `gsd-executing-plans`, also read `.scratch/<feature>/plan.toon` (skip the `schema:v1` and `base:` lines; task status is in the `plan[` table) + `git log` — the handoff says what/next, the `plan.toon` says what's done.
+ If `spec.md` contains a `Convergence Ledger publication` marker, preserve that spec byte-for-byte in local or portable scratch and re-read its raw marker before `next_action`, plan dispatch, and verify. Exactly one canonical marker may carry publication entry across a handoff; a missing/malformed marker means no publication authority, while an absent marker does not block ordinary resume. Never infer or restore publication authority from handoff `mode`, `phase`, settings, ledger presence, or plan path alone.
  Before `next_action`, initialize the Ponytail runtime fields to `explicit_level=none` and `auto_scope=none`, then restore the toggle `settings[]` values (`ponytail_level`, `autosync`). For `ponytail_level`, accept only `lite|full|ultra` from an explicit row; a valid row overrides only `explicit_level`, while an absent or invalid row leaves both fields at `none`. `auto_scope` is never restored, and an invalid value must never be activated or replaced with an invented level. For `autosync`, restore its recorded tri-state value. A `base` row is metadata, not a toggle — don't "restore" it; it's consumed by `gsd-to-plan`/Conventions when capturing `<base>` pre-plan. Preserve `mode`, `phase`, and unrelated/unknown settings behavior exactly.
- **No gsd-handoff exists** (interrupted without one, or state looks broken): for an explicitly claimed execution resume, reconstruct from Fallback artifacts — `.scratch/<feature>/plan.toon` (intended status) + `git log wip/<feature>` (committed) + `git status`/`git diff` (uncommitted/broken) + `spec.md` when present (intent). Compare actual vs. `plan.toon` to find the divergence and resume there; if `plan.toon` is also missing, stop and recover or block through `/gsd` rather than inventing execution state. Without an explicit execution-resume claim, return to `/gsd` state detection once; do not infer a handoff mode solely from available artifacts. If the working state is broken, route to `gsd-diagnosing-bugs`.
+ **No gsd-handoff exists** (interrupted without one, or state looks broken): for an explicitly claimed execution resume, reconstruct from Fallback artifacts — `.scratch/<feature>/plan.toon` (intended status) + `git log wip/<feature>` (committed) + `git status`/`git diff` (uncommitted/broken) + `spec.md` when present (intent). Compare actual vs. `plan.toon` to find the divergence and resume there; if `plan.toon` is also missing, stop and recover or block through `/gsd` rather than inventing execution state. Without an explicit execution-resume claim, if `.scratch/` is absent, recover the next pending milestone from Fallback `docs/gsd/<feature>/milestones.toon` through `/gsd` state detection; if no valid ledger exists, return to `/gsd` state detection once and preserve explicit intent; do not infer a handoff mode solely from available artifacts. If the working state is broken, route to `gsd-diagnosing-bugs`.
 
 Forks the conversation — you open a new session referencing the file. `/compact` continues in place; `gsd-handoff` forks.
 

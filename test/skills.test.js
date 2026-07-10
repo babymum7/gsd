@@ -145,13 +145,26 @@ const T1_MODE_CONTRACTS = [
     skill: "gsd-verify",
     mode: "Planned WIP gate",
     required: ["spec.md", "plan.toon"],
-    optional: [],
-    produced: [],
+    optional: ["docs/gsd/<feature>/milestones.toon"],
+    produced: ["docs/gsd/<feature>/milestones.toon"],
     recovery: {
       "spec.md": /Missing `spec\.md` or `plan\.toon`: stop before review or merge with the Blocker stop, then recover or re-plan through `\/gsd`/,
       "plan.toon": /Missing `spec\.md` or `plan\.toon`: stop before review or merge with the Blocker stop, then recover or re-plan through `\/gsd`/,
     },
     noFabrication: /never fabricate either artifact/,
+  },
+  {
+    skill: "gsd-verify",
+    mode: "Milestone WIP gate",
+    required: ["spec.md", "plan.toon", "docs/gsd/<feature>/milestones.toon"],
+    optional: [],
+    produced: ["docs/gsd/<feature>/milestones.toon"],
+    recovery: {
+      "spec.md": /Missing `spec\.md` or `plan\.toon`: follow Planned WIP gate recovery/,
+      "plan.toon": /Missing `spec\.md` or `plan\.toon`: follow Planned WIP gate recovery/,
+      "docs/gsd/<feature>/milestones.toon": /Missing `docs\/gsd\/<feature>\/milestones\.toon`: stop before review or merge, and recover through `\/gsd` recovery/,
+    },
+    noFabrication: /never fabricate the ledger/,
   },
   {
     skill: "gsd-verify",
@@ -189,7 +202,7 @@ const T1_MODE_CONTRACTS = [
     optional: ["spec.md", "plan.toon"],
     produced: [],
     recovery: {
-      "handoff-<n>.toon": /Missing `handoff-<n>\.toon`: return once to `\/gsd` state detection and preserve explicit intent/,
+      "handoff-<n>.toon": /Missing `handoff-<n>\.toon`: return once to `\/gsd` state detection to recover the next pending milestone from Fallback `docs\/gsd\/<feature>\/milestones\.toon` when the scratch directory is absent; if no valid ledger exists, return once to `\/gsd` state detection and preserve explicit intent/,
     },
     noFabrication: /never infer a mode or invent the handoff or a plan/,
   },
@@ -265,7 +278,7 @@ const T1_MODE_CONTRACTS = [
     skill: "gsd-to-plan",
     mode: "Converged planning",
     required: ["spec.md"],
-    optional: ["handoff-<n>.toon"],
+    optional: ["docs/gsd/<feature>/milestones.toon", "handoff-<n>.toon"],
     produced: ["plan.toon"],
     recovery: {
       "spec.md": /Missing `spec\.md`: STOP and return to `\/gsd` Discussion to recover or create a converged spec/,
@@ -276,13 +289,26 @@ const T1_MODE_CONTRACTS = [
     skill: "gsd-executing-plans",
     mode: "Normal plan execution",
     required: ["plan.toon", "spec.md"],
-    optional: [],
-    produced: ["plan.toon"],
+    optional: ["docs/gsd/<feature>/milestones.toon"],
+    produced: ["plan.toon", "docs/gsd/<feature>/milestones.toon"],
     recovery: {
       "plan.toon": /Missing `plan\.toon`: STOP and recover or block through `\/gsd` state detection/,
       "spec.md": /Missing `spec\.md`: STOP through Spec escalation, revise in `\/gsd` Discussion, and re-plan/,
     },
     noFabrication: /Never dispatch a task or synthesize either state/,
+  },
+  {
+    skill: "gsd-executing-plans",
+    mode: "Milestone plan execution",
+    required: ["plan.toon", "spec.md", "docs/gsd/<feature>/milestones.toon"],
+    optional: [],
+    produced: ["plan.toon", "docs/gsd/<feature>/milestones.toon"],
+    recovery: {
+      "plan.toon": /Missing `plan\.toon` or `spec\.md`: follow Normal plan execution recovery/,
+      "spec.md": /Missing `plan\.toon` or `spec\.md`: follow Normal plan execution recovery/,
+      "docs/gsd/<feature>/milestones.toon": /Missing `docs\/gsd\/<feature>\/milestones\.toon`: stop execution under the Blocker stop, and recover through `\/gsd` recovery/,
+    },
+    noFabrication: /never fabricate the ledger/,
   },
 ];
 
@@ -1149,8 +1175,8 @@ test("large features split into milestone features, never one giant plan", () =>
   assert.match(plan, /~10 tasks/, "to-plan must name a size smell");
   assert.match(plan, /milestone features \(`<feature>-m1`/, "to-plan must route back to gsd for the split");
   const master = readSkill("gsd");
-  assert.match(master, /Large feature → milestone specs/, "master Convergence must own the split");
-  assert.match(master, /landing on `<base>` before the next/, "milestones must merge sequentially, not stack branches");
+  assert.match(master, /Large feature → (?:tracked ledger \+ )?milestone specs/, "master Convergence must own the split");
+  assert.match(master, /lands? on `<base>` before the next/, "milestones must merge sequentially, not stack branches");
 });
 
 test(".scratch is git-ignored so resume survives branch switches", () => {
@@ -1479,7 +1505,7 @@ test("listed skills consume canonical git mechanics instead of long fallback dri
   assert.doesNotMatch(handoff, /1\. `git checkout wip\/<feature>`[\s\S]*2\. Uncommitted code changes[\s\S]*3\. `git add -f \.scratch\/<feature>\/`[\s\S]*4\. \*\*always\*\* `git push -u origin wip\/<feature>`/, "handoff must not duplicate the full portable sync sequence");
 
   const verify = readSkill("gsd-verify");
-  assert.match(verify, /git checkout <base>` → `git merge --squash wip\/<feature>` → `git rm -r --cached --ignore-unmatch \.scratch\/<feature>`/, "verify must preserve the exact executable squash sequence");
+  assert.match(verify, /git checkout <base>` → `git merge --squash wip\/<feature>` → in milestone mode or authorized convergence publication, capture the canonical ledger's staged-index bytes without normalization as `squashInput\[<path>\]`[\s\S]*→ `git rm -r --cached --ignore-unmatch \.scratch\/<feature>`/, "verify must preserve the exact executable squash sequence with staged ledger validation");
   assert.doesNotMatch(verify, /git symbolic-ref[\s\S]*init\.defaultBranch[\s\S]*main/, "verify must defer base fallback details");
 });
 test("no surface suggests a manual post-verify merge or a 'start executing' menu item", () => {
@@ -1611,13 +1637,13 @@ test("canonical Artifact Contract defines catalog unions, all four roles, and mo
   const masterConsumes = parseList(masterFrontmatter.consumes);
   assert.deepEqual(
     [...masterConsumes].sort(),
-    ["CONTEXT-MAP.md", "CONTEXT.md", "docs/adr/", "docs/context/<area>/CONTEXT.md", "handoff-<n>.toon", "plan.toon", "spec.md"].sort(),
+    ["CONTEXT-MAP.md", "CONTEXT.md", "docs/adr/", "docs/context/<area>/CONTEXT.md", "docs/gsd/<feature>/milestones.toon", "handoff-<n>.toon", "plan.toon", "spec.md"].sort(),
     "gsd consumes must catalog every artifact inspected by state detection and spec revision",
   );
   const masterProduces = parseList(masterFrontmatter.produces);
   assert.deepEqual(
     [...masterProduces].sort(),
-    ["plan.toon", "spec.md"].sort(),
+    ["docs/gsd/<feature>/milestones.toon", "plan.toon", "spec.md"].sort(),
     "gsd produces must catalog both the converged spec and quick-fix plan",
   );
 
@@ -1894,6 +1920,7 @@ function validateContextHarvestContract({ master, domain, execution }) {
     "CONTEXT-MAP.md",
     "docs/context/<area>/CONTEXT.md",
     "docs/adr/",
+    "docs/gsd/<feature>/milestones.toon",
     "handoff-<n>.toon",
     "plan.toon",
     "spec.md",
@@ -2165,6 +2192,588 @@ function evaluatePreApprovalDomainOwnership(plan, returnedPaths) {
   }
   return { passes, ownership };
 }
+
+function evaluateMilestoneLedgerOwnership(plan, expectedLedgerPath, expectedTasks) {
+  if (!Array.isArray(expectedTasks)) {
+    return { passes: false, ownership: {} };
+  }
+
+  // Normalize empty-string expectedLedgerPath to null
+  const targetPath = (expectedLedgerPath === "" || expectedLedgerPath === undefined) ? null : expectedLedgerPath;
+  const ledgerPathPattern = /^docs\/gsd\/[^/]+\/milestones\.toon$/;
+
+  if (targetPath !== null && !ledgerPathPattern.test(targetPath)) {
+    return { passes: false, ownership: {} };
+  }
+
+  if (
+    typeof plan !== "string"
+    || !plan
+    || plan.includes("\r")
+    || plan.trim() !== plan
+  ) {
+    return { passes: false, ownership: {} };
+  }
+  const lines = plan.split("\n");
+  if (lines.some((line) => line.trim() === "")) {
+    return { passes: false, ownership: {} };
+  }
+  const ownership = {};
+  let passes = true;
+  if (lines[0] !== "schema:v1") {
+    return { passes: false, ownership: {} };
+  }
+  if (!/^base:[^,]+$/.test(lines[1])) {
+    return { passes: false, ownership: {} };
+  }
+
+  const headerMatch = lines[2].match(/^plan\[(\d+)\]\{([^}]+)\}:$/);
+  if (!headerMatch) {
+    return { passes: false, ownership: {} };
+  }
+
+  const columns = headerMatch[2].split(",").map((c) => c.trim());
+  if (columns.length !== 6 || columns.join(",") !== "id,task,satisfies,files,test,status") {
+    return { passes: false, ownership: {} };
+  }
+
+  const rowCount = Number(headerMatch[1]);
+  const rows = lines.slice(3);
+  if (rows.length !== rowCount) {
+    return { passes: false, ownership: {} };
+  }
+
+  const parsedRows = [];
+  for (let i = 0; i < rows.length; i++) {
+    if (!rows[i].startsWith("  ")) {
+      return { passes: false, ownership: {} };
+    }
+    const rowBody = rows[i].slice(2);
+    const cells = rowBody.split(",");
+    if (cells.length !== 6) {
+      return { passes: false, ownership: {} };
+    }
+
+    const id = cells[0];
+    const task = cells[1];
+    const satisfies = cells[2];
+    const filesStr = cells[3];
+    const test = cells[4];
+    const status = cells[5];
+
+    // Verify row serialization: exact reconstruction match
+    const serializedRow = [id, task, satisfies, filesStr, test, status].join(",");
+    if (serializedRow !== rowBody) {
+      return { passes: false, ownership: {} };
+    }
+
+    if (id !== `T${i + 1}`) {
+      return { passes: false, ownership: {} };
+    }
+
+    // Parse files array for ledger ownership
+    const files = filesStr === "none" ? [] : filesStr.split("|");
+    if (files.some((file) => file !== file.trim())) {
+      return { passes: false, ownership: {} };
+    }
+    parsedRows.push({ id, task, satisfies, filesStr, files, test, status });
+  }
+
+  // Exact parse/serialize round-trip verification of the entire document structure
+  const reconstructedLines = [
+    "schema:v1",
+    lines[1],
+    `plan[${parsedRows.length}]{id,task,satisfies,files,test,status}:`,
+    ...parsedRows.map(r => `  ${[r.id, r.task, r.satisfies, r.filesStr, r.test, r.status].join(",")}`)
+  ];
+  if (reconstructedLines.join("\n") !== lines.join("\n")) {
+    return { passes: false, ownership: {} };
+  }
+
+  // Compare against oracle (expectedTasks) unconditionally
+  if (parsedRows.length !== expectedTasks.length) {
+    return { passes: false, ownership: {} };
+  }
+  for (let i = 0; i < parsedRows.length; i++) {
+    const parsed = parsedRows[i];
+    const expected = expectedTasks[i];
+    if (
+      parsed.id !== expected.id ||
+      parsed.task !== expected.task ||
+      parsed.satisfies !== expected.satisfies ||
+      parsed.filesStr !== expected.files ||
+      parsed.test !== expected.test ||
+      parsed.status !== expected.status
+    ) {
+      return { passes: false, ownership: {} };
+    }
+  }
+
+  // Now perform ownership evaluation
+  if (targetPath) {
+    const occurrences = [];
+    for (const row of parsedRows) {
+      let countInRow = 0;
+      for (const file of row.files) {
+        if (file === targetPath) {
+          countInRow++;
+          occurrences.push({ id: row.id, status: row.status });
+        }
+      }
+      if (countInRow > 1) {
+        passes = false;
+      }
+    }
+    ownership[targetPath] = occurrences.map(({ id }) => id);
+    if (occurrences.length !== 1 || occurrences[0].status !== "pending") {
+      passes = false;
+    }
+  }
+
+  // Also check for any invented/accidental ledger path tokens
+  for (const row of parsedRows) {
+    for (const file of row.files) {
+      if (ledgerPathPattern.test(file)) {
+        if (!targetPath || file !== targetPath) {
+          passes = false;
+          if (!ownership[file]) {
+            ownership[file] = [];
+          }
+          ownership[file].push(row.id);
+        }
+      }
+    }
+  }
+
+  return { passes, ownership };
+}
+
+function validateMilestoneLedgerOwnershipContract({ master, reference, toPlan }) {
+  assert.match(
+    master,
+    /When the current milestone intentionally creates\/updates that path, exactly one current plan row owns the exact path in `files`, and that sole owner is `status=pending`/,
+    "master SKILL.md must declare exactly-once pending ownership for the Milestone Ledger",
+  );
+  assert.match(
+    master,
+    /zero, duplicate \(including repeated in one row\), or non-pending ownership blocks before summary\/approval/,
+    "master SKILL.md must block before summary/approval on invalid ownership",
+  );
+  assert.match(
+    master,
+    /The separate `docs\/gsd\/<feature>\/milestones\.toon` tracked artifact is never a plan column or progress tracker/,
+    "master SKILL.md must prohibit Milestone Ledger as a plan column or progress tracker",
+  );
+  assert.match(
+    master,
+    /Likewise, when no ledger write is intentional, zero matching `docs\/gsd\/\*\/milestones\.toon` file tokens are permitted; any such token is invented ownership and blocks before approval/,
+    "master SKILL.md must declare empty-intent negative ownership for the Milestone Ledger",
+  );
+
+  assert.match(
+    reference,
+    /When the current milestone intentionally creates\/updates that path, exactly one current plan row owns the exact path in `files`, and that sole owner is `status=pending`/,
+    "REFERENCE.md must declare exactly-once pending ownership for the Milestone Ledger",
+  );
+  assert.match(
+    reference,
+    /zero, duplicate \(including repeated in one row\), or non-pending ownership blocks before summary\/approval/,
+    "REFERENCE.md must block before summary/approval on invalid ownership",
+  );
+  assert.match(
+    reference,
+    /The separate `docs\/gsd\/<feature>\/milestones\.toon` tracked artifact is never a plan column or progress tracker/,
+    "REFERENCE.md must prohibit Milestone Ledger as a plan column or progress tracker",
+  );
+  assert.match(
+    reference,
+    /Likewise, when no ledger write is intentional, zero matching `docs\/gsd\/\*\/milestones\.toon` file tokens are permitted; any such token is invented ownership and blocks before approval/,
+    "REFERENCE.md must declare empty-intent negative ownership for the Milestone Ledger",
+  );
+
+  assert.match(
+    toPlan,
+    /Independently parse the raw converged `spec\.md` for `Convergence Ledger publication` marker lines/,
+    "gsd-to-plan must derive durable root-publication intent from the raw spec marker",
+  );
+  assert.match(
+    toPlan,
+    /\*\*Milestone planning\*\* requires explicit milestone-entry intent plus the authoritative base ledger[\s\S]*require no publication marker/,
+    "gsd-to-plan must derive milestone ownership from explicit entry plus the base ledger without a publication marker",
+  );
+  assert.match(
+    toPlan,
+    /\*\*Normal root publication\*\* requires exactly one valid `Convergence Ledger publication` marker in raw `spec\.md`/,
+    "gsd-to-plan must require the durable marker for root publication",
+  );
+  assert.match(
+    toPlan,
+    /\*\*Ordinary Normal planning\*\* has neither source and therefore requires zero ledger-looking `files` tokens/,
+    "gsd-to-plan must deny invented ledger ownership in ordinary Normal planning",
+  );
+  assert.match(
+    toPlan,
+    /A malformed, duplicate, whitespace-padded, wrong-root, or Milestone-plus-marker input blocks before plan summary/,
+    "gsd-to-plan must reject malformed or conflicting publication inputs",
+  );
+  assert.match(
+    toPlan,
+    /require the derived path exactly once across all rows with its sole row `status=pending`/,
+    "gsd-to-plan must require the derived ledger path exactly once and status=pending",
+  );
+  assert.match(
+    toPlan,
+    /Convergence Ledger publication: <path> \(owner T<n>\).*single approval explicitly approves that publication entry/,
+    "gsd-to-plan must expose publication provenance in the approval summary",
+  );
+  assert.match(
+    toPlan,
+    /Zero occurrences, more than one occurrence \(including repetition within one row or duplicate cross-row ownership\), a sole non-pending owner, an extra plan column, or round-trip drift is a plan defect: rewrite and rerun the gates before summary\/approval/,
+    "gsd-to-plan must treat missing/duplicate/non-pending/extra-column/drift as a plan defect",
+  );
+}
+
+test("T2 Milestone Ledger ownership parser/evaluator with fixtures", () => {
+  const ledgerPath = "docs/gsd/shop-redesign/milestones.toon";
+
+  const fixtures = [
+    {
+      name: "valid one-owner plan passes",
+      expectedLedgerPath: ledgerPath,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: `src/dashboard.js|${ledgerPath}`, test: "tests/dashboard.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`,
+      expected: { passes: true, ownership: { [ledgerPath]: ["T1"] } },
+    },
+    {
+      name: "missing ownership fails",
+      expectedLedgerPath: ledgerPath,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: "src/dashboard.js", test: "tests/dashboard.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js,tests/dashboard.test.js,pending`,
+      expected: { passes: false, ownership: { [ledgerPath]: [] } },
+    },
+    {
+      name: "duplicate ownership cross-row fails",
+      expectedLedgerPath: ledgerPath,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: `src/dashboard.js|${ledgerPath}`, test: "tests/dashboard.test.js", status: "pending" },
+        { id: "T2", task: "Expose order dashboard", satisfies: "AC-2", files: `src/router.js|${ledgerPath}`, test: "tests/router.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[2]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending
+  T2,Expose order dashboard,AC-2,src/router.js|docs/gsd/shop-redesign/milestones.toon,tests/router.test.js,pending`,
+      expected: { passes: false, ownership: { [ledgerPath]: ["T1", "T2"] } },
+    },
+    {
+      name: "repeated-token in same row fails",
+      expectedLedgerPath: ledgerPath,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: `src/dashboard.js|${ledgerPath}|${ledgerPath}`, test: "tests/dashboard.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`,
+      expected: { passes: false, ownership: { [ledgerPath]: ["T1", "T1"] } },
+    },
+    {
+      name: "non-pending owner fails",
+      expectedLedgerPath: ledgerPath,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: `src/dashboard.js|${ledgerPath}`, test: "tests/dashboard.test.js", status: "done" }
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,done`,
+      expected: { passes: false, ownership: { [ledgerPath]: ["T1"] } },
+    },
+    {
+      name: "empty expected set passes",
+      expectedLedgerPath: null,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: "src/dashboard.js", test: "tests/dashboard.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js,tests/dashboard.test.js,pending`,
+      expected: { passes: true, ownership: {} },
+    },
+    {
+      name: "accidental token with null expectedLedgerPath fails",
+      expectedLedgerPath: null,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: `src/dashboard.js|${ledgerPath}`, test: "tests/dashboard.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`,
+      expected: { passes: false, ownership: { "docs/gsd/shop-redesign/milestones.toon": ["T1"] } },
+    },
+    {
+      name: "repeated accidental token with null expectedLedgerPath fails",
+      expectedLedgerPath: null,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: `src/dashboard.js|${ledgerPath}`, test: "tests/dashboard.test.js", status: "pending" },
+        { id: "T2", task: "Expose order dashboard", satisfies: "AC-2", files: `src/router.js|${ledgerPath}`, test: "tests/router.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[2]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending
+  T2,Expose order dashboard,AC-2,src/router.js|docs/gsd/shop-redesign/milestones.toon,tests/router.test.js,pending`,
+      expected: { passes: false, ownership: { "docs/gsd/shop-redesign/milestones.toon": ["T1", "T2"] } },
+    },
+    {
+      name: "extra seventh column fails",
+      expectedLedgerPath: ledgerPath,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: `src/dashboard.js|${ledgerPath}`, test: "tests/dashboard.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status,extra}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending,value`,
+      expected: { passes: false, ownership: {} },
+    },
+    {
+      name: "malformed row width fails",
+      expectedLedgerPath: ledgerPath,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: `src/dashboard.js|${ledgerPath}`, test: "tests/dashboard.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,pending`,
+      expected: { passes: false, ownership: {} },
+    },
+    {
+      name: "malformed ID order fails",
+      expectedLedgerPath: ledgerPath,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: `src/dashboard.js|${ledgerPath}`, test: "tests/dashboard.test.js", status: "pending" },
+        { id: "T2", task: "Expose order dashboard", satisfies: "AC-2", files: "src/router.js", test: "tests/router.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[2]{id,task,satisfies,files,test,status}:
+  T2,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending
+  T1,Expose order dashboard,AC-2,src/router.js,tests/router.test.js,pending`,
+      expected: { passes: false, ownership: {} },
+    },
+    {
+      name: "empty-string expectedLedgerPath behaves as null (positive empty equivalence)",
+      expectedLedgerPath: "",
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: "src/dashboard.js", test: "tests/dashboard.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js,tests/dashboard.test.js,pending`,
+      expected: { passes: true, ownership: {} },
+    },
+    {
+      name: "non-matching expectedLedgerPath (.toon.bak) fails early",
+      expectedLedgerPath: "docs/gsd/shop-redesign/milestones.toon.bak",
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: `src/dashboard.js|${ledgerPath}`, test: "tests/dashboard.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`,
+      expected: { passes: false, ownership: {} },
+    },
+    {
+      name: "omitted expectedTasks (missing/non-array) fails closed",
+      expectedLedgerPath: ledgerPath,
+      expectedTasks: undefined,
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`,
+      expected: { passes: false, ownership: {} },
+    },
+    {
+      name: "whitespace-padded ledger token fails exact ownership",
+      expectedLedgerPath: ledgerPath,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: `src/dashboard.js| ${ledgerPath} `, test: "tests/dashboard.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js| docs/gsd/shop-redesign/milestones.toon ,tests/dashboard.test.js,pending`,
+      expected: { passes: false, ownership: {} },
+    },
+    {
+      name: "CRLF plan bytes fail closed",
+      expectedLedgerPath: ledgerPath,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: `src/dashboard.js|${ledgerPath}`, test: "tests/dashboard.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`.replaceAll("\n", "\r\n"),
+      expected: { passes: false, ownership: {} },
+    },
+    {
+      name: "unindented plan row fails canonical serialization",
+      expectedLedgerPath: ledgerPath,
+      expectedTasks: [
+        { id: "T1", task: "Implement order dashboard", satisfies: "AC-1", files: `src/dashboard.js|${ledgerPath}`, test: "tests/dashboard.test.js", status: "pending" }
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`,
+      expected: { passes: false, ownership: {} },
+    },
+  ];
+
+  for (const fixture of fixtures) {
+    assert.deepEqual(
+      evaluateMilestoneLedgerOwnership(fixture.plan, fixture.expectedLedgerPath, fixture.expectedTasks),
+      fixture.expected,
+      fixture.name,
+    );
+  }
+});
+
+test("T2 Milestone Ledger oracle field mutation fails", () => {
+  const ledgerPath = "docs/gsd/shop-redesign/milestones.toon";
+  const validPlan = `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`;
+
+  const validOracle = [
+    {
+      id: "T1",
+      task: "Implement order dashboard",
+      satisfies: "AC-1",
+      files: `src/dashboard.js|${ledgerPath}`,
+      test: "tests/dashboard.test.js",
+      status: "pending",
+    }
+  ];
+
+  // Positive baseline: valid plan matches valid oracle
+  assert.deepEqual(
+    evaluateMilestoneLedgerOwnership(validPlan, ledgerPath, validOracle),
+    { passes: true, ownership: { [ledgerPath]: ["T1"] } },
+    "valid baseline passes",
+  );
+
+  // Mutate each of the 6 fields in the serialized plan one at a time while keeping the oracle fixed.
+  // Each must fail closed.
+  const mutants = [
+    // 1. Mutate ID: change T1 to T2 in plan
+    `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T2,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`,
+
+    // 2. Mutate task description
+    `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Mutated task description,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`,
+
+    // 3. Mutate satisfies AC
+    `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-2,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`,
+
+    // 4. Mutate files
+    `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/mutated.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`,
+
+    // 5. Mutate test file
+    `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/mutated.test.js,pending`,
+
+    // 6. Mutate status
+    `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,done`,
+  ];
+
+  mutants.forEach((mutantPlan, index) => {
+    assert.deepEqual(
+      evaluateMilestoneLedgerOwnership(mutantPlan, ledgerPath, validOracle),
+      { passes: false, ownership: {} },
+      `mutant field index ${index + 1} must fail closed`,
+    );
+  });
+});
+test("T2 Milestone Ledger ownership contract validation and mutation cases", () => {
+  const source = {
+    master: readSkill("gsd"),
+    reference: readPlanningReference(),
+    toPlan: readSkill("gsd-to-plan"),
+  };
+
+  validateMilestoneLedgerOwnershipContract(source);
+
+  const mutantMaster = source.master.replace(
+    /When the current milestone intentionally creates\/updates that path, exactly one current plan row owns the exact path in `files`, and that sole owner is `status=pending`/,
+    "Ledger ownership is optional",
+  );
+  assert.throws(
+    () => validateMilestoneLedgerOwnershipContract({ ...source, master: mutantMaster }),
+    /master SKILL.md must declare exactly-once pending ownership/,
+  );
+
+  const mutantReference = source.reference.replace(
+    /The separate `docs\/gsd\/<feature>\/milestones\.toon` tracked artifact is never a plan column or progress tracker/,
+    "Ledger is a plan column",
+  );
+  assert.throws(
+    () => validateMilestoneLedgerOwnershipContract({ ...source, reference: mutantReference }),
+    /REFERENCE.md must prohibit Milestone Ledger/,
+  );
+
+  const mutantToPlan = source.toPlan.replace(
+    /Zero occurrences, more than one occurrence \(including repetition within one row or duplicate cross-row ownership\), a sole non-pending owner, an extra plan column, or round-trip drift is a plan defect: rewrite and rerun the gates before summary\/approval/,
+    "Gates can be bypassed",
+  );
+  assert.throws(
+    () => validateMilestoneLedgerOwnershipContract({ ...source, toPlan: mutantToPlan }),
+    /gsd-to-plan must treat missing\/duplicate\/non-pending\/extra-column\/drift as a plan defect/,
+  );
+
+  const mutantToPlanNegative = source.toPlan.replace(
+    /\*\*Ordinary Normal planning\*\* has neither source and therefore requires zero ledger-looking `files` tokens/,
+    "Ordinary Normal planning may invent ledger ownership",
+  );
+  assert.throws(
+    () => validateMilestoneLedgerOwnershipContract({ ...source, toPlan: mutantToPlanNegative }),
+    /gsd-to-plan must deny invented ledger ownership in ordinary Normal planning/,
+  );
+});
 
 test("T2 pre-approval domain ownership is continuous across all four workflow seams", () => {
   validatePreApprovalDomainOwnershipContract({
@@ -3572,12 +4181,12 @@ const T4_POLICY_ROWS = Object.freeze({
   "Precise future milestone": {
     Inputs: "phase=discussion;kind=future;precision=question-or-ac-check",
     Output: "precise-milestone-or-spec",
-    "Proposal handling": "eligible",
+    "Proposal handling": "eligible; ledger row only when user-approved",
     "Tasks/order": "none",
     "Test seam": "pin-at-convergence",
     "Lower seam": "not-applicable",
-    "Green/check": "precise-question-or-checked-ACs+Check;unchecked-remainder-one-note",
-    Artifact: "spec.md-if-AC+Check",
+    "Green/check": "precise-question-or-checked-ACs+Check; unchecked-remainder-one-note",
+    Artifact: "milestones.toon-if-user-approved-goal; spec.md-if-AC+Check",
   },
   "Vague future area": {
     Inputs: "phase=discussion;kind=future;precision=vague",
@@ -3622,7 +4231,7 @@ function validateT4PlanningPolicy(policy) {
   }
   assert.deepEqual(
     [...new Set(policy.map((row) => unwrapPolicyCell(row.Artifact)))].sort(),
-    ["none", "plan.toon", "spec.md-if-AC+Check"],
+    ["milestones.toon-if-user-approved-goal; spec.md-if-AC+Check", "none", "plan.toon"].sort(),
     "planning policy must use only existing plan/spec artifacts or none",
   );
   return policy;
@@ -4990,11 +5599,11 @@ test("T4 planning seam contract flows through Discussion plan dispatch review an
   const convergence = extractPeerSection(master, "Convergence — write `spec.md`");
   assert.match(
     convergence,
-    /materially answerable precise question[\s\S]*further Discussion[\s\S]*writing any `spec.md` requires[\s\S]*checkable AC with its `Check:`[\s\S]*no plan task[\s\S]*tracker\/map artifact[\s\S]*new skill/,
+    /materially answerable precise question[\s\S]*further Discussion[\s\S]*[wW]riting any `spec.md` (?:still )?requires[\s\S]*checkable AC with its `Check:`[\s\S]*creates? no[\s\S]*task/,
   );
   assert.match(
     convergence,
-    /mixed candidate[\s\S]*only fully checked ACs enter `spec.md`[\s\S]*unchecked remainder into one such note/,
+    /mixed candidate[\s\S]*(?:persist only the precise approved goals, put )?only fully checked ACs (?:enter|in) `spec.md`[\s\S]*unchecked remainder into (?:one such|that one) note/,
   );
   assert.match(
     convergence,
@@ -5296,7 +5905,7 @@ test("T4 precision gate admits precise forms partitions mixed scope and keeps fo
   const preciseAc = evaluateT4PlanningPolicy(policy, t4PreciseFutureFixture());
   assert.deepEqual(preciseAc, {
     output: "precise-milestone-or-spec",
-    proposalHandling: "eligible",
+    proposalHandling: "eligible; ledger row only when user-approved",
     tasks: [],
     milestoneEligible: true,
     artifact: "spec.md",
@@ -5307,7 +5916,7 @@ test("T4 precision gate admits precise forms partitions mixed scope and keeps fo
   const preciseQuestion = evaluateT4PlanningPolicy(policy, t4PreciseQuestionFixture());
   assert.deepEqual(preciseQuestion, {
     output: "precise-milestone-or-spec",
-    proposalHandling: "eligible",
+    proposalHandling: "eligible; ledger row only when user-approved",
     tasks: [],
     milestoneEligible: true,
     artifact: null,
@@ -5319,7 +5928,7 @@ test("T4 precision gate admits precise forms partitions mixed scope and keeps fo
   const mixed = evaluateT4PlanningPolicy(policy, mixedFixture);
   assert.deepEqual(mixed, {
     output: "precise-milestone-or-spec",
-    proposalHandling: "eligible",
+    proposalHandling: "eligible; ledger row only when user-approved",
     tasks: [],
     milestoneEligible: true,
     artifact: "spec.md",
@@ -6229,3 +6838,4442 @@ test("AC-12 load-profile audit: skill inventory, registration, plan schema, and 
     "the canonical mode-table interface must not be duplicated into master",
   );
 });
+
+// ── T1 Milestone Ledger Parser/Evaluator ────────────────
+
+const T1_PLACEHOLDER_TEXT = /\b(?:TBD|TODO|FIXME|placeholder|something|somehow|later)\b/i;
+
+function isMilestoneGoalPrecise(goal) {
+  if (typeof goal !== "string") return false;
+  const val = goal.trim();
+  if (val.length < 10) return false;
+  if (!/\s/.test(val)) return false;
+  if (/^(?:implement|build|add|create|update|fix|support|handle|refine)\s+(?:(?:a|the)\s+)?(?:thing|stuff|feature|functionality|system|component|area|experience|behavior|logic|workflow|architecture)$/i.test(val)) return false;
+  const hasGenericTopicSuffix = /(?:experience|architecture|system|workflow|feature|area|performance)$/i.test(val);
+  const hasConcreteActionOrConstraint = /^(?:record|persist|store|enforce|validate|export|render|send|retry|migrate|replace|remove|calculate|display|route|recover|preserve|append|serialize|decode|integrate|authenticate|authorize|schedule|notify|track|capture|index|query|sync)\b/i.test(val)
+    || /\b(?:with|using|when|where|for each|under|from|into|by|per)\b/i.test(val);
+  if (hasGenericTopicSuffix && !hasConcreteActionOrConstraint) return false;
+  if (T1_PLACEHOLDER_TEXT.test(val)) return false;
+  if (/^(?:how to|what should|why do|explore|investigate|discuss|topic:)\b/i.test(val)) return false;
+  if (/\b(?:feel faster|look better|make it work|works correctly|do work|somehow|improve performance)\b/i.test(val)) return false;
+  return true;
+}
+
+function parseLedgerContract(skillContent = readSkill("gsd"), referenceContent = readPlanningReference()) {
+  const pathMatch = referenceContent.match(/`(docs\/gsd\/<feature>\/[^`\s]+\.toon)`/);
+  assert.ok(pathMatch, "REFERENCE.md must declare the exact tracked Milestone Ledger path");
+  const pathTemplate = pathMatch[1];
+  assert.equal(
+    pathTemplate,
+    "docs/gsd/<feature>/milestones.toon",
+    "Milestone Ledger path must remain the canonical tracked path",
+  );
+  assert.ok(
+    skillContent.includes(`\`${pathTemplate}\``),
+    "SKILL.md and REFERENCE.md must declare the same exact Milestone Ledger path",
+  );
+  const shapeMatch = referenceContent.match(
+    /The file has exactly this shape:\s*```\s*\n([\s\S]*?)\n```/,
+  );
+  assert.ok(shapeMatch, "REFERENCE.md must contain the canonical Milestone Ledger shape");
+  const shapeLines = shapeMatch[1].split("\n").map((line) => line.trim()).filter(Boolean);
+  assert.equal(shapeLines.length, 5, "Canonical Milestone Ledger shape must have four header lines and one example row");
+
+  const schemaMatch = shapeLines[0].match(/^schema:([^\s]+)$/);
+  assert.ok(schemaMatch, "Canonical Milestone Ledger shape must declare its schema");
+  assert.equal(shapeLines[0], "schema:v1", "Milestone Ledger contract must remain schema:v1");
+  assert.match(shapeLines[1], /^feature:<feature>$/, "Canonical Milestone Ledger shape must declare feature:<feature> second");
+  assert.match(shapeLines[2], /^base:<base>$/, "Canonical Milestone Ledger shape must declare base:<base> third");
+
+  const headerMatch = shapeLines[3].match(/^([a-z][\w-]*)\[count\]\{([^}]+)\}:$/);
+  assert.ok(headerMatch, "Canonical Milestone Ledger shape must declare its collection header");
+  const headerName = headerMatch[1];
+  const columns = headerMatch[2].split(",").map((column) => column.trim());
+  assert.equal(headerName, "milestones", "Milestone Ledger collection must remain milestones");
+
+  const orderedFieldsMatch = referenceContent.match(/has exactly the ordered fields `([^`]+)`/);
+  assert.ok(orderedFieldsMatch, "REFERENCE.md must declare the exact ordered Milestone Ledger fields");
+  const normativeColumns = orderedFieldsMatch[1].split(",").map((column) => column.trim());
+  assert.deepEqual(normativeColumns, columns, "Canonical shape and ordered-field rule must agree");
+  assert.deepEqual(
+    columns,
+    ["id", "slug", "goal", "status"],
+    "Milestone Ledger fields must remain exactly id,slug,goal,status in order",
+  );
+
+  const exampleCells = shapeLines[4].split(",").map((cell) => cell.trim());
+  assert.equal(exampleCells.length, columns.length, "Canonical Milestone Ledger example row must match its columns");
+  const valueFor = (column) => {
+    const index = columns.indexOf(column);
+    assert.notEqual(index, -1, `Canonical Milestone Ledger columns must include ${column}`);
+    return exampleCells[index];
+  };
+
+  const identityRuleMatch = referenceContent.match(
+    /IDs are sequential `([A-Za-z]+)1` through `\1n`, and each slug is exactly `([^`]*<n>)` for the same one-based number\./,
+  );
+  assert.ok(identityRuleMatch, "REFERENCE.md must declare the sequential ID prefix and numbered slug template");
+  const idPrefix = identityRuleMatch[1];
+  const slugTemplate = identityRuleMatch[2];
+  assert.equal(idPrefix, "M", "Milestone Ledger IDs must remain M1 through Mn");
+  assert.equal(slugTemplate, "<feature>-m<n>", "Milestone Ledger slugs must remain <feature>-m<n>");
+  assert.equal(valueFor("id"), `${idPrefix}1`, "Canonical example row must start with the normative one-based ID");
+  assert.equal(
+    valueFor("slug"),
+    slugTemplate.replace("<n>", "1"),
+    "Canonical example row must start with the normative one-based slug",
+  );
+
+  const statusMatch = referenceContent.match(/`status` is exactly `([^`]+)` or `([^`]+)`/i);
+  assert.ok(statusMatch, "REFERENCE.md must declare the complete Milestone Ledger status vocabulary");
+  const statusValues = [statusMatch[1], statusMatch[2]];
+  assert.deepEqual(statusValues, ["pending", "done"], "Milestone Ledger statuses must remain pending and done");
+
+  const initialStatusMatch = referenceContent.match(
+    /every newly written row starts (?:with )?`status=([^`]+)`/i,
+  );
+  assert.ok(initialStatusMatch, "REFERENCE.md must declare the initial status for every newly written row");
+  const initialStatus = initialStatusMatch[1];
+  assert.equal(initialStatus, "pending", "Every newly written Milestone Ledger row must start pending");
+  assert.equal(valueFor("status"), initialStatus, "Canonical example row must use the declared new-row status");
+
+  return {
+    pathTemplate,
+    preambleTemplates: shapeLines.slice(0, 3),
+    schemaVersion: shapeLines[0],
+    headerName,
+    columns,
+    idPrefix,
+    slugTemplate,
+    statusValues,
+    initialStatus,
+  };
+}
+
+function validateMilestonePolicyContract(skillContent, referenceContent) {
+  const policy = parseT4PlanningPolicy(referenceContent);
+
+  const preciseScenario = policy.find((row) => row.Scenario === "Precise future milestone");
+  assert.ok(preciseScenario, "Must find 'Precise future milestone' scenario in planning policy table");
+
+  const precisionRequiredVal = preciseScenario.inputs.precision;
+  assert.equal(precisionRequiredVal, "question-or-ac-check", "Precise future milestone row must specify precision=question-or-ac-check");
+
+  const proposalHandling = preciseScenario["Proposal handling"];
+  assert.ok(proposalHandling.includes("user-approved"), "Planning policy table must require user-approval for precise milestones");
+
+  assert.ok(preciseScenario.Artifact.includes("milestones.toon-if-user-approved-goal"), "Planning policy table must produce milestones.toon for precise milestones");
+
+  const vagueScenario = policy.find((row) => row.Scenario === "Vague future area");
+  assert.ok(vagueScenario, "Must find 'Vague future area' scenario in planning policy table");
+  assert.equal(vagueScenario.inputs.precision, "vague", "Vague future area row must specify precision=vague");
+
+  const refHasWording = referenceContent.includes(
+    "Create or update this file only when a large feature is split and at least one milestone goal is both materially precise and user-approved"
+  );
+  assert.ok(refHasWording, "REFERENCE.md must state that the ledger is created/updated only when at least one goal is both precise and user-approved");
+
+  const skillHasWording = skillContent.includes(
+    "create or update the one exact Git-tracked `docs/gsd/<feature>/milestones.toon` ledger only when the split has at least one goal that is both materially precise and user-approved; otherwise no ledger artifact"
+  );
+  assert.ok(skillHasWording, "SKILL.md must state that the ledger is created/updated only when the split has at least one precise and user-approved goal; otherwise no ledger artifact");
+
+  const refHasCreationPending = referenceContent.toLowerCase().includes(
+    "every newly written row starts with `status=pending`, including rows appended by a later ledger update; existing rows may remain `done`"
+  );
+  assert.ok(refHasCreationPending, "REFERENCE.md must state that every newly written row starts pending, including rows appended by a later ledger update; existing rows may remain done");
+
+  const skillHasCreationPending = skillContent.toLowerCase().includes(
+    "then append each approved precise goal with the next id/slug and `status=pending`"
+  );
+  assert.ok(skillHasCreationPending, "SKILL.md must state that each newly appended approved row starts pending");
+
+  const refHasAppendIdentity = referenceContent.includes(
+    "the existing row prefix is immutable: preserve each row in its current position with its current ID, slug, goal, and status"
+  ) && referenceContent.includes(
+    "Sequential ID/position is row identity; goal text need not be unique and must never be used to deduplicate rows or inherit an earlier row's status"
+  );
+  assert.ok(refHasAppendIdentity, "REFERENCE.md must preserve the existing row prefix by ID/position and must not use goal text as identity");
+
+  const skillHasAppendIdentity = skillContent.includes(
+    "Preserve the prefix in its current order and status"
+  ) && skillContent.includes(
+    "sequential ID/position—not potentially duplicate goal text—is row identity"
+  );
+  assert.ok(skillHasAppendIdentity, "SKILL.md must preserve the existing row prefix and define ID/position rather than goal text as identity");
+
+  const refUsesAdditionInput = referenceContent.includes(
+    "Update input contains only newly proposed additions; the tracked existing prefix is the source of truth and is neither resubmitted nor re-evaluated"
+  );
+  assert.ok(refUsesAdditionInput, "REFERENCE.md must source existing rows from the ledger and filter only proposed additions");
+
+  const skillUsesAdditionInput = skillContent.includes(
+    "the tracked existing prefix is the source of truth and is neither resubmitted nor re-evaluated; filter only the newly proposed additions"
+  );
+  assert.ok(skillUsesAdditionInput, "SKILL.md must source existing rows from the ledger and filter only proposed additions");
+
+  const refHasSerializationBoundary = referenceContent.includes(
+    "This section owns serialization only—it does not select or recover the next milestone, mark a row complete, or authorize a merge"
+  );
+  assert.ok(refHasSerializationBoundary, "REFERENCE.md must bound ledger creation/update away from selection, recovery, completion, and merge");
+
+  const skillHasSerializationBoundary = skillContent.includes(
+    "This creation/update rule does not select, recover, or complete a milestone and does not authorize a merge"
+  );
+  assert.ok(skillHasSerializationBoundary, "SKILL.md must bound ledger creation/update away from lifecycle behavior");
+
+  const refHasQuotedGoalRoundTrip = referenceContent.includes(
+    "`goal` must round-trip the exact approved wording"
+  ) && referenceContent.includes(
+    "use canonical double-quoted TOON string syntax"
+  );
+  assert.ok(refHasQuotedGoalRoundTrip, "REFERENCE.md must preserve delimiter-bearing goal wording through canonical TOON quoting");
+
+  const skillHasQuotedGoalRoundTrip = skillContent.includes(
+    "Serialize `goal` with canonical TOON double-quoted string syntax"
+  ) && skillContent.includes(
+    "Never rephrase or reject a precise approved goal to avoid a delimiter"
+  );
+  assert.ok(skillHasQuotedGoalRoundTrip, "SKILL.md must preserve delimiter-bearing goal wording through canonical TOON quoting");
+
+  return {
+    requiresUserApproval: proposalHandling.includes("user-approved"),
+    precisionRequiredVal,
+  };
+}
+
+function encodeToonTableCell(value) {
+  const text = String(value);
+  const requiresQuotes = /[,:{}\[\]"\\\u0000-\u001f]/.test(text)
+    || /^\s|\s$/.test(text)
+    || /^(?:true|false|null|-?\d+(?:\.\d+)?)$/i.test(text);
+  if (!requiresQuotes) return text;
+
+  const escaped = text
+    .replaceAll("\\", "\\\\")
+    .replaceAll("\"", "\\\"")
+    .replaceAll("\n", "\\n")
+    .replaceAll("\r", "\\r")
+    .replaceAll("\t", "\\t")
+    .replace(/[\u0000-\u001f]/g, (character) => {
+      return `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`;
+    });
+  return `"${escaped}"`;
+}
+
+function parseToonTableRow(row) {
+  const cells = [];
+  let value = "";
+  let quoted = false;
+  let inQuotes = false;
+  let closedQuote = false;
+
+  const pushCell = () => {
+    cells.push(quoted ? value : value.trim());
+    value = "";
+    quoted = false;
+    inQuotes = false;
+    closedQuote = false;
+  };
+
+  for (let index = 0; index < row.length; index++) {
+    const character = row[index];
+    if (inQuotes) {
+      if (character === "\\") {
+        const escaped = row[++index];
+        assert.notEqual(escaped, undefined, "Quoted TOON field must not end with a bare escape");
+        const simpleEscapes = {
+          "\\": "\\",
+          "\"": "\"",
+          n: "\n",
+          r: "\r",
+          t: "\t",
+        };
+        if (Object.hasOwn(simpleEscapes, escaped)) {
+          value += simpleEscapes[escaped];
+        } else if (escaped === "u") {
+          const hex = row.slice(index + 1, index + 5);
+          assert.match(hex, /^[0-9A-Fa-f]{4}$/, "Quoted TOON unicode escape must have four hex digits");
+          value += String.fromCharCode(Number.parseInt(hex, 16));
+          index += 4;
+        } else {
+          assert.fail(`Unsupported quoted TOON escape: \\${escaped}`);
+        }
+      } else if (character === "\"") {
+        inQuotes = false;
+        closedQuote = true;
+      } else {
+        value += character;
+      }
+      continue;
+    }
+
+    if (character === ",") {
+      pushCell();
+    } else if (closedQuote) {
+      assert.match(character, /\s/, "Only whitespace may follow a quoted TOON field");
+    } else if (character === "\"") {
+      assert.equal(value.trim(), "", "Quoted TOON field must begin at the start of a cell");
+      value = "";
+      quoted = true;
+      inQuotes = true;
+    } else {
+      value += character;
+    }
+  }
+
+  assert.equal(inQuotes, false, "Quoted TOON field must have a closing quote");
+  pushCell();
+  return cells;
+}
+
+function parseMilestoneLedger(filePath, content, expectedFeature, expectedBase, contract, { validateGoalPrecision = true } = {}) {
+  if (!contract) contract = parseLedgerContract();
+
+  const pathRegexString = "^" + contract.pathTemplate
+    .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    .replace("<feature>", "([^/]+)") + "$";
+  const pathRegex = new RegExp(pathRegexString);
+  const pathMatch = filePath.match(pathRegex);
+  assert.ok(pathMatch, `Milestone ledger path must be exactly ${contract.pathTemplate}`);
+  const pathFeature = pathMatch[1];
+  assert.equal(pathFeature, expectedFeature, "File path feature name must match expected feature");
+
+  assert.ok(!content.includes("\r"), "Milestone ledger must not contain carriage returns (CRLF)");
+  assert.equal(content, content.trim(), "Milestone ledger must not contain leading or trailing whitespace");
+  const lines = content.split("\n");
+  assert.ok(lines.every(line => line !== ""), "Milestone ledger must not contain blank lines");
+  assert.ok(lines.every(line => line === line.trim()), "Milestone ledger lines must not contain leading or trailing whitespace");
+  assert.ok(lines.length >= 4, "Milestone ledger must contain header and metadata lines");
+
+  const expectedPreamble = contract.preambleTemplates.map((template) => template
+    .replace("<feature>", expectedFeature)
+    .replace("<base>", expectedBase));
+  assert.equal(lines[0], expectedPreamble[0], `Milestone ledger must specify ${contract.schemaVersion}`);
+  assert.equal(lines[1], expectedPreamble[1], "Milestone ledger feature field must match expected");
+  assert.equal(lines[2], expectedPreamble[2], "Milestone ledger base field must match expected");
+
+  const colListStr = contract.columns.join(",");
+  const headerRegexString = `^${contract.headerName}\\[(\\d+)\\]\\{${colListStr}\\}:$`;
+  const headerRegex = new RegExp(headerRegexString);
+  const headerMatch = lines[3].match(headerRegex);
+  assert.ok(headerMatch, `Milestone ledger must have exact ${contract.headerName}[count]{${colListStr}}: header`);
+  
+  const expectedCount = Number(headerMatch[1]);
+  assert.ok(expectedCount > 0, "Milestone ledger must contain at least one milestone");
+
+  const rows = lines.slice(4);
+  assert.equal(rows.length, expectedCount, "Row count must match count in header");
+
+  const parsedMilestones = [];
+
+  for (let i = 0; i < rows.length; i++) {
+    const rowNum = i + 1;
+    const cells = parseToonTableRow(rows[i]);
+    assert.equal(cells.length, contract.columns.length, `Milestone ledger row ${rowNum} must have exactly ${contract.columns.length} columns`);
+    assert.equal(
+      rows[i],
+      cells.map((cell) => encodeToonTableCell(cell)).join(","),
+      `Milestone ledger row ${rowNum} must use canonical TOON field encoding`,
+    );
+
+    const rowObj = {};
+    contract.columns.forEach((col, idx) => {
+      rowObj[col] = cells[idx];
+    });
+
+    const expectedId = `${contract.idPrefix}${rowNum}`;
+    assert.equal(rowObj.id, expectedId, `Milestone ledger row ${rowNum} ID must be exactly ${expectedId}`);
+
+    const expectedSlug = contract.slugTemplate
+      .replace("<feature>", expectedFeature)
+      .replace("<n>", rowNum);
+    assert.equal(rowObj.slug, expectedSlug, `Milestone ledger row ${rowNum} slug must be exactly ${expectedSlug}`);
+    
+    assert.ok(rowObj.goal, `Milestone ledger row ${rowNum} goal must not be empty`);
+    if (validateGoalPrecision) {
+      assert.ok(isMilestoneGoalPrecise(rowObj.goal), `Milestone ledger goal violates the precision rule`);
+    }
+    
+    const isValidStatus = contract.statusValues.includes(rowObj.status);
+    assert.ok(isValidStatus, `Milestone ledger row ${rowNum} status must be exactly ${contract.statusValues.join(" or ")}`);
+
+    parsedMilestones.push(rowObj);
+  }
+
+  return {
+    feature: expectedFeature,
+    base: expectedBase,
+    milestones: parsedMilestones,
+  };
+}
+
+function generateMilestoneLedger(feature, base, candidates, contract, existingLedgerContent) {
+  if (!contract) contract = parseLedgerContract();
+
+  const referenceContent = readPlanningReference();
+  const skillContent = readSkill("gsd");
+  const policy = validateMilestonePolicyContract(skillContent, referenceContent);
+
+  const preciseAndApprovedAdditions = candidates.filter((candidate) => {
+    if (!isMilestoneGoalPrecise(candidate.goal)) return false;
+    return !policy.requiresUserApproval || candidate.approved === true;
+  });
+  if (preciseAndApprovedAdditions.length === 0) return null;
+
+  const existingMilestones = existingLedgerContent
+    ? parseMilestoneLedger(
+        contract.pathTemplate.replace("<feature>", feature),
+        existingLedgerContent,
+        feature,
+        base,
+        contract,
+        { validateGoalPrecision: false },
+      ).milestones
+    : [];
+
+  const milestones = existingMilestones.slice();
+  preciseAndApprovedAdditions.forEach((candidate, index) => {
+    const number = existingMilestones.length + index + 1;
+    milestones.push({
+      id: `${contract.idPrefix}${number}`,
+      slug: contract.slugTemplate
+        .replace("<feature>", feature)
+        .replace("<n>", number),
+      goal: candidate.goal,
+      status: contract.initialStatus,
+    });
+  });
+
+  const cols = contract.columns.join(",");
+  let out = contract.preambleTemplates.map((template) => template
+    .replace("<feature>", feature)
+    .replace("<base>", base))
+    .join("\n") + "\n";
+  out += `${contract.headerName}[${milestones.length}]{${cols}}:\n`;
+
+  const supportedColumns = new Set(["id", "slug", "goal", "status"]);
+  milestones.forEach((milestone) => {
+    const rowCells = contract.columns.map((column) => {
+      if (!supportedColumns.has(column)) {
+        throw new Error(`Cannot generate unsupported Milestone Ledger column: ${column}`);
+      }
+      return encodeToonTableCell(milestone[column]);
+    });
+    out += rowCells.join(",") + "\n";
+  });
+
+  return out.slice(0, -1);
+}
+
+
+// ── T1 Milestone Ledger Tests ───────────────────────────
+
+test("T1 Milestone Ledger matches exact canonical schema, path, columns, and order conventions", () => {
+  const path = "docs/gsd/shop-redesign/milestones.toon";
+  const validContent = `schema:v1
+feature:shop-redesign
+base:main
+milestones[2]{id,slug,goal,status}:
+M1,shop-redesign-m1,Implement cart checkout with Stripe payment integration,done
+M2,shop-redesign-m2,User order history dashboard with pagination,pending`;
+
+  const parsed = parseMilestoneLedger(path, validContent, "shop-redesign", "main");
+  assert.equal(parsed.feature, "shop-redesign");
+  assert.equal(parsed.base, "main");
+  assert.equal(parsed.milestones.length, 2);
+  assert.equal(parsed.milestones[0].id, "M1");
+  assert.equal(parsed.milestones[0].slug, "shop-redesign-m1");
+  assert.equal(parsed.milestones[0].status, "done");
+  assert.equal(parsed.milestones[1].id, "M2");
+  assert.equal(parsed.milestones[1].slug, "shop-redesign-m2");
+  assert.equal(parsed.milestones[1].status, "pending");
+});
+
+test("T1 Milestone Ledger filters out vague-approved and precise-unapproved candidates for shop-redesign", () => {
+  const candidates = [
+    { goal: "Implement cart checkout with Stripe payment integration", status: "done", approved: true },
+    { goal: "User order history dashboard with pagination", status: "pending", approved: true },
+    { goal: "Record the payment reason code and retry timestamp in the failed checkout workflow", status: "pending", approved: true },
+    { goal: "Improve performance somehow", status: "pending", approved: true },
+    { goal: "Implement thing", status: "pending", approved: true },
+    { goal: "Build a feature", status: "pending", approved: true },
+    { goal: "Checkout experience", status: "pending", approved: true },
+    { goal: "Customer checkout experience", status: "pending", approved: true },
+    { goal: "Mobile customer checkout experience", status: "pending", approved: true },
+    { goal: "Enterprise payment workflow", status: "pending", approved: true },
+    { goal: "Next-generation platform architecture", status: "pending", approved: true },
+    { goal: "abcdefghij", status: "pending", approved: true },
+    { goal: "Smarter product recommendations with Stripe integration", status: "pending", approved: false },
+  ];
+
+  const generated = generateMilestoneLedger("shop-redesign", "main", candidates);
+  const parsed = parseMilestoneLedger("docs/gsd/shop-redesign/milestones.toon", generated, "shop-redesign", "main");
+
+  // Assert exact row count
+  assert.equal(parsed.milestones.length, 3);
+
+  assert.equal(parsed.milestones[0].goal, "Implement cart checkout with Stripe payment integration");
+  assert.equal(parsed.milestones[0].status, "pending");
+  assert.equal(parsed.milestones[1].goal, "User order history dashboard with pagination");
+  assert.equal(parsed.milestones[1].status, "pending");
+  assert.equal(
+    parsed.milestones[2].goal,
+    "Record the payment reason code and retry timestamp in the failed checkout workflow",
+  );
+  assert.equal(parsed.milestones[2].status, "pending");
+
+  // Assert explicit absence of the precise-unapproved goal
+  const unapproved = parsed.milestones.find((m) => m.goal === "Smarter product recommendations with Stripe integration");
+  assert.equal(unapproved, undefined, "Smarter product recommendations with Stripe integration (precise-unapproved) must be absent");
+
+  // Assert explicit absence of the vague-approved goal
+  const vague = parsed.milestones.find((m) => m.goal === "Improve performance somehow");
+  assert.equal(vague, undefined, "Improve performance somehow (vague-approved) must be absent");
+  for (const genericGoal of [
+    "Implement thing",
+    "Build a feature",
+    "Checkout experience",
+    "Customer checkout experience",
+    "Mobile customer checkout experience",
+    "Enterprise payment workflow",
+    "Next-generation platform architecture",
+    "abcdefghij",
+  ]) {
+    assert.equal(
+      parsed.milestones.find((milestone) => milestone.goal === genericGoal),
+      undefined,
+      `${genericGoal} is a vague topic label and must be absent`,
+    );
+  }
+});
+
+test("T1 flat catalogs in frontmatter include the milestones.toon ledger", () => {
+  const master = readSkill("gsd");
+  const fm = parseFrontmatter(master);
+  const consumesList = parseList(fm.consumes);
+  const producesList = parseList(fm.produces);
+
+  assert.ok(consumesList.includes("docs/gsd/<feature>/milestones.toon"), "master consumes catalog must include milestones.toon");
+  assert.ok(producesList.includes("docs/gsd/<feature>/milestones.toon"), "master produces catalog must include milestones.toon");
+});
+
+test("T1 Milestone Ledger mutation guards reject wrong path, schema, columns, order, slug, status, and vague inclusion", () => {
+  const validPath = "docs/gsd/shop-redesign/milestones.toon";
+  const validContent = `schema:v1
+feature:shop-redesign
+base:main
+milestones[2]{id,slug,goal,status}:
+M1,shop-redesign-m1,Implement cart checkout with Stripe payment integration,done
+M2,shop-redesign-m2,User order history dashboard with pagination,pending`;
+
+  assert.throws(
+    () => parseMilestoneLedger("docs/milestones.toon", validContent, "shop-redesign", "main"),
+    /Milestone ledger path must be exactly docs\/gsd\/<feature>\/milestones\.toon/
+  );
+
+  const wrongSchema = validContent.replace("schema:v1", "schema:v2");
+  assert.throws(
+    () => parseMilestoneLedger(validPath, wrongSchema, "shop-redesign", "main"),
+    /Milestone ledger must specify schema:v1/
+  );
+
+  const wrongColumns = validContent.replace("milestones[2]{id,slug,goal,status}:", "milestones[2]{id,slug,goal}:");
+  assert.throws(
+    () => parseMilestoneLedger(validPath, wrongColumns, "shop-redesign", "main"),
+    /Milestone ledger must have exact milestones\[count\]\{id,slug,goal,status\}: header/
+  );
+
+  const wrongOrder = `schema:v1
+feature:shop-redesign
+base:main
+milestones[2]{id,slug,goal,status}:
+M2,shop-redesign-m2,User order history dashboard with pagination,pending
+M1,shop-redesign-m1,Implement cart checkout with Stripe payment integration,done`;
+  assert.throws(
+    () => parseMilestoneLedger(validPath, wrongOrder, "shop-redesign", "main"),
+    /ID must be exactly M1/
+  );
+
+  const wrongSlug = validContent.replace("shop-redesign-m1", "other-slug-m1");
+  assert.throws(
+    () => parseMilestoneLedger(validPath, wrongSlug, "shop-redesign", "main"),
+    /slug must be exactly shop-redesign-m1/
+  );
+
+  const wrongStatus = validContent.replace("pending", "in-progress");
+  assert.throws(
+    () => parseMilestoneLedger(validPath, wrongStatus, "shop-redesign", "main"),
+    /status must be exactly pending or done/
+  );
+
+  for (const vagueGoal of [
+    "Improve performance somehow",
+    "Implement thing",
+    "Build a feature",
+    "Checkout experience",
+    "Customer checkout experience",
+    "Mobile customer checkout experience",
+    "Enterprise payment workflow",
+    "Next-generation platform architecture",
+    "abcdefghij",
+  ]) {
+    const vagueInclusion = validContent.replace("User order history dashboard with pagination", vagueGoal);
+    assert.throws(
+      () => parseMilestoneLedger(validPath, vagueInclusion, "shop-redesign", "main"),
+      /goal violates the precision rule/,
+      `${vagueGoal} must fail the precision rule`,
+    );
+  }
+});
+
+test("T1 Milestone Ledger policy contract requires precision and user-approval gates in SKILL.md and REFERENCE.md", () => {
+  const referenceContent = readPlanningReference();
+  const skillContent = readSkill("gsd");
+
+  const parsed = validateMilestonePolicyContract(skillContent, referenceContent);
+  assert.ok(parsed.requiresUserApproval);
+
+  const mutantRef1 = referenceContent.replace("eligible; ledger row only when user-approved", "eligible; ledger row always");
+  assert.throws(
+    () => validateMilestonePolicyContract(skillContent, mutantRef1),
+    /Planning policy table must require user-approval/
+  );
+
+  const mutantRef2 = referenceContent.replace("precision=question-or-ac-check", "precision=any-precision");
+  assert.throws(
+    () => validateMilestonePolicyContract(skillContent, mutantRef2),
+    /Precise future milestone row must specify precision/
+  );
+
+  const mutantRef3 = referenceContent.replace(
+    "Create or update this file only when a large feature is split and at least one milestone goal is both materially precise and user-approved",
+    "Create or update this file whenever you feel like it"
+  );
+  assert.throws(
+    () => validateMilestonePolicyContract(skillContent, mutantRef3),
+    /REFERENCE.md must state that the ledger is created\/updated/,
+  );
+
+  const mutantSkill = skillContent.replace(
+    "create or update the one exact Git-tracked `docs/gsd/<feature>/milestones.toon` ledger only when the split has at least one goal that is both materially precise and user-approved; otherwise no ledger artifact",
+    "create or update milestones as needed"
+  );
+  assert.throws(
+    () => validateMilestonePolicyContract(mutantSkill, referenceContent),
+    /SKILL.md must state that the ledger is created\/updated/
+  );
+
+  const mutantRefCreationPending = referenceContent.replace(
+    /every newly written row starts with `status=pending`/i,
+    "every newly written row starts with `status=done`"
+  );
+  assert.throws(
+    () => validateMilestonePolicyContract(skillContent, mutantRefCreationPending),
+    /REFERENCE.md must state that every newly written row starts pending/
+  );
+
+  const mutantSkillCreationPending = skillContent.replace(
+    "then append each approved precise goal with the next ID/slug and `status=pending`",
+    "then append each approved precise goal with the next ID/slug and `status=done`",
+  );
+  assert.throws(
+    () => validateMilestonePolicyContract(mutantSkillCreationPending, referenceContent),
+    /SKILL.md must state that each newly appended approved row starts pending/,
+  );
+
+  const mutablePrefixReference = referenceContent.replace(
+    "the existing row prefix is immutable: preserve each row in its current position with its current ID, slug, goal, and status",
+    "the existing row prefix may be reordered or rewritten",
+  );
+  assert.throws(
+    () => validateMilestonePolicyContract(skillContent, mutablePrefixReference),
+    /REFERENCE.md must preserve the existing row prefix/,
+  );
+
+  const goalIdentitySkill = skillContent.replace(
+    "sequential ID/position—not potentially duplicate goal text—is row identity",
+    "goal text is row identity",
+  );
+  assert.throws(
+    () => validateMilestonePolicyContract(goalIdentitySkill, referenceContent),
+    /SKILL.md must preserve the existing row prefix/,
+  );
+
+  const resubmittedPrefixReference = referenceContent.replace(
+    "Update input contains only newly proposed additions; the tracked existing prefix is the source of truth and is neither resubmitted nor re-evaluated",
+    "Update input resubmits every existing row for re-evaluation",
+  );
+  assert.throws(
+    () => validateMilestonePolicyContract(skillContent, resubmittedPrefixReference),
+    /REFERENCE.md must source existing rows from the ledger/,
+  );
+
+  const resubmittedPrefixSkill = skillContent.replace(
+    "the tracked existing prefix is the source of truth and is neither resubmitted nor re-evaluated; filter only the newly proposed additions",
+    "resubmit and re-evaluate the existing prefix",
+  );
+  assert.throws(
+    () => validateMilestonePolicyContract(resubmittedPrefixSkill, referenceContent),
+    /SKILL.md must source existing rows from the ledger/,
+  );
+
+  const lifecycleReference = referenceContent.replace(
+    "This section owns serialization only—it does not select or recover the next milestone, mark a row complete, or authorize a merge",
+    "This section may select, complete, and merge milestones",
+  );
+  assert.throws(
+    () => validateMilestonePolicyContract(skillContent, lifecycleReference),
+    /REFERENCE.md must bound ledger creation\/update/,
+  );
+
+  const lifecycleSkill = skillContent.replace(
+    "This creation/update rule does not select, recover, or complete a milestone and does not authorize a merge",
+    "This rule selects, completes, and merges milestones",
+  );
+  assert.throws(
+    () => validateMilestonePolicyContract(lifecycleSkill, referenceContent),
+    /SKILL.md must bound ledger creation\/update/,
+  );
+
+  const unquotedGoalReference = referenceContent.replace(
+    "`goal` must round-trip the exact approved wording",
+    "`goal` may be rewritten to avoid delimiters",
+  );
+  assert.throws(
+    () => validateMilestonePolicyContract(skillContent, unquotedGoalReference),
+    /REFERENCE.md must preserve delimiter-bearing goal wording/,
+  );
+
+  const unquotedGoalSkill = skillContent.replace(
+    "Serialize `goal` with canonical TOON double-quoted string syntax",
+    "Remove delimiters from `goal` before serialization",
+  );
+  assert.throws(
+    () => validateMilestonePolicyContract(unquotedGoalSkill, referenceContent),
+    /SKILL.md must preserve delimiter-bearing goal wording/,
+  );
+});
+
+test("T1 Milestone Ledger fails closed on contract drift and unsupported generator columns", () => {
+  const referenceContent = readPlanningReference();
+  const skillContent = readSkill("gsd");
+  const oldPath = "docs/gsd/<feature>/milestones.toon";
+  const newPath = "docs/gsd/<feature>/milestones-new.toon";
+
+  for (const [mutantSkill, mutantReference] of [
+    [skillContent, referenceContent.replaceAll(oldPath, newPath)],
+    [skillContent.replaceAll(oldPath, newPath), referenceContent.replaceAll(oldPath, newPath)],
+  ]) {
+    assert.throws(
+      () => parseLedgerContract(mutantSkill, mutantReference),
+      /Milestone Ledger path must remain the canonical tracked path/,
+    );
+  }
+
+  const canonicalShapeStart = "```\nschema:v1\nfeature:<feature>\nbase:<base>\nmilestones";
+  const mutantSchema = referenceContent.replace(
+    canonicalShapeStart,
+    "```\nschema:v9\nfeature:<feature>\nbase:<base>\nmilestones",
+  );
+  assert.notEqual(mutantSchema, referenceContent, "schema mutation must reach the canonical ledger shape");
+  assert.throws(
+    () => parseLedgerContract(skillContent, mutantSchema),
+    /Milestone Ledger contract must remain schema:v1/,
+  );
+
+  const mismatchedColumns = referenceContent.replace(
+    "milestones[count]{id,slug,goal,status}:",
+    "milestones[count]{id,slug,goal,status,owner}:",
+  );
+  assert.throws(
+    () => parseLedgerContract(skillContent, mismatchedColumns),
+    /Canonical shape and ordered-field rule must agree/,
+  );
+
+  const selfConsistentExtraColumn = referenceContent
+    .replace(
+      "milestones[count]{id,slug,goal,status}:",
+      "milestones[count]{id,slug,goal,status,owner}:",
+    )
+    .replace(
+      "ordered fields `id,slug,goal,status`",
+      "ordered fields `id,slug,goal,status,owner`",
+    )
+    .replace(
+      "M1,<feature>-m1,<concise precise user-approved goal>,pending",
+      "M1,<feature>-m1,<concise precise user-approved goal>,pending,team",
+    );
+  assert.throws(
+    () => parseLedgerContract(skillContent, selfConsistentExtraColumn),
+    /Milestone Ledger fields must remain exactly id,slug,goal,status in order/,
+  );
+
+  const reorderedColumns = referenceContent
+    .replace(
+      "milestones[count]{id,slug,goal,status}:",
+      "milestones[count]{status,id,slug,goal}:",
+    )
+    .replace(
+      "ordered fields `id,slug,goal,status`",
+      "ordered fields `status,id,slug,goal`",
+    )
+    .replace(
+      "M1,<feature>-m1,<concise precise user-approved goal>,pending",
+      "pending,M1,<feature>-m1,<concise precise user-approved goal>",
+    );
+  assert.throws(
+    () => parseLedgerContract(skillContent, reorderedColumns),
+    /Milestone Ledger fields must remain exactly id,slug,goal,status in order/,
+  );
+
+  const renamedCollection = referenceContent.replace(
+    "milestones[count]{id,slug,goal,status}:",
+    "stages[count]{id,slug,goal,status}:",
+  );
+  assert.throws(
+    () => parseLedgerContract(skillContent, renamedCollection),
+    /Milestone Ledger collection must remain milestones/,
+  );
+
+  const contradictoryIdentityExample = referenceContent.replace(
+    "M1,<feature>-m1,<concise precise user-approved goal>,pending",
+    "M2,<feature>-m2,<concise precise user-approved goal>,pending",
+  );
+  assert.throws(
+    () => parseLedgerContract(skillContent, contradictoryIdentityExample),
+    /Canonical example row must start with the normative one-based ID/,
+  );
+
+  const changedIdentityContract = referenceContent
+    .replace("IDs are sequential `M1` through `Mn`", "IDs are sequential `N1` through `Nn`")
+    .replace(
+      "M1,<feature>-m1,<concise precise user-approved goal>,pending",
+      "N1,<feature>-m1,<concise precise user-approved goal>,pending",
+    );
+  assert.throws(
+    () => parseLedgerContract(skillContent, changedIdentityContract),
+    /Milestone Ledger IDs must remain M1 through Mn/,
+  );
+
+  const mutantStatus = referenceContent.replace(
+    /`status` is exactly `pending` or `done`/i,
+    "`status` is exactly `pending` or `active`",
+  );
+  assert.throws(
+    () => parseLedgerContract(skillContent, mutantStatus),
+    /Milestone Ledger statuses must remain pending and done/,
+  );
+
+  const mutantInitialStatus = referenceContent
+    .replace(
+      "Every newly written row starts with `status=pending`",
+      "Every newly written row starts with `status=done`",
+    )
+    .replace(
+      "M1,<feature>-m1,<concise precise user-approved goal>,pending",
+      "M1,<feature>-m1,<concise precise user-approved goal>,done",
+    );
+  assert.throws(
+    () => parseLedgerContract(skillContent, mutantInitialStatus),
+    /Every newly written Milestone Ledger row must start pending/,
+  );
+
+  const unsupportedContract = {
+    ...parseLedgerContract(skillContent, referenceContent),
+    columns: ["id", "slug", "goal", "status", "owner"],
+  };
+  assert.throws(
+    () => generateMilestoneLedger(
+      "shop-redesign",
+      "main",
+      [{ goal: "Implement cart checkout with Stripe payment integration", approved: true }],
+      unsupportedContract,
+    ),
+    /Cannot generate unsupported Milestone Ledger column: owner/,
+  );
+});
+
+test("T1 Milestone Ledger append scenario preserves existing done status and forces newly appended row to pending", () => {
+  const existingLedger = `schema:v1
+feature:shop-redesign
+base:main
+milestones[1]{id,slug,goal,status}:
+M1,shop-redesign-m1,Implement cart checkout with Stripe payment integration,done`;
+
+  const candidates = [
+    { goal: "User order history dashboard with pagination", approved: true },
+    { goal: "Build a feature", approved: true },
+  ];
+
+  const generated = generateMilestoneLedger("shop-redesign", "main", candidates, null, existingLedger);
+  const parsed = parseMilestoneLedger("docs/gsd/shop-redesign/milestones.toon", generated, "shop-redesign", "main");
+
+  assert.equal(parsed.milestones.length, 2);
+  assert.equal(parsed.milestones[0].goal, "Implement cart checkout with Stripe payment integration");
+  assert.equal(parsed.milestones[0].status, "done");
+
+  assert.equal(parsed.milestones[1].goal, "User order history dashboard with pagination");
+  assert.equal(parsed.milestones[1].status, "pending");
+  assert.equal(parsed.milestones[1].id, "M2");
+  assert.equal(parsed.milestones[1].slug, "shop-redesign-m2");
+
+  const duplicateGoalGenerated = generateMilestoneLedger(
+    "shop-redesign",
+    "main",
+    [
+      { goal: "Implement cart checkout with Stripe payment integration", approved: true },
+    ],
+    null,
+    existingLedger,
+  );
+  const duplicateGoalParsed = parseMilestoneLedger(
+    "docs/gsd/shop-redesign/milestones.toon",
+    duplicateGoalGenerated,
+    "shop-redesign",
+    "main",
+  );
+  assert.deepEqual(
+    duplicateGoalParsed.milestones.map((milestone) => milestone.status),
+    ["done", "pending"],
+    "A duplicate newly appended goal must not inherit an existing row's done status",
+  );
+
+  assert.equal(
+    generateMilestoneLedger(
+      "shop-redesign",
+      "main",
+      [{ goal: "Build a feature", approved: true }],
+      null,
+      existingLedger,
+    ),
+    null,
+    "An update with no eligible additions must produce no write artifact",
+  );
+});
+
+
+test("T1 Milestone Ledger preserves tracked prefix goals without reapplying precision", () => {
+  const existingLedger = `schema:v1
+feature:shop-redesign
+base:main
+milestones[1]{id,slug,goal,status}:
+M1,shop-redesign-m1,Preserve TODO comments when migrating plan files,done`;
+  const generated = generateMilestoneLedger(
+    "shop-redesign",
+    "main",
+    [{ goal: "User order history dashboard with pagination", approved: true }],
+    null,
+    existingLedger,
+  );
+  const contract = parseLedgerContract();
+  const parsed = parseMilestoneLedger(
+    "docs/gsd/shop-redesign/milestones.toon",
+    generated,
+    "shop-redesign",
+    "main",
+    contract,
+    { validateGoalPrecision: false },
+  );
+
+  assert.deepEqual(
+    parsed.milestones,
+    [
+      {
+        id: "M1",
+        slug: "shop-redesign-m1",
+        goal: "Preserve TODO comments when migrating plan files",
+        status: "done",
+      },
+      {
+        id: "M2",
+        slug: "shop-redesign-m2",
+        goal: "User order history dashboard with pagination",
+        status: "pending",
+      },
+    ],
+  );
+});
+
+test("T1 Milestone Ledger round-trips delimiter-bearing approved goal wording", () => {
+  const goal = "Record the payment reason, code, and \"retry\" timestamp for each failed checkout";
+  const generated = generateMilestoneLedger(
+    "shop-redesign",
+    "main",
+    [{ goal, approved: true }],
+  );
+
+  assert.ok(
+    generated.includes("\"Record the payment reason, code, and \\\"retry\\\" timestamp for each failed checkout\""),
+    "Delimiter-bearing goal must use canonical quoted TOON string syntax",
+  );
+  assert.equal(generated.endsWith("\n"), false, "Canonical TOON output must not have a trailing newline");
+
+  const parsed = parseMilestoneLedger(
+    "docs/gsd/shop-redesign/milestones.toon",
+    generated,
+    "shop-redesign",
+    "main",
+  );
+  assert.equal(parsed.milestones[0].goal, goal);
+});
+
+
+test("T1 Milestone Ledger rejects noncanonical TOON fields and invalid escapes", () => {
+  const noncanonicalBackslash = String.raw`schema:v1
+feature:shop-redesign
+base:main
+milestones[1]{id,slug,goal,status}:
+M1,shop-redesign-m1,Store failed-checkout receipts under C:\payments\retries,pending`;
+  assert.throws(
+    () => parseMilestoneLedger(
+      "docs/gsd/shop-redesign/milestones.toon",
+      noncanonicalBackslash,
+      "shop-redesign",
+      "main",
+    ),
+    /must use canonical TOON field encoding/,
+  );
+
+  const rowPrefix = "M1,shop-redesign-m1,";
+  const invalidRows = [
+    [String.raw`${rowPrefix}"bad\q",pending`, /Unsupported quoted TOON escape/],
+    [String.raw`${rowPrefix}"bad\u12G4",pending`, /unicode escape must have four hex digits/],
+    [String.raw`${rowPrefix}"unterminated,pending`, /must have a closing quote/],
+    [`${rowPrefix}"closed"x,pending`, /Only whitespace may follow a quoted TOON field/],
+    [`${rowPrefix}"bare` + "\\", /must not end with a bare escape/],
+  ];
+  for (const [row, expectedError] of invalidRows) {
+    assert.throws(() => parseToonTableRow(row), expectedError);
+  }
+});
+
+test("T1 Milestone Ledger returns no artifact for all-ineligible inputs", () => {
+  const allVagueApproved = [
+    { goal: "Improve performance somehow", status: "pending", approved: true },
+    { goal: "Make it look better", status: "pending", approved: true },
+  ];
+
+  const allPreciseUnapproved = [
+    { goal: "Implement cart checkout with Stripe payment integration", status: "pending", approved: false },
+    { goal: "User order history dashboard with pagination", status: "pending", approved: false },
+  ];
+
+  const emptyResult1 = generateMilestoneLedger("shop-redesign", "main", allVagueApproved);
+  assert.equal(emptyResult1, null, "All-vague-approved candidate set must yield no artifact (null)");
+
+  const emptyResult2 = generateMilestoneLedger("shop-redesign", "main", allPreciseUnapproved);
+  assert.equal(emptyResult2, null, "All-precise-unapproved candidate set must yield no artifact (null)");
+});
+
+function evaluateMilestoneLedgerRecovery(ledgers, options = {}) {
+  const {
+    prompt = "",
+    scratchExists = false,
+    handoffExists = false,
+    planExists = false,
+    specExists = false,
+    explicitExecutionResume = false,
+    requestedFeature = null,
+    base = "main",
+  } = options;
+
+  const isContinue = /continue|resume/i.test(prompt);
+
+  if (!isContinue) {
+    return {
+      selectedFeature: null,
+      selectedMilestone: null,
+      selectedSlug: null,
+      selectedGoal: null,
+      mode: "none",
+      question: null,
+      error: null,
+    };
+  }
+
+  if (explicitExecutionResume) {
+    if (planExists) {
+      return {
+        selectedFeature: null,
+        selectedMilestone: null,
+        selectedSlug: null,
+        selectedGoal: null,
+        mode: "none",
+        question: null,
+        error: null,
+      };
+    } else {
+      return {
+        selectedFeature: null,
+        selectedMilestone: null,
+        selectedSlug: null,
+        selectedGoal: null,
+        mode: "Blocked",
+        question: null,
+        error: "Missing required artifact in execution resume",
+      };
+    }
+  }
+
+  if (handoffExists || planExists || (scratchExists && specExists)) {
+    return {
+      selectedFeature: null,
+      selectedMilestone: null,
+      selectedSlug: null,
+      selectedGoal: null,
+      mode: "none",
+      question: null,
+      error: null,
+    };
+  }
+  const allFeatures = Object.keys(ledgers);
+  const openLedgers = [];
+  const featuresToScan = requestedFeature ? [requestedFeature] : allFeatures;
+
+  for (const feature of featuresToScan) {
+    if (!Object.hasOwn(ledgers, feature)) continue;
+    const content = ledgers[feature];
+
+    let parsed;
+    try {
+      parsed = parseMilestoneLedger(
+        `docs/gsd/${feature}/milestones.toon`,
+        content,
+        feature,
+        base,
+        null,
+        { validateGoalPrecision: false }
+      );
+    } catch (e) {
+      return {
+        selectedFeature: null,
+        selectedMilestone: null,
+        selectedSlug: null,
+        selectedGoal: null,
+        mode: "Error",
+        question: null,
+        error: `Malformed ledger for ${feature}: ${e.message}`,
+      };
+    }
+
+    const pendingMilestones = parsed.milestones.filter(m => m.status === "pending");
+    if (pendingMilestones.length > 0) {
+      openLedgers.push({
+        feature,
+        pending: pendingMilestones,
+        milestones: parsed.milestones,
+      });
+    }
+  }
+
+  let matchedLedger = null;
+
+  if (requestedFeature) {
+    const ledger = openLedgers.find(l => l.feature === requestedFeature);
+    if (!ledger) {
+      const exists = Object.hasOwn(ledgers, requestedFeature);
+      return {
+        selectedFeature: requestedFeature,
+        selectedMilestone: null,
+        selectedSlug: null,
+        selectedGoal: null,
+        mode: exists ? "Discussion/complete" : "Discussion/no-ledger",
+        question: null,
+        error: null,
+      };
+    }
+    matchedLedger = ledger;
+  } else {
+    if (openLedgers.length === 1) {
+      matchedLedger = openLedgers[0];
+    } else if (openLedgers.length > 1) {
+      const question = `Which feature would you like to continue? Options: ${openLedgers.map(l => l.feature).join(", ")}`;
+      return {
+        selectedFeature: null,
+        selectedMilestone: null,
+        selectedSlug: null,
+        selectedGoal: null,
+        mode: "Discussion/selection",
+        question,
+        error: null,
+      };
+    } else {
+      const exists = Object.keys(ledgers).length > 0;
+      return {
+        selectedFeature: null,
+        selectedMilestone: null,
+        selectedSlug: null,
+        selectedGoal: null,
+        mode: exists ? "Discussion/complete" : "Discussion/no-ledger",
+        question: null,
+        error: null,
+      };
+    }
+  }
+
+  const firstPending = matchedLedger.pending[0];
+  return {
+    selectedFeature: matchedLedger.feature,
+    selectedMilestone: firstPending.id,
+    selectedSlug: firstPending.slug,
+    selectedGoal: firstPending.goal,
+    mode: "Discussion/reconstruction",
+    question: null,
+    error: null,
+  };
+}
+
+function validateMilestoneLedgerRecoveryContract({ master, reference, handoff }) {
+  assert.ok(
+    reference.includes("### Milestone Ledger recovery contract"),
+    "REFERENCE.md must declare the Milestone Ledger recovery contract section"
+  );
+  assert.ok(
+    reference.includes("When explicit continue or resume intent is received but no usable local handoff, plan, or spec can satisfy it, perform a read-only Milestone Ledger recovery"),
+    "REFERENCE.md must state the prerequisite condition of no usable local handoff, plan, or spec"
+  );
+  assert.ok(
+    reference.includes("If that feature's ledger is absent, report that no ledger exists and never fall through to other features"),
+    "REFERENCE.md must state that absent explicitly named ledger reports no ledger and never falls through"
+  );
+  assert.ok(
+    reference.includes("If that feature's ledger exists but all milestones are done, report that all work is complete"),
+    "REFERENCE.md must state that completed explicitly named ledger reports complete"
+  );
+  assert.ok(
+    reference.includes("Scan tracked base-branch canonical ledger paths `docs/gsd/<feature>/milestones.toon` only after scratch/handoff/plan/spec recovery cannot satisfy the continue intent"),
+    "REFERENCE.md must state the prerequisite scan order for ledger recovery"
+  );
+  assert.ok(
+    reference.includes("This recovery only reads and selects; it must not mutate ledger files, change milestone statuses, mark any milestone complete, start execution, or authorize any merge"),
+    "REFERENCE.md must state the fail-closed read-only boundaries"
+  );
+  assert.ok(
+    reference.includes("If any scanned or selected ledger is malformed, lacks required fields, or has a base mismatch (the `base:` field in the ledger does not match the active base branch), the recovery must fail closed, make no selection, and stop with an error"),
+    "REFERENCE.md must state the fail-closed validation and base mismatch rule"
+  );
+  assert.ok(
+    reference.includes("Choose the first milestone row with `status=pending` (never `done`). Done rows are never resumed or reverted"),
+    "REFERENCE.md must state that done rows are never resumed/reverted and first pending is chosen"
+  );
+  assert.ok(
+    reference.includes("Tracked canonical goals in the ledger are authoritative and must not be re-evaluated or re-run through the precision or approval gates during recovery"),
+    "REFERENCE.md must state that tracked goals are authoritative and not re-evaluated"
+  );
+  assert.ok(
+    reference.includes("If exactly one open ledger (a ledger containing at least one row with `status=pending` on the base branch) exists, auto-select that feature ledger"),
+    "REFERENCE.md must state the single open ledger auto-selection rule"
+  );
+  assert.ok(
+    reference.includes("If multiple open ledgers exist, emit exactly one feature-selection question listing the options and select/update/advance none"),
+    "REFERENCE.md must state the multiple open ledgers selection-question rule"
+  );
+  assert.ok(
+    reference.includes("If no ledgers exist on disk (empty ledger set), report that no ledger exists"),
+    "REFERENCE.md must state the empty ledger set rule"
+  );
+  assert.ok(
+    reference.includes("If ledgers exist but all are fully completed (zero open ledgers), report that all work is complete"),
+    "REFERENCE.md must state the all work complete rule"
+  );
+  assert.ok(
+    reference.includes("Make the missing `.scratch/` directory, handoff file, and plan file non-blocking only for this valid ledger-recovery mode. Retain existing blocker behaviors and requirements for explicitly claimed execution resumes"),
+    "REFERENCE.md must state the non-blocking scratch / blocker retain rule"
+  );
+  assert.ok(
+    reference.includes("Enter Discussion/reconstruction mode for the selected milestone. Output its milestone slug (e.g., `<feature>-m2`) and precise goal; do not detail or spec any later milestone rows"),
+    "REFERENCE.md must state the Discussion/reconstruction and single-milestone detail rule"
+  );
+
+  const masterResume = extractPeerSection(master, "Smart Routing Engine");
+  assert.match(
+    masterResume,
+    /Scan tracked base-branch canonical Milestone Ledger paths \(`docs\/gsd\/<feature>\/milestones\.toon`\) only after scratch\/handoff\/plan\/spec recovery cannot satisfy the continue intent/,
+    "master must scan ledger paths only after scratch/handoff/plan/spec recovery cannot satisfy intent"
+  );
+  assert.match(
+    masterResume,
+    /If no usable local handoff, plan, or spec can satisfy the continue intent \(when `\.scratch\/` is absent or lacks these files\) and the user intent is explicitly to continue\/resume/,
+    "master must state the prerequisite condition of no usable local handoff, plan, or spec"
+  );
+  assert.match(
+    masterResume,
+    /if the ledger is absent, report no ledger and never fall through/,
+    "master must state that absent named ledger reports no ledger and never falls through"
+  );
+  assert.match(
+    masterResume,
+    /if all milestones are done, report complete/,
+    "master must state that completed named ledger reports complete"
+  );
+  assert.match(
+    masterResume,
+    /Tracked canonical goals in the ledger are authoritative and must not be re-run through the precision or approval gates during recovery/,
+    "master must state that tracked goals are authoritative and not re-run through gates"
+  );
+  assert.match(
+    masterResume,
+    /If the feature is explicitly named, select that feature's ledger/,
+    "master must select explicitly named feature's ledger first"
+  );
+  assert.match(
+    masterResume,
+    /If no feature is named and exactly one open ledger \(with at least one pending milestone\) exists, auto-select it/,
+    "master must auto-select single open ledger"
+  );
+  assert.match(
+    masterResume,
+    /If multiple open ledgers exist, ask exactly one feature-selection question listing the options and make no selection or write/,
+    "master must ask one question and make no selection/write when multiple open ledgers exist"
+  );
+  assert.match(
+    masterResume,
+    /If no ledgers exist on disk \(empty ledger set\), report no ledger without inventing work/,
+    "master must report no ledger when empty ledger set exists"
+  );
+  assert.match(
+    masterResume,
+    /If ledgers exist but all are fully completed \(zero open ledgers\), report complete without inventing work/,
+    "master must report complete when all ledgers are done"
+  );
+  assert.match(
+    masterResume,
+    /If any scanned or selected ledger is malformed or has a base mismatch, the recovery fails closed, makes no selection, and stops with an error/,
+    "master must state that malformed or base mismatch ledgers fail closed with an error"
+  );
+  assert.match(
+    masterResume,
+    /Once a ledger is selected, choose the first pending milestone row, enter Discussion\/reconstruction, and output the selected milestone's slug and goal. Do not detail later rows, change any ledger bytes\/status, mark completion, start execution, or authorize a merge. Make missing `\.scratch\/`, handoff, and plan non-blocking only for this recovery mode/,
+    "master must enforce recovery-mode selection and read-only boundaries"
+  );
+
+  assert.ok(
+    handoff.includes("recover the next pending milestone from Fallback `docs/gsd/<feature>/milestones.toon` when the scratch directory is absent"),
+    "gsd-handoff must specify fallback to milestone ledger for pre-plan resume"
+  );
+}
+
+test("T3 Milestone Ledger recovery contract validation and mutation checks", () => {
+  const master = readSkill("gsd");
+  const reference = readPlanningReference();
+  const handoff = readSkill("gsd-handoff");
+
+  validateMilestoneLedgerRecoveryContract({ master, reference, handoff });
+
+  const mutants = [
+    {
+      source: "reference",
+      old: "When explicit continue or resume intent is received but no usable local handoff, plan, or spec can satisfy it, perform a read-only Milestone Ledger recovery",
+      new: "Perform a read-only Milestone Ledger recovery unconditionally on any prompt",
+      error: /prerequisite condition of no usable local/
+    },
+    {
+      source: "reference",
+      old: "Tracked canonical goals in the ledger are authoritative and must not be re-evaluated or re-run through the precision or approval gates during recovery",
+      new: "Tracked canonical goals must be re-run through the precision and approval gates to ensure they are still correct",
+      error: /tracked goals are authoritative/
+    },
+    {
+      source: "reference",
+      old: "If that feature's ledger is absent, report that no ledger exists and never fall through to other features",
+      new: "If that feature's ledger is absent, default to any open ledger",
+      error: /absent explicitly named ledger/
+    },
+    {
+      source: "reference",
+      old: "If that feature's ledger exists but all milestones are done, report that all work is complete",
+      new: "If that feature's ledger exists but all milestones are done, select the first milestone anyway",
+      error: /completed explicitly named ledger/
+    },
+    {
+      source: "reference",
+      old: "Scan tracked base-branch canonical ledger paths `docs/gsd/<feature>/milestones.toon` only after scratch/handoff/plan/spec recovery cannot satisfy the continue intent",
+      new: "Scan tracked base-branch canonical ledger paths first before checking scratch/handoff/plan",
+      error: /prerequisite scan order/
+    },
+    {
+      source: "reference",
+      old: "This recovery only reads and selects; it must not mutate ledger files, change milestone statuses, mark any milestone complete, start execution, or authorize any merge",
+      new: "This recovery may mutate ledger files and authorize merges",
+      error: /fail-closed read-only/
+    },
+    {
+      source: "reference",
+      old: "If any scanned or selected ledger is malformed, lacks required fields, or has a base mismatch (the `base:` field in the ledger does not match the active base branch), the recovery must fail closed, make no selection, and stop with an error",
+      new: "If a ledger is malformed or has a base mismatch, ignore the validation and proceed",
+      error: /fail-closed validation and base mismatch/
+    },
+    {
+      source: "reference",
+      old: "Choose the first milestone row with `status=pending` (never `done`). Done rows are never resumed or reverted",
+      new: "Choose the first milestone row, regardless of status",
+      error: /done rows are never resumed\/reverted/
+    },
+    {
+      source: "reference",
+      old: "If exactly one open ledger (a ledger containing at least one row with `status=pending` on the base branch) exists, auto-select that feature ledger",
+      new: "If exactly one open ledger exists, ask the user to confirm",
+      error: /single open ledger auto-selection/
+    },
+    {
+      source: "reference",
+      old: "If multiple open ledgers exist, emit exactly one feature-selection question listing the options and select/update/advance none",
+      new: "If multiple open ledgers exist, select the first one by alphabetical order",
+      error: /multiple open ledgers selection-question/
+    },
+    {
+      source: "reference",
+      old: "If no ledgers exist on disk (empty ledger set), report that no ledger exists",
+      new: "If no ledgers exist, invent a new task",
+      error: /empty ledger set rule/
+    },
+    {
+      source: "reference",
+      old: "If ledgers exist but all are fully completed (zero open ledgers), report that all work is complete",
+      new: "If ledgers exist but all are fully completed, restart from the beginning",
+      error: /all work complete rule/
+    },
+    {
+      source: "reference",
+      old: "Make the missing `.scratch/` directory, handoff file, and plan file non-blocking only for this valid ledger-recovery mode. Retain existing blocker behaviors and requirements for explicitly claimed execution resumes",
+      new: "Make missing scratch files always non-blocking in all resume modes",
+      error: /non-blocking scratch/
+    },
+    {
+      source: "reference",
+      old: "Enter Discussion/reconstruction mode for the selected milestone. Output its milestone slug (e.g., `<feature>-m2`) and precise goal; do not detail or spec any later milestone rows",
+      new: "Enter Discussion mode and detail all upcoming milestones in the ledger",
+      error: /Discussion\/reconstruction and single-milestone/
+    },
+    {
+      source: "master",
+      old: "If no usable local handoff, plan, or spec can satisfy the continue intent (when `.scratch/` is absent or lacks these files) and the user intent is explicitly to continue/resume:",
+      new: "Unconditionally perform Milestone Ledger recovery:",
+      error: /prerequisite condition of no usable local/
+    },
+    {
+      source: "master",
+      old: "Tracked canonical goals in the ledger are authoritative and must not be re-run through the precision or approval gates during recovery.",
+      new: "Tracked canonical goals must be re-evaluated and re-approved during recovery.",
+      error: /tracked goals are authoritative and not re-run/
+    },
+    {
+      source: "master",
+      old: "if the ledger is absent, report no ledger and never fall through",
+      new: "if the ledger is absent, scan all other feature ledgers",
+      error: /absent named ledger/
+    },
+    {
+      source: "master",
+      old: "if all milestones are done, report complete",
+      new: "if all milestones are done, restart the milestones",
+      error: /completed named ledger/
+    },
+    {
+      source: "master",
+      old: "Scan tracked base-branch canonical Milestone Ledger paths (`docs/gsd/<feature>/milestones.toon`) only after scratch/handoff/plan/spec recovery cannot satisfy the continue intent.",
+      new: "Always scan Milestone Ledger paths first.",
+      error: /scan ledger paths only after scratch\/handoff\/plan\/spec/
+    },
+    {
+      source: "master",
+      old: "If the feature is explicitly named, select that feature's ledger",
+      new: "If the feature is named, ignore it.",
+      error: /select explicitly named feature/
+    },
+    {
+      source: "master",
+      old: "If no feature is named and exactly one open ledger (with at least one pending milestone) exists, auto-select it.",
+      new: "Always prompt the user when no feature is named.",
+      error: /auto-select single open ledger/
+    },
+    {
+      source: "master",
+      old: "If multiple open ledgers exist, ask exactly one feature-selection question listing the options and make no selection or write.",
+      new: "If multiple open ledgers exist, select one at random.",
+      error: /ask one question and make no selection\/write/
+    },
+    {
+      source: "master",
+      old: "If no ledgers exist on disk (empty ledger set), report no ledger without inventing work.",
+      new: "If no ledgers exist on disk, create a dummy task.",
+      error: /report no ledger when empty ledger set exists/
+    },
+    {
+      source: "master",
+      old: "If ledgers exist but all are fully completed (zero open ledgers), report complete without inventing work.",
+      new: "If ledgers exist but all are fully completed, restart from the beginning.",
+      error: /report complete when all ledgers are done/
+    },
+    {
+      source: "master",
+      old: "If any scanned or selected ledger is malformed or has a base mismatch, the recovery fails closed, makes no selection, and stops with an error.",
+      new: "If any ledger is malformed or has a base mismatch, ignore it and continue.",
+      error: /malformed or base mismatch ledgers fail closed/
+    },
+    {
+      source: "master",
+      old: "Once a ledger is selected, choose the first pending milestone row, enter Discussion/reconstruction, and output the selected milestone's slug and goal. Do not detail later rows, change any ledger bytes/status, mark completion, start execution, or authorize a merge. Make missing `.scratch/`, handoff, and plan non-blocking only for this recovery mode.",
+      new: "Once selected, automatically execute the milestone.",
+      error: /enforce recovery-mode selection and read-only boundaries/
+    },
+    {
+      source: "handoff",
+      old: "recover the next pending milestone from Fallback `docs/gsd/<feature>/milestones.toon` when the scratch directory is absent",
+      new: "fabricate a pre-plan handoff instead",
+      error: /fallback to milestone ledger for pre-plan resume/
+    },
+  ];
+
+  for (const m of mutants) {
+    const mutated = { master, reference, handoff };
+    const originalText = mutated[m.source];
+    const mutatedText = originalText.replaceAll(m.old, m.new);
+    assert.notEqual(mutatedText, originalText, `Mutation for ${m.error} did not change the source`);
+    mutated[m.source] = mutatedText;
+    assert.throws(
+      () => validateMilestoneLedgerRecoveryContract(mutated),
+      m.error,
+      `Mutation test should have thrown: ${m.error}`
+    );
+  }
+});
+
+test("T3 Milestone Ledger recovery evaluator behavior fixtures", () => {
+  const ledger1 = `schema:v1
+feature:feature-one
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,feature-one-m1,First goal,done
+M2,feature-one-m2,Second goal,pending
+M3,feature-one-m3,Third goal,pending`;
+
+  const ledger2 = `schema:v1
+feature:feature-two
+base:main
+milestones[2]{id,slug,goal,status}:
+M1,feature-two-m1,Goal A,done
+M2,feature-two-m2,Goal B,done`;
+
+  const malformedLedger = `schema:v1
+feature:feature-malformed
+base:main
+milestones[2]{id,slug,goal,status}:
+M1,feature-malformed-m1,Goal A,done
+M2,feature-malformed-m2,Goal B`;
+
+  const ledgerDelimiter = `schema:v1
+feature:feature-comma
+base:main
+milestones[2]{id,slug,goal,status}:
+M1,feature-comma-m1,"Goal with a comma, and quotes \\"escaped\\"",pending
+M2,feature-comma-m2,Goal B,pending`;
+
+  const ledgersMap = {
+    "feature-one": ledger1,
+    "feature-two": ledger2,
+    "feature-malformed": malformedLedger,
+    "feature-comma": ledgerDelimiter,
+  };
+
+  const res1 = evaluateMilestoneLedgerRecovery(
+    { "feature-one": ledger1 },
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(res1.selectedFeature, "feature-one");
+  assert.equal(res1.selectedMilestone, "M2");
+  assert.equal(res1.selectedSlug, "feature-one-m2");
+  assert.equal(res1.selectedGoal, "Second goal");
+  assert.equal(res1.mode, "Discussion/reconstruction");
+  assert.equal(res1.error, null);
+
+  const res2 = evaluateMilestoneLedgerRecovery(
+    ledgersMap,
+    {
+      prompt: "continue",
+      requestedFeature: "feature-comma",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(res2.selectedFeature, "feature-comma");
+  assert.equal(res2.selectedMilestone, "M1");
+  assert.equal(res2.selectedSlug, "feature-comma-m1");
+  assert.equal(res2.selectedGoal, 'Goal with a comma, and quotes "escaped"');
+  assert.equal(res2.mode, "Discussion/reconstruction");
+
+  const res3 = evaluateMilestoneLedgerRecovery(
+    { "feature-one": ledger1, "feature-two": ledger2 },
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(res3.selectedFeature, "feature-one");
+  assert.equal(res3.selectedMilestone, "M2");
+  assert.equal(res3.mode, "Discussion/reconstruction");
+
+  const res4 = evaluateMilestoneLedgerRecovery(
+    { "feature-one": ledger1, "feature-comma": ledgerDelimiter },
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(res4.selectedFeature, null);
+  assert.equal(res4.selectedMilestone, null);
+  assert.equal(res4.mode, "Discussion/selection");
+  assert.match(res4.question, /Which feature would you like to continue/);
+
+  const res5 = evaluateMilestoneLedgerRecovery(
+    { "feature-two": ledger2 },
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(res5.selectedFeature, null);
+  assert.equal(res5.selectedMilestone, null);
+  assert.equal(res5.mode, "Discussion/complete");
+
+  const res7 = evaluateMilestoneLedgerRecovery(
+    { "feature-malformed": malformedLedger },
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(res7.selectedFeature, null);
+  assert.equal(res7.selectedMilestone, null);
+  assert.equal(res7.mode, "Error");
+  assert.match(res7.error, /Malformed ledger/);
+
+  const originalLedgersJson = JSON.stringify(ledgersMap);
+  evaluateMilestoneLedgerRecovery(
+    ledgersMap,
+    {
+      prompt: "continue",
+      requestedFeature: "feature-one",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(JSON.stringify(ledgersMap), originalLedgersJson, "Evaluator must not mutate the ledgers input");
+
+  const res9 = evaluateMilestoneLedgerRecovery(
+    { "feature-one": ledger1 },
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: true,
+    }
+  );
+  assert.equal(res9.selectedFeature, null);
+  assert.equal(res9.selectedMilestone, null);
+  assert.equal(res9.mode, "Blocked");
+  assert.match(res9.error, /Missing required/);
+
+  const res10 = evaluateMilestoneLedgerRecovery(
+    ledgersMap,
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: true,
+      planExists: true,
+      explicitExecutionResume: true,
+    }
+  );
+  assert.equal(res10.selectedFeature, null);
+  assert.equal(res10.selectedMilestone, null);
+  assert.equal(res10.mode, "none");
+  assert.equal(res10.error, null);
+
+  const res11 = evaluateMilestoneLedgerRecovery(
+    ledgersMap,
+    {
+      prompt: "continue",
+      scratchExists: true,
+      handoffExists: true,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(res11.selectedFeature, null);
+  assert.equal(res11.selectedMilestone, null);
+  assert.equal(res11.mode, "none");
+  assert.equal(res11.error, null);
+
+  const res12 = evaluateMilestoneLedgerRecovery(
+    ledgersMap,
+    {
+      prompt: "continue",
+      scratchExists: true,
+      handoffExists: false,
+      planExists: true,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(res12.selectedFeature, null);
+  assert.equal(res12.selectedMilestone, null);
+  assert.equal(res12.mode, "none");
+  assert.equal(res12.error, null);
+
+  const res13 = evaluateMilestoneLedgerRecovery(
+    ledgersMap,
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: true,
+      planExists: false,
+      explicitExecutionResume: true,
+    }
+  );
+  assert.equal(res13.selectedFeature, null);
+  assert.equal(res13.selectedMilestone, null);
+  assert.equal(res13.mode, "Blocked");
+  assert.match(res13.error, /Missing required/);
+
+  // requested-missing
+  const resRequestedMissing = evaluateMilestoneLedgerRecovery(
+    ledgersMap,
+    {
+      prompt: "continue",
+      requestedFeature: "feature-missing",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(resRequestedMissing.selectedFeature, "feature-missing");
+  assert.equal(resRequestedMissing.selectedMilestone, null);
+  assert.equal(resRequestedMissing.mode, "Discussion/no-ledger");
+  assert.equal(resRequestedMissing.error, null);
+
+  // named all-done
+  const resNamedAllDone = evaluateMilestoneLedgerRecovery(
+    ledgersMap,
+    {
+      prompt: "continue",
+      requestedFeature: "feature-two", // ledger2 is all done
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(resNamedAllDone.selectedFeature, "feature-two");
+  assert.equal(resNamedAllDone.selectedMilestone, null);
+  assert.equal(resNamedAllDone.mode, "Discussion/complete");
+  assert.equal(resNamedAllDone.error, null);
+
+  // wrong-base fail-closed
+  const resWrongBase = evaluateMilestoneLedgerRecovery(
+    ledgersMap,
+    {
+      prompt: "continue",
+      requestedFeature: "feature-one",
+      base: "other-base",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(resWrongBase.selectedFeature, null);
+  assert.equal(resWrongBase.selectedMilestone, null);
+  assert.equal(resWrongBase.mode, "Error");
+  assert.match(resWrongBase.error, /Malformed ledger.*base/i);
+
+  // wrong-base fail-closed all
+  const resWrongBaseAll = evaluateMilestoneLedgerRecovery(
+    { "feature-one": ledger1 },
+    {
+      prompt: "continue",
+      base: "other-base",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(resWrongBaseAll.selectedFeature, null);
+  assert.equal(resWrongBaseAll.selectedMilestone, null);
+  assert.equal(resWrongBaseAll.mode, "Error");
+  assert.match(resWrongBaseAll.error, /Malformed ledger.*base/i);
+
+  // precedence checks that we do not parse ledgers when local recovery satisfies intent
+  const resPrecedenceMalformed = evaluateMilestoneLedgerRecovery(
+    { "feature-malformed": malformedLedger },
+    {
+      prompt: "continue",
+      scratchExists: true,
+      handoffExists: true,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(resPrecedenceMalformed.selectedFeature, null);
+  assert.equal(resPrecedenceMalformed.selectedMilestone, null);
+  assert.equal(resPrecedenceMalformed.mode, "none");
+  assert.equal(resPrecedenceMalformed.error, null);
+
+  // claimed-execution missing-plan blocks even with a valid ledger
+  const resClaimedMissingPlanWithLedger = evaluateMilestoneLedgerRecovery(
+    { "feature-one": ledger1 },
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: true,
+      planExists: false,
+      explicitExecutionResume: true,
+    }
+  );
+  assert.equal(resClaimedMissingPlanWithLedger.selectedFeature, null);
+  assert.equal(resClaimedMissingPlanWithLedger.selectedMilestone, null);
+  assert.equal(resClaimedMissingPlanWithLedger.mode, "Blocked");
+  assert.match(resClaimedMissingPlanWithLedger.error, /Missing required/);
+
+  // empty ledger set
+  const resEmptyLedgerSet = evaluateMilestoneLedgerRecovery(
+    {},
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(resEmptyLedgerSet.selectedFeature, null);
+  assert.equal(resEmptyLedgerSet.selectedMilestone, null);
+  assert.equal(resEmptyLedgerSet.mode, "Discussion/no-ledger");
+  assert.equal(resEmptyLedgerSet.error, null);
+
+  // plan present + handoff missing in explicit execution resume -> bypasses ledger (none)
+  const resPlanPresentHandoffMissing = evaluateMilestoneLedgerRecovery(
+    ledgersMap,
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: true,
+      explicitExecutionResume: true,
+    }
+  );
+  assert.equal(resPlanPresentHandoffMissing.selectedFeature, null);
+  assert.equal(resPlanPresentHandoffMissing.selectedMilestone, null);
+  assert.equal(resPlanPresentHandoffMissing.mode, "none");
+  assert.equal(resPlanPresentHandoffMissing.error, null);
+
+
+  // named empty-ledger Error
+  const resNamedEmpty = evaluateMilestoneLedgerRecovery(
+    { "feature-one": "" },
+    {
+      prompt: "continue",
+      requestedFeature: "feature-one",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(resNamedEmpty.selectedFeature, null);
+  assert.equal(resNamedEmpty.selectedMilestone, null);
+  assert.equal(resNamedEmpty.mode, "Error");
+  assert.match(resNamedEmpty.error, /Malformed ledger/i);
+
+  // unnamed empty-ledger Error
+  const resUnnamedEmpty = evaluateMilestoneLedgerRecovery(
+    { "feature-one": "" },
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(resUnnamedEmpty.selectedFeature, null);
+  assert.equal(resUnnamedEmpty.selectedMilestone, null);
+  assert.equal(resUnnamedEmpty.mode, "Error");
+  assert.match(resUnnamedEmpty.error, /Malformed ledger/i);
+
+  // specExists: true with scratchExists: true -> bypasses ledger (none)
+  const resSpecAndScratchPresent = evaluateMilestoneLedgerRecovery(
+    ledgersMap,
+    {
+      prompt: "continue",
+      scratchExists: true,
+      handoffExists: false,
+      planExists: false,
+      specExists: true,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(resSpecAndScratchPresent.selectedFeature, null);
+  assert.equal(resSpecAndScratchPresent.selectedMilestone, null);
+  assert.equal(resSpecAndScratchPresent.mode, "none");
+  assert.equal(resSpecAndScratchPresent.error, null);
+
+  // specExists: true with scratchExists: false -> recovers from ledger
+  const resSpecPresentScratchAbsent = evaluateMilestoneLedgerRecovery(
+    { "feature-one": ledger1 },
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      specExists: true,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(resSpecPresentScratchAbsent.selectedFeature, "feature-one");
+  assert.equal(resSpecPresentScratchAbsent.selectedMilestone, "M2");
+  assert.equal(resSpecPresentScratchAbsent.mode, "Discussion/reconstruction");
+  assert.equal(resSpecPresentScratchAbsent.error, null);
+
+  // handoffExists: true with explicitExecutionResume: false -> bypasses ledger (none)
+  const resHandoffPresentNonExecution = evaluateMilestoneLedgerRecovery(
+    ledgersMap,
+    {
+      prompt: "continue",
+      scratchExists: false,
+      handoffExists: true,
+      planExists: false,
+      specExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(resHandoffPresentNonExecution.selectedFeature, null);
+  assert.equal(resHandoffPresentNonExecution.selectedMilestone, null);
+  assert.equal(resHandoffPresentNonExecution.mode, "none");
+  assert.equal(resHandoffPresentNonExecution.error, null);
+
+
+  // inherited name (toString)
+  const resInheritedName = evaluateMilestoneLedgerRecovery(
+    ledgersMap,
+    {
+      prompt: "continue",
+      requestedFeature: "toString",
+      scratchExists: false,
+      handoffExists: false,
+      planExists: false,
+      explicitExecutionResume: false,
+    }
+  );
+  assert.equal(resInheritedName.selectedFeature, "toString");
+  assert.equal(resInheritedName.selectedMilestone, null);
+  assert.equal(resInheritedName.mode, "Discussion/no-ledger");
+  assert.equal(resInheritedName.error, null);
+  assert.equal(JSON.stringify(ledgersMap), originalLedgersJson, "Evaluator must not mutate the ledgers input");
+});
+
+
+// ── T4 Milestone Ledger Lifecycle Tests ───────────────────────────
+
+function validateMilestoneLedgerLifecycleContract({ master, reference, toPlan, executingPlans, verify, handoff }) {
+  assert.ok(
+    reference.includes("### Milestone Ledger lifecycle contract"),
+    "REFERENCE.md must declare the Milestone Ledger lifecycle contract section"
+  );
+  assert.ok(
+    reference.includes("The current milestone slug (e.g., `<feature>-m1`) is determined by the first pending milestone row in the authoritative base ledger at `docs/gsd/<feature>/milestones.toon`, where `<feature>` is the root feature name (distinct from the milestone slug)."),
+    "REFERENCE.md must define current milestone identity"
+  );
+  assert.ok(
+    reference.includes("Before preparation, require that the authoritative base row is `pending`, and that all current plan tasks, code reviews, and focused checks are green."),
+    "REFERENCE.md must require pending status and all green for preparation"
+  );
+  assert.ok(
+    reference.includes("Milestone mode applies only when the current plan owns the exact canonical ledger path `docs/gsd/<feature>/milestones.toon`. Require the current plan/scratch/WIP feature slug to equal the first-pending row's milestone slug. The sole plan task owning the canonical ledger path must be `done`, never `superseded`, before preparation. Prepare in the WIP branch exactly one cell transition (`pending → done`) in the current row of that Milestone Ledger, and commit this change in a dedicated final WIP commit containing only the canonical ledger file (no scratch/unrelated paths) before invoking verify. Do not alter any other row, byte, or file-content in the ledger. The terminal diff must contain this committed transition."),
+    "REFERENCE.md must specify exact one-cell pending -> done WIP transition"
+  );
+  assert.ok(
+    reference.includes("Independently parse the actual plan + base/WIP ledger and recheck that the active scratch/WIP slug equals the first pending base row and that the exact canonical path `docs/gsd/<feature>/milestones.toon` appears exactly once in the plan task `files` cell; fail closed before merge otherwise. The sole plan task owning that path must be `done`, never `superseded`. Require a dedicated final WIP commit containing only the canonical ledger file (no scratch/unrelated paths) before invoking verify. Require a canonical parse on both ledgers."),
+    "REFERENCE.md must specify independent plan/ledger verification"
+  );
+  assert.ok(
+    reference.includes("The sole plan task owning that path must be `done`, never `superseded`."),
+    "REFERENCE.md must require the terminal ledger owner to be done",
+  );
+  assert.ok(
+    executingPlans.includes("The sole plan task owning the canonical ledger path must be `done`, never `superseded`, before preparation."),
+    "gsd-executing-plans must reject a superseded ledger owner",
+  );
+  assert.ok(
+    verify.includes("The sole plan task owning that path must be `done`, never `superseded`."),
+    "gsd-verify must reject a superseded ledger owner",
+  );
+  assert.ok(
+    reference.includes("Exactly the current milestone row status must change from `pending` to `done`. All other rows must be byte-for-byte and value-for-value identical. Any other status transition, multiple transitions, missing transition, or invalid format is a blocker."),
+    "REFERENCE.md must require exactly current milestone row pending->done verification"
+  );
+  assert.ok(
+    reference.includes("The merge is gated behind zero Critical/Important reviewer findings, all build/tests/acceptance/E2E evidence green, conflicts exactly false, and a valid ledger transition. The code and ledger must merge atomically in the same squash commit. A prepared WIP `done` status is not durable completion until merged."),
+    "REFERENCE.md must specify atomic merge gates and durability"
+  );
+  assert.ok(
+    reference.includes("On a passing merge, read the merged base ledger: report the next first-pending milestone's slug and goal, or report root feature complete if no pending milestones remain. Never auto-select, start, or spec the next milestone."),
+    "REFERENCE.md must specify next milestone or completion reporting without auto-start/selection"
+  );
+  assert.ok(
+    reference.includes("On any failure or blocker (including red build/test/acceptance, E2E failure, reviewer findings, or invalid transition), the pipeline stops, returns the existing blocker report, makes no merge, and leaves the authoritative base ledger byte-for-byte unchanged. No next milestone is selected, started, or reported."),
+    "REFERENCE.md must specify fail-closed base preservation"
+  );
+
+  assert.match(
+    master,
+    /route to `gsd-executing-plans`\. Select `Milestone plan execution` only from explicit milestone intent\/entry context, then require active plan\/scratch\/WIP slug, canonical root path, first-pending base row, and exact-once plan ownership to agree; otherwise Normal mode or fail closed when milestone mode was explicitly claimed\./,
+    "master must reference the milestone ledger lifecycle contract in Route 3"
+  );
+  assert.ok(
+    master.includes("Normal mode has no milestone-completion authority. It may delegate an authorized convergence-time ledger creation/update only under [REFERENCE.md](REFERENCE.md) § Convergence Ledger publication contract"),
+    "master must restrict Normal-mode publication to the authorized convergence contract",
+  );
+  assert.ok(
+    executingPlans.includes("Normal plan execution has no milestone-completion authority. The sole exception is an authorized convergence-time creation/update under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Convergence Ledger publication contract"),
+    "gsd-executing-plans must restrict Normal-mode publication to the authorized convergence contract",
+  );
+  assert.ok(
+    verify.includes("Planned WIP may integrate only an authorized convergence-time creation/update under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Convergence Ledger publication contract"),
+    "gsd-verify must restrict Planned WIP publication to the authorized convergence contract",
+  );
+  assert.match(
+    reference,
+    /### Convergence Ledger publication contract[\s\S]*exact root ledger path must occur in `files` exactly once[\s\S]*every created row is canonical and `pending`[\s\S]*Exactly one raw WIP task commit[\s\S]*red\/missing build\/test\/acceptance\/E2E evidence[\s\S]*reports no next milestone/,
+    "REFERENCE.md must define raw ownership, pending-only bytes, commit evidence, ordinary gates, and no selection for convergence publication",
+  );
+  assert.ok(
+    reference.includes("This `spec.md` marker is the sole durable publication-entry proof carried through plan approval, handoff/resume, execution, and verify."),
+    "REFERENCE.md must define the spec marker as the sole durable publication-entry proof",
+  );
+  assert.ok(
+    reference.includes("`gsd-to-plan` derives the expected ledger path from exactly one of two mutually exclusive sources: that durable marker for Normal root publication, or explicit milestone-entry intent plus the first-pending row of the authoritative base ledger for Milestone planning (which carries no publication marker)."),
+    "REFERENCE.md must separate root publication from marker-free milestone planning",
+  );
+  assert.ok(
+    reference.includes("Only marker-like bullet lines under the exact `Design & Invariants` heading and outside code fences are candidates; exactly one candidate must match the template byte-for-byte. Ordinary prose mentions do not count."),
+    "REFERENCE.md must define exact marker candidate placement without counting prose",
+  );
+  assert.ok(
+    master.includes("Whenever the preceding rule intentionally creates or appends a ledger, write exactly one raw `Convergence Ledger publication` marker from [REFERENCE.md](REFERENCE.md) under the root `spec.md`'s `Design & Invariants`, using the active root feature's exact path; omit it when no ledger write is intentional."),
+    "master must write or omit the durable root publication marker at convergence",
+  );
+  assert.ok(
+    master.includes("The publication exception requires the raw approved root `spec.md` to contain exactly one `Convergence Ledger publication` marker defined by [REFERENCE.md](REFERENCE.md), whose path equals the active root feature and sole plan owner, plus later selection of the Planned WIP gate."),
+    "master must require the durable marker and Planned WIP without inference",
+  );
+  assert.ok(
+    toPlan.includes("Independently parse the raw converged `spec.md` for `Convergence Ledger publication` marker lines."),
+    "gsd-to-plan must independently parse durable marker intent from raw spec bytes",
+  );
+  assert.ok(
+    toPlan.includes("Before writing ownership rows, select exactly one ledger-intent source."),
+    "gsd-to-plan must select exactly one publication or milestone intent source",
+  );
+  assert.ok(
+    toPlan.includes("**Milestone planning** requires explicit milestone-entry intent plus the authoritative base ledger: derive the root feature, canonical path, and current milestone slug from its first-pending row; require the active scratch/plan slug to match, and require no publication marker."),
+    "gsd-to-plan must keep milestone planning marker-free",
+  );
+  assert.ok(
+    toPlan.includes("**Normal root publication** requires exactly one valid `Convergence Ledger publication` marker in raw `spec.md`; require its path to equal the active root feature's canonical ledger path."),
+    "gsd-to-plan must require a valid root publication marker",
+  );
+  assert.ok(
+    toPlan.includes("**Ordinary Normal planning** has neither source and therefore requires zero ledger-looking `files` tokens."),
+    "gsd-to-plan must deny ledger ownership when neither intent source exists",
+  );
+  assert.ok(
+    toPlan.includes("When the spec carries the marker, one line: `Convergence Ledger publication: <path> (owner T<n>)`. The single approval explicitly approves that publication entry together with the plan; omission or a path/owner mismatch blocks the approval question."),
+    "gsd-to-plan must expose durable marker provenance at approval",
+  );
+  assert.ok(
+    handoff.includes("If `spec.md` contains a `Convergence Ledger publication` marker, preserve that spec byte-for-byte in local or portable scratch and re-read its raw marker before `next_action`, plan dispatch, and verify."),
+    "gsd-handoff must preserve and re-read the durable marker",
+  );
+  assert.ok(
+    executingPlans.includes("Normal publication dispatch additionally requires the raw approved root `spec.md` to contain exactly one canonical `Convergence Ledger publication` marker whose path equals the active root feature, canonical ledger path, and exact sole plan owner. Re-read that marker after every handoff/resume."),
+    "gsd-executing-plans must require and re-read the durable marker before dispatch",
+  );
+  assert.ok(
+    verify.includes("Authorized convergence publication additionally requires both `Planned WIP gate` selection and exactly one canonical `Convergence Ledger publication` marker parsed independently from the raw approved root `spec.md`; its path must equal the active root feature, canonical ledger path, and sole plan owner."),
+    "gsd-verify must independently require the durable marker and Planned WIP",
+  );
+  const rawTokenGuard = "Scan raw, untrimmed path tokens. If a token contains a ledger-shaped path but is not byte-for-byte the canonical path—including whitespace-padded, prefixed, or suffixed variants—reject it; never trim or normalize it into acceptance.";
+  assert.equal(
+    reference.split(rawTokenGuard).length - 1,
+    2,
+    "REFERENCE.md must reject padded ledger-looking tokens in publication and terminal lifecycle",
+  );
+  assert.ok(
+    master.includes("Inspect raw, untrimmed `files` tokens: a token containing a ledger-shaped path but not byte-for-byte equal to the canonical path"),
+    "master must reject padded ledger-looking plan tokens",
+  );
+  assert.ok(
+    executingPlans.includes("Inspect every raw, untrimmed `files` token. A token containing a ledger-shaped path but not byte-for-byte equal to the canonical path"),
+    "gsd-executing-plans must reject padded ledger-looking plan tokens",
+  );
+  assert.ok(
+    verify.includes("Scan raw, untrimmed tokens at every path-set stage. A token containing a ledger-shaped path but not byte-for-byte equal to the canonical path"),
+    "gsd-verify must reject padded ledger-looking evidence paths",
+  );
+  assert.ok(
+    executingPlans.includes("the sole owner reserves only the canonical ledger's terminal status transition for the dedicated final WIP commit after every task gate is green"),
+    "gsd-executing-plans must exempt only the terminal ledger transition from the owner task commit",
+  );
+  assert.ok(
+    executingPlans.includes("If a superseded row owned the canonical Milestone Ledger path, re-planning must remove that path from the superseded row and assign it to exactly one fresh `pending` replacement row before approval"),
+    "gsd-executing-plans must redistribute ledger ownership during Spec escalation",
+  );
+  const evidenceBinding = "The final ledger-only WIP commit must have the authoritative base ledger bytes as its parent version and the exact prepared WIP ledger bytes as its result. The reviewer input and squash input must each include the canonical path with those exact WIP bytes; omission or mismatch is a blocker.";
+  assert.ok(reference.includes(evidenceBinding), "REFERENCE.md must bind final-commit, review, and squash ledger evidence");
+  assert.ok(executingPlans.includes(evidenceBinding), "gsd-executing-plans must bind final-commit, review, and squash ledger evidence");
+  assert.ok(verify.includes(evidenceBinding), "gsd-verify must bind final-commit, review, and squash ledger evidence");
+  const planEvidence = "Parse the actual `plan.toon` from raw bytes without normalization: require LF-only line endings, no outer or blank-line whitespace, the documented two-space row indentation and canonical TOON field encoding, and IDs exactly `T1` through `TN` in row order. Malformed/noncanonical evidence is a blocker, not input to normalize.";
+  assert.ok(reference.includes(planEvidence), "REFERENCE.md must require canonical raw plan evidence");
+  assert.ok(executingPlans.includes(planEvidence), "gsd-executing-plans must require canonical raw plan evidence");
+  assert.ok(verify.includes(planEvidence), "gsd-verify must require canonical raw plan evidence");
+  assert.ok(
+    verify.includes("Bind `reviewedDiff[<path>]` to that exact WIP-tip byte snapshot. A textual patch is not a substitute for the raw path-to-bytes snapshot because a patch omits unchanged ledger bytes."),
+    "gsd-verify must supply exact raw ledger bytes to the reviewer",
+  );
+  assert.ok(
+    verify.includes("capture the canonical ledger's staged-index bytes without normalization as `squashInput[<path>]` and require them to equal `reviewedDiff[<path>]` byte-for-byte"),
+    "gsd-verify must validate exact staged squash bytes before commit",
+  );
+  assert.ok(
+    verify.includes("Capture the current `<base>` commit OID as raw `reviewedBaseOid` before review. Immediately before the shared squash sequence, recapture raw `mergeBaseOid` and require both non-empty OIDs to be identical."),
+    "gsd-verify must bind review and merge to one raw base revision",
+  );
+  assert.ok(
+    master.includes("Before any Route 3 task dispatch that can write a Milestone Ledger, parse the canonical raw plan, derive the one canonical root ledger path, require every `docs/gsd/*/milestones.toon` token in every `files` cell to equal that path, and require that path to occur exactly once."),
+    "master must reject invented ledger plan tokens before Route 3 dispatch",
+  );
+  assert.ok(
+    executingPlans.includes("Before dispatching any task that can write a Milestone Ledger in either invocation mode, parse the canonical raw `plan.toon`, derive the one canonical root ledger path, require every `docs/gsd/*/milestones.toon` token in every `files` cell to equal that path, and require that path to occur exactly once."),
+    "gsd-executing-plans must reject invented ledger plan tokens before dispatch",
+  );
+  assert.ok(
+    reference.includes("The canonical path must occur in exactly one WIP task commit—the sole owner's direct publication commit."),
+    "REFERENCE.md must bind publication to one canonical ledger commit",
+  );
+  assert.ok(
+    reference.includes("The canonical path must occur in exactly one WIP commit: the dedicated final ledger-only commit; its presence in any earlier WIP commit blocks the merge."),
+    "REFERENCE.md must forbid the canonical terminal ledger path in earlier commits",
+  );
+  assert.ok(
+    executingPlans.includes("The canonical path must occur in exactly one WIP commit—the dedicated final ledger-only commit—and never in an earlier task commit."),
+    "gsd-executing-plans must reserve the canonical ledger path for the final commit",
+  );
+  assert.ok(
+    verify.includes("Before reviewer dispatch in either ledger-writing flow, scan the canonical raw plan `files` cells, every WIP commit's complete changed-path list, and every `reviewedDiff` key."),
+    "gsd-verify must scan raw plan, commit, and review path sets before review",
+  );
+  assert.ok(
+    verify.includes("Milestone WIP requires it in exactly the dedicated final ledger-only commit and in no earlier WIP commit. Apply the same path-set scan to staged `squashInput` before commit."),
+    "gsd-verify must reject earlier canonical commits and invented staged ledger paths",
+  );
+
+  assert.ok(
+    executingPlans.includes("| Milestone plan execution | `plan.toon`; `spec.md`; `docs/gsd/<feature>/milestones.toon` | — | `plan.toon` (progress status updates); `docs/gsd/<feature>/milestones.toon` (prepared status transition) |"),
+    "gsd-executing-plans must declare Milestone plan execution invocation mode"
+  );
+  assert.ok(
+    executingPlans.includes("Before preparing the milestone ledger transition, verify that the authoritative base row status is `pending` and all plan tasks, code reviews, and focused checks are green. Milestone mode applies only when the current plan owns that exact canonical path and the current plan/scratch/WIP feature slug equals the first-pending milestone slug."),
+    "gsd-executing-plans must verify pending base status and green plan tasks before preparation"
+  );
+  assert.ok(
+    executingPlans.includes("Update exactly the current milestone's row status from `pending` to `done` in the WIP branch copy of `docs/gsd/<feature>/milestones.toon`. All other rows and bytes must remain unchanged"),
+    "gsd-executing-plans must update exactly the current milestone to done in WIP"
+  );
+  assert.ok(
+    executingPlans.includes("Commit this change to the WIP branch as a dedicated final WIP commit containing only the canonical ledger file (no scratch or unrelated paths)."),
+    "gsd-executing-plans must specify dedicated final WIP commit"
+  );
+  assert.ok(
+    executingPlans.includes("does not merge or select/start the next milestone. It only prepares and commits this transition and immediately invokes `gsd-verify` per § Milestone Ledger lifecycle contract"),
+    "gsd-executing-plans must only prepare transition and invoke verify"
+  );
+
+  assert.ok(
+    verify.includes("| Milestone WIP gate | `spec.md`; `plan.toon`; `docs/gsd/<feature>/milestones.toon` | — | `docs/gsd/<feature>/milestones.toon` |"),
+    "gsd-verify must declare Milestone WIP gate invocation mode"
+  );
+  const verifyFM = parseFrontmatter(verify);
+  const verifyProduces = parseList(verifyFM.produces);
+  assert.ok(
+    verifyProduces.includes("docs/gsd/<feature>/milestones.toon"),
+    "gsd-verify must declare docs/gsd/<feature>/milestones.toon in produces catalog"
+  );
+  assert.ok(
+    verify.includes("Exactly the current milestone row status must change from `pending` to `done`. All other rows must be byte-for-byte and value-for-value identical. Any other status transition, multiple transitions, missing transition, or invalid format is a blocker."),
+    "gsd-verify must verify exactly current milestone row pending->done"
+  );
+  assert.ok(
+    verify.includes("On a passing milestone mode merge, read the merged base ledger: report the next first-pending milestone's slug and goal, or report root feature complete if no pending milestones remain. Never auto-select, start, or spec the next milestone."),
+    "gsd-verify must merge atomically and report next milestone or complete without auto-start/selection"
+  );
+
+  // Count/ordering guard proving milestone verification precedes the sole git merge --squash instruction
+  const firstSquashIndex = verify.indexOf("git merge --squash");
+  const lastSquashIndex = verify.lastIndexOf("git merge --squash");
+  assert.ok(firstSquashIndex >= 0, "verify must contain squash merge command");
+  assert.equal(firstSquashIndex, lastSquashIndex, "verify must contain exactly one squash merge command");
+  const milestoneVerificationIndex = verify.indexOf("Milestone Ledger verification");
+  assert.ok(milestoneVerificationIndex >= 0, "verify must contain Milestone Ledger verification section");
+  assert.ok(milestoneVerificationIndex < firstSquashIndex, "Milestone Ledger verification must precede the squash merge instruction");
+  assert.ok(
+    verify.includes("If any verification fails (including invalid transition), do not merge, leave the authoritative base ledger byte-for-byte unchanged, and stop with the Blocker stop."),
+    "gsd-verify must leave base ledger unchanged on fail"
+  );
+}
+
+
+function evaluateMilestoneLedgerLifecycle(baseLedger, wipLedger, context) {
+  const milestoneIntent = context.milestoneIntent === true;
+  const milestoneModeClaimed = context.explicitMilestoneMode === true;
+
+  // Parse the terminal plan artifact instead of trusting precomputed ownership.
+  const parsePlanToonContent = (planToonStr) => {
+    if (typeof planToonStr !== "string" || !planToonStr) {
+      throw new Error("Missing or empty planToon");
+    }
+    if (planToonStr.includes("\r")) {
+      throw new Error("planToon must use LF line endings without CR bytes");
+    }
+    if (planToonStr.trim() !== planToonStr) {
+      throw new Error("planToon must not contain outer whitespace or blank boundary lines");
+    }
+    const lines = planToonStr.split("\n");
+    if (lines.length < 3) {
+      throw new Error("planToon has too few lines");
+    }
+    if (lines[0] !== "schema:v1") {
+      throw new Error("planToon schema version is not schema:v1");
+    }
+    const baseMatch = lines[1].match(/^base:([^\s,]+)$/);
+    if (!baseMatch) {
+      throw new Error("planToon base field missing or malformed");
+    }
+    const base = baseMatch[1];
+    const headerMatch = lines[2].match(/^plan\[(\d+)\]\{([^}]+)\}:$/);
+    if (!headerMatch) {
+      throw new Error("planToon header missing or malformed");
+    }
+    const expectedCols = ["id", "task", "satisfies", "files", "test", "status"];
+    const columns = headerMatch[2].split(",");
+    if (columns.length !== expectedCols.length || !expectedCols.every((c, i) => columns[i] === c)) {
+      throw new Error(`planToon columns mismatch`);
+    }
+    const expectedCount = Number(headerMatch[1]);
+    const rows = lines.slice(3);
+    if (rows.some((line) => line.trim() === "")) {
+      throw new Error("planToon must not contain blank lines");
+    }
+    if (rows.length !== expectedCount) {
+      throw new Error(`planToon row count mismatch`);
+    }
+    const tasks = [];
+    for (let i = 0; i < rows.length; i++) {
+      if (!rows[i].startsWith("  ")) {
+        throw new Error(`planToon row ${i + 1} must use the canonical two-space indentation`);
+      }
+      const rowBody = rows[i].slice(2);
+      let cells;
+      try {
+        cells = parseToonTableRow(rowBody);
+      } catch (e) {
+        throw new Error(`planToon row ${i + 1} TOON parsing error: ${e.message}`);
+      }
+      if (cells.length !== expectedCols.length) {
+        throw new Error(`planToon row ${i + 1} column count mismatch`);
+      }
+      if (rowBody !== cells.map((cell) => encodeToonTableCell(cell)).join(",")) {
+        throw new Error(`planToon row ${i + 1} must use canonical TOON field encoding`);
+      }
+      if (cells[0] !== `T${i + 1}`) {
+        throw new Error(`planToon row ${i + 1} ID must be exactly T${i + 1}`);
+      }
+      const task = {};
+      expectedCols.forEach((col, idx) => {
+        task[col] = cells[idx];
+      });
+      tasks.push(task);
+    }
+    return { base, tasks };
+  };
+
+  const includesLedgerBytes = (evidence, path, expectedBytes) => (
+    evidence !== null
+    && typeof evidence === "object"
+    && !Array.isArray(evidence)
+    && Object.hasOwn(evidence, path)
+    && evidence[path] === expectedBytes
+  );
+  const ledgerLookingPathPattern = /docs\/gsd\/[^/\s]+\/milestones\.toon/;
+  const isLedgerLookingPath = (value) => (
+    typeof value === "string" && ledgerLookingPathPattern.test(value)
+  );
+  const parseConvergencePublicationMarker = (specMarkdown) => {
+    if (typeof specMarkdown !== "string") {
+      return null;
+    }
+
+    const lines = specMarkdown.split("\n");
+    const markerCandidatePattern = /^\s*-\s*\*\*\s*Convergence Ledger publication\s*\*\*\s*:/;
+    const markerIndexes = [];
+    let inDesignAndInvariants = false;
+    let inCodeFence = false;
+
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index];
+      if (/^\s*(?:```|~~~)/.test(line)) {
+        inCodeFence = !inCodeFence;
+        continue;
+      }
+      if (!inCodeFence && /^## /.test(line)) {
+        inDesignAndInvariants = line === "## Design & Invariants";
+      }
+      if (
+        !inCodeFence
+        && inDesignAndInvariants
+        && markerCandidatePattern.test(line)
+      ) {
+        markerIndexes.push(index);
+      }
+    }
+
+    if (markerIndexes.length !== 1) {
+      return null;
+    }
+
+    const markerMatch = lines[markerIndexes[0]].match(
+      /^- \*\*Convergence Ledger publication\*\*: `(docs\/gsd\/[^/\s]+\/milestones\.toon)`$/,
+    );
+    return markerMatch ? markerMatch[1] : null;
+  };
+
+
+
+  const evaluateLedgerPublication = () => {
+    const publicationFailure = (detail) => ({
+      error: `Normal mode: ledger changes are not allowed in normal mode unless they are an authorized convergence publication (${detail})`,
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    });
+    const publicationPath = typeof context.feature === "string"
+      ? `docs/gsd/${context.feature}/milestones.toon`
+      : null;
+    if (!publicationPath || context.ledgerPath !== publicationPath) {
+      return publicationFailure("root feature and canonical ledger path do not agree");
+    }
+
+    let publicationPlan;
+    try {
+      publicationPlan = parsePlanToonContent(context.planToon);
+    } catch (e) {
+      return publicationFailure(`malformed or missing plan: ${e.message}`);
+    }
+    if (publicationPlan.base !== context.baseBranch) {
+      return publicationFailure(`planToon base mismatch: expected ${context.baseBranch}, got ${publicationPlan.base}`);
+    }
+
+    const owners = [];
+    let inventedLedgerPath = null;
+    for (const task of publicationPlan.tasks) {
+      for (const file of task.files.split("|")) {
+        if (isLedgerLookingPath(file) && file !== publicationPath) {
+          inventedLedgerPath = file;
+        }
+        if (file === publicationPath) {
+          owners.push(task);
+        }
+      }
+    }
+    if (inventedLedgerPath) {
+      return publicationFailure(`planToon contains an invented ledger path: ${inventedLedgerPath}`);
+    }
+    if (owners.length !== 1) {
+      return publicationFailure(`planToon must contain exactly one occurrence of canonical root ledger, got ${owners.length}`);
+    }
+    const owner = owners[0];
+    if (owner.status !== "done") {
+      return publicationFailure("the sole ledger-owning task must be done");
+    }
+    if (!publicationPlan.tasks.every((task) => task.status === "done" || task.status === "superseded")) {
+      return publicationFailure("plan contains non-terminal tasks");
+    }
+
+    const contract = parseLedgerContract();
+    let parsedPublished;
+    try {
+      parsedPublished = parseMilestoneLedger(
+        publicationPath,
+        wipLedger,
+        context.feature,
+        context.baseBranch,
+        contract,
+        { validateGoalPrecision: false },
+      );
+    } catch (e) {
+      return publicationFailure(`malformed published ledger: ${e.message}`);
+    }
+
+    if (baseLedger === null) {
+      if (!parsedPublished.milestones.every((milestone) => milestone.status === "pending")) {
+        return publicationFailure("a newly created ledger must contain only pending rows");
+      }
+    } else if (typeof baseLedger === "string") {
+      let parsedBasePublication;
+      try {
+        parsedBasePublication = parseMilestoneLedger(
+          publicationPath,
+          baseLedger,
+          context.feature,
+          context.baseBranch,
+          contract,
+          { validateGoalPrecision: false },
+        );
+      } catch (e) {
+        return publicationFailure(`malformed authoritative ledger: ${e.message}`);
+      }
+      if (parsedPublished.milestones.length <= parsedBasePublication.milestones.length) {
+        return publicationFailure("an update must append at least one pending row");
+      }
+      const baseRows = baseLedger.split("\n").slice(4);
+      const publishedRows = wipLedger.split("\n").slice(4);
+      if (!baseRows.every((row, index) => row === publishedRows[index])) {
+        return publicationFailure("an update must preserve the authoritative row prefix byte-for-byte");
+      }
+      const appended = parsedPublished.milestones.slice(parsedBasePublication.milestones.length);
+      if (!appended.every((milestone) => milestone.status === "pending")) {
+        return publicationFailure("every appended ledger row must be pending");
+      }
+    } else {
+      return publicationFailure("authoritative ledger evidence must be raw bytes or an explicit absent value");
+    }
+
+    if (!Array.isArray(context.wipCommits)) {
+      return publicationFailure("raw WIP commit evidence is missing");
+    }
+    const publicationEvidencePaths = [
+      ...context.wipCommits.flatMap((commit) => (
+        commit && Array.isArray(commit.files) ? commit.files : []
+      )),
+      ...(context.reviewedDiff && typeof context.reviewedDiff === "object" && !Array.isArray(context.reviewedDiff)
+        ? Object.keys(context.reviewedDiff)
+        : []),
+      ...(context.squashInput && typeof context.squashInput === "object" && !Array.isArray(context.squashInput)
+        ? Object.keys(context.squashInput)
+        : []),
+    ];
+    const unexpectedPublicationEvidencePath = publicationEvidencePaths.find((path) => (
+      isLedgerLookingPath(path) && path !== publicationPath
+    ));
+    if (unexpectedPublicationEvidencePath) {
+      return publicationFailure(`raw commit/review/squash evidence contains an invented ledger path: ${unexpectedPublicationEvidencePath}`);
+    }
+    const ledgerCommits = context.wipCommits.filter((commit) => (
+      commit
+      && Array.isArray(commit.files)
+      && commit.files.includes(publicationPath)
+    ));
+    if (ledgerCommits.length !== 1) {
+      return publicationFailure(`exactly one task commit must publish the ledger, got ${ledgerCommits.length}`);
+    }
+    const publicationCommit = ledgerCommits[0];
+    if (
+      publicationCommit.files.filter((file) => file === publicationPath).length !== 1
+      || publicationCommit.taskId !== owner.id
+      || publicationCommit.before !== baseLedger
+      || publicationCommit.after !== wipLedger
+    ) {
+      return publicationFailure("the owner task commit does not directly publish the exact authoritative-to-WIP ledger bytes");
+    }
+    if (!includesLedgerBytes(context.reviewedDiff, publicationPath, wipLedger)) {
+      return publicationFailure("reviewed diff lacks the exact published ledger bytes");
+    }
+    if (!includesLedgerBytes(context.squashInput, publicationPath, wipLedger)) {
+      return publicationFailure("squash input lacks the exact published ledger bytes");
+    }
+
+    if (
+      context.planTasksGreen !== true
+      || context.taskReviewsGreen !== true
+      || context.focusedChecksGreen !== true
+    ) {
+      return publicationFailure("plan tasks, task reviews, and focused checks must all be green");
+    }
+    if (context.criticalFindings !== 0 || context.importantFindings !== 0) {
+      return publicationFailure("Critical/Important review findings exist");
+    }
+    if (
+      context.buildGreen !== true
+      || context.testsGreen !== true
+      || context.acceptanceGreen !== true
+      || context.e2eGreen !== true
+    ) {
+      return publicationFailure("build, tests, acceptance, and E2E evidence must all be green");
+    }
+    if (
+      typeof context.reviewedBaseOid !== "string"
+      || context.reviewedBaseOid === ""
+      || context.mergeBaseOid !== context.reviewedBaseOid
+    ) {
+      return publicationFailure("base revision changed or raw base revision evidence is missing");
+    }
+    if (context.hasConflicts !== false) {
+      return publicationFailure("stale base conflict exists");
+    }
+    return {
+      error: null,
+      mergedLedger: wipLedger,
+      reportedNext: null,
+      merged: true,
+      mode: "ledger-publication",
+    };
+  };
+
+  // Normal execution delegates without claiming a ledger merge.
+  if (!milestoneIntent) {
+    if (milestoneModeClaimed) {
+      return {
+        error: "Failed closed: milestone mode was explicitly claimed but explicit milestone intent/entry context is missing",
+        mergedLedger: baseLedger,
+        reportedNext: null,
+        merged: false,
+      };
+    }
+    const publicationEntryPath = parseConvergencePublicationMarker(context.specMarkdown);
+    if (
+      wipLedger !== baseLedger
+      && (
+        context.invocationMode !== "Planned WIP gate"
+        || publicationEntryPath !== context.ledgerPath
+      )
+    ) {
+      return {
+        error: "Normal mode: ledger changes are not allowed in normal mode without one exact canonical Convergence Ledger publication marker in the approved spec and Planned WIP mode; Quick-fix and ordinary Planned WIP have no ledger write authority",
+        mergedLedger: baseLedger,
+        reportedNext: null,
+        merged: false,
+      };
+    }
+    if (wipLedger !== baseLedger) {
+      return evaluateLedgerPublication();
+    }
+    return {
+      error: null,
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: null,
+      mode: "normal",
+    };
+  }
+
+  // Fail closed on a malformed or missing terminal plan.
+  let parsedPlan;
+  try {
+    parsedPlan = parsePlanToonContent(context.planToon);
+  } catch (e) {
+    return {
+      error: `Failed closed: malformed or missing plan: ${e.message}`,
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  // Check agreements
+  const milestoneMatch = context.feature ? context.feature.match(/^(.+)-m\d+$/) : null;
+  const rootFeature = milestoneMatch ? milestoneMatch[1] : null;
+  const expectedPath = rootFeature ? `docs/gsd/${rootFeature}/milestones.toon` : null;
+
+  let agreementError = null;
+
+  if (!milestoneMatch) {
+    agreementError = "Plan/WIP feature slug is not a valid milestone slug";
+  } else if (context.ledgerPath !== expectedPath) {
+    agreementError = "Wrong ledger path: does not match canonical ledger path";
+  } else {
+    // Parse base to get first pending
+    let parsedBase;
+    const contract = parseLedgerContract();
+    try {
+      parsedBase = parseMilestoneLedger(context.ledgerPath, baseLedger, rootFeature, context.baseBranch, contract, { validateGoalPrecision: false });
+    } catch (e) {
+      return {
+        error: `Malformed base ledger: ${e.message}`,
+        mergedLedger: baseLedger,
+        reportedNext: null,
+        merged: false,
+      };
+    }
+    const firstPendingIdx = parsedBase.milestones.findIndex(r => r.status === "pending");
+    if (firstPendingIdx === -1) {
+      agreementError = "Missing transition: no pending milestone was marked done";
+    } else {
+      const firstPendingMilestone = parsedBase.milestones[firstPendingIdx];
+      if (context.feature !== firstPendingMilestone.slug) {
+        agreementError = "Plan/WIP feature slug mismatch: does not match first pending milestone slug";
+      }
+    }
+  }
+
+  // Derive ownership and completion from the parsed plan.
+  if (!agreementError) {
+    if (parsedPlan.base !== context.baseBranch) {
+      agreementError = `planToon base mismatch: expected ${context.baseBranch}, got ${parsedPlan.base}`;
+    } else {
+      const ledgerOwners = [];
+      let inventedLedgerPath = null;
+      parsedPlan.tasks.forEach((task) => {
+        const files = task.files.split("|");
+        files.forEach((file) => {
+          if (isLedgerLookingPath(file) && file !== expectedPath) {
+            inventedLedgerPath = file;
+          }
+          if (file === expectedPath) {
+            ledgerOwners.push(task);
+          }
+        });
+      });
+      if (inventedLedgerPath) {
+        agreementError = `planToon contains an invented ledger path: ${inventedLedgerPath}`;
+      } else if (ledgerOwners.length !== 1) {
+        agreementError = `planToon must contain exactly one occurrence of canonical root ledger, got ${ledgerOwners.length}`;
+      } else if (ledgerOwners[0].status !== "done") {
+        agreementError = "The sole ledger-owning task must be done, never superseded";
+      } else if (!parsedPlan.tasks.every(t => t.status === "done" || t.status === "superseded")) {
+        agreementError = "Plan contains non-terminal tasks (must be done or superseded)";
+      }
+    }
+  }
+
+  if (agreementError) {
+    if (milestoneModeClaimed) {
+      return {
+        error: `Failed closed: milestone mode was explicitly claimed but agreements failed: ${agreementError}`,
+        mergedLedger: baseLedger,
+        reportedNext: null,
+        merged: false,
+      };
+    }
+    if (wipLedger !== baseLedger) {
+      return {
+        error: `Normal mode: agreements failed (${agreementError}) and ledger was modified`,
+        mergedLedger: baseLedger,
+        reportedNext: null,
+        merged: false,
+      };
+    }
+    return {
+      error: null,
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: null,
+      mode: "normal",
+    };
+  }
+
+  const terminalEvidencePaths = [
+    ...(Array.isArray(context.wipCommits)
+      ? context.wipCommits.flatMap((commit) => (
+        commit && Array.isArray(commit.files) ? commit.files : []
+      ))
+      : []),
+    ...(context.reviewedDiff && typeof context.reviewedDiff === "object" && !Array.isArray(context.reviewedDiff)
+      ? Object.keys(context.reviewedDiff)
+      : []),
+    ...(context.squashInput && typeof context.squashInput === "object" && !Array.isArray(context.squashInput)
+      ? Object.keys(context.squashInput)
+      : []),
+  ];
+  const unexpectedTerminalEvidencePath = terminalEvidencePaths.find((path) => (
+    isLedgerLookingPath(path) && path !== expectedPath
+  ));
+  if (unexpectedTerminalEvidencePath) {
+    return {
+      error: `Blocked before merge: raw commit/review/squash evidence contains an invented ledger path: ${unexpectedTerminalEvidencePath}`,
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  // Derive the commit boundary from WIP history and integration inputs.
+  if (!Array.isArray(context.wipCommits) || context.wipCommits.length === 0) {
+    return {
+      error: "Blocked before merge: prepared ledger transition is not committed in a dedicated final WIP commit containing only the canonical ledger file (no commits found)",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  const lastCommit = context.wipCommits[context.wipCommits.length - 1];
+  if (!lastCommit || !Array.isArray(lastCommit.files) || lastCommit.files.length !== 1 || lastCommit.files[0] !== expectedPath) {
+    return {
+      error: "Blocked before merge: the last WIP commit does not change exactly the canonical ledger path",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+  const canonicalLedgerCommitIndexes = context.wipCommits
+    .map((commit, index) => (
+      commit && Array.isArray(commit.files) && commit.files.includes(expectedPath) ? index : -1
+    ))
+    .filter((index) => index !== -1);
+  if (
+    canonicalLedgerCommitIndexes.length !== 1
+    || canonicalLedgerCommitIndexes[0] !== context.wipCommits.length - 1
+  ) {
+    return {
+      error: "Blocked before merge: the canonical ledger path must appear in exactly one WIP commit and that commit must be final",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+
+  if (lastCommit.before !== baseLedger || lastCommit.after !== wipLedger) {
+    return {
+      error: "Blocked before merge: the last WIP commit must change the authoritative base ledger bytes directly to the exact WIP ledger bytes",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+
+  if (!includesLedgerBytes(context.reviewedDiff, expectedPath, wipLedger)) {
+    return {
+      error: "Blocked before merge: reviewed diff does not include the canonical ledger path with the exact same ledger bytes",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  if (!includesLedgerBytes(context.squashInput, expectedPath, wipLedger)) {
+    return {
+      error: "Blocked before merge: squash input does not include the canonical ledger path with the exact same ledger bytes",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  // Preparation requires exact true for planTasksGreen, taskReviewsGreen, focusedChecksGreen.
+  if (context.planTasksGreen !== true || context.taskReviewsGreen !== true || context.focusedChecksGreen !== true) {
+    return {
+      error: "Blocked at execution: preparation requirements not green (planTasksGreen, taskReviewsGreen, and focusedChecksGreen must be true)",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  let parsedBase;
+  const contract = parseLedgerContract();
+  try {
+    parsedBase = parseMilestoneLedger(context.ledgerPath, baseLedger, rootFeature, context.baseBranch, contract, { validateGoalPrecision: false });
+  } catch (e) {
+    return {
+      error: `Malformed base ledger: ${e.message}`,
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  const firstPendingIdx = parsedBase.milestones.findIndex(r => r.status === "pending");
+  if (firstPendingIdx === -1) {
+    return {
+      error: "Missing transition: no pending milestone was marked done",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  const firstPendingMilestone = parsedBase.milestones[firstPendingIdx];
+  if (context.feature !== firstPendingMilestone.slug) {
+    return {
+      error: "Plan/WIP feature slug mismatch: does not match first pending milestone slug",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  let parsedWip;
+  try {
+    parsedWip = parseMilestoneLedger(context.ledgerPath, wipLedger, rootFeature, context.baseBranch, contract, { validateGoalPrecision: false });
+  } catch (e) {
+    return {
+      error: `Malformed WIP ledger: ${e.message}`,
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  // Enforce byte invariant on raw content.
+  const baseLines = baseLedger.split("\n");
+  let milestoneLineIndices = [];
+  for (let i = 0; i < baseLines.length; i++) {
+    const trimmed = baseLines[i].trim();
+    if (!trimmed) continue;
+    if (trimmed.startsWith("schema:") || trimmed.startsWith("feature:") || trimmed.startsWith("base:") || trimmed.startsWith("milestones[")) {
+      continue;
+    }
+    milestoneLineIndices.push(i);
+  }
+
+  if (milestoneLineIndices.length !== parsedBase.milestones.length) {
+    return {
+      error: "Milestone row count mismatch in base lines parsing",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  const targetLineIdx = milestoneLineIndices[firstPendingIdx];
+  const targetLine = baseLines[targetLineIdx];
+  const lastComma = targetLine.lastIndexOf(",");
+  if (lastComma === -1) {
+    return {
+      error: "Malformed milestone row: missing columns",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+  const statusPart = targetLine.substring(lastComma + 1);
+  if (statusPart.trim() !== "pending") {
+    return {
+      error: "Current milestone row status in base ledger is not pending",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+  const newStatusPart = statusPart.replace("pending", "done");
+  const updatedLine = targetLine.substring(0, lastComma + 1) + newStatusPart;
+
+  const expectedWipLines = [...baseLines];
+  expectedWipLines[targetLineIdx] = updatedLine;
+  const expectedWipText = expectedWipLines.join("\n");
+
+  if (wipLedger !== expectedWipText) {
+    return {
+      error: "Milestone schema, goal, slug, or order drifted between base and WIP",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  // Terminal merge checks.
+  if (context.criticalFindings !== 0 || context.importantFindings !== 0) {
+    return {
+      error: "Blocked by review findings: Critical/Important findings exist",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  if (context.buildGreen !== true) {
+    return {
+      error: "Blocked by build failure: whole-branch build is red or missing evidence",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  if (context.testsGreen !== true) {
+    return {
+      error: "Blocked by test failure: whole-branch test suite is red or missing evidence",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  if (context.acceptanceGreen !== true) {
+    return {
+      error: "Blocked by acceptance failure: whole-branch acceptance is red or missing evidence",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  if (context.e2eGreen !== true) {
+    return {
+      error: "Blocked by E2E failure: required E2E gate failed or missing evidence",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  if (
+    typeof context.reviewedBaseOid !== "string"
+    || context.reviewedBaseOid === ""
+    || context.mergeBaseOid !== context.reviewedBaseOid
+  ) {
+    return {
+      error: "Blocked by stale base: reviewed base revision differs from merge base revision or evidence is missing",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+  if (context.hasConflicts !== false) {
+    return {
+      error: "Blocked by merge conflicts: stale base conflict exists",
+      mergedLedger: baseLedger,
+      reportedNext: null,
+      merged: false,
+    };
+  }
+
+  const nextPending = parsedWip.milestones.find(r => r.status === "pending");
+  if (nextPending) {
+    return {
+      error: null,
+      mergedLedger: wipLedger,
+      reportedNext: { slug: nextPending.slug, goal: nextPending.goal },
+      merged: true,
+    };
+  } else {
+    return {
+      error: null,
+      mergedLedger: wipLedger,
+      reportedNext: "complete",
+      merged: true,
+    };
+  }
+}
+
+
+test("T4 Milestone Ledger lifecycle contract validation and mutation checks", () => {
+  const master = readSkill("gsd");
+  const reference = readPlanningReference();
+  const toPlan = readSkill("gsd-to-plan");
+  const executingPlans = readSkill("gsd-executing-plans");
+  const verify = readSkill("gsd-verify");
+  const handoff = readSkill("gsd-handoff");
+
+  validateMilestoneLedgerLifecycleContract({ master, reference, toPlan, executingPlans, verify, handoff });
+
+  const mutants = [
+    {
+      source: "reference",
+      old: "### Milestone Ledger lifecycle contract",
+      new: "### Milestone Ledger generic lifecycle",
+      error: /must declare the Milestone Ledger lifecycle contract section/,
+    },
+    {
+      source: "reference",
+      old: "The current milestone slug (e.g., `<feature>-m1`) is determined by the first pending milestone row in the authoritative base ledger at `docs/gsd/<feature>/milestones.toon`, where `<feature>` is the root feature name (distinct from the milestone slug).",
+      new: "The current milestone is whatever the agent wants",
+      error: /must define current milestone identity/,
+    },
+    {
+      source: "reference",
+      old: "Before preparation, require that the authoritative base row is `pending`, and that all current plan tasks, code reviews, and focused checks are green.",
+      new: "Prepare transitions whenever convenient",
+      error: /must require pending status and all green for preparation/,
+    },
+    {
+      source: "reference",
+      old: "Milestone mode applies only when the current plan owns the exact canonical ledger path `docs/gsd/<feature>/milestones.toon`. Require the current plan/scratch/WIP feature slug to equal the first-pending row's milestone slug. The sole plan task owning the canonical ledger path must be `done`, never `superseded`, before preparation. Prepare in the WIP branch exactly one cell transition (`pending → done`) in the current row of that Milestone Ledger, and commit this change in a dedicated final WIP commit containing only the canonical ledger file (no scratch/unrelated paths) before invoking verify. Do not alter any other row, byte, or file-content in the ledger. The terminal diff must contain this committed transition.",
+      new: "Change multiple rows in WIP",
+      error: /must specify exact one-cell pending -> done WIP transition/,
+    },
+    {
+      source: "reference",
+      old: "Independently parse the actual plan + base/WIP ledger and recheck that the active scratch/WIP slug equals the first pending base row and that the exact canonical path `docs/gsd/<feature>/milestones.toon` appears exactly once in the plan task `files` cell; fail closed before merge otherwise. The sole plan task owning that path must be `done`, never `superseded`. Require a dedicated final WIP commit containing only the canonical ledger file (no scratch/unrelated paths) before invoking verify. Require a canonical parse on both ledgers.",
+      new: "Do not parse or verify plan and ledger.",
+      error: /must specify independent plan\/ledger verification/,
+    },
+    {
+      source: "reference",
+      old: "Exactly the current milestone row status must change from `pending` to `done`. All other rows must be byte-for-byte and value-for-value identical. Any other status transition, multiple transitions, missing transition, or invalid format is a blocker.",
+      new: "Verification allows arbitrary status transitions",
+      error: /must require exactly current milestone row pending->done verification/,
+    },
+    {
+      source: "reference",
+      old: "The merge is gated behind zero Critical/Important reviewer findings, all build/tests/acceptance/E2E evidence green, conflicts exactly false, and a valid ledger transition. The code and ledger must merge atomically in the same squash commit. A prepared WIP `done` status is not durable completion until merged.",
+      new: "Merge even if tests are red",
+      error: /must specify atomic merge gates and durability/,
+    },
+    {
+      source: "reference",
+      old: "On a passing merge, read the merged base ledger: report the next first-pending milestone's slug and goal, or report root feature complete if no pending milestones remain. Never auto-select, start, or spec the next milestone.",
+      new: "Auto-select and start the next milestone immediately",
+      error: /must specify next milestone or completion reporting without auto-start\/selection/,
+    },
+    {
+      source: "reference",
+      old: "On any failure or blocker (including red build/test/acceptance, E2E failure, reviewer findings, or invalid transition), the pipeline stops, returns the existing blocker report, makes no merge, and leaves the authoritative base ledger byte-for-byte unchanged. No next milestone is selected, started, or reported.",
+      new: "Preserve nothing on fail",
+      error: /must specify fail-closed base preservation/,
+    },
+    {
+      source: "master",
+      old: "route to `gsd-executing-plans`. Select `Milestone plan execution` only from explicit milestone intent/entry context, then require active plan/scratch/WIP slug, canonical root path, first-pending base row, and exact-once plan ownership to agree; otherwise Normal mode or fail closed when milestone mode was explicitly claimed. (An unrelated prompt falls through to Route 4/5/6 — an existing plan is not a claim on every prompt.)",
+      new: "route to `gsd-executing-plans` directly",
+      error: /master must reference the milestone ledger lifecycle contract in Route 3/,
+    },
+    {
+      source: "executingPlans",
+      old: "| Milestone plan execution | `plan.toon`; `spec.md`; `docs/gsd/<feature>/milestones.toon` | — | `plan.toon` (progress status updates); `docs/gsd/<feature>/milestones.toon` (prepared status transition) |",
+      new: "| Milestone plan execution | none | none | none |",
+      error: /gsd-executing-plans must declare Milestone plan execution invocation mode/,
+    },
+    {
+      source: "executingPlans",
+      old: "Before preparing the milestone ledger transition, verify that the authoritative base row status is `pending` and all plan tasks, code reviews, and focused checks are green. Milestone mode applies only when the current plan owns that exact canonical path and the current plan/scratch/WIP feature slug equals the first-pending milestone slug.",
+      new: "Prepare without checking plan tasks",
+      error: /gsd-executing-plans must verify pending base status and green plan tasks before preparation/,
+    },
+    {
+      source: "executingPlans",
+      old: "Update exactly the current milestone's row status from `pending` to `done` in the WIP branch copy of `docs/gsd/<feature>/milestones.toon`. All other rows and bytes must remain unchanged",
+      new: "Modify any milestone status in WIP",
+      error: /gsd-executing-plans must update exactly the current milestone to done in WIP/,
+    },
+    {
+      source: "executingPlans",
+      old: "Commit this change to the WIP branch as a dedicated final WIP commit containing only the canonical ledger file (no scratch or unrelated paths).",
+      new: "Do not commit the prepared ledger.",
+      error: /must specify dedicated final WIP commit/,
+    },
+    {
+      source: "executingPlans",
+      old: "does not merge or select/start the next milestone. It only prepares and commits this transition and immediately invokes `gsd-verify` per § Milestone Ledger lifecycle contract",
+      new: "auto-merges right here",
+      error: /gsd-executing-plans must only prepare transition and invoke verify/,
+    },
+    {
+      source: "verify",
+      old: "| Milestone WIP gate | `spec.md`; `plan.toon`; `docs/gsd/<feature>/milestones.toon` | — | `docs/gsd/<feature>/milestones.toon` |",
+      new: "| Milestone WIP gate | none | none | none |",
+      error: /gsd-verify must declare Milestone WIP gate invocation mode/,
+    },
+    {
+      source: "verify",
+      old: "produces: [docs/gsd/<feature>/milestones.toon]",
+      new: "produces: []",
+      error: /must declare docs\/gsd\/<feature>\/milestones\.toon in produces catalog/,
+    },
+    {
+      source: "verify",
+      old: "Exactly the current milestone row status must change from `pending` to `done`. All other rows must be byte-for-byte and value-for-value identical. Any other status transition, multiple transitions, missing transition, or invalid format is a blocker.",
+      new: "Verify allows arbitrary changes",
+      error: /gsd-verify must verify exactly current milestone row pending->done/,
+    },
+    {
+      source: "verify",
+      old: "On a passing milestone mode merge, read the merged base ledger: report the next first-pending milestone's slug and goal, or report root feature complete if no pending milestones remain. Never auto-select, start, or spec the next milestone.",
+      new: "Do not merge atomically",
+      error: /gsd-verify must merge atomically and report next milestone or complete without auto-start\/selection/,
+    },
+    {
+      source: "verify",
+      old: "If any verification fails (including invalid transition), do not merge, leave the authoritative base ledger byte-for-byte unchanged, and stop with the Blocker stop.",
+      new: "Merge regardless of verification failures",
+      error: /gsd-verify must leave base ledger unchanged on fail/,
+    },
+    {
+      source: "master",
+      old: "Normal mode has no milestone-completion authority. It may delegate an authorized convergence-time ledger creation/update only under [REFERENCE.md](REFERENCE.md) § Convergence Ledger publication contract",
+      new: "Normal mode may merge any ledger mutation.",
+      error: /master must restrict Normal-mode publication to the authorized convergence contract/,
+    },
+    {
+      source: "executingPlans",
+      old: "Normal plan execution has no milestone-completion authority. The sole exception is an authorized convergence-time creation/update under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Convergence Ledger publication contract",
+      new: "Normal plan execution may change any ledger.",
+      error: /gsd-executing-plans must restrict Normal-mode publication to the authorized convergence contract/,
+    },
+    {
+      source: "verify",
+      old: "Planned WIP may integrate only an authorized convergence-time creation/update under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Convergence Ledger publication contract",
+      new: "Every verify mode may land a ledger.",
+      error: /gsd-verify must restrict Planned WIP publication to the authorized convergence contract/,
+    },
+    {
+      source: "reference",
+      old: "### Convergence Ledger publication contract",
+      new: "### Unrestricted Ledger publication",
+      error: /REFERENCE\.md must define raw ownership, pending-only bytes, commit evidence, ordinary gates, and no selection/,
+    },
+    {
+      source: "executingPlans",
+      old: "the sole owner reserves only the canonical ledger's terminal status transition for the dedicated final WIP commit after every task gate is green",
+      new: "every tracked document is always committed with its task",
+      error: /must exempt only the terminal ledger transition/,
+    },
+    {
+      source: "executingPlans",
+      old: "If a superseded row owned the canonical Milestone Ledger path, re-planning must remove that path from the superseded row and assign it to exactly one fresh `pending` replacement row before approval",
+      new: "Superseded rows retain ledger ownership.",
+      error: /must redistribute ledger ownership during Spec escalation/,
+    },
+    {
+      source: "reference",
+      old: "The final ledger-only WIP commit must have the authoritative base ledger bytes as its parent version and the exact prepared WIP ledger bytes as its result. The reviewer input and squash input must each include the canonical path with those exact WIP bytes; omission or mismatch is a blocker.",
+      new: "Any commit snapshot is sufficient.",
+      error: /REFERENCE\.md must bind final-commit, review, and squash ledger evidence/,
+    },
+    {
+      source: "verify",
+      old: "The final ledger-only WIP commit must have the authoritative base ledger bytes as its parent version and the exact prepared WIP ledger bytes as its result. The reviewer input and squash input must each include the canonical path with those exact WIP bytes; omission or mismatch is a blocker.",
+      new: "Reviewer and squash evidence are optional.",
+      error: /gsd-verify must bind final-commit, review, and squash ledger evidence/,
+    },
+    {
+      source: "reference",
+      old: "Parse the actual `plan.toon` from raw bytes without normalization: require LF-only line endings, no outer or blank-line whitespace, the documented two-space row indentation and canonical TOON field encoding, and IDs exactly `T1` through `TN` in row order. Malformed/noncanonical evidence is a blocker, not input to normalize.",
+      new: "Normalize plan rows before checking ownership.",
+      error: /REFERENCE\.md must require canonical raw plan evidence/,
+    },
+    {
+      source: "executingPlans",
+      old: "Parse the actual `plan.toon` from raw bytes without normalization: require LF-only line endings, no outer or blank-line whitespace, the documented two-space row indentation and canonical TOON field encoding, and IDs exactly `T1` through `TN` in row order. Malformed/noncanonical evidence is a blocker, not input to normalize.",
+      new: "Normalize plan rows before checking ownership.",
+      error: /gsd-executing-plans must require canonical raw plan evidence/,
+    },
+    {
+      source: "verify",
+      old: "Parse the actual `plan.toon` from raw bytes without normalization: require LF-only line endings, no outer or blank-line whitespace, the documented two-space row indentation and canonical TOON field encoding, and IDs exactly `T1` through `TN` in row order. Malformed/noncanonical evidence is a blocker, not input to normalize.",
+      new: "Normalize plan rows before checking ownership.",
+      error: /gsd-verify must require canonical raw plan evidence/,
+    },
+    {
+      source: "verify",
+      old: "Bind `reviewedDiff[<path>]` to that exact WIP-tip byte snapshot. A textual patch is not a substitute for the raw path-to-bytes snapshot because a patch omits unchanged ledger bytes.",
+      new: "Give the reviewer only a normalized patch.",
+      error: /gsd-verify must supply exact raw ledger bytes to the reviewer/,
+    },
+    {
+      source: "verify",
+      old: "capture the canonical ledger's staged-index bytes without normalization as `squashInput[<path>]` and require them to equal `reviewedDiff[<path>]` byte-for-byte",
+      new: "commit without inspecting the staged ledger",
+      error: /gsd-verify must validate exact staged squash bytes before commit/,
+    },
+    {
+      source: "verify",
+      old: "Capture the current `<base>` commit OID as raw `reviewedBaseOid` before review. Immediately before the shared squash sequence, recapture raw `mergeBaseOid` and require both non-empty OIDs to be identical.",
+      new: "Trust conflict detection without checking the base revision.",
+      error: /gsd-verify must bind review and merge to one raw base revision/,
+    },
+    {
+      source: "master",
+      old: "Before any Route 3 task dispatch that can write a Milestone Ledger, parse the canonical raw plan, derive the one canonical root ledger path, require every `docs/gsd/*/milestones.toon` token in every `files` cell to equal that path, and require that path to occur exactly once.",
+      new: "Dispatch before validating ledger-looking plan tokens.",
+      error: /master must reject invented ledger plan tokens before Route 3 dispatch/,
+    },
+    {
+      source: "executingPlans",
+      old: "Before dispatching any task that can write a Milestone Ledger in either invocation mode, parse the canonical raw `plan.toon`, derive the one canonical root ledger path, require every `docs/gsd/*/milestones.toon` token in every `files` cell to equal that path, and require that path to occur exactly once.",
+      new: "Dispatch before validating ledger-looking plan tokens.",
+      error: /gsd-executing-plans must reject invented ledger plan tokens before dispatch/,
+    },
+    {
+      source: "reference",
+      old: "The canonical path must occur in exactly one WIP task commit—the sole owner's direct publication commit.",
+      new: "Any publication commit may contain any ledger path.",
+      error: /REFERENCE\.md must bind publication to one canonical ledger commit/,
+    },
+    {
+      source: "reference",
+      old: "The canonical path must occur in exactly one WIP commit: the dedicated final ledger-only commit; its presence in any earlier WIP commit blocks the merge.",
+      new: "Earlier WIP commits may also change the canonical ledger.",
+      error: /REFERENCE\.md must forbid the canonical terminal ledger path in earlier commits/,
+    },
+    {
+      source: "executingPlans",
+      old: "The canonical path must occur in exactly one WIP commit—the dedicated final ledger-only commit—and never in an earlier task commit.",
+      new: "Any task commit may change the canonical ledger.",
+      error: /gsd-executing-plans must reserve the canonical ledger path for the final commit/,
+    },
+    {
+      source: "verify",
+      old: "Before reviewer dispatch in either ledger-writing flow, scan the canonical raw plan `files` cells, every WIP commit's complete changed-path list, and every `reviewedDiff` key.",
+      new: "Do not scan raw ledger evidence paths before review.",
+      error: /gsd-verify must scan raw plan, commit, and review path sets before review/,
+    },
+    {
+      source: "verify",
+      old: "Milestone WIP requires it in exactly the dedicated final ledger-only commit and in no earlier WIP commit. Apply the same path-set scan to staged `squashInput` before commit.",
+      new: "Earlier commits and staged inputs may contain any ledger path.",
+      error: /gsd-verify must reject earlier canonical commits and invented staged ledger paths/,
+    },
+    {
+      source: "reference",
+      old: "This `spec.md` marker is the sole durable publication-entry proof carried through plan approval, handoff/resume, execution, and verify.",
+      new: "Publication intent is transient conversational state.",
+      error: /REFERENCE\.md must define the spec marker as the sole durable publication-entry proof/,
+    },
+    {
+      source: "reference",
+      old: "Only marker-like bullet lines under the exact `Design & Invariants` heading and outside code fences are candidates; exactly one candidate must match the template byte-for-byte. Ordinary prose mentions do not count.",
+      new: "Any prose mention is a publication marker.",
+      error: /REFERENCE\.md must define exact marker candidate placement without counting prose/,
+    },
+    {
+      source: "master",
+      old: "Whenever the preceding rule intentionally creates or appends a ledger, write exactly one raw `Convergence Ledger publication` marker from [REFERENCE.md](REFERENCE.md) under the root `spec.md`'s `Design & Invariants`, using the active root feature's exact path; omit it when no ledger write is intentional.",
+      new: "Remember publication intent in conversation.",
+      error: /master must write or omit the durable root publication marker at convergence/,
+    },
+    {
+      source: "master",
+      old: "The publication exception requires the raw approved root `spec.md` to contain exactly one `Convergence Ledger publication` marker defined by [REFERENCE.md](REFERENCE.md), whose path equals the active root feature and sole plan owner, plus later selection of the Planned WIP gate.",
+      new: "Any Planned WIP may publish a ledger.",
+      error: /master must require the durable marker and Planned WIP without inference/,
+    },
+    {
+      source: "toPlan",
+      old: "Before writing ownership rows, select exactly one ledger-intent source.",
+      new: "Infer ledger intent from any available state.",
+      error: /gsd-to-plan must select exactly one publication or milestone intent source/,
+    },
+    {
+      source: "toPlan",
+      old: "When the spec carries the marker, one line: `Convergence Ledger publication: <path> (owner T<n>)`. The single approval explicitly approves that publication entry together with the plan; omission or a path/owner mismatch blocks the approval question.",
+      new: "Do not show ledger publication in the approval summary.",
+      error: /gsd-to-plan must expose durable marker provenance at approval/,
+    },
+    {
+      source: "handoff",
+      old: "If `spec.md` contains a `Convergence Ledger publication` marker, preserve that spec byte-for-byte in local or portable scratch and re-read its raw marker before `next_action`, plan dispatch, and verify.",
+      new: "Discard the spec marker during handoff.",
+      error: /gsd-handoff must preserve and re-read the durable marker/,
+    },
+    {
+      source: "executingPlans",
+      old: "Normal publication dispatch additionally requires the raw approved root `spec.md` to contain exactly one canonical `Convergence Ledger publication` marker whose path equals the active root feature, canonical ledger path, and exact sole plan owner. Re-read that marker after every handoff/resume.",
+      new: "Normal execution may infer publication intent.",
+      error: /gsd-executing-plans must require and re-read the durable marker before dispatch/,
+    },
+    {
+      source: "verify",
+      old: "Authorized convergence publication additionally requires both `Planned WIP gate` selection and exactly one canonical `Convergence Ledger publication` marker parsed independently from the raw approved root `spec.md`; its path must equal the active root feature, canonical ledger path, and sole plan owner.",
+      new: "Quick-fix may infer publication authority.",
+      error: /gsd-verify must independently require the durable marker and Planned WIP/,
+    },
+    {
+      source: "reference",
+      old: "Scan raw, untrimmed path tokens. If a token contains a ledger-shaped path but is not byte-for-byte the canonical path—including whitespace-padded, prefixed, or suffixed variants—reject it; never trim or normalize it into acceptance.",
+      new: "Trim ledger path tokens before comparison.",
+      error: /REFERENCE\.md must reject padded ledger-looking tokens in publication and terminal lifecycle/,
+    },
+    {
+      source: "verify",
+      old: "Scan raw, untrimmed tokens at every path-set stage. A token containing a ledger-shaped path but not byte-for-byte equal to the canonical path",
+      new: "Trim every path before comparing it",
+      error: /gsd-verify must reject padded ledger-looking evidence paths/,
+    },
+  ];
+
+  for (const m of mutants) {
+    const mutated = { master, reference, toPlan, executingPlans, verify, handoff };
+    const originalText = mutated[m.source];
+    const mutatedText = originalText.replace(m.old, m.new);
+    assert.notEqual(mutatedText, originalText, `Mutation for ${m.error} did not change source`);
+    mutated[m.source] = mutatedText;
+    assert.throws(
+      () => validateMilestoneLedgerLifecycleContract(mutated),
+      m.error,
+      `Mutation test should have thrown: ${m.error}`
+    );
+  }
+});
+
+test("T4 Milestone Ledger lifecycle evaluator behavior fixtures", () => {
+  const baseLedger3Rows = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,pending
+M2,shop-redesign-m2,Goal 2,pending
+M3,shop-redesign-m3,Goal 3,pending`;
+
+  const baseLedgerFinalPending = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,done
+M2,shop-redesign-m2,Goal 2,done
+M3,shop-redesign-m3,Goal 3,pending`;
+
+  const validWipM1Done = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,done
+M2,shop-redesign-m2,Goal 2,pending
+M3,shop-redesign-m3,Goal 3,pending`;
+
+  const validWipM3Done = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,done
+M2,shop-redesign-m2,Goal 2,done
+M3,shop-redesign-m3,Goal 3,done`;
+  const canonicalLedgerPath = "docs/gsd/shop-redesign/milestones.toon";
+  const inventedLedgerPath = "docs/gsd/other-feature/milestones.toon";
+
+  const defaultContext = {
+    planTasksGreen: true,
+    taskReviewsGreen: true,
+    focusedChecksGreen: true,
+    criticalFindings: 0,
+    importantFindings: 0,
+    buildGreen: true,
+    testsGreen: true,
+    acceptanceGreen: true,
+    e2eGreen: true,
+    hasConflicts: false,
+    reviewedBaseOid: "base-oid-reviewed",
+    mergeBaseOid: "base-oid-reviewed",
+    feature: "shop-redesign-m1",
+    baseBranch: "main",
+    ledgerPath: "docs/gsd/shop-redesign/milestones.toon",
+    milestoneIntent: true,
+    explicitMilestoneMode: true,
+    invocationMode: "Milestone WIP gate",
+    planToon: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Prepare transition,AC-1,docs/gsd/shop-redesign/milestones.toon,test,done`,
+  };
+  const assertFailure = (res, expectedBase, errorRegex) => {
+    assert.match(res.error, errorRegex);
+    assert.equal(res.mergedLedger, expectedBase);
+    assert.equal(res.reportedNext, null);
+    assert.equal(res.merged, false);
+  };
+
+  const runEval = (baseLedger, wipLedger, contextOverrides = {}) => {
+    const context = { ...defaultContext, ...contextOverrides };
+    const expectedPath = context.ledgerPath || "docs/gsd/shop-redesign/milestones.toon";
+
+    if (!contextOverrides.hasOwnProperty("wipCommits")) {
+      context.wipCommits = [
+        {
+          files: [expectedPath],
+          before: baseLedger,
+          after: wipLedger,
+        }
+      ];
+    }
+    if (!contextOverrides.hasOwnProperty("reviewedDiff")) {
+      context.reviewedDiff = {};
+      context.reviewedDiff[expectedPath] = wipLedger;
+    }
+    if (!contextOverrides.hasOwnProperty("squashInput")) {
+      context.squashInput = {};
+      context.squashInput[expectedPath] = wipLedger;
+    }
+    return evaluateMilestoneLedgerLifecycle(baseLedger, wipLedger, context);
+  };
+
+  const appendedPendingLedger = baseLedger3Rows
+    .replace("milestones[3]{id,slug,goal,status}:", "milestones[4]{id,slug,goal,status}:")
+    .concat("\nM4,shop-redesign-m4,Goal 4,pending");
+  const publicationPlan = `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Publish milestone ledger,AC-1,docs/gsd/shop-redesign/milestones.toon|src/publication.js,test,done`;
+  const runPublication = (authoritativeLedger, publishedLedger, overrides = {}) => {
+    const publicationPath = "docs/gsd/shop-redesign/milestones.toon";
+    return runEval(authoritativeLedger, publishedLedger, {
+      feature: "shop-redesign",
+      ledgerPath: publicationPath,
+      milestoneIntent: false,
+      explicitMilestoneMode: false,
+      invocationMode: "Planned WIP gate",
+      specMarkdown: "# shop-redesign\n## Design & Invariants\n- **Convergence Ledger publication**: `" + publicationPath + "`",
+      planToon: publicationPlan,
+      wipCommits: [{
+        taskId: "T1",
+        files: [publicationPath, "src/publication.js"],
+        before: authoritativeLedger,
+        after: publishedLedger,
+      }],
+      reviewedDiff: { [publicationPath]: publishedLedger },
+      squashInput: { [publicationPath]: publishedLedger },
+      ...overrides,
+    });
+  };
+
+  // 1. Passing M1 of 3
+  const resPassingM1 = runEval(baseLedger3Rows, validWipM1Done);
+  assert.equal(resPassingM1.error, null);
+  assert.equal(resPassingM1.mergedLedger, validWipM1Done);
+  assert.deepEqual(resPassingM1.reportedNext, { slug: "shop-redesign-m2", goal: "Goal 2" });
+  assert.equal(resPassingM1.merged, true);
+  const resMilestoneWithoutPublicationMarker = runEval(
+    baseLedger3Rows,
+    validWipM1Done,
+    { specMarkdown: undefined },
+  );
+  assert.equal(resMilestoneWithoutPublicationMarker.error, null);
+  assert.equal(resMilestoneWithoutPublicationMarker.merged, true);
+  const resIgnoringStaleOwnership = runEval(baseLedger3Rows, validWipM1Done, {
+    ownedFiles: [],
+  });
+  assert.equal(resIgnoringStaleOwnership.error, null);
+  assert.equal(resIgnoringStaleOwnership.merged, true);
+
+  // 2. Passing final milestone
+  const resPassingFinal = runEval(baseLedgerFinalPending, validWipM3Done, {
+    feature: "shop-redesign-m3",
+  });
+  assert.equal(resPassingFinal.error, null);
+  assert.equal(resPassingFinal.mergedLedger, validWipM3Done);
+  assert.equal(resPassingFinal.reportedNext, "complete");
+  assert.equal(resPassingFinal.merged, true);
+
+  // 3. Each blocker class
+  // 3a. planTasksGreen false / missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { planTasksGreen: false }),
+    baseLedger3Rows,
+    /preparation requirements not green/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { planTasksGreen: undefined }),
+    baseLedger3Rows,
+    /preparation requirements not green/
+  );
+
+  // 3b. taskReviewsGreen false / missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { taskReviewsGreen: false }),
+    baseLedger3Rows,
+    /preparation requirements not green/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { taskReviewsGreen: undefined }),
+    baseLedger3Rows,
+    /preparation requirements not green/
+  );
+
+  // 3c. focusedChecksGreen false / missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { focusedChecksGreen: false }),
+    baseLedger3Rows,
+    /preparation requirements not green/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { focusedChecksGreen: undefined }),
+    baseLedger3Rows,
+    /preparation requirements not green/
+  );
+
+  // 3d. Reviewer blocker (criticalFindings > 0 / missing)
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { criticalFindings: 1 }),
+    baseLedger3Rows,
+    /Critical\/Important findings exist/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { criticalFindings: undefined }),
+    baseLedger3Rows,
+    /Critical\/Important findings exist/
+  );
+
+  // 3e. Reviewer blocker (importantFindings > 0 / missing)
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { importantFindings: 2 }),
+    baseLedger3Rows,
+    /Critical\/Important findings exist/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { importantFindings: undefined }),
+    baseLedger3Rows,
+    /Critical\/Important findings exist/
+  );
+
+  // 3f. Build red / missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { buildGreen: false }),
+    baseLedger3Rows,
+    /whole-branch build is red or missing evidence/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { buildGreen: undefined }),
+    baseLedger3Rows,
+    /whole-branch build is red or missing evidence/
+  );
+
+  // 3g. Test suite red / missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { testsGreen: false }),
+    baseLedger3Rows,
+    /whole-branch test suite is red or missing evidence/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { testsGreen: undefined }),
+    baseLedger3Rows,
+    /whole-branch test suite is red or missing evidence/
+  );
+
+  // 3h. Acceptance red / missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { acceptanceGreen: false }),
+    baseLedger3Rows,
+    /whole-branch acceptance is red or missing evidence/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { acceptanceGreen: undefined }),
+    baseLedger3Rows,
+    /whole-branch acceptance is red or missing evidence/
+  );
+
+  // 3i. E2E red / missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { e2eGreen: false }),
+    baseLedger3Rows,
+    /required E2E gate failed or missing evidence/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { e2eGreen: undefined }),
+    baseLedger3Rows,
+    /required E2E gate failed or missing evidence/
+  );
+
+  // 3j. Merge conflicts true / missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { hasConflicts: true }),
+    baseLedger3Rows,
+    /stale base conflict exists/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { hasConflicts: undefined }),
+    baseLedger3Rows,
+    /stale base conflict exists/
+  );
+
+  // 3k. planToon missing / malformed / non-terminal tasks / base mismatch / files occurrences count mismatch
+  // 3k-1. planToon missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { planToon: undefined }),
+    baseLedger3Rows,
+    /Failed closed: malformed or missing plan: Missing or empty planToon/
+  );
+  // 3k-2. planToon malformed
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { planToon: "invalid toon content" }),
+    baseLedger3Rows,
+    /Failed closed: malformed or missing plan: planToon has too few lines/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      planToon: defaultContext.planToon.replaceAll("\n", "\r\n"),
+    }),
+    baseLedger3Rows,
+    /planToon must use LF line endings without CR bytes/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      planToon: `\n${defaultContext.planToon}`,
+    }),
+    baseLedger3Rows,
+    /planToon must not contain outer whitespace or blank boundary lines/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      planToon: defaultContext.planToon.replace(
+        "plan[1]{id,task,satisfies,files,test,status}:\n",
+        "plan[1]{id,task,satisfies,files,test,status}:\n\n",
+      ),
+    }),
+    baseLedger3Rows,
+    /planToon must not contain blank lines/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      planToon: defaultContext.planToon.replace("  T1,", '  "T1",'),
+    }),
+    baseLedger3Rows,
+    /planToon row 1 must use canonical TOON field encoding/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      planToon: defaultContext.planToon.replace("\n  T1,", "\nT1,"),
+    }),
+    baseLedger3Rows,
+    /planToon row 1 must use the canonical two-space indentation/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      planToon: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Prepare transition,AC-1," docs/gsd/shop-redesign/milestones.toon ",test,done`,
+    }),
+    baseLedger3Rows,
+    /planToon contains an invented ledger path/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      planToon: defaultContext.planToon.replace(
+        canonicalLedgerPath,
+        `${canonicalLedgerPath}| ${inventedLedgerPath}`,
+      ),
+    }),
+    baseLedger3Rows,
+    /planToon contains an invented ledger path/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { planToon: `schema:v1
+base:main
+plan[2]{id,task,satisfies,files,test,status}:
+  T1,Prepare transition,AC-1,docs/gsd/shop-redesign/milestones.toon,test,done
+  T1,Duplicate ID,AC-2,src/duplicate.js,test2,done` }),
+    baseLedger3Rows,
+    /planToon row 2 ID must be exactly T2/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { planToon: `schema:v1
+base:main
+plan[2]{id,task,satisfies,files,test,status}:
+  T2,Reordered owner,AC-1,docs/gsd/shop-redesign/milestones.toon,test,done
+  T1,Reordered task,AC-2,src/reordered.js,test2,done` }),
+    baseLedger3Rows,
+    /planToon row 1 ID must be exactly T1/,
+  );
+  // 3k-3. planToon base mismatch
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { planToon: `schema:v1
+base:develop
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Prepare transition,AC-1,docs/gsd/shop-redesign/milestones.toon,test,done` }),
+    baseLedger3Rows,
+    /planToon base mismatch: expected main, got develop/
+  );
+  // 3k-4. planToon files mismatch (zero occurrences of root ledger)
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      ownedFiles: ["docs/gsd/shop-redesign/milestones.toon"],
+      planToon: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Prepare transition,AC-1,docs/gsd/other/file.txt,test,done`,
+    }),
+    baseLedger3Rows,
+    /planToon must contain exactly one occurrence of canonical root ledger/
+  );
+  // 3k-5. planToon files mismatch (multiple occurrences of root ledger)
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      ownedFiles: ["docs/gsd/shop-redesign/milestones.toon"],
+      planToon: `schema:v1
+base:main
+plan[2]{id,task,satisfies,files,test,status}:
+  T1,Prepare transition,AC-1,docs/gsd/shop-redesign/milestones.toon,test,done
+  T2,Another task,AC-2,docs/gsd/shop-redesign/milestones.toon,test2,done`,
+    }),
+    baseLedger3Rows,
+    /planToon must contain exactly one occurrence of canonical root ledger/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      planToon: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Prepare transition,AC-1,docs/gsd/shop-redesign/milestones.toon|docs/gsd/other-feature/milestones.toon,test,done`,
+    }),
+    baseLedger3Rows,
+    /planToon contains an invented ledger path: docs\/gsd\/other-feature\/milestones\.toon/,
+  );
+  // 3k-6. planToon non-terminal tasks
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { planToon: `schema:v1
+base:main
+plan[2]{id,task,satisfies,files,test,status}:
+  T1,Prepare transition,AC-1,docs/gsd/shop-redesign/milestones.toon,test,done
+  T2,Unfinished task,AC-2,src/unfinished.js,test2,pending` }),
+    baseLedger3Rows,
+    /Plan contains non-terminal tasks/
+  );
+
+  // 3k-7. The sole terminal owner must be done, never superseded.
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { planToon: `schema:v1
+base:main
+plan[2]{id,task,satisfies,files,test,status}:
+  T1,Superseded transition owner,AC-1,docs/gsd/shop-redesign/milestones.toon,test,superseded
+  T2,Replacement task,AC-1,src/replacement.js,test2,done` }),
+    baseLedger3Rows,
+    /sole ledger-owning task must be done/
+  );
+
+  // 3l. ledgerPath mismatch / missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { ledgerPath: "docs/gsd/other/milestones.toon" }),
+    baseLedger3Rows,
+    /Wrong ledger path/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { ledgerPath: undefined }),
+    baseLedger3Rows,
+    /Wrong ledger path/
+  );
+
+  // 3m. feature slug mismatch / invalid / missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { feature: "shop-redesign-m2" }),
+    baseLedger3Rows,
+    /Plan\/WIP feature slug mismatch/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { feature: "shop-redesign" }),
+    baseLedger3Rows,
+    /Plan\/WIP feature slug is not a valid milestone slug/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { feature: undefined }),
+    baseLedger3Rows,
+    /Plan\/WIP feature slug is not a valid milestone slug/
+  );
+
+  // 4. Missing/wrong/multiple transitions
+  // 4a. Missing transition (no change)
+  assertFailure(
+    runEval(baseLedger3Rows, baseLedger3Rows, defaultContext),
+    baseLedger3Rows,
+    /Milestone schema, goal, slug, or order drifted/
+  );
+
+  // 4b. Wrong transition (skipped M1, marked M2 done)
+  const wipM2Done = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,pending
+M2,shop-redesign-m2,Goal 2,done
+M3,shop-redesign-m3,Goal 3,pending`;
+  assertFailure(
+    runEval(baseLedger3Rows, wipM2Done, defaultContext),
+    baseLedger3Rows,
+    /Milestone schema, goal, slug, or order drifted/
+  );
+
+  // 4b-2. Plan/WIP slug mismatch (context feature is M2 but first pending in base ledger is M1)
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { feature: "shop-redesign-m2" }),
+    baseLedger3Rows,
+    /Plan\/WIP feature slug mismatch/
+  );
+
+  // 4c. Multiple transitions (M1 and M2 marked done)
+  const wipMultipleDone = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,done
+M2,shop-redesign-m2,Goal 2,done
+M3,shop-redesign-m3,Goal 3,pending`;
+  assertFailure(
+    runEval(baseLedger3Rows, wipMultipleDone, defaultContext),
+    baseLedger3Rows,
+    /Milestone schema, goal, slug, or order drifted/
+  );
+
+  // 5. Other-row status change (e.g. changing M3 to random status)
+  const wipOtherStatus = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,done
+M2,shop-redesign-m2,Goal 2,pending
+M3,shop-redesign-m3,Goal 3,random`;
+  assertFailure(
+    runEval(baseLedger3Rows, wipOtherStatus, defaultContext),
+    baseLedger3Rows,
+    /Malformed WIP ledger:.*status must be exactly/
+  );
+
+  // 5b. Done row changed back to pending
+  const baseM1Done = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,done
+M2,shop-redesign-m2,Goal 2,pending
+M3,shop-redesign-m3,Goal 3,pending`;
+  const wipM1Reverted = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,pending
+M2,shop-redesign-m2,Goal 2,done
+M3,shop-redesign-m3,Goal 3,pending`;
+  assertFailure(
+    runEval(baseM1Done, wipM1Reverted, { feature: "shop-redesign-m2" }),
+    baseM1Done,
+    /Milestone schema, goal, slug, or order drifted/
+  );
+
+  // 6. goal/order/schema/base drift
+  // 6a. Goal drift
+  const wipGoalDrift = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1 changed,done
+M2,shop-redesign-m2,Goal 2,pending
+M3,shop-redesign-m3,Goal 3,pending`;
+  assertFailure(
+    runEval(baseLedger3Rows, wipGoalDrift, defaultContext),
+    baseLedger3Rows,
+    /Milestone schema, goal, slug, or order drifted/
+  );
+
+  // 6b. Order drift
+  const wipOrderDrift = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M2,shop-redesign-m2,Goal 2,pending
+M1,shop-redesign-m1,Goal 1,done
+M3,shop-redesign-m3,Goal 3,pending`;
+  assertFailure(
+    runEval(baseLedger3Rows, wipOrderDrift, defaultContext),
+    baseLedger3Rows,
+    /Malformed WIP ledger:.*ID|Milestone schema, goal, slug, or order drifted/
+  );
+
+  // 6c. Schema drift
+  const wipSchemaDrift = `schema:v2
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,done
+M2,shop-redesign-m2,Goal 2,pending
+M3,shop-redesign-m3,Goal 3,pending`;
+  assertFailure(
+    runEval(baseLedger3Rows, wipSchemaDrift, defaultContext),
+    baseLedger3Rows,
+    /Malformed WIP ledger:.*specify schema:v1/
+  );
+
+  // 6d. Base drift
+  const wipBaseDrift = `schema:v1
+feature:shop-redesign
+base:develop
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,done
+M2,shop-redesign-m2,Goal 2,pending
+M3,shop-redesign-m3,Goal 3,pending`;
+  assertFailure(
+    runEval(baseLedger3Rows, wipBaseDrift, defaultContext),
+    baseLedger3Rows,
+    /Malformed WIP ledger:.*(base mismatch|base field must match)/
+  );
+
+  // 6e. Goal escaping / delimiter-bearing goal round-trip
+  const baseDelimiter = `schema:v1
+feature:shop-redesign
+base:main
+milestones[2]{id,slug,goal,status}:
+M1,shop-redesign-m1,"Goal with a comma, and quotes \\"escaped\\"",pending
+M2,shop-redesign-m2,Goal B,pending`;
+
+  const wipDelimiterDone = `schema:v1
+feature:shop-redesign
+base:main
+milestones[2]{id,slug,goal,status}:
+M1,shop-redesign-m1,"Goal with a comma, and quotes \\"escaped\\"",done
+M2,shop-redesign-m2,Goal B,pending`;
+
+  const resDelimiter = runEval(baseDelimiter, wipDelimiterDone);
+  assert.equal(resDelimiter.error, null);
+  assert.equal(resDelimiter.mergedLedger, wipDelimiterDone);
+  assert.deepEqual(resDelimiter.reportedNext, { slug: "shop-redesign-m2", goal: "Goal B" });
+  assert.equal(resDelimiter.merged, true);
+
+  // 9. Byte drift / invariant checks
+  // 9a. Whitespace drift
+  const wipWithWhitespace = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,done 
+M2,shop-redesign-m2,Goal 2,pending
+M3,shop-redesign-m3,Goal 3,pending`;
+  assertFailure(
+    runEval(baseLedger3Rows, wipWithWhitespace, defaultContext),
+    baseLedger3Rows,
+    /Malformed WIP ledger:|Milestone schema, goal, slug, or order drifted/
+  );
+
+  // 9b. Blank-line drift
+  const wipWithBlankLine = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,done
+
+M2,shop-redesign-m2,Goal 2,pending
+M3,shop-redesign-m3,Goal 3,pending`;
+  assertFailure(
+    runEval(baseLedger3Rows, wipWithBlankLine, defaultContext),
+    baseLedger3Rows,
+    /Malformed WIP ledger:|Milestone schema, goal, slug, or order drifted/
+  );
+
+  // 9c. Trailing-newline drift
+  const wipWithTrailingNewline = validWipM1Done + "\n\n";
+  assertFailure(
+    runEval(baseLedger3Rows, wipWithTrailingNewline, defaultContext),
+    baseLedger3Rows,
+    /Malformed WIP ledger:|Milestone schema, goal, slug, or order drifted/
+  );
+
+  // 9d. TOON re-encoding drift
+  const wipWithToonReencoding = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,"Goal 1",done
+M2,shop-redesign-m2,Goal 2,pending
+M3,shop-redesign-m3,Goal 3,pending`;
+  assertFailure(
+    runEval(baseLedger3Rows, wipWithToonReencoding, defaultContext),
+    baseLedger3Rows,
+    /Malformed WIP ledger:|Milestone schema, goal, slug, or order drifted/
+  );
+
+  // 10. Malformed-base fixtures (base ledger itself is malformed/rejected by parseMilestoneLedger)
+  const malformedBaseLedger = `schema:v1
+feature:shop-redesign
+base:main
+milestones[3]{id,slug,goal,status}:
+M1,shop-redesign-m1,Goal 1,pending
+M2,shop-redesign-m2,Goal 2,pending
+M3,shop-redesign-m3,Goal 3,pending
+extra row here`;
+  assertFailure(
+    runEval(malformedBaseLedger, validWipM1Done, defaultContext),
+    malformedBaseLedger,
+    /Malformed base ledger:/
+  );
+
+  const malformedRawBasePairs = [
+    {
+      name: "leading blank byte",
+      base: `\n${baseLedger3Rows}`,
+      wip: `\n${validWipM1Done}`,
+    },
+    {
+      name: "trailing newline",
+      base: `${baseLedger3Rows}\n`,
+      wip: `${validWipM1Done}\n`,
+    },
+    {
+      name: "blank line between rows",
+      base: baseLedger3Rows.replace(
+        "M1,shop-redesign-m1,Goal 1,pending\nM2",
+        "M1,shop-redesign-m1,Goal 1,pending\n\nM2",
+      ),
+      wip: validWipM1Done.replace(
+        "M1,shop-redesign-m1,Goal 1,done\nM2",
+        "M1,shop-redesign-m1,Goal 1,done\n\nM2",
+      ),
+    },
+    {
+      name: "per-line outer whitespace",
+      base: baseLedger3Rows.replace("feature:shop-redesign", " feature:shop-redesign "),
+      wip: validWipM1Done.replace("feature:shop-redesign", " feature:shop-redesign "),
+    },
+    {
+      name: "CRLF encoding",
+      base: baseLedger3Rows.replaceAll("\n", "\r\n"),
+      wip: validWipM1Done.replaceAll("\n", "\r\n"),
+    },
+    {
+      name: "noncanonical TOON re-encoding",
+      base: baseLedger3Rows.replace("Goal 1,pending", "\"Goal 1\",pending"),
+      wip: validWipM1Done.replace("Goal 1,done", "\"Goal 1\",done"),
+    },
+  ];
+  for (const fixture of malformedRawBasePairs) {
+    assertFailure(
+      runEval(fixture.base, fixture.wip),
+      fixture.base,
+      /Malformed base ledger:/,
+    );
+  }
+
+  // 11. Commit-boundary context validation
+  // 11a. wipCommits is missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { wipCommits: undefined }),
+    baseLedger3Rows,
+    /prepared ledger transition is not committed in a dedicated final WIP commit containing only the canonical ledger file \(no commits found\)/
+  );
+  // 11b. wipCommits is empty array
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { wipCommits: [] }),
+    baseLedger3Rows,
+    /prepared ledger transition is not committed in a dedicated final WIP commit containing only the canonical ledger file \(no commits found\)/
+  );
+  // 11c. Last commit has multiple files
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      wipCommits: [{
+        files: ["docs/gsd/shop-redesign/milestones.toon", "other.txt"],
+        before: baseLedger3Rows,
+        after: validWipM1Done,
+      }]
+    }),
+    baseLedger3Rows,
+    /the last WIP commit does not change exactly the canonical ledger path/
+  );
+  // 11d. Last commit has wrong file
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      wipCommits: [{
+        files: ["other.txt"],
+        before: baseLedger3Rows,
+        after: validWipM1Done,
+      }]
+    }),
+    baseLedger3Rows,
+    /the last WIP commit does not change exactly the canonical ledger path/
+  );
+  // 11e. A ledger-only commit followed by another commit is not final.
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      wipCommits: [
+        {
+          files: ["docs/gsd/shop-redesign/milestones.toon"],
+          before: baseLedger3Rows,
+          after: validWipM1Done,
+        },
+        {
+          files: ["src/late-change.js"],
+          before: validWipM1Done,
+          after: validWipM1Done,
+        },
+      ],
+    }),
+    baseLedger3Rows,
+    /the last WIP commit does not change exactly the canonical ledger path/,
+  );
+  // 11e. Last commit content mismatch
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      wipCommits: [{
+        files: ["docs/gsd/shop-redesign/milestones.toon"],
+        before: baseLedger3Rows,
+        after: "wrong content",
+      }]
+    }),
+    baseLedger3Rows,
+    /last WIP commit must change the authoritative base ledger bytes directly to the exact WIP ledger bytes/
+  );
+  const intermediateLedger = baseLedger3Rows.replace("Goal 1,pending", "Goal 1 changed,pending");
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      wipCommits: [{
+        files: ["docs/gsd/shop-redesign/milestones.toon"],
+        before: intermediateLedger,
+        after: validWipM1Done,
+      }],
+    }),
+    baseLedger3Rows,
+    /last WIP commit must change the authoritative base ledger bytes directly to the exact WIP ledger bytes/,
+  );
+  // 11f. reviewedDiff content mismatch/missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      reviewedDiff: { "docs/gsd/shop-redesign/milestones.toon": "wrong content" }
+    }),
+    baseLedger3Rows,
+    /reviewed diff does not include the canonical ledger path with the exact same ledger bytes/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      reviewedDiff: { "other.txt": validWipM1Done },
+    }),
+    baseLedger3Rows,
+    /reviewed diff does not include the canonical ledger path with the exact same ledger bytes/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { reviewedDiff: undefined }),
+    baseLedger3Rows,
+    /reviewed diff does not include the canonical ledger path with the exact same ledger bytes/,
+  );
+  // 11g. squashInput content mismatch/missing
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      squashInput: { "docs/gsd/shop-redesign/milestones.toon": "wrong content" }
+    }),
+    baseLedger3Rows,
+    /squash input does not include the canonical ledger path with the exact same ledger bytes/
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      squashInput: { "other.txt": validWipM1Done },
+    }),
+    baseLedger3Rows,
+    /squash input does not include the canonical ledger path with the exact same ledger bytes/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { squashInput: undefined }),
+    baseLedger3Rows,
+    /squash input does not include the canonical ledger path with the exact same ledger bytes/,
+  );
+
+  // 11h. Raw commit/review/squash evidence may name no other ledger path.
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      wipCommits: [
+        { files: [inventedLedgerPath], before: null, after: "invented" },
+        { files: [canonicalLedgerPath], before: baseLedger3Rows, after: validWipM1Done },
+      ],
+    }),
+    baseLedger3Rows,
+    /raw commit\/review\/squash evidence contains an invented ledger path/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      wipCommits: [
+        { files: [canonicalLedgerPath], before: baseLedger3Rows, after: validWipM1Done },
+        { files: [canonicalLedgerPath], before: baseLedger3Rows, after: validWipM1Done },
+      ],
+    }),
+    baseLedger3Rows,
+    /canonical ledger path must appear in exactly one WIP commit and that commit must be final/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      reviewedDiff: {
+        [canonicalLedgerPath]: validWipM1Done,
+        [inventedLedgerPath]: "invented",
+      },
+    }),
+    baseLedger3Rows,
+    /raw commit\/review\/squash evidence contains an invented ledger path/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      squashInput: {
+        [canonicalLedgerPath]: validWipM1Done,
+        [inventedLedgerPath]: "invented",
+      },
+    }),
+    baseLedger3Rows,
+    /raw commit\/review\/squash evidence contains an invented ledger path/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      wipCommits: [
+        { files: [` ${inventedLedgerPath}`], before: null, after: "invented" },
+        { files: [canonicalLedgerPath], before: baseLedger3Rows, after: validWipM1Done },
+      ],
+    }),
+    baseLedger3Rows,
+    /raw commit\/review\/squash evidence contains an invented ledger path/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      reviewedDiff: {
+        [canonicalLedgerPath]: validWipM1Done,
+        [` ${inventedLedgerPath}`]: "invented",
+      },
+    }),
+    baseLedger3Rows,
+    /raw commit\/review\/squash evidence contains an invented ledger path/,
+  );
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, {
+      squashInput: {
+        [canonicalLedgerPath]: validWipM1Done,
+        [`${inventedLedgerPath} `]: "invented",
+      },
+    }),
+    baseLedger3Rows,
+    /raw commit\/review\/squash evidence contains an invented ledger path/,
+  );
+
+  // 12. Explicit milestone mode claim / fallback behavior
+  // 12a. milestoneIntent is false, but explicitMilestoneMode is true -> must fail closed
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { milestoneIntent: false, explicitMilestoneMode: true }),
+    baseLedger3Rows,
+    /Failed closed: milestone mode was explicitly claimed but explicit milestone intent\/entry context is missing/
+  );
+  // 12b. milestoneIntent is false, explicitMilestoneMode is false -> normal mode fallback, no ledger changes allowed
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { milestoneIntent: false, explicitMilestoneMode: false }),
+    baseLedger3Rows,
+    /Normal mode: ledger changes are not allowed in normal mode/
+  );
+  // 12c. Unchanged ledger state delegates to Normal mode without claiming a merge.
+  const resNormalModeSuccess = runEval(baseLedger3Rows, baseLedger3Rows, { milestoneIntent: false, explicitMilestoneMode: false });
+  assert.equal(resNormalModeSuccess.error, null);
+  assert.equal(resNormalModeSuccess.mergedLedger, baseLedger3Rows);
+  assert.equal(resNormalModeSuccess.reportedNext, null);
+  assert.equal(resNormalModeSuccess.merged, null);
+  assert.equal(resNormalModeSuccess.mode, "normal");
+
+  // 12d. milestoneIntent is true, explicitMilestoneMode is true, agreements fail -> must fail closed
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { feature: "shop-redesign-m2", explicitMilestoneMode: true }),
+    baseLedger3Rows,
+    /Failed closed: milestone mode was explicitly claimed but agreements failed/
+  );
+  // 12e. milestoneIntent is true, explicitMilestoneMode is false, agreements fail, ledger is changed -> must fail (cannot fall back to normal mode because ledger was modified)
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { feature: "shop-redesign-m2", explicitMilestoneMode: false }),
+    baseLedger3Rows,
+    /Normal mode: agreements failed.*and ledger was modified/
+  );
+  // 12f. A non-claimed agreement mismatch delegates to Normal mode without claiming a merge.
+  const resFallbackNormalSuccess = runEval(baseLedger3Rows, baseLedger3Rows, { feature: "shop-redesign-m2", explicitMilestoneMode: false });
+  assert.equal(resFallbackNormalSuccess.error, null);
+  assert.equal(resFallbackNormalSuccess.mergedLedger, baseLedger3Rows);
+  assert.equal(resFallbackNormalSuccess.reportedNext, null);
+  assert.equal(resFallbackNormalSuccess.merged, null);
+  assert.equal(resFallbackNormalSuccess.mode, "normal");
+
+  // 13. Authorized convergence publication is distinct from milestone completion.
+  const initialPublication = runPublication(null, baseLedger3Rows);
+  assert.equal(initialPublication.error, null);
+  assert.equal(initialPublication.mergedLedger, baseLedger3Rows);
+  assert.equal(initialPublication.reportedNext, null);
+  assert.equal(initialPublication.merged, true);
+  assert.equal(initialPublication.mode, "ledger-publication");
+
+  const publicationWithProseMention = runPublication(null, baseLedger3Rows, {
+    specMarkdown: "# shop-redesign\n## Context\nThe Convergence Ledger publication contract remains reviewable prose.\n## Design & Invariants\n- **Convergence Ledger publication**: `docs/gsd/shop-redesign/milestones.toon`",
+  });
+  assert.equal(publicationWithProseMention.error, null);
+  assert.equal(publicationWithProseMention.merged, true);
+
+  const publicationWithFencedExample = runPublication(null, baseLedger3Rows, {
+    specMarkdown: "# shop-redesign\n## Design & Invariants\n```md\n- **Convergence Ledger publication**: `docs/gsd/example/milestones.toon`\n```\n- **Convergence Ledger publication**: `docs/gsd/shop-redesign/milestones.toon`",
+  });
+  assert.equal(publicationWithFencedExample.error, null);
+  assert.equal(publicationWithFencedExample.merged, true);
+
+  const appendPublication = runPublication(baseLedger3Rows, appendedPendingLedger);
+  assert.equal(appendPublication.error, null);
+  assert.equal(appendPublication.mergedLedger, appendedPendingLedger);
+  assert.equal(appendPublication.reportedNext, null);
+  assert.equal(appendPublication.merged, true);
+  assert.equal(appendPublication.mode, "ledger-publication");
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      specMarkdown: "# shop-redesign\n## Design & Invariants",
+      convergencePublicationIntent: true,
+    }),
+    null,
+    /without one exact canonical Convergence Ledger publication marker/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      invocationMode: "Quick-fix WIP",
+    }),
+    null,
+    /Quick-fix and ordinary Planned WIP have no ledger write authority/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      specMarkdown: "# shop-redesign\n## Design & Invariants\n- **Convergence Ledger publication**: `docs/gsd/other-feature/milestones.toon`",
+    }),
+    null,
+    /without one exact canonical Convergence Ledger publication marker/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      specMarkdown: "# shop-redesign\n## Design & Invariants\n- **Convergence Ledger publication**: `docs/gsd/shop-redesign/milestones.toon`\n- **Convergence Ledger publication**: `docs/gsd/shop-redesign/milestones.toon`",
+    }),
+    null,
+    /without one exact canonical Convergence Ledger publication marker/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      specMarkdown: "# shop-redesign\n## Design & Invariants\n- **Convergence Ledger publication**: `docs/gsd/shop-redesign/milestones.toon`\n  - **Convergence Ledger publication**: `docs/gsd/shop-redesign/milestones.toon`",
+    }),
+    null,
+    /without one exact canonical Convergence Ledger publication marker/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      specMarkdown: "# shop-redesign\n## Design & Invariants\n- **Convergence Ledger publication**: `docs/gsd/shop-redesign/milestones.toon`\n- **Convergence Ledger publication**: `docs/gsd/other-feature/milestones.toon`",
+    }),
+    null,
+    /without one exact canonical Convergence Ledger publication marker/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      specMarkdown: "# shop-redesign\n## Design & Invariants\n- **Convergence Ledger publication**: `docs/gsd/shop-redesign/milestones.toon`\n-  **Convergence Ledger publication**: `docs/gsd/shop-redesign/milestones.toon`",
+    }),
+    null,
+    /without one exact canonical Convergence Ledger publication marker/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      specMarkdown: "# shop-redesign\n## Design & Invariants\n- **Convergence Ledger publication**: `docs/gsd/shop-redesign/milestones.toon`\n- **Convergence Ledger publication** : `docs/gsd/shop-redesign/milestones.toon`",
+    }),
+    null,
+    /without one exact canonical Convergence Ledger publication marker/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      specMarkdown: "# shop-redesign\n## Context\n- **Convergence Ledger publication**: `docs/gsd/shop-redesign/milestones.toon`\n## Design & Invariants",
+    }),
+    null,
+    /without one exact canonical Convergence Ledger publication marker/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      specMarkdown: "# shop-redesign\n## Design & Invariants\n```md\n- **Convergence Ledger publication**: `docs/gsd/shop-redesign/milestones.toon`\n```",
+    }),
+    null,
+    /without one exact canonical Convergence Ledger publication marker/,
+  );
+
+  assertFailure(
+    runPublication(null, baseLedger3Rows, { buildGreen: false }),
+    null,
+    /build, tests, acceptance, and E2E evidence must all be green/,
+  );
+  assertFailure(
+    runPublication(null, validWipM1Done),
+    null,
+    /newly created ledger must contain only pending rows/,
+  );
+  const statusChangingAppend = validWipM1Done
+    .replace("milestones[3]{id,slug,goal,status}:", "milestones[4]{id,slug,goal,status}:")
+    .concat("\nM4,shop-redesign-m4,Goal 4,pending");
+  assertFailure(
+    runPublication(baseLedger3Rows, statusChangingAppend),
+    baseLedger3Rows,
+    /preserve the authoritative row prefix byte-for-byte/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      planToon: publicationPlan.replace(
+        "docs/gsd/shop-redesign/milestones.toon|src/publication.js",
+        "docs/gsd/shop-redesign/milestones.toon|docs/gsd/other-feature/milestones.toon",
+      ),
+    }),
+    null,
+    /planToon contains an invented ledger path/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      planToon: publicationPlan.replace(
+        "docs/gsd/shop-redesign/milestones.toon|src/publication.js",
+        "docs/gsd/shop-redesign/milestones.toon| docs/gsd/other-feature/milestones.toon",
+      ),
+    }),
+    null,
+    /planToon contains an invented ledger path/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, { criticalFindings: 1 }),
+    null,
+    /Critical\/Important review findings exist/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, { mergeBaseOid: "advanced-base-oid" }),
+    null,
+    /base revision changed or raw base revision evidence is missing/,
+  );
+
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      wipCommits: [
+        {
+          taskId: "T1",
+          files: [canonicalLedgerPath, "src/publication.js"],
+          before: null,
+          after: baseLedger3Rows,
+        },
+        { taskId: "T2", files: [inventedLedgerPath], before: null, after: "invented" },
+      ],
+    }),
+    null,
+    /raw commit\/review\/squash evidence contains an invented ledger path/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      reviewedDiff: {
+        [canonicalLedgerPath]: baseLedger3Rows,
+        [inventedLedgerPath]: "invented",
+      },
+    }),
+    null,
+    /raw commit\/review\/squash evidence contains an invented ledger path/,
+  );
+  assertFailure(
+    runPublication(null, baseLedger3Rows, {
+      squashInput: {
+        [canonicalLedgerPath]: baseLedger3Rows,
+        [inventedLedgerPath]: "invented",
+      },
+    }),
+    null,
+    /raw commit\/review\/squash evidence contains an invented ledger path/,
+  );
+
+  assertFailure(
+    runEval(baseLedger3Rows, validWipM1Done, { mergeBaseOid: "advanced-base-oid" }),
+    baseLedger3Rows,
+    /reviewed base revision differs from merge base revision/,
+  );
+});
+

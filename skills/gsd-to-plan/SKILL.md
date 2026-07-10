@@ -3,7 +3,7 @@ name: gsd-to-plan
 description: Internal GSD sub-skill (routed via /gsd). Produce an implementation plan from a converged design — no interview, just write the plan. Triggered by `gsd` when the spec/design converges; outputs task-decomposed plan(s) to `.scratch/<feature>/plan.toon`.
 triggers: spec converged, no plan yet (gsd Route 3)
 produces: [plan.toon]
-consumes: [spec.md, handoff-<n>.toon]
+consumes: [spec.md, handoff-<n>.toon, docs/gsd/<feature>/milestones.toon]
 ---
 
 # To Plan
@@ -14,11 +14,12 @@ consumes: [spec.md, handoff-<n>.toon]
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| Converged planning | `spec.md` | `handoff-<n>.toon` (pre-plan portable base metadata only) | `plan.toon` | Missing `spec.md`: STOP and return to `/gsd` Discussion to recover or create a converged spec; never synthesize `spec.md` or a plan from unstated requirements |
+| Converged planning | `spec.md` | `handoff-<n>.toon` (pre-plan portable base metadata only); `docs/gsd/<feature>/milestones.toon` (intentional Milestone Ledger) | `plan.toon` | Missing `spec.md`: STOP and return to `/gsd` Discussion to recover or create a converged spec; never synthesize `spec.md` or a plan from unstated requirements |
 
 Turn a converged design into an executable implementation plan. No interview — the design is settled (`gsd` did that). Read `.scratch/<feature>/spec.md` for the acceptance criteria this plan must deliver. Write the plan.
 
 At intake, also accept the exact set of repository-relative pre-approval domain artifact paths returned by `gsd-domain-modeling`. This set is transient conversational or pre-plan handoff input, not a new state artifact; no returned paths (an empty or absent set) is normal. On a pre-plan resume, reuse the set only when those returned paths are still present in conversational/handoff state. If no returned-path set exists, use the empty set: do not invent paths, scan domain artifacts to reconstruct it, or infer domain changes from arbitrary dirty files.
+Independently parse the raw converged `spec.md` for `Convergence Ledger publication` marker lines. This marker is durable intent carried by the spec, unlike transient returned domain paths: never reconstruct it from dirty files, ledger presence, a context boolean, or a handoff mode.
 
  ## Output (AXI TOON Format)
  Write a single consolidated plan file to `.scratch/<feature>/plan.toon`. This format is highly token-efficient, omitting braces, quotes, and markdown boilerplate. The first line declares the schema version (`schema:v1`); the second line is `base:<base>` (the repo's default branch captured per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics; already on `wip/<feature>` from a pre-plan portable resume? read the `base` row from the latest handoff `settings[]`, never the wip branch itself); consumers read from the `plan[` table.
@@ -46,14 +47,16 @@ Escaping — `,` separates columns and `|` separates values within a field (GSD'
 
 Tasks run sequentially — `gsd-executing-plans` dispatches one `task` subagent at a time, in `id` order. Order the tasks so each runs after what it depends on; the sequence itself carries the dependencies.
 
-Before writing rows, apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Planning decomposition & precision contract as the deterministic planning oracle. It changes task shape and the existing `test` value only; it never adds a plan column, dependency field, frontier, or tracker.
+Before writing rows, apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Planning decomposition & precision contract as the deterministic planning oracle. It changes task shape and the existing `test` value only; it never adds a plan column, dependency field, progress frontier, or local state tracker. The separate ledger is not a plan column, progress frontier, or local tracker, and does not weaken this prohibition.
 
 ## Pre-approval domain-path ownership gate
 During plan generation, add each returned path as an ordinary, exact `files` entry on the behavior-owning task — the task whose implementation or decision evidence owns the domain change. Never create a generic documentation task merely to carry these paths.
 
 After writing the completed `plan.toon`, but **before printing the inline summary or asking approval**, parse every completed row in the `plan[...]` table. Split each row's `files` field on `|` and compare whole path tokens exactly; for every returned path, count its occurrences across all rows. The check passes only when each path occurs once and its sole owning row has `status=pending`. The empty returned-path set passes without adding or inferring work.
 
-Zero occurrences, more than one occurrence (including repetition within one row), or a sole non-pending owner is a plan defect. Revise or redistribute the plan rows, rewrite `plan.toon`, then parse and run the entire check again. **Do not print the summary, ask the approval question, or launch plan review until the check passes.** Keep the path in the existing `files` field; this gate changes neither `schema:v1`, the columns, nor sequential task order, and creates no state artifact.
+Before writing ownership rows, select exactly one ledger-intent source. **Milestone planning** requires explicit milestone-entry intent plus the authoritative base ledger: derive the root feature, canonical path, and current milestone slug from its first-pending row; require the active scratch/plan slug to match, and require no publication marker. **Normal root publication** requires exactly one valid `Convergence Ledger publication` marker in raw `spec.md`; require its path to equal the active root feature's canonical ledger path. A malformed, duplicate, whitespace-padded, wrong-root, or Milestone-plus-marker input blocks before plan summary. **Ordinary Normal planning** has neither source and therefore requires zero ledger-looking `files` tokens. For either valid ledger-writing source, parse every completed `plan[...]` row, split `files` on `|` by exact whole tokens, and require the derived path exactly once across all rows with its sole row `status=pending`. Never derive root publication from a domain-write return, dirty ledger, path presence, context boolean, or handoff mode.
+
+Zero occurrences, more than one occurrence (including repetition within one row or duplicate cross-row ownership), a sole non-pending owner, an extra plan column, or round-trip drift is a plan defect: rewrite and rerun the gates before summary/approval. Revise or redistribute the plan rows, rewrite `plan.toon`, then parse and run the entire check again. **Do not print the summary, ask the approval question, or launch plan review until the check passes.** Keep the path in the existing `files` field; this gate changes neither `schema:v1`, the columns, nor sequential task order, and creates no state artifact.
 
 ## Exact plan serialization gate
 After all validated tasks are known, serialize them using the unchanged `schema:v1` columns and order, parse every generated row back, and compare exact `id`, `task`, `satisfies`, `files`, `test`, and `status` values with those validated tasks. Any row reorder, changed file/test, changed status, missing/duplicate/unknown AC ID, or other round-trip drift is a plan defect: rewrite and repeat the full parse/compare before summary or approval. For Expand/Migrate/Contract, the short task descriptions and row order must retain their respective `Expand`, `Migrate`, and `Contract` identity. Their semantic safety facts stay in the validated spec/task brief; never imply that safety lives in a new plan column. This gate changes neither `schema:v1`, its column order, sequential dependencies, nor the artifact inventory.
@@ -62,6 +65,7 @@ After all validated tasks are known, serialize them using the unchanged `schema:
 After the ownership and exact serialization gates pass, print an inline human-readable summary in the terminal — the user never has to open the file. The summary contains:
 - One line per task: `T<n> — <task> (satisfies AC-x|AC-y; files; test or test:none)`.
 - A footer: task count, `base:` branch, and AC coverage (`all ACs covered` or the gap — a gap means the plan is incomplete, fix before asking).
+- When the spec carries the marker, one line: `Convergence Ledger publication: <path> (owner T<n>)`. The single approval explicitly approves that publication entry together with the plan; omission or a path/owner mismatch blocks the approval question.
 Then ask **one approval question** using [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates → Direct sub-skill Next steps adapted as the approval gate: approve → execute; revise the plan first; or (when the `plan.toon` is lavish offer-eligible and the Fire gate holds) review the plan visually — the visual-review choice rides *inside* this one gate, it is not an extra prompt. **This approval is the last prompt of the cycle**; on approve, route to `gsd-executing-plans` and follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Post-approval pipeline contract. Local responsibility here is to make the final prompt explicit and block approval until both domain-path ownership and AC coverage are complete. "Revise" edits `plan.toon`, reruns both completeness checks, and re-presents the summary + the same single approval ask; picking visual review launches `gsd-lavish` on the plan, then returns to this same gate.
 
 ## Auto-triggers & visual-review ask
