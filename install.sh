@@ -96,17 +96,31 @@ if [ -d "${HOME}/.agents/skills" ]; then
   done
 fi
 
-# --- Optional lavish AXI submodule and build ---
-if [ -f "$REPO/.gitmodules" ]; then
-  git -C "$REPO" submodule update --init --recursive >/dev/null 2>&1 \
-    || echo "  warn: lavish-axi submodule not initialized — lavish HTML path unavailable; skills degrade to terminal."
+# --- Optional submodule refresh and lavish build ---
+LAVISH="$REPO/tools/lavish-axi"
+# Record pre-update SHA when possible; never fail install if git is missing/broken.
+LAVISH_SHA_BEFORE=""
+if [ -d "$LAVISH" ]; then
+  LAVISH_SHA_BEFORE="$(git -C "$LAVISH" rev-parse HEAD 2>/dev/null || true)"
 fi
 
-LAVISH="$REPO/tools/lavish-axi"
-if [ -d "$LAVISH" ] && [ ! -f "$LAVISH/dist/cli.mjs" ] && command -v pnpm >/dev/null 2>&1; then
-  echo "  building lavish-axi (pnpm install && pnpm build)..."
-  (cd "$LAVISH" && pnpm install --frozen-lockfile >/dev/null 2>&1 && pnpm build >/dev/null 2>&1) \
-    || echo "  warn: lavish-axi build failed — lavish HTML path unavailable; skills degrade to terminal."
+if [ -f "$REPO/.gitmodules" ]; then
+  git -C "$REPO" submodule update --init --remote --checkout --recursive >/dev/null 2>&1 \
+    || echo "  warn: submodule remote update failed — lavish HTML path may be unavailable; skills degrade to terminal."
+fi
+
+LAVISH_SHA_AFTER=""
+if [ -d "$LAVISH" ]; then
+  LAVISH_SHA_AFTER="$(git -C "$LAVISH" rev-parse HEAD 2>/dev/null || true)"
+fi
+
+# Rebuild when tip changed or dist is missing. All git/pnpm probes stay non-fatal.
+if [ -d "$LAVISH" ] && command -v pnpm >/dev/null 2>&1; then
+  if [ ! -f "$LAVISH/dist/cli.mjs" ] || { [ -n "$LAVISH_SHA_AFTER" ] && [ "$LAVISH_SHA_BEFORE" != "$LAVISH_SHA_AFTER" ]; }; then
+    echo "  building lavish-axi (pnpm install && pnpm build)..."
+    (cd "$LAVISH" && pnpm install --frozen-lockfile >/dev/null 2>&1 && pnpm build >/dev/null 2>&1) \
+      || echo "  warn: lavish-axi build failed — lavish HTML path unavailable; skills degrade to terminal."
+  fi
 fi
 
 VERSION="$(cat "$REPO/VERSION" 2>/dev/null || echo unknown)"

@@ -18,7 +18,7 @@ Install the GSD command for OMP. You never install sub-skills separately:
 bash install.sh
 ```
 
-`install.sh` registers the GSD master entry point as a user command under `~/.omp/agent/commands/gsd.md` (which maps `/gsd`), cleans up legacy skill symlinks, initializes the `lavish-axi` submodule, and — when `pnpm` is available — builds the optional visual path automatically (no pnpm or a failed build → skills degrade to terminal). The command supplies the absolute `GSD_ROOT` path, allowing GSD to load all master and sub-skills directly from the checkout. Invoke `/gsd` on any prompt; it routes internally.
+`install.sh` registers the GSD master entry point as a user command under `~/.omp/agent/commands/gsd.md` (which maps `/gsd`), cleans up legacy skill symlinks, refreshes every configured git submodule from its remote tip with a detached checkout (`git submodule update --init --remote --checkout --recursive`), and — when `pnpm` is available — rebuilds the optional lavish visual path when the submodule tip changed or `dist/cli.mjs` is missing (no pnpm, network/git failure, or a failed build → skills degrade to terminal). Install never commits the parent submodule pointer. The command supplies the absolute `GSD_ROOT` path, allowing GSD to load all master and sub-skills directly from the checkout. Invoke `/gsd` on any prompt; it routes internally.
 
 You only ever type `/gsd` (plus what you want, in plain language). The `/gsd-<sub>` names that appear in the skills are the agent's own internal calls after it routes — never commands you invoke yourself.
 ---
@@ -137,19 +137,23 @@ skills/
 All sub-skills carry a **direct-invocation guard** — selected standalone with their consumed artifacts missing, they route back through `/gsd` instead of improvising. Since the OMP command supplies the absolute `GSD_ROOT`, GSD loads master and sub-skills directly by absolute path from the checkout.
 
 ### Auto-Update
-All master and sub-skills are loaded directly from the checkout path, so any edit or `git pull` here applies instantly. Re-run `bash install.sh` only if you move the repo.
+All master and sub-skills are loaded directly from the checkout path, so any edit or `git pull` of GSD skill text applies instantly. Re-run `bash install.sh` after moving the repo, or whenever you want install to refresh vendored tool submodules from upstream and rebuild lavish when needed.
 ### Vendored Tool: Lavish Editor (`tools/lavish-axi`)
-The Lavish Editor CLI is tracked as a **git submodule** pointing to [kunchenguid/lavish-axi](https://github.com/kunchenguid/lavish-axi). `bash install.sh` initializes the submodule and builds the CLI automatically when `pnpm` is available. No pnpm? Build once manually (skills degrade to terminal until then):
+The Lavish Editor CLI is tracked as a **git submodule** pointing to [kunchenguid/lavish-axi](https://github.com/kunchenguid/lavish-axi). **Primary path:** `bash install.sh` updates configured submodules from remote (detached checkout) and rebuilds the CLI when the tip SHA changes or `dist/cli.mjs` is missing and `pnpm` is available. That may leave the parent repo's submodule gitlink dirty until you choose to commit a pin — install never auto-commits it.
+
+No pnpm? Build once manually (skills degrade to terminal until then):
 
 ```bash
 cd tools/lavish-axi && pnpm install && pnpm run build
 ```
 
-To pull upstream changes:
+Optional manual pin (refresh upstream and commit the parent gitlink yourself — install never does this):
 
 ```bash
-git submodule update --remote tools/lavish-axi
-cd tools/lavish-axi && pnpm install && pnpm run build
+git submodule update --init --remote --checkout tools/lavish-axi
+cd tools/lavish-axi && pnpm install && pnpm run build && cd ../..
+git add tools/lavish-axi
+git commit -m "Pin tools/lavish-axi submodule tip"
 ```
 
 ### Tests
