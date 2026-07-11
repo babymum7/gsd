@@ -16,13 +16,61 @@
 //   GSD_EVAL_MODEL — model name          (default gpt-4o-mini)
 //
 // Usage: node test/eval/route-eval.mjs [--mode classify|trace|both] [--only <fixture-id>]
-import { readFileSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  parseClassifyResponse, parseTraceResponse, responseMatchesFixture, validateFixtureSet,
+} from "./route-eval-contract.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = JSON.parse(readFileSync(join(here, "fixtures.json"), "utf8"));
 const skill = readFileSync(join(here, "..", "..", "skills", "gsd", "SKILL.md"), "utf8");
+const skillsDir = join(here, "..", "..", "skills");
+const installedSkills = new Set(
+  readdirSync(skillsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && entry.name.startsWith("gsd"))
+    .map((entry) => entry.name),
+);
+const fixtureValidation = validateFixtureSet(fixtures, installedSkills);
+if (!fixtureValidation.ok) {
+  console.error(`invalid fixtures.json: ${fixtureValidation.detail}`);
+  process.exit(2);
+}
+let MODE = "both";
+let ONLY = null;
+const seenOptions = new Set();
+const argv = process.argv.slice(2);
+for (let index = 0; index < argv.length; index += 1) {
+  const name = argv[index];
+  if (name !== "--mode" && name !== "--only") {
+    console.error(`unknown argument ${name}; use --mode <classify|trace|both> and --only <fixture-id>`);
+    process.exit(2);
+  }
+  if (seenOptions.has(name)) {
+    console.error(`duplicate option ${name}`);
+    process.exit(2);
+  }
+  const value = argv[index + 1];
+  if (value === undefined || value === "" || value.startsWith("--")) {
+    console.error(`missing value for ${name}`);
+    process.exit(2);
+  }
+  seenOptions.add(name);
+  if (name === "--mode") MODE = value;
+  else ONLY = value;
+  index += 1;
+}
+const modes = MODE === "both" ? ["classify", "trace"] : [MODE];
+if (modes.some((mode) => !["classify", "trace"].includes(mode))) {
+  console.error(`unknown --mode ${MODE} (classify|trace|both)`);
+  process.exit(2);
+}
+const run = ONLY ? fixtures.filter(({ id }) => id === ONLY) : fixtures;
+if (ONLY && run.length === 0) {
+  console.error(`unknown --only fixture ${ONLY}`);
+  process.exit(2);
+}
 
 const KEY = process.env.GSD_EVAL_KEY || process.env.OPENAI_API_KEY;
 const BASE = (process.env.GSD_EVAL_URL || "https://api.openai.com/v1").replace(/\/+$/, "");
@@ -33,12 +81,6 @@ if (!KEY) {
   process.exit(0);
 }
 
-const arg = (name, dflt) => {
-  const i = process.argv.indexOf(name);
-  return i !== -1 ? process.argv[i + 1] : dflt;
-};
-const MODE = arg("--mode", "both");
-const ONLY = arg("--only", null);
 
 const PREAMBLE = [
   "You are a coding agent. Exactly one skill is loaded: the gsd master entry below.",
@@ -54,7 +96,7 @@ const SYSTEMS = {
   ].join("\n"),
   trace: [
     ...PREAMBLE,
-    "Reply with ONLY the first line of the first response you would send to the user. Nothing else.",
+    "Reply with ONLY the exact trace line `Route <route> → <target>`, where target is the selected skill, `none`, or `catalog`. Nothing else.",
     "",
     skill,
   ].join("\n"),
@@ -81,32 +123,27 @@ async function ask(system, fx) {
 const checks = {
   async classify(fx) {
     const text = await ask(SYSTEMS.classify, fx);
-    const match = text.match(/\{[\s\S]*\}/);
-    if (!match) return { pass: false, detail: `no JSON in reply: ${text}` };
-    const out = JSON.parse(match[0]);
-    const got = { route: String(out.route), skill: String(out.skill ?? "none") };
-    const pass = [{ route: fx.route, skill: fx.skill }, ...(fx.accept ?? [])].some(
-      (want) => got.route === want.route && got.skill === want.skill,
-    );
-    return { pass, detail: `want ${fx.route}->${fx.skill}, got ${got.route}->${got.skill}` };
+    const parsed = parseClassifyResponse(text, installedSkills);
+    if (!parsed.ok) return { pass: false, detail: parsed.detail };
+    const pass = responseMatchesFixture(parsed.value, fx);
+    return {
+      pass,
+      detail: `want ${fx.route}->${fx.skill}, got ${parsed.value.route}->${parsed.value.skill}`,
+    };
   },
   async trace(fx) {
     if (fx.route === "meta") return { pass: true, detail: "meta — no numbered trace, skipped" };
     const text = await ask(SYSTEMS.trace, fx);
-    const line = text.trim().split("\n")[0] ?? "";
-    const m = line.match(/^\W*Route\s*(\d)\b/);
-    const routeOk = Boolean(m) && m[1] === fx.route;
-    const skillOk = !fx.skill.startsWith("gsd-") || line.includes(fx.skill);
-    return { pass: routeOk && skillOk, detail: `want Route ${fx.route} -> ${fx.skill}, got: ${line}` };
+    const parsed = parseTraceResponse(text, installedSkills);
+    if (!parsed.ok) return { pass: false, detail: parsed.detail };
+    const pass = responseMatchesFixture(parsed.value, fx);
+    return {
+      pass,
+      detail: `want Route ${fx.route} → ${fx.skill}, got Route ${parsed.value.route} → ${parsed.value.skill}`,
+    };
   },
 };
 
-const modes = MODE === "both" ? ["classify", "trace"] : [MODE];
-if (modes.some((m) => !checks[m])) {
-  console.error(`unknown --mode ${MODE} (classify|trace|both)`);
-  process.exit(2);
-}
-const run = ONLY ? fixtures.filter((f) => f.id === ONLY) : fixtures;
 
 // Small concurrency pool: fast without hammering the endpoint.
 const jobs = modes.flatMap((mode) => run.map((fx) => ({ mode, fx })));

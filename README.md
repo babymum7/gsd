@@ -93,17 +93,18 @@ After you approve the plan, no menu appears until the feature merges (or a hard 
 
 **Toggles** (persist across sessions via handoff `settings[]`):
 - `/gsd ponytail lite|full|ultra` · `stop ponytail` — force the laziest solution that works.
-- `/gsd autosync on|off` — tri-state: unset asks once at first pause, `on` always syncs, `off` = remembered decline. See cross-machine below.
+- `/gsd autosync on|off` — tri-state: unset asks once at the first user-requested pause when a remote exists; `on` syncs only at safe sync points; `off` is a remembered decline with no re-ask. See cross-machine below.
 
 ---
 
 ## Working across machines
 
-`.scratch/` is **git-ignored and machine-local** by default — that's what keeps multi-feature routing and branch switching safe. You never need to remember a special phrase: the **first time you pause** (with a remote configured and autosync unset), the agent asks once — *"Sync to the remote so you can resume on another machine? (yes / no / always)"* — answer `always` and every future "pause" syncs automatically. Two mechanisms underneath:
+`.scratch/` is **git-ignored and machine-local** by default — that's what keeps multi-feature routing and branch switching safe. At the **first user-requested pause** with a remote configured and autosync unset, the agent asks once — *"Sync to the remote so you can resume on another machine? (yes / no / always)"*. `always` persists autosync `on`, but synchronization still occurs only at the safe points below. Two mechanisms underneath:
 
-**Explicit portable handoff** — say "pause, I'll continue on my laptop": the agent writes the handoff, surfaces any uncommitted mid-task code (with your approval it becomes a `wip snapshot` commit, erased later by the squash), then syncs scratch onto the WIP branch (force-add + pathspec'd commit, unconditional push). On the other machine, `/gsd continue` fetches, finds `origin/wip/<feature>`, checks it out — code, scratch, and approved in-flight work all materialize. At merge time the verify gate strips scratch, so nothing ever lands on your base branch.
+**Explicit portable handoff** — say "pause, I'll continue on my laptop": the agent writes the handoff and lists any uncommitted mid-task paths. It asks exactly *"Snapshot these listed paths before portable sync? (yes / no)"*; only `yes` creates a `wip snapshot` commit, while `no` leaves those dirty paths local. It then syncs scratch and committed WIP state onto the WIP branch (force-add + pathspec'd commit, unconditional push). On the other machine, `/gsd continue` fetches, finds `origin/wip/<feature>`, and checks it out. At merge time the verify gate strips scratch, so nothing under `.scratch/` lands on the base branch.
 
-**Autosync** — answer `always` at the ask-once (or `/gsd autosync on` anytime), then forget it: after every pause *and* after every completed task, scratch re-syncs and `wip/<feature>` is pushed. Answering `no` records the decline and never asks again (`/gsd autosync on` re-enables). Sync points are pauses and task boundaries — close the laptop mid-task **without pausing** and the other machine resumes from the last pushed task; pausing surfaces in-flight code and offers the snapshot (never committed without your OK). Requires a git remote (absent → stays machine-local and says so). The choice travels in the handoff's `settings[]`, so it holds after the switch.
+**Autosync** — `on` runs only at safe sync points: a user-requested pause or portable handoff, or a completed task commit with a clean non-scratch tree. If the tree is dirty at a completed-task boundary, sync and push are deferred locally without asking. An automatic context-pressure handoff during uncommitted task work also stays machine-local even when autosync is `on`; a user-requested portable pause uses the exact snapshot consent above. `off` records the decline and never asks again (`/gsd autosync on` re-enables). No remote means machine-local operation with an explicit notice. The choice travels in the handoff's `settings[]`, so it survives the switch.
+A user-requested non-portable pause never snapshots unrelated work: dirty paths stay local without a snapshot question, and autosync carries only committed state plus scratch. The dirty-snapshot question is reserved for an explicit portable-resume request.
 
 ---
 
@@ -167,7 +168,7 @@ The skill set is a **string contract** — the suite pins routing rules, artifac
 node --test test/skills.test.js
 ```
 
-A second, **opt-in** harness proves a model *reading* the master skill actually routes correctly: 13 workspace-state + prompt fixtures, checked in two modes (`classify` — route/skill decision as JSON; `trace` — the literal `Route N → gsd-*` first line). It calls an OpenAI-compatible endpoint and is never part of `node --test`:
+A second, **opt-in** harness proves a model *reading* the master skill actually routes correctly: 14 workspace-state + prompt fixtures, checked in two modes (`classify` — route/skill decision as JSON; `trace` — the literal `Route N → gsd-*` first line). It calls an OpenAI-compatible endpoint and is never part of `node --test`:
 
 ```bash
 GSD_EVAL_KEY=sk-... node test/eval/route-eval.mjs   # GSD_EVAL_URL / GSD_EVAL_MODEL to override

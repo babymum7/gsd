@@ -18,7 +18,9 @@ Show this to the user, then immediately proceed to Step 2. The user reads and th
 
 ### 2. Spawn sub-agents
 
-Spawn 3+ sub-agents in parallel using the Agent tool. Each must produce a **radically different** interface for the deepened module.
+Spawn 3+ fresh `task` subagents in parallel. Each must produce a **radically different** interface for the deepened module.
+
+No `task`/subagent capability → run at least three separate self-contained inline design passes, resetting assumptions and applying a different constraint in each pass. Preserve the same independence and comparison contract; never collapse the fallback to one design.
 
 Prompt each sub-agent with a separate technical brief (file paths, coupling details, dependency category from [DEEPENING.md](DEEPENING.md), what sits behind the seam). The brief is independent of the user-facing problem-space explanation in Step 1. Give each agent a different design constraint:
 
@@ -27,7 +29,7 @@ Prompt each sub-agent with a separate technical brief (file paths, coupling deta
 - Agent 3: "Optimise for the most common caller — make the default case trivial."
 - Agent 4 (if applicable): "Design around an adapter seam for cross-seam dependencies."
 
-Include both [SKILL.md](SKILL.md) vocabulary and CONTEXT.md vocabulary in the brief so each sub-agent names things consistently with the architecture language and the project's domain language.
+Always include [SKILL.md](SKILL.md) vocabulary. Include CONTEXT.md vocabulary only when it was supplied and is relevant; otherwise state that domain context is unavailable, use the user's terms, and never search for or fabricate project vocabulary.
 
 Each sub-agent outputs:
 

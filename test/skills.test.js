@@ -1,8 +1,16 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, existsSync } from "node:fs";
-import { join, dirname } from "node:path";
+import { spawnSync } from "node:child_process";
+import {
+  chmodSync, existsSync, lstatSync, mkdtempSync, mkdirSync,
+  readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync, writeFileSync,
+} from "node:fs";
+import { tmpdir } from "node:os";
+import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  parseClassifyResponse, parseTraceResponse, responseMatchesFixture, validateFixtureSet,
+} from "./eval/route-eval-contract.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS_DIR = join(ROOT, "skills");
@@ -43,6 +51,32 @@ function parseFrontmatter(content) {
 function parseList(value) {
   if (!value) return [];
   return value.replace(/^\[/, "").replace(/\]$/, "").split(",").map((s) => s.trim()).filter(Boolean);
+}
+
+function extractRenderedMarkdownLinkTargets(content) {
+  const withoutComments = content.replace(/<!--[\s\S]*?-->/g, "");
+  const proseLines = [];
+  let fence = null;
+  for (const line of withoutComments.split("\n")) {
+    if (fence === null) {
+      const opening = line.match(/^[ \t]{0,3}(`{3,}|~{3,})/);
+      if (opening) {
+        fence = { kind: opening[1][0], length: opening[1].length };
+      } else {
+        proseLines.push(line);
+      }
+      continue;
+    }
+
+    const closing = line.match(/^[ \t]{0,3}(`{3,}|~{3,})[ \t]*$/);
+    if (closing && closing[1][0] === fence.kind && closing[1].length >= fence.length) {
+      fence = null;
+    }
+  }
+  const prose = proseLines.join("\n").replace(/(`+)[\s\S]*?\1/g, "");
+  return [
+    ...prose.matchAll(/(?<!!)(?<!\\)\[[^\]\n]+\]\(\s*<?([^)\s>#]+)(?:#[^)\s>]*)?>?(?:\s+["'][^"']*["'])?\s*\)/g),
+  ].map(([, target]) => target);
 }
 
 /** Extract every `gsd-xxx` or `/gsd-xxx` reference from markdown text. */
@@ -310,6 +344,13 @@ const T1_MODE_CONTRACTS = [
     },
     noFabrication: /never fabricate the ledger/,
   },
+  {
+    skill: "gsd-lavish",
+    mode: "Render supplied deliverable",
+    required: [],
+    optional: [],
+    produced: [],
+  },
 ];
 
 // ── Tests ────────────────────────────────────────────────
@@ -482,8 +523,8 @@ test("every markdown-linked local file referenced by a skill exists", () => {
   const failures = [];
   for (const [skillName, content] of Object.entries(skills)) {
     const dir = join(SKILLS_DIR, skillName);
-    for (const m of content.matchAll(/\[[^\]]+\]\(([^)]+)\)/g)) {
-      let target = m[1].split(/[#?]/)[0];
+    for (const linkedTarget of extractRenderedMarkdownLinkTargets(content)) {
+      const target = linkedTarget.split("?")[0];
       // skip URLs, mailto, and template placeholders
       if (!target || /^https?:|^mailto:/.test(target)) continue;
       if (/[<>{}]/.test(target)) continue;
@@ -495,9 +536,35 @@ test("every markdown-linked local file referenced by a skill exists", () => {
   assert.deepEqual(failures, [], `Missing referenced files:\n${failures.join("\n")}`);
 });
 
-test("the lavish-axi CLI the skills invoke exists", () => {
+test("Markdown ownership ignores code, comments, escapes, and images", () => {
+  const markdown = [
+    "[real](support.md)",
+    "\\[escaped](escaped.md)",
+    "![image](image.md)",
+    "`[inline-code](inline.md)`",
+    "<!-- [comment](comment.md) -->",
+    "```md",
+    "[fenced](fenced.md)",
+    "```",
+    "````md",
+    "```",
+    "[still-fenced](still-fenced.md)",
+    "````",
+  ].join("\n");
+  assert.deepEqual(extractRenderedMarkdownLinkTargets(markdown), ["support.md"]);
+});
+
+test("the optional lavish CLI never gates core skill validation", () => {
   const cli = join(ROOT, "tools/lavish-axi/dist/cli.mjs");
-  assert.ok(existsSync(cli), `gsd-lavish invokes ${cli} but it does not exist (submodule not built?)`);
+  const lavish = readSkill("gsd-lavish");
+  assert.match(
+    lavish,
+    /\$CLI` missing[\s\S]{0,80}Degrade to terminal/,
+    "an absent external lavish build must degrade to terminal instead of failing the core suite",
+  );
+  if (existsSync(cli)) {
+    assert.match(lavish, /tools\/lavish-axi\/dist\/cli\.mjs/, "a present external build must use the registered local path");
+  }
 });
 
 test("gsd master loads registered sub-skills directly, readlink only as fallback", () => {
@@ -596,6 +663,8 @@ test("master routing has a route trace and a feature list/switch affordance (Min
   const master = readSkill("gsd");
   assert.match(master, /Route trace/, "master must require a route trace on entry");
   assert.match(master, /auditable/, "route trace must be justified as auditable");
+  assert.match(master, /Route 0 Direct\/read-only and Nano instead emit `Route 0 → none` and perform no skill load/, "Route 0 without a target must not invent a skill load");
+  assert.match(master, /Route 0 Real quick-fix targets and immediately loads `gsd-ponytail`/, "Route 0 quick-fix must still load ponytail");
   assert.match(master, /To list\/switch/, "master must offer a feature list/switch affordance");
 });
 
@@ -607,26 +676,189 @@ test("ponytail states its persistence contract (Minor 2)", () => {
 
 // ── Gap tests added by the gsd-audit pass ────────────────
 
-test("no orphaned files in skill directories (each non-SKILL.md is referenced by a SKILL.md)", () => {
-  const allSkillText = Object.values(readAllSkills()).join("\n");
-  const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    const p = join(dir, e.name);
-    return e.isDirectory() ? walk(p) : [p];
+test("no orphaned files in skill directories (each non-SKILL.md is referenced by its owning SKILL.md)", () => {
+  const walk = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    return entry.isDirectory() ? walk(path) : [path];
   });
   const orphans = [];
   for (const skill of listSkillDirs()) {
-    for (const f of walk(join(SKILLS_DIR, skill))) {
-      const base = f.split("/").pop();
-      if (base !== "SKILL.md" && !allSkillText.includes(base)) orphans.push(f.split("/").slice(-2).join("/"));
+    const skillDir = join(SKILLS_DIR, skill);
+    const ownerText = readSkill(skill);
+    const linkedPaths = new Set(extractRenderedMarkdownLinkTargets(ownerText));
+    for (const file of walk(skillDir)) {
+      const ownedPath = relative(skillDir, file).replaceAll("\\", "/");
+      if (ownedPath !== "SKILL.md" && !linkedPaths.has(ownedPath)) {
+        orphans.push(`${skill}/${ownedPath}`);
+      }
     }
   }
-  assert.equal(orphans.length, 0, `orphaned files not referenced by any SKILL.md: ${orphans.join(", ")}`);
+  assert.deepEqual(orphans, [], `orphaned files not referenced by their owning SKILL.md: ${orphans.join(", ")}`);
 });
 
 test("install.sh registers all gsd skills and initializes the lavish submodule", () => {
   const sh = readFileSync(join(ROOT, "install.sh"), "utf8");
   assert.match(sh, /ln -sfn[^\n]*\$dir/, "install.sh must symlink the gsd* skills to the registry");
   assert.match(sh, /submodule update --init/, "install.sh must initialize the lavish-axi submodule");
+});
+
+test("install.sh registers isolated symlinks and preflights real-directory collisions", () => {
+  const sandbox = mkdtempSync(join(tmpdir(), "gsd-install-test-"));
+  const fakeBin = join(sandbox, "bin");
+  mkdirSync(fakeBin, { recursive: true });
+  for (const command of ["git", "pnpm"]) {
+    const stub = join(fakeBin, command);
+    writeFileSync(stub, "#!/bin/sh\nexit 1\n");
+    chmodSync(stub, 0o755);
+  }
+  const runInstaller = (home) => spawnSync("bash", [join(ROOT, "install.sh")], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      HOME: home,
+      PATH: `${fakeBin}:${process.env.PATH ?? ""}`,
+    },
+  });
+
+  try {
+    const cleanHome = join(sandbox, "clean-home");
+    const installed = runInstaller(cleanHome);
+    assert.equal(installed.status, 0, `${installed.stdout}\n${installed.stderr}`);
+    for (const skill of listSkillDirs()) {
+      const target = join(cleanHome, ".agents", "skills", skill);
+      assert.ok(lstatSync(target).isSymbolicLink(), `${skill} must install as a symlink`);
+      assert.equal(readlinkSync(target), join(SKILLS_DIR, skill));
+    }
+    const reinstalled = runInstaller(cleanHome);
+    assert.equal(reinstalled.status, 0, "reinstalling the same managed symlinks must remain idempotent");
+    const relativeTarget = join(cleanHome, ".agents", "skills", "gsd-verify");
+    rmSync(relativeTarget);
+    symlinkSync(relative(dirname(relativeTarget), join(SKILLS_DIR, "gsd-verify")), relativeTarget);
+    const relativeReinstalled = runInstaller(cleanHome);
+    assert.equal(relativeReinstalled.status, 0, "a relative symlink resolving to this checkout must remain idempotent");
+    assert.equal(readlinkSync(relativeTarget), join(SKILLS_DIR, "gsd-verify"), "reinstall must refresh a managed relative symlink canonically");
+
+    const foreignHome = join(sandbox, "foreign-link-home");
+    const foreignRegistry = join(foreignHome, ".agents", "skills");
+    const foreignDestination = join(sandbox, "user-owned-skill");
+    mkdirSync(foreignRegistry, { recursive: true });
+    mkdirSync(foreignDestination, { recursive: true });
+    const foreignTarget = join(foreignRegistry, "gsd-verify");
+    symlinkSync(foreignDestination, foreignTarget);
+    const foreignRun = runInstaller(foreignHome);
+    assert.notEqual(foreignRun.status, 0, "an unrelated existing skill symlink must not be overwritten");
+    assert.match(
+      `${foreignRun.stdout}\n${foreignRun.stderr}`,
+      /existing symlink does not point to this checkout; move or remove it/,
+      "a foreign-symlink collision must be actionable",
+    );
+    assert.equal(readlinkSync(foreignTarget), foreignDestination, "foreign symlink ownership must be preserved");
+    assert.deepEqual(readdirSync(foreignRegistry), ["gsd-verify"], "foreign collision must fail before partial registration");
+
+    const linkedRegistryHome = join(sandbox, "linked-registry-home");
+    const linkedRegistryParent = join(linkedRegistryHome, ".agents");
+    const externalRegistry = join(sandbox, "external-registry");
+    mkdirSync(linkedRegistryParent, { recursive: true });
+    mkdirSync(externalRegistry, { recursive: true });
+    symlinkSync(externalRegistry, join(linkedRegistryParent, "skills"));
+    const linkedRegistryRun = runInstaller(linkedRegistryHome);
+    assert.notEqual(linkedRegistryRun.status, 0, "a symlinked registry boundary must be rejected");
+    assert.match(
+      `${linkedRegistryRun.stdout}\n${linkedRegistryRun.stderr}`,
+      /registration path .* is a symlink; move or remove it/,
+      "the registry symlink error must be actionable",
+    );
+    assert.deepEqual(readdirSync(externalRegistry), [], "installer must not write through the registry symlink");
+    const linkedAgentsHome = join(sandbox, "linked-agents-home");
+    const externalAgents = join(sandbox, "external-agents");
+    mkdirSync(linkedAgentsHome, { recursive: true });
+    mkdirSync(externalAgents, { recursive: true });
+    symlinkSync(externalAgents, join(linkedAgentsHome, ".agents"));
+    const linkedAgentsRun = runInstaller(linkedAgentsHome);
+    assert.notEqual(linkedAgentsRun.status, 0, "a symlinked registration parent must be rejected");
+    assert.match(
+      `${linkedAgentsRun.stdout}\n${linkedAgentsRun.stderr}`,
+      /registration parent .* is a symlink; move or remove it/,
+      "the registration-parent symlink error must be actionable",
+    );
+    assert.deepEqual(readdirSync(externalAgents), [], "installer must not write through the registration-parent symlink");
+
+    const collisionHome = join(sandbox, "collision-home");
+    const collisionRegistry = join(collisionHome, ".agents", "skills");
+    const collisionTarget = join(collisionRegistry, "gsd-verify");
+    mkdirSync(collisionTarget, { recursive: true });
+    const collision = runInstaller(collisionHome);
+    assert.notEqual(collision.status, 0, "a real directory must not be silently treated as a symlink target");
+    assert.match(
+      `${collision.stdout}\n${collision.stderr}`,
+      /exists and is not a symlink; move or remove it/,
+      "the collision error must be actionable",
+    );
+    assert.deepEqual(readdirSync(collisionTarget), [], "installer must not create a nested stale symlink");
+    assert.deepEqual(
+      readdirSync(collisionRegistry),
+      ["gsd-verify"],
+      "a late collision must not leave earlier skill registrations partially updated",
+    );
+    const invalidRegistryHome = join(sandbox, "invalid-registry-home");
+    const invalidRegistryParent = join(invalidRegistryHome, ".agents");
+    const invalidRegistry = join(invalidRegistryParent, "skills");
+    mkdirSync(invalidRegistryParent, { recursive: true });
+    writeFileSync(invalidRegistry, "user-owned registry sentinel\n");
+    const invalidRegistryRun = runInstaller(invalidRegistryHome);
+    assert.notEqual(invalidRegistryRun.status, 0, "a non-directory registry path must fail before registration");
+    assert.match(
+      `${invalidRegistryRun.stdout}\n${invalidRegistryRun.stderr}`,
+      /registration path .* exists and is not a directory/,
+      "the registry-path error must be actionable",
+    );
+    assert.equal(
+      readFileSync(invalidRegistry, "utf8"),
+      "user-owned registry sentinel\n",
+      "preflight must leave a user-owned registry path untouched",
+    );
+  } finally {
+    rmSync(sandbox, { recursive: true, force: true });
+  }
+});
+
+test("repository-wide prompt and capability contracts preserve auto-pilot", () => {
+  const design = readSkill("gsd-codebase-design");
+  assert.match(design, /no required artifacts \(`consumes: \[\]`\)[\s\S]*standalone interface-design invocation proceeds directly/, "standalone codebase design must not depend on impossible missing artifacts");
+  assert.match(design, /no module, interface, or area is supplied[\s\S]*ask one focused target question[\s\S]*never survey the repository or invent a target/, "standalone codebase design must stop instead of inventing a missing target");
+
+  const designTwice = readFileSync(join(SKILLS_DIR, "gsd-codebase-design", "DESIGN-IT-TWICE.md"), "utf8");
+  assert.doesNotMatch(designTwice, /Agent tool/, "design-it-twice must use the registered subagent surface");
+  assert.match(designTwice, /No `task`\/subagent capability[\s\S]*three separate self-contained inline design passes/, "design-it-twice must preserve alternatives without subagents");
+  assert.match(designTwice, /Include CONTEXT\.md vocabulary only when it was supplied and is relevant[\s\S]*otherwise state that domain context is unavailable/, "standalone design passes must not fabricate optional domain context");
+
+  const handoff = readSkill("gsd-handoff");
+  assert.match(handoff, /During post-approval auto-pilot[\s\S]*context-pressure handoff[\s\S]*never asks this question/, "automatic post-approval handoff must not ask about autosync");
+  assert.match(handoff, /Post-approval auto-pilot also never asks to snapshot uncommitted code/, "automatic post-approval handoff must not prompt for a dirty snapshot");
+  assert.match(handoff, /Autosync `on` runs automatically only at a user-requested pause or portable handoff and after a completed task commit/, "autosync-on must name its safe synchronization boundaries");
+  assert.match(handoff, /automatic context-pressure handoff while a task has uncommitted work stays machine-local/, "mid-task automatic handoff must not silently sync dirty work");
+  assert.match(handoff, /Snapshot these listed paths before portable sync\? \(yes \/ no\)/, "dirty-code snapshot consent must have exact prompt semantics");
+  assert.match(handoff, /initialize `autosync=unset`[\s\S]*exactly one `autosync,on` or `autosync,off` row[\s\S]*invalid or duplicate[\s\S]*leaves it `unset`/, "handoff restore must fail closed on malformed autosync settings");
+
+  const diagnosis = readSkill("gsd-diagnosing-bugs");
+  assert.match(diagnosis, /Execution-blocker diagnosis[\s\S]*never ask, wait for a re-ranking, or pause post-approval auto-pilot/, "execution-blocker diagnosis must surface hypotheses without prompting");
+  assert.match(diagnosis, /No red-capable command[\s\S]*Route 4 diagnosis[\s\S]*ask one focused question[\s\S]*Execution-blocker diagnosis[\s\S]*ask no question[\s\S]*Blocker stop/, "a feedback-loop blocker must not prompt inside approved execution");
+  assert.match(diagnosis, /return the blocker evidence to `gsd-executing-plans` as its caller[\s\S]*does not resume execution[\s\S]*later `\/gsd` resume/, "an unavailable execution feedback loop must stop canonically and resume only after the external prerequisite");
+  assert.match(diagnosis, /successful Route 4 diagnosis[\s\S]*post-diagnosis architecture audit[\s\S]*Execution-blocker diagnosis[\s\S]*return to `gsd-executing-plans`[\s\S]*report-only/, "post-mortem routing must preserve the diagnosis lifecycle");
+  assert.match(diagnosis, /in-task Execution-blocker diagnosis[\s\S]*return to `gsd-executing-plans`[\s\S]*terminal_repair_round=2[\s\S]*canonical Blocker stop[\s\S]*later `\/gsd` resume/, "diagnosis must split a successful in-task return from an exhausted terminal-gate stop");
+  assert.match(diagnosis, /standalone Route 4 only[\s\S]*ask what would have prevented this[\s\S]*Execution-blocker diagnosis[\s\S]*ask no post-mortem question[\s\S]*return to `gsd-executing-plans` immediately/, "approved diagnosis must skip the standalone post-mortem question");
+
+  const master = readSkill("gsd");
+  const feedbackMap = master.split("**Feedback loops:**")[1]?.split("**Agent-invocable:**")[0] || "";
+  assert.match(feedbackMap, /Route 4[\s\S]*`gsd-improve-codebase-architecture`/, "standalone Route 4 diagnosis may enter the architecture audit");
+  assert.match(feedbackMap, /Execution-blocker[\s\S]*`gsd-executing-plans`/, "execution-blocker diagnosis must return to approved execution");
+  assert.match(feedbackMap, /in-task Execution-blocker[\s\S]*terminal repair round-two exhaustion[\s\S]*Blocker stop[\s\S]*later `\/gsd` resume/, "master map must preserve terminal exhaustion while allowing successful in-task return");
+  assert.match(feedbackMap, /acceptance criterion, interface, or invariant[\s\S]*Spec escalation/, "load-bearing execution diagnosis must preserve the spec-escalation exit");
+
+  const architecture = readSkill("gsd-improve-codebase-architecture");
+  assert.match(architecture, /Post-diagnosis architecture-audit mode inside approved execution[\s\S]*report-only: ask no question/, "post-diagnosis architecture audit must be report-only");
+  assert.match(architecture, /pre-approval Post-diagnosis architecture-audit mode[\s\S]*ask the user to pick one/, "standalone Route 4 diagnosis must retain the candidate-pick path");
+  assert.match(architecture, /return to `gsd-executing-plans` without selection, grilling, or refactoring/, "non-blocking post-diagnosis findings must return to execution");
 });
 
 test("no gsd-lavish mention describes an unconditional browser launch", () => {
@@ -1114,8 +1346,143 @@ test("gsd-verify defines a standalone Route 2 review mode (read-only, no merge)"
   assert.match(verify, /apply only to the WIP-branch gate/, "merge mechanics must be scoped to the WIP gate");
 });
 
-test("gsd-verify spec-compliance excludes superseded ACs", () => {
-  assert.match(readSkill("gsd-verify"), /non-superseded acceptance criterion/);
+test("superseded plan rows are terminal and never executable", () => {
+  const execution = readSkill("gsd-executing-plans");
+  assert.match(execution, /Only `pending` or `in_progress` rows that are not `superseded` are executable/, "execution intake must exclude obsolete replacement rows");
+  assert.match(execution, /skip both `done` and `superseded` rows/, "resume must not dispatch terminal rows");
+  assert.match(execution, /all non-superseded rows are `done`/, "terminal execution must ignore superseded rows");
+  assert.doesNotMatch(execution, /All plans done/, "terminal handoff must not revive obsolete rows through ambiguous wording");
+
+  const planning = readSkill("gsd-to-plan");
+  assert.match(planning, /`superseded` is terminal history and is never dispatched/, "the plan producer must define the replacement-row lifecycle");
+
+  const verify = readSkill("gsd-verify");
+  assert.match(verify, /every non-superseded task's TDD test is green/, "terminal review must not require obsolete task tests");
+  assert.match(verify, /Before any WIP-gate blocker or verify-fail stop[\s\S]*preserve `explicit_level`[\s\S]*set `auto_scope=none`/, "every terminal blocker must expire quick-fix auto scope");
+});
+
+function parseSpecAcLifecycleFixture(spec) {
+  const lines = spec.split("\n");
+  const sectionStart = lines.indexOf("## Acceptance Criteria");
+  if (sectionStart < 0) throw new Error("missing Acceptance Criteria section");
+
+  const active = [];
+  const superseded = [];
+  const ids = new Set();
+  let style = null;
+  let fenceMarker = null;
+
+  for (let index = sectionStart + 1; index < lines.length; index += 1) {
+    const line = lines[index];
+    const fence = line.match(/^(`{3,}|~{3,})/);
+    if (fence) {
+      const marker = fence[1][0];
+      if (fenceMarker === null) fenceMarker = marker;
+      else if (fenceMarker === marker) fenceMarker = null;
+      continue;
+    }
+    if (fenceMarker !== null) continue;
+    if (/^#{1,2} /.test(line)) break;
+
+    const canonicalSuperseded = line.match(/^- (AC-[1-9]\d*) \[superseded\]: (\S.*)$/);
+    const canonicalActive = line.match(/^- (AC-[1-9]\d*): (\S.*)$/);
+    const legacyActive = line.match(/^- \*\*(AC-[1-9]\d*):\*\* (\S.*)$/);
+    const match = canonicalSuperseded ?? canonicalActive ?? legacyActive;
+    if (!match) {
+      if (/^- (?:\*\*)?AC-/.test(line) || /^  - .*Check:/.test(line)) {
+        throw new Error("malformed AC lifecycle line");
+      }
+      continue;
+    }
+
+    const entryStyle = legacyActive ? "legacy" : "canonical";
+    if (style !== null && style !== entryStyle) throw new Error("mixed AC grammar");
+    style = entryStyle;
+    if (ids.has(match[1])) throw new Error(`duplicate AC ID ${match[1]}`);
+    ids.add(match[1]);
+
+    const checkLine = lines[index + 1] ?? "";
+    const check = entryStyle === "legacy"
+      ? checkLine.match(/^  - \*\*Check:\*\* (\S.*)$/)
+      : checkLine.match(/^  - Check: (\S.*)$/);
+    const checkText = check?.[1] ?? "";
+    const arrow = checkText.indexOf("→");
+    const action = arrow >= 0 ? checkText.slice(0, arrow).trim() : "";
+    const expected = arrow >= 0 ? checkText.slice(arrow + 1).trim() : "";
+    if (
+      !check
+      || action === ""
+      || expected === ""
+      || /^(?:TBD|TODO)\b/i.test(action)
+      || /^(?:TBD|TODO)\b/i.test(expected)
+    ) throw new Error(`invalid Check for ${match[1]}`);
+    index += 1;
+    (canonicalSuperseded ? superseded : active).push(match[1]);
+  }
+
+  if (style === null) throw new Error("no AC entries");
+  return { style, active, superseded };
+}
+
+test("gsd-verify spec-compliance excludes superseded ACs through one canonical grammar", () => {
+  const reference = readFileSync(join(SKILLS_DIR, "gsd", "REFERENCE.md"), "utf8");
+  assert.match(reference, /Active AC header[\s\S]*`- AC-N: <outcome>`/, "the spec contract must define the active AC header exactly");
+  assert.match(reference, /Superseded AC header[\s\S]*`- AC-N \[superseded\]: <former outcome>`/, "the spec contract must define the superseded AC header exactly");
+  assert.match(reference, /exact `## Acceptance Criteria` section[\s\S]*outside fenced code[\s\S]*duplicate ID[\s\S]*both active and superseded[\s\S]*spec blocker/, "the raw AC parser must reject ambiguous or malformed lifecycle state");
+  assert.match(reference, /Legacy all-bold compatibility[\s\S]*`- \*\*AC-N:\*\* <outcome>`[\s\S]*`  - \*\*Check:\*\* <sketch>`[\s\S]*read-only[\s\S]*never emit/, "pre-contract all-bold specs need an explicit read-only compatibility path");
+  assert.match(reference, /all AC headers and checks[\s\S]*legacy form[\s\S]*mixed canonical\/legacy[\s\S]*spec blocker/, "legacy compatibility must reject ambiguous mixed grammar");
+
+  assert.deepEqual(
+    parseSpecAcLifecycleFixture([
+      "# Feature",
+      "## Acceptance Criteria",
+      "~~~markdown",
+      "- AC-99: fenced example",
+      "  - Check: action → fenced result",
+      "~~~",
+      "- AC-1: current",
+      "  - Check: action → current",
+      "- AC-2 [superseded]: former",
+      "  - Check: action → former",
+    ].join("\n")),
+    { style: "canonical", active: ["AC-1"], superseded: ["AC-2"] },
+  );
+  assert.deepEqual(
+    parseSpecAcLifecycleFixture([
+      "# Feature",
+      "## Acceptance Criteria",
+      "- **AC-1:** existing",
+      "  - **Check:** action → existing",
+      "- **AC-2:** existing too",
+      "  - **Check:** action → existing too",
+    ].join("\n")),
+    { style: "legacy", active: ["AC-1", "AC-2"], superseded: [] },
+  );
+  for (const invalid of [
+    ["- AC-1: current", "  - Check: action → current", "- **AC-2:** old", "  - **Check:** action → old"],
+    ["- AC-1: one", "  - Check: action → one", "- AC-1 [superseded]: one", "  - Check: action → former"],
+    ["- **AC-1 [superseded]:** former", "  - **Check:** action → former"],
+    ["- AC-X: malformed", "  - Check: action → result"],
+    ["- **AC-X:** malformed", "  - **Check:** action → result"],
+    ["- AC-1: current", "  - Check: TODO"],
+    ["- AC-1: current", "  - Check: works correctly"],
+    ["- AC-1: current", "  - Check: TODO → result"],
+    ["- AC-1: current", "  - Check: action → TODO"],
+    ["- AC-1: current", "  - Check: action → TBD"],
+  ]) {
+    assert.throws(
+      () => parseSpecAcLifecycleFixture(["# Feature", "## Acceptance Criteria", ...invalid].join("\n")),
+      /mixed|duplicate|malformed|invalid Check/,
+    );
+  }
+
+  const planning = readSkill("gsd-to-plan");
+  const execution = readSkill("gsd-executing-plans");
+  const verify = readSkill("gsd-verify");
+  for (const [owner, source] of [["planning", planning], ["execution", execution], ["verify", verify]]) {
+    assert.match(source, /canonical active\/superseded AC grammar[\s\S]*legacy all-bold compatibility/, `${owner} must consume canonical and legacy raw AC grammar`);
+  }
+  assert.match(verify, /non-superseded acceptance criterion/);
 });
 
 test("missing reviewer degrades to self-review with unchanged blocking semantics", () => {
@@ -1232,6 +1599,7 @@ test("autosync: opt-in toggle persisted via settings[], synced per pause and per
   assert.match(handoff, /`autosync,on` and `autosync,off` are both explicit user choices worth a row/, "settings note must allow the explicit off row");
   assert.match(handoff, /[Pp]ersisted like `ponytail_level` via `settings\[\]`/, "autosync must reuse the settings[] persistence contract");
   assert.match(handoff, /Requires a remote: none → stay machine-local and say so/, "autosync must degrade gracefully without a remote");
+  assert.match(handoff, /user-requested non-portable pause[\s\S]*never asks for or creates a dirty-code snapshot[\s\S]*sync only committed state plus scratch/, "ordinary pause autosync must never snapshot unrelated dirty work");
   assert.match(handoff, /active non-default toggles only/, "settings template rows must be marked as examples, not defaults");
   assert.match(handoff, /omit the table entirely when nothing is toggled/, "settings table must be omitted when no toggle is active");
   const exec = readSkill("gsd-executing-plans");
@@ -1241,7 +1609,15 @@ test("autosync: opt-in toggle persisted via settings[], synced per pause and per
   assert.match(exec, /\*\*always\*\* `git push`/, "push must be unconditional so code commits travel");
   assert.match(master, /"autosync on\/off" → persist the explicit row/, "master must intercept the autosync toggle like ponytail");
   assert.match(master, /never cleared back to unset/, "explicit off must persist as a row, not clear to unset");
+  assert.match(master, /only a user-requested pause\/portable handoff or a completed task commit with a clean non-scratch tree auto-syncs/, "master autosync trigger must preserve dirty-handoff safety");
+  assert.match(master, /user-requested non-portable pause[\s\S]*dirty paths stay local[\s\S]*committed state plus scratch/, "master routing must preserve ordinary-pause dirty work");
+  assert.match(exec, /require the non-scratch tree to be clean[\s\S]*dirty, defer the scratch sync and push locally without a question/, "per-task autosync must defer when unrelated dirty work would make the handoff incomplete");
   assert.match(exec, /No remote → skip the sync\/push and stay machine-local/, "per-task autosync must degrade without a remote, not error");
+  const readme = readFileSync(join(ROOT, "README.md"), "utf8");
+  assert.match(readme, /`on` syncs only at safe sync points/, "README autosync summary must not promise unconditional sync");
+  assert.match(readme, /completed task commit with a clean non-scratch tree[\s\S]*dirty[\s\S]*deferred locally without asking/, "README must document the clean task-boundary requirement");
+  assert.match(readme, /Snapshot these listed paths before portable sync\? \(yes \/ no\)/, "README portable handoff must preserve exact dirty-snapshot consent");
+  assert.match(readme, /user-requested non-portable pause[\s\S]*dirty paths stay local[\s\S]*committed state plus scratch/, "README must define ordinary-pause autosync with a dirty tree");
 });
 
 test("pre-plan portable handoff: base survives the machine switch", () => {
@@ -1275,7 +1651,7 @@ test("sub-skill loading is imperative: route = load skill, catalog on capability
 test("all skills registered: sub-skills declare internality and a direct-invocation guard", () => {
   const sh = readFileSync(join(ROOT, "install.sh"), "utf8");
   assert.match(sh, /for dir in "\$REPO"\/skills\/gsd\*/, "install.sh must loop over every skills/gsd* dir");
-  assert.match(sh, /ln -sfn "\$dir" "\$REG\/\$\(basename "\$dir"\)"/, "install.sh must symlink each skill into the registry");
+  assert.match(sh, /target="\$REG\/\$\(basename "\$dir"\)"[\s\S]*ln -sfn "\$dir" "\$target"/, "install.sh must resolve and symlink every skill into the registry");
   assert.doesNotMatch(sh, /\[ -L "\$link" \] && rm/, "install.sh must not unregister sub-skills anymore");
   for (const name of listSkillDirs()) {
     if (name === "gsd") continue;
@@ -1297,8 +1673,11 @@ test("System map names every sub-skill on disk (discovery completeness)", () => 
 test("eval harness: fixtures well-formed, routes valid, target skills exist", () => {
   const fixtures = JSON.parse(readFileSync(join(ROOT, "test", "eval", "fixtures.json"), "utf8"));
   assert.ok(fixtures.length >= 10, "eval needs a meaningful fixture set");
+  const fixtureIds = fixtures.map(({ id }) => id);
+  assert.equal(new Set(fixtureIds).size, fixtureIds.length, "eval fixture IDs must be unique");
   const dirs = new Set(listSkillDirs());
   const routes = new Set(["0", "1", "2", "3", "4", "5", "6", "meta"]);
+  assert.deepEqual(validateFixtureSet(fixtures, dirs), { ok: true }, "the live runner's shared fixture schema must accept the canonical corpus");
   for (const fx of fixtures) {
     for (const want of [fx, ...(fx.accept ?? [])]) {
       assert.ok(routes.has(want.route), `${fx.id}: invalid route ${want.route}`);
@@ -1309,8 +1688,185 @@ test("eval harness: fixtures well-formed, routes valid, target skills exist", ()
     }
     assert.ok(fx.id && fx.state && fx.prompt, `fixture missing id/state/prompt`);
   }
+  const outcomeOracle = (corpus) => new Map(corpus.map(
+    ({ id, route, skill, accept = [] }) => [
+      id,
+      [route, skill, accept.map((alternate) => [alternate.route, alternate.skill])],
+    ],
+  ));
+  const expectedOutcomes = new Map([
+    ["nano-typo", ["0", "none", []]],
+    ["readonly-question", ["0", "none", []]],
+    ["obvious-error", ["0", "gsd-ponytail", []]],
+    ["behavioral-one-line", ["0", "gsd-ponytail", []]],
+    ["review-diff", ["2", "gsd-verify", []]],
+    ["resume-handoff", ["1", "gsd-handoff", []]],
+    ["pause-save", ["meta", "gsd-handoff", []]],
+    ["hard-bug", ["4", "gsd-diagnosing-bugs", []]],
+    ["arch-audit", ["5", "gsd-improve-codebase-architecture", []]],
+    ["new-feature", ["6", "none", []]],
+    ["plan-related", ["3", "gsd-executing-plans", []]],
+    ["plan-unrelated", ["6", "none", []]],
+    ["mention-not-ask", ["0", "none", []]],
+    ["catalog", ["meta", "catalog", []]],
+  ]);
+  assert.deepEqual(
+    outcomeOracle(fixtures),
+    expectedOutcomes,
+    "fixture IDs, primary outcomes, and accepted alternates are the independent routing oracle",
+  );
+  const alternateMutant = structuredClone(fixtures);
+  alternateMutant[0].accept = [{ route: "4", skill: "gsd-diagnosing-bugs" }];
+  assert.deepEqual(validateFixtureSet(alternateMutant, dirs), { ok: true }, "a registered alternate is schema-valid");
+  assert.notDeepEqual(outcomeOracle(alternateMutant), expectedOutcomes, "an unpinned valid alternate must change the independent oracle");
+  const metaAlternateMutant = structuredClone(fixtures);
+  metaAlternateMutant[0].accept = [{ route: "meta", skill: "catalog" }];
+  assert.equal(validateFixtureSet(metaAlternateMutant, dirs).ok, false, "a numbered trace fixture must reject a meta-only alternate");
+  const numberedAlternateOnMeta = structuredClone(fixtures);
+  numberedAlternateOnMeta.find(({ id }) => id === "catalog").accept = [{ route: "0", skill: "none" }];
+  assert.equal(validateFixtureSet(numberedAlternateOnMeta, dirs).ok, false, "a skipped meta trace fixture must reject a numbered alternate");
+  const fixtureMutations = [
+    (copy) => { copy[0].route = "7"; },
+    (copy) => { copy[0].skill = "gsd-missing"; },
+    (copy) => { copy[0].unexpected = true; },
+    (copy) => { copy[0].accept = [{ route: "0", skill: "gsd-missing" }]; },
+    (copy) => { copy.push(structuredClone(copy[0])); },
+  ];
+  for (const mutate of fixtureMutations) {
+    const copy = structuredClone(fixtures);
+    mutate(copy);
+    assert.equal(validateFixtureSet(copy, dirs).ok, false, "fixture schema mutations must fail before the live/network gate");
+  }
+  assert.equal(validateFixtureSet({ fixtures }, dirs).ok, false, "the fixture corpus must be a top-level array");
+  assert.equal(validateFixtureSet([], dirs).ok, false, "the live runner must reject an empty fixture oracle");
   // Runner stays opt-in: present, but never picked up by `node --test` (not *.test.js).
   assert.ok(existsSync(join(ROOT, "test", "eval", "route-eval.mjs")));
+  const unknownFixture = spawnSync(
+    process.execPath,
+    [join(ROOT, "test", "eval", "route-eval.mjs"), "--only", "__missing_fixture__"],
+    {
+      encoding: "utf8",
+      env: { ...process.env, GSD_EVAL_KEY: "", OPENAI_API_KEY: "" },
+    },
+  );
+  assert.equal(unknownFixture.status, 2, "an unknown --only fixture must fail before the network/key gate");
+  assert.match(unknownFixture.stderr, /unknown --only fixture __missing_fixture__/);
+  for (const args of [["--only"], ["--only", ""]]) {
+    const missingFixtureValue = spawnSync(
+      process.execPath,
+      [join(ROOT, "test", "eval", "route-eval.mjs"), ...args],
+      {
+        encoding: "utf8",
+        env: { ...process.env, GSD_EVAL_KEY: "", OPENAI_API_KEY: "" },
+      },
+    );
+    assert.equal(missingFixtureValue.status, 2, `${args.join(" ")} must fail before the network/key gate`);
+    assert.match(missingFixtureValue.stderr, /missing value for --only/);
+  }
+  const malformedArgv = [
+    { args: ["--only=__missing_fixture__"], error: /unknown argument --only=__missing_fixture__/ },
+    { args: ["--only", fixtures[0].id, "--only", fixtures[1].id], error: /duplicate option --only/ },
+    { args: ["--mode=trace"], error: /unknown argument --mode=trace/ },
+    { args: ["--bogus"], error: /unknown argument --bogus/ },
+    { args: ["unexpected"], error: /unknown argument unexpected/ },
+  ];
+  for (const { args, error } of malformedArgv) {
+    const malformed = spawnSync(
+      process.execPath,
+      [join(ROOT, "test", "eval", "route-eval.mjs"), ...args],
+      {
+        encoding: "utf8",
+        env: { ...process.env, GSD_EVAL_KEY: "", OPENAI_API_KEY: "" },
+      },
+    );
+    assert.equal(malformed.status, 2, `${args.join(" ")} must fail before the network/key gate`);
+    assert.match(malformed.stderr, error);
+  }
+  const readme = readFileSync(join(ROOT, "README.md"), "utf8");
+  const documentedCount = readme.match(/(\d+) workspace-state \+ prompt fixtures/)?.[1];
+  assert.ok(documentedCount, "README must state the eval fixture count");
+  assert.equal(Number(documentedCount), fixtures.length, "README eval fixture count must match fixtures.json");
+});
+
+test("eval response validators require exact JSON and trace targets", () => {
+  const installedSkills = new Set(listSkillDirs());
+  const exactClassify = parseClassifyResponse('{"route":"0","skill":"none"}', installedSkills);
+  assert.deepEqual(exactClassify, {
+    ok: true,
+    value: { route: "0", skill: "none" },
+  });
+  for (const invalid of [
+    'prose {"route":"0","skill":"none"}',
+    '```json\n{"route":"0","skill":"none"}\n```',
+    ' {"route":"0","skill":"none"}',
+    '{"route":"0","skill":"none"}\n',
+    '{"route":"0","skill":"none","explanation":"extra"}',
+    '{"route":"4","route":"0","skill":"none"}',
+    '{"route":"0","skill":"gsd-verify","skill":"none"}',
+    '{"route":"0"}',
+    '["0","none"]',
+    '{"route":"7","skill":"none"}',
+    '{"route":"0","skill":"gsd-missing"}',
+    '{"route":"banana","skill":"gsd-ponytail"}',
+    '{"route":"2","skill":"none"}',
+    '{"route":"6","skill":"gsd-verify"}',
+    '{"route":"meta","skill":"none"}',
+  ]) {
+    assert.equal(
+      parseClassifyResponse(invalid, installedSkills).ok,
+      false,
+      `must reject non-schema classify reply: ${invalid}`,
+    );
+  }
+
+  const exactTrace = parseTraceResponse("Route 0 → none", installedSkills);
+  assert.deepEqual(exactTrace, {
+    ok: true,
+    value: { route: "0", skill: "none" },
+  });
+  assert.equal(
+    responseMatchesFixture(exactTrace.value, { route: "0", skill: "none" }),
+    true,
+    "an exact direct trace must match",
+  );
+  assert.equal(
+    responseMatchesFixture(
+      { route: "0", skill: "gsd-ponytail" },
+      { route: "0", skill: "none" },
+    ),
+    false,
+    "a wrong target must fail even when the expected target is none",
+  );
+  assert.equal(
+    responseMatchesFixture(
+      { route: "4", skill: "gsd-diagnosing-bugs" },
+      {
+        route: "0",
+        skill: "none",
+        accept: [{ route: "4", skill: "gsd-diagnosing-bugs" }],
+      },
+    ),
+    true,
+    "documented alternate route/skill pairs must remain valid",
+  );
+  for (const invalid of [
+    "Route 0 -> none",
+    "• Route 0 → none",
+    "Route 0 → gsd-ponytail extra",
+    "Route 0 → none\nextra",
+    " Route 0 → none",
+    "Route 0 → none\n",
+    "Route 0 → gsd-missing",
+    "Route 1 → gsd-ponytail",
+    "Route 2 → none",
+    "Route 7 → none",
+  ]) {
+    assert.equal(
+      parseTraceResponse(invalid, installedSkills).ok,
+      false,
+      `must reject noncanonical trace: ${invalid}`,
+    );
+  }
 });
 
 test("install.sh auto-builds lavish when pnpm exists, degrades to terminal otherwise", () => {
@@ -1328,14 +1884,92 @@ test("content audit: per-task diff base, bounded fix loop, executable squash, la
   assert.match(exec, /two fix rounds[^\n]*gsd-diagnosing-bugs/, "the per-task fix loop must be bounded with an escalation");
   const verify = readSkill("gsd-verify");
   assert.match(verify, /git checkout <base>` → `git merge --squash wip\/<feature>`/, "the squash must be an exact executable sequence");
+  assert.match(verify, /Planned or Milestone WIP Fail[\s\S]*return to `gsd-executing-plans`/, "planned verification failures must use plan execution repair");
+  assert.match(verify, /Quick-fix WIP Fail[\s\S]*Quick-fix terminal finding repair[\s\S]*same active gate invocation[\s\S]*never enter the ordinary fresh Quick-fix setup[\s\S]*`gsd-executing-plans`/, "quick-fix verification failures must target the same-gate repair subsection, not fresh or planned execution");
+  assert.match(verify, /At most two terminal fix rounds[\s\S]*survives round two[\s\S]*`gsd-diagnosing-bugs`[\s\S]*Blocker stop/, "terminal verify repair must be bounded and escalate without a third loop");
+  assert.match(exec, /## Terminal finding repair[\s\S]*complete terminal verify finding set and full WIP diff[\s\S]*without re-dispatching a `done` row or changing any plan status[\s\S]*complete `gsd-verify` gate[\s\S]*two-terminal-round limit/, "planned terminal repairs need a non-row repair path bounded by verify");
+  assert.match(exec, /same structured task-brief[\s\S]*Ponytail Level[\s\S]*current `explicit_level`/, "terminal fix subagents must preserve the implementation dispatch contract");
+  assert.match(exec, /TERMINAL_FIX_BASE=\$\(git rev-parse HEAD\)[\s\S]*git diff \$TERMINAL_FIX_BASE -- \. ':\(exclude\)\.scratch'[\s\S]*outside the finding-owned scope/, "terminal repair review must bind its own base and changed paths");
+  assert.match(exec, /Milestone WIP gate[\s\S]*clean outside `\.scratch`[\s\S]*git reset --soft HEAD\^[\s\S]*git restore --source=HEAD --staged --worktree -- "\$CANONICAL_LEDGER"[\s\S]*scratch state is byte-for-byte and stage-for-stage unchanged[\s\S]*Never use `git reset --hard`[\s\S]*rerun Milestone Ledger preparation[\s\S]*fresh dedicated final ledger-only commit/, "milestone repair must unprepare only the ledger commit while preserving portable scratch");
+  assert.match(verify, /Spec flawed[\s\S]*prepared Milestone WIP gate[\s\S]*before clearing terminal state or revising the plan[\s\S]*Prepared Milestone Ledger unprepare[\s\S]*only after[\s\S]*route back to `gsd` \(Discussion\)[\s\S]*unprepare failure is a canonical Blocker stop/, "Milestone Spec-flawed escalation must unprepare the ledger before re-planning");
+  assert.match(verify, /terminal_repair_round=0[\s\S]*increment[\s\S]*same gate invocation[\s\S]*never initialize it again/, "the terminal repair bound must survive verifier re-entry");
+  const master = readSkill("gsd");
+  assert.match(master, /### Quick-fix terminal finding repair[\s\S]*same active `gsd-verify` gate invocation[\s\S]*never fresh Quick-fix setup/, "quick-fix verifier failures need a distinct same-gate consumer path");
+  assert.match(master, /complete terminal finding set and full WIP diff[\s\S]*terminal_repair_round=<1\|2>[\s\S]*missing, invalid, or duplicate[\s\S]*Blocker/, "quick-fix repair must consume complete fail-closed gate evidence");
+  assert.match(master, /Keep the existing `wip\/<feature>` branch[\s\S]*authoritative `base:`[\s\S]*minimal `plan\.toon`[\s\S]*never recapture `<base>`[\s\S]*never run `git checkout -b`/, "quick-fix repair must preserve branch, base, and plan");
+  assert.match(master, /QUICK_FIX_REPAIR_BASE=\$\(git rev-parse HEAD\)[\s\S]*git diff \$QUICK_FIX_REPAIR_BASE -- \. ':\(exclude\)\.scratch'[\s\S]*same active `gsd-verify` gate[\s\S]*without reinitializing or incrementing/, "quick-fix repair must review one scoped delta and preserve the verifier counter");
+  const handoff = readSkill("gsd-handoff");
+  assert.match(handoff, /runtime\[count\]\{name,value\}[\s\S]*terminal_repair_round,<1\|2>[\s\S]*missing, invalid, or duplicate[\s\S]*Blocker/, "handoff must preserve an active terminal repair counter without resetting it");
+  assert.match(handoff, /exactly one `terminal_repair_round` row[\s\S]*unknown `runtime\[\]` rows[\s\S]*do not count as duplicates/, "unknown runtime rows must not invalidate the one known repair counter");
+  assert.match(handoff, /Outside that gate, omit this known row[\s\S]*omit `runtime\[\]` entirely only when no preserved unknown rows remain[\s\S]*Preserve unknown runtime rows across every subsequent handoff[\s\S]*whether or not a terminal verifier repair is active/, "unknown runtime rows must survive handoffs outside an active terminal repair gate");
   const lavish = readSkill("gsd-lavish");
   assert.match(lavish, /\$CLI` missing[\s\S]{0,80}Degrade to terminal/, "lavish must define its own missing-CLI degradation");
+  assert.match(lavish, /caller-supplied completed deliverable[\s\S]*source remains read-only and producer-owned[\s\S]*git-ignored `.gsd-lavish\/` session artifact[\s\S]*frontmatter catalogs stay empty/, "lavish must own only its ephemeral review artifact");
+  assert.match(lavish, /bash "\$SKILLS_DIR\/\.\.\/install\.sh"/, "cross-project Lavish recovery must invoke the resolved GSD installer");
+  assert.match(lavish, /\| Render supplied deliverable \| — \| — \| — \| — \|/, "Lavish must declare its no-repository-artifact invocation mode");
+  assert.match(lavish, /completed deliverable is absent[\s\S]*stop[\s\S]*do not reload `gsd` or re-enter its router/, "missing standalone Lavish input must terminate instead of routing in a loop");
+  assert.match(lavish, /explicit visual-review request[\s\S]*already supplies launch acceptance[\s\S]*never ask a second time/, "explicit visual consent must not trigger a duplicate prompt");
+  assert.match(lavish, /git check-ignore -q[\s\S]*--git-path info\/exclude[\s\S]*\/\.gsd-lavish\/[\s\S]*Degrade to terminal/, "cross-project Lavish must guarantee its session directory is locally ignored before writing");
+  assert.match(lavish, /Before `mkdir -p`[\s\S]*symbolic link[\s\S]*non-directory[\s\S]*Degrade to terminal/, "Lavish must reject unsafe pre-existing artifact paths");
+  assert.match(lavish, /PROJECT_ROOT_REAL[\s\S]*ARTIFACT_REAL[\s\S]*exactly `\$PROJECT_ROOT_REAL\/\.gsd-lavish`[\s\S]*Degrade to terminal/, "Lavish must verify the resolved artifact directory remains inside the project");
+  assert.match(lavish, /safe ASCII stem[\s\S]*path separators[\s\S]*absolute paths[\s\S]*dot-segments/, "Lavish must reject traversal-capable artifact names");
+  assert.match(lavish, /mktemp[\s\S]*fresh session target[\s\S]*never overwrite[\s\S]*source and session target must resolve to different paths/, "Lavish must create a unique target without overwriting producer-owned input");
+  assert.match(lavish, /STEM="\$name"[\s\S]*mktemp "\$ARTIFACT_DIR\/\$\{STEM\}\.XXXXXX\.html"/, "Lavish must pass only the validated stem to mktemp");
+  assert.doesNotMatch(lavish, /mktemp "\$ARTIFACT_DIR\/\$\{name\}/, "Lavish must never pass the untrusted original name to mktemp");
+  assert.match(lavish, /write the supplied content only to the verified `\$HTML_FILE`/, "Lavish workflow must write only to the verified unique session target");
+  assert.match(lavish, /same fallback applies at every visual step[\s\S]*invocation exits nonzero[\s\S]*browser\/session cannot start[\s\S]*malformed[\s\S]*Degrade to terminal[\s\S]*never turn optional visual review into a blocker/, "every Lavish CLI or browser failure must preserve terminal delivery");
+  assert.match(lavish, /Treat CLI output as data, never as shell input[\s\S]*direct-open, `poll`, `end`, or `playbook`[\s\S]*never `eval`, shell-expand, or execute arbitrary output text[\s\S]*unrecognized or unparseable follow-up \*\*Degrades to terminal\*\*/, "Lavish follow-ups must use a finite canonical argv surface");
   const domain = readSkill("gsd-domain-modeling");
   assert.match(domain, /created \*\*only\*\* when a second context appears/, "CONTEXT-MAP.md must have a concrete creation trigger");
   // The map must carry a schema + read/selection rule, not just a trigger — else it's a declared-but-shapeless artifact.
   assert.match(domain, /# Context Map[\s\S]*\| Context \| Glossary \| Owns \|/, "CONTEXT-MAP.md must show its table schema, not just name the file");
   assert.match(domain, /docs\/context\/<area>\/CONTEXT\.md/, "map must define the per-area glossary path convention");
   assert.match(domain, /consult it first and pick the relevant area/, "map must carry a read/selection rule, not just an index");
+});
+
+test("milestone terminal unprepare preserves dirty tracked portable scratch", () => {
+  const repo = mkdtempSync(join(tmpdir(), "gsd-ledger-unprepare-"));
+  const scratch = join(repo, ".scratch", "root-m1", "plan.toon");
+  const ledger = join(repo, "docs", "gsd", "root", "milestones.toon");
+  const git = (...args) => spawnSync("git", args, { cwd: repo, encoding: "utf8" });
+  const mustGit = (...args) => {
+    const result = git(...args);
+    assert.equal(result.status, 0, `git ${args.join(" ")}\n${result.stdout}\n${result.stderr}`);
+    return result.stdout.trim();
+  };
+
+  try {
+    mustGit("init", "-q");
+    mustGit("config", "user.name", "GSD Test");
+    mustGit("config", "user.email", "gsd-test@example.invalid");
+    mkdirSync(dirname(scratch), { recursive: true });
+    mkdirSync(dirname(ledger), { recursive: true });
+    writeFileSync(scratch, "task,status\nT1,pending\n");
+    writeFileSync(ledger, "milestone,status\nroot-m1,pending\n");
+    mustGit("add", ".");
+    mustGit("commit", "-qm", "pre-ledger WIP");
+    const preLedgerHead = mustGit("rev-parse", "HEAD");
+
+    writeFileSync(ledger, "milestone,status\nroot-m1,done\n");
+    mustGit("add", ledger);
+    mustGit("commit", "-qm", "prepare milestone ledger");
+    writeFileSync(scratch, "task,status\nT1,done\n");
+    const scratchBytes = readFileSync(scratch, "utf8");
+    const scratchStatus = mustGit("status", "--short", "--", ".scratch");
+    assert.notEqual(scratchStatus, "", "portable scratch must be dirty for the regression scenario");
+
+    mustGit("reset", "--soft", "HEAD^");
+    mustGit("restore", "--source=HEAD", "--staged", "--worktree", "--", ledger);
+
+    assert.equal(mustGit("rev-parse", "HEAD"), preLedgerHead, "unprepare must remove only the final ledger commit");
+    assert.equal(readFileSync(ledger, "utf8"), "milestone,status\nroot-m1,pending\n", "ledger bytes must return to the parent version");
+    assert.equal(readFileSync(scratch, "utf8"), scratchBytes, "tracked portable scratch bytes must survive unprepare");
+    assert.equal(mustGit("status", "--short", "--", ".scratch"), scratchStatus, "portable scratch stage/worktree state must survive unprepare");
+    assert.equal(git("diff", "--quiet", "--", ".", ":(exclude).scratch").status, 0, "no non-scratch worktree diff may remain");
+    assert.equal(git("diff", "--cached", "--quiet", "--", ".", ":(exclude).scratch").status, 0, "no non-scratch index diff may remain");
+  } finally {
+    rmSync(repo, { recursive: true, force: true });
+  }
 });
 
 test("to-plan prints an inline plan summary and asks one approval question after writing plan.toon", () => {
@@ -2087,8 +2721,8 @@ function validatePreApprovalDomainOwnershipContract({ master, domain, toPlan, ex
   );
   assert.match(
     gate,
-    /count its occurrences across all rows[\s\S]*only when each path occurs once and its sole owning row has `status=pending`/,
-    "gsd-to-plan must require exactly one pending owner",
+    /count occurrences across non-superseded rows only[\s\S]*only when each path has exactly one current occurrence and that sole owning row has `status=pending`/,
+    "gsd-to-plan must require exactly one pending current owner",
   );
   assert.match(
     gate,
@@ -2097,8 +2731,8 @@ function validatePreApprovalDomainOwnershipContract({ master, domain, toPlan, ex
   );
   assert.match(
     gate,
-    /Zero occurrences, more than one occurrence[\s\S]*is a plan defect/,
-    "gsd-to-plan must reject unowned and duplicate paths",
+    /returned domain-path rule does not apply[\s\S]*require the derived path exactly once across all rows[\s\S]*canonical Milestone Ledger token must not remain on a superseded row/,
+    "gsd-to-plan must keep the canonical ledger token globally unique while ordinary domain paths retain provenance",
   );
   assert.match(
     gate,
@@ -2139,7 +2773,7 @@ function validatePreApprovalDomainOwnershipContract({ master, domain, toPlan, ex
   const executionIntake = extractPeerSection(execution, "Intake");
   assert.match(
     executionIntake,
-    /before the first dispatch, verify that every exact pre-approval domain path returned by `gsd-domain-modeling` appears in exactly one named task's `files`/,
+    /before the first dispatch, verify that every exact pre-approval domain path returned by `gsd-domain-modeling` appears in exactly one non-superseded named task's `files`/,
     "execution must enforce the same exact-path ownership contract downstream",
   );
   assert.match(
@@ -2182,7 +2816,7 @@ function evaluatePreApprovalDomainOwnership(plan, returnedPaths) {
   let passes = true;
   for (const path of returnedPaths) {
     const occurrences = [];
-    for (const row of rows) {
+    for (const row of rows.filter(({ status }) => status !== "superseded")) {
       for (const file of row.files) {
         if (file === path) occurrences.push({ id: row.id, status: row.status });
       }
@@ -2201,6 +2835,7 @@ function evaluateMilestoneLedgerOwnership(plan, expectedLedgerPath, expectedTask
   // Normalize empty-string expectedLedgerPath to null
   const targetPath = (expectedLedgerPath === "" || expectedLedgerPath === undefined) ? null : expectedLedgerPath;
   const ledgerPathPattern = /^docs\/gsd\/[^/]+\/milestones\.toon$/;
+  const ledgerPathTokenPattern = /docs\/gsd\/[^/]+\/milestones\.toon/;
 
   if (targetPath !== null && !ledgerPathPattern.test(targetPath)) {
     return { passes: false, ownership: {} };
@@ -2333,7 +2968,7 @@ function evaluateMilestoneLedgerOwnership(plan, expectedLedgerPath, expectedTask
   // Also check for any invented/accidental ledger path tokens
   for (const row of parsedRows) {
     for (const file of row.files) {
-      if (ledgerPathPattern.test(file)) {
+      if (ledgerPathTokenPattern.test(file)) {
         if (!targetPath || file !== targetPath) {
           passes = false;
           if (!ownership[file]) {
@@ -2418,8 +3053,8 @@ function validateMilestoneLedgerOwnershipContract({ master, reference, toPlan })
   );
   assert.match(
     toPlan,
-    /require the derived path exactly once across all rows with its sole row `status=pending`/,
-    "gsd-to-plan must require the derived ledger path exactly once and status=pending",
+    /require the derived path exactly once across all rows with its sole row `status=pending`[\s\S]*canonical Milestone Ledger token must not remain on a superseded row[\s\S]*removes it from the superseded row and assigns it to exactly one fresh pending replacement/,
+    "gsd-to-plan must keep one pending ledger owner across every raw plan row",
   );
   assert.match(
     toPlan,
@@ -2429,7 +3064,7 @@ function validateMilestoneLedgerOwnershipContract({ master, reference, toPlan })
   assert.match(
     toPlan,
     /Zero occurrences, more than one occurrence \(including repetition within one row or duplicate cross-row ownership\), a sole non-pending owner, an extra plan column, or round-trip drift is a plan defect: rewrite and rerun the gates before summary\/approval/,
-    "gsd-to-plan must treat missing/duplicate/non-pending/extra-column/drift as a plan defect",
+    "gsd-to-plan must treat missing/duplicate/non-pending ledger ownership and schema drift as a plan defect",
   );
 }
 
@@ -2448,6 +3083,20 @@ base:main
 plan[1]{id,task,satisfies,files,test,status}:
   T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`,
       expected: { passes: true, ownership: { [ledgerPath]: ["T1"] } },
+    },
+    {
+      name: "superseded ledger token duplicates current ownership",
+      expectedLedgerPath: ledgerPath,
+      expectedTasks: [
+        { id: "T1", task: "Retain former ledger publication", satisfies: "AC-1", files: `src/legacy.js|${ledgerPath}`, test: "tests/legacy.test.js", status: "superseded" },
+        { id: "T2", task: "Publish current ledger", satisfies: "AC-2", files: `src/current.js|${ledgerPath}`, test: "tests/current.test.js", status: "pending" },
+      ],
+      plan: `schema:v1
+base:main
+plan[2]{id,task,satisfies,files,test,status}:
+  T1,Retain former ledger publication,AC-1,src/legacy.js|docs/gsd/shop-redesign/milestones.toon,tests/legacy.test.js,superseded
+  T2,Publish current ledger,AC-2,src/current.js|docs/gsd/shop-redesign/milestones.toon,tests/current.test.js,pending`,
+      expected: { passes: false, ownership: { [ledgerPath]: ["T1", "T2"] } },
     },
     {
       name: "missing ownership fails",
@@ -2522,6 +3171,18 @@ base:main
 plan[1]{id,task,satisfies,files,test,status}:
   T1,Implement order dashboard,AC-1,src/dashboard.js|docs/gsd/shop-redesign/milestones.toon,tests/dashboard.test.js,pending`,
       expected: { passes: false, ownership: { "docs/gsd/shop-redesign/milestones.toon": ["T1"] } },
+    },
+    {
+      name: "prefixed and suffixed ledger-shaped token with null intent fails",
+      expectedLedgerPath: null,
+      expectedTasks: [
+        { id: "T1", task: "Archive misleading ledger token", satisfies: "AC-1", files: `src/dashboard.js|archive-${ledgerPath}.bak`, test: "tests/dashboard.test.js", status: "pending" },
+      ],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Archive misleading ledger token,AC-1,src/dashboard.js|archive-docs/gsd/shop-redesign/milestones.toon.bak,tests/dashboard.test.js,pending`,
+      expected: { passes: false, ownership: { "archive-docs/gsd/shop-redesign/milestones.toon.bak": ["T1"] } },
     },
     {
       name: "repeated accidental token with null expectedLedgerPath fails",
@@ -2762,7 +3423,7 @@ test("T2 Milestone Ledger ownership contract validation and mutation cases", () 
   );
   assert.throws(
     () => validateMilestoneLedgerOwnershipContract({ ...source, toPlan: mutantToPlan }),
-    /gsd-to-plan must treat missing\/duplicate\/non-pending\/extra-column\/drift as a plan defect/,
+    /gsd-to-plan must treat missing\/duplicate\/non-pending ledger ownership and schema drift as a plan defect/,
   );
 
   const mutantToPlanNegative = source.toPlan.replace(
@@ -2846,6 +3507,25 @@ plan[2]{id,task,satisfies,files,test,status}:
           "docs/adr/0042-storage.md": ["T2"],
         },
       },
+    },
+    {
+      name: "superseded historical owner does not duplicate replacement",
+      returnedPaths: ["CONTEXT.md"],
+      plan: `schema:v1
+base:main
+plan[2]{id,task,satisfies,files,test,status}:
+  T1,Implement old account behavior,AC-OLD,src/account.js|CONTEXT.md,tests/account.test.js,superseded
+  T2,Implement revised account behavior,AC-2,src/account.js|CONTEXT.md,tests/account.test.js,pending`,
+      expected: { passes: true, ownership: { "CONTEXT.md": ["T2"] } },
+    },
+    {
+      name: "superseded historical owner cannot satisfy current ownership",
+      returnedPaths: ["CONTEXT.md"],
+      plan: `schema:v1
+base:main
+plan[1]{id,task,satisfies,files,test,status}:
+  T1,Implement old account behavior,AC-OLD,src/account.js|CONTEXT.md,tests/account.test.js,superseded`,
+      expected: { passes: false, ownership: { "CONTEXT.md": [] } },
     },
   ];
 
@@ -5499,7 +6179,10 @@ function serializeT4Plan(outcome, fixture, schema) {
 
 
 function parseT4Plan(plan, schema, specAcIds) {
-  const lines = plan.trim().split("\n").map((line) => line.trim()).filter(Boolean);
+  assert.equal(plan.includes("\r"), false, "T4 plan must use LF-only line endings");
+  assert.equal(plan.trim(), plan, "T4 plan must have no outer whitespace");
+  const lines = plan.split("\n");
+  assert.ok(lines.every((line) => line.length > 0), "T4 plan must have no blank lines");
   assert.equal(lines[0], schema.version, "T4 plan must preserve documented schema version");
   assert.match(lines[1], /^base:[^,]+$/, "T4 plan must preserve the base row");
   const header = lines[2].match(/^plan\[(\d+)\]\{([^}]+)\}:$/);
@@ -5512,7 +6195,10 @@ function parseT4Plan(plan, schema, specAcIds) {
   const rows = lines.slice(3);
   assert.equal(rows.length, Number(header[1]), "T4 plan row count");
   const parsedRows = rows.map((row, index) => {
-    const cells = row.split(",");
+    assert.match(row, /^  \S/, `T4 plan row ${index + 1} must use exact two-space indentation`);
+    assert.doesNotMatch(row, /^ {3}/, `T4 plan row ${index + 1} must use exact two-space indentation`);
+    assert.equal(row.trimEnd(), row, `T4 plan row ${index + 1} must not have trailing whitespace`);
+    const cells = row.slice(2).split(",");
     assert.equal(cells.length, schema.columns.length, `T4 plan row ${index + 1} columns`);
     const parsed = Object.fromEntries(schema.columns.map((column, cell) => [column, cells[cell]]));
     assert.equal(parsed.id, `T${index + 1}`, "T4 plan task IDs remain sequential");
@@ -6589,6 +7275,21 @@ test("T4 plan serialization rejects stage files test and AC drift after exact ro
     () => validateT4PlanRoundTrip(outcome, fixture, schema, bogusAc),
     /serialized plan references unknown AC ID AC-404/,
   );
+
+  const whitespaceMutations = [
+    { value: ` ${plan}`, error: /no outer whitespace/ },
+    { value: `${plan}\n`, error: /no outer whitespace/ },
+    { value: plan.replace("\nbase:", "\n\nbase:"), error: /no blank lines/ },
+    { value: plan.replace("\n  T1", "\nT1"), error: /exact two-space indentation/ },
+    { value: plan.replaceAll("\n", "\r\n"), error: /LF-only line endings/ },
+  ];
+  for (const { value, error } of whitespaceMutations) {
+    assert.throws(
+      () => validateT4PlanRoundTrip(outcome, fixture, schema, value),
+      error,
+      "noncanonical plan bytes must not be normalized into acceptance",
+    );
+  }
 });
 
 test("T4 mutation guards reject vague task or artifact creation", () => {
@@ -8953,6 +9654,11 @@ function validateMilestoneLedgerLifecycleContract({ master, reference, toPlan, e
     executingPlans.includes("If a superseded row owned the canonical Milestone Ledger path, re-planning must remove that path from the superseded row and assign it to exactly one fresh `pending` replacement row before approval"),
     "gsd-executing-plans must redistribute ledger ownership during Spec escalation",
   );
+  assert.ok(
+    executingPlans.includes("Before a prepared Milestone WIP gate enters either terminal finding repair or `Spec flawed` revision, remove the already-prepared ledger transition through this subsection.")
+      && verify.includes("In a prepared Milestone WIP gate, before clearing terminal state or revising the plan, return to `gsd-executing-plans` § Prepared Milestone Ledger unprepare"),
+    "prepared Milestone Spec-flawed routing must unprepare the old ledger commit before owner replacement",
+  );
   const evidenceBinding = "The final ledger-only WIP commit must have the authoritative base ledger bytes as its parent version and the exact prepared WIP ledger bytes as its result. The reviewer input and squash input must each include the canonical path with those exact WIP bytes; omission or mismatch is a blocker.";
   assert.ok(reference.includes(evidenceBinding), "REFERENCE.md must bind final-commit, review, and squash ledger evidence");
   assert.ok(executingPlans.includes(evidenceBinding), "gsd-executing-plans must bind final-commit, review, and squash ledger evidence");
@@ -9007,7 +9713,7 @@ function validateMilestoneLedgerLifecycleContract({ master, reference, toPlan, e
     "gsd-executing-plans must declare Milestone plan execution invocation mode"
   );
   assert.ok(
-    executingPlans.includes("Before preparing the milestone ledger transition, verify that the authoritative base row status is `pending` and all plan tasks, code reviews, and focused checks are green. Milestone mode applies only when the current plan owns that exact canonical path and the current plan/scratch/WIP feature slug equals the first-pending milestone slug."),
+    executingPlans.includes("Before preparing the milestone ledger transition, verify that the authoritative base row status is `pending` and all non-superseded plan tasks, code reviews, and focused checks are green. Milestone mode applies only when the current plan owns that exact canonical path and the current plan/scratch/WIP feature slug equals the first-pending milestone slug."),
     "gsd-executing-plans must verify pending base status and green plan tasks before preparation"
   );
   assert.ok(
@@ -9872,7 +10578,7 @@ test("T4 Milestone Ledger lifecycle contract validation and mutation checks", ()
     },
     {
       source: "executingPlans",
-      old: "Before preparing the milestone ledger transition, verify that the authoritative base row status is `pending` and all plan tasks, code reviews, and focused checks are green. Milestone mode applies only when the current plan owns that exact canonical path and the current plan/scratch/WIP feature slug equals the first-pending milestone slug.",
+      old: "Before preparing the milestone ledger transition, verify that the authoritative base row status is `pending` and all non-superseded plan tasks, code reviews, and focused checks are green. Milestone mode applies only when the current plan owns that exact canonical path and the current plan/scratch/WIP feature slug equals the first-pending milestone slug.",
       new: "Prepare without checking plan tasks",
       error: /gsd-executing-plans must verify pending base status and green plan tasks before preparation/,
     },

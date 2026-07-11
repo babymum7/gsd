@@ -5,13 +5,52 @@
 # sub-skills are internal routing targets (each carries a direct-invocation guard).
 set -euo pipefail
 
-REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-REG="${HOME}/.agents/skills"
-mkdir -p "$REG"
+REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+AGENTS_DIR="${HOME}/.agents"
+REG="$AGENTS_DIR/skills"
+if [ -L "$AGENTS_DIR" ]; then
+  echo "error: registration parent $AGENTS_DIR is a symlink; move or remove it, then rerun install.sh." >&2
+  exit 1
+fi
+if [ -e "$AGENTS_DIR" ] && [ ! -d "$AGENTS_DIR" ]; then
+  echo "error: registration parent $AGENTS_DIR exists and is not a directory; move or remove it, then rerun install.sh." >&2
+  exit 1
+fi
+if [ -L "$REG" ]; then
+  echo "error: registration path $REG is a symlink; move or remove it, then rerun install.sh." >&2
+  exit 1
+fi
+if [ -e "$REG" ] && [ ! -d "$REG" ]; then
+  echo "error: registration path $REG exists and is not a directory; move or remove it, then rerun install.sh." >&2
+  exit 1
+fi
 
 # 1. Register every skill (refresh if already linked): master + sub-skills.
+# Preflight every target before mutating the registry so a late collision cannot
+# leave an earlier subset refreshed.
+skill_dirs=()
 for dir in "$REPO"/skills/gsd*; do
-  [ -d "$dir" ] && ln -sfn "$dir" "$REG/$(basename "$dir")"
+  [ -d "$dir" ] || continue
+  skill_dirs+=("$dir")
+  target="$REG/$(basename "$dir")"
+  if [ -L "$target" ]; then
+    if ! resolved_target="$(cd -P "$target" 2>/dev/null && pwd -P)"; then
+      resolved_target=""
+    fi
+    if [ "$resolved_target" != "$dir" ]; then
+      echo "error: $target existing symlink does not point to this checkout; move or remove it, then rerun install.sh." >&2
+      exit 1
+    fi
+  elif [ -e "$target" ]; then
+    echo "error: $target exists and is not a symlink; move or remove it, then rerun install.sh." >&2
+    exit 1
+  fi
+done
+mkdir -p "$REG"
+
+for dir in "${skill_dirs[@]}"; do
+  target="$REG/$(basename "$dir")"
+  ln -sfn "$dir" "$target"
 done
 
 # 2. Ensure the lavish-axi submodule is present (optional visual surface; skills degrade to terminal if absent/unbuilt).
@@ -29,7 +68,7 @@ if [ -d "$LAVISH" ] && [ ! -f "$LAVISH/dist/cli.mjs" ] && command -v pnpm >/dev/
 fi
 
 VERSION="$(cat "$REPO/VERSION" 2>/dev/null || echo unknown)"
-COUNT="$(ls -d "$REPO"/skills/gsd* 2>/dev/null | wc -l | tr -d ' ')"
+COUNT="${#skill_dirs[@]}"
 LAVISH_STATE="lavish visual path ready (dist/cli.mjs present)"
 [ -f "$LAVISH/dist/cli.mjs" ] || LAVISH_STATE="lavish not built — install pnpm and re-run, or: cd tools/lavish-axi && pnpm i && pnpm build"
 echo "Installed GSD v$VERSION: registered $COUNT skills in $REG (user entry: /gsd only — gsd-* are internal routing targets). $LAVISH_STATE."
