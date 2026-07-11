@@ -2,7 +2,7 @@
 name: gsd-to-plan
 description: Internal GSD sub-skill (routed via /gsd). Validates a converged Markdown packet, writes plan.md, binds exact approval sources, and starts the non-interactive pipeline.
 triggers: Markdown spec converged, no plan yet (gsd Route 3)
-produces: [plan.md]
+produces: [plan.md, handoff-<n>.toon]
 consumes: [proposal.md, spec.md, design.md, plan.md, handoff-<n>.toon, docs/gsd/<feature>/milestones.toon]
 ---
 
@@ -14,7 +14,7 @@ consumes: [proposal.md, spec.md, design.md, plan.md, handoff-<n>.toon, docs/gsd/
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| Converged planning | `proposal.md`; `spec.md` | `design.md`; `handoff-<n>.toon`; `docs/gsd/<feature>/milestones.toon` | `plan.md` | Stop and return to `/gsd` Discussion to recover the Markdown packet; never synthesize a contract or read legacy pre-approval TOON |
+| Converged planning | `proposal.md`; `spec.md` | `design.md`; `handoff-<n>.toon`; `docs/gsd/<feature>/milestones.toon` | `plan.md`; `handoff-<n>.toon` | Stop and return to `/gsd` Discussion to recover the Markdown packet; never synthesize a contract or read legacy pre-approval TOON |
 
 ## Intake
 
@@ -36,7 +36,7 @@ Write `.scratch/<feature>/plan.md` in this order:
 ### T1: <short task>
 - **Satisfies:** AC-1
 - **Files:** `<path>`
-- **Test:** `<focused command or public-seam test>`
+- **Test:** `<focused command or none>`
 - **Status:** pending
 ```
 
@@ -48,7 +48,9 @@ Plan complete observable behavior, not layers. Use Expand → Migrate → Contra
 
 Before the approval gate, parse the finalized packet and prove feature consistency, canonical ordering, concrete AC semantics, interface pins, task coverage, file ownership, and focused checks. Record the exact path and SHA-256 digest of every present Markdown source. Source bytes and source set are immutable for the execution cycle; execution, review, repair, handoff/resume, and verification must compare them before proceeding.
 
-Print a compact feature/AC/task summary and the source binding. Ask one approval question: approve and execute, revise in Discussion, or review visually when the existing Lavish Fire gate holds. This is the last prompt: approval immediately starts `gsd-executing-plans`; no later menu, offer, or confirmation appears unless a hard blocker stops the pipeline.
+Print a compact feature/AC/task summary and the source binding. Ask one approval question: approve and execute, revise in Discussion, or review visually when the existing Lavish opt-in gate holds. This is the last prompt: approval immediately starts the post-approval pipeline; no later menu, offer, or confirmation appears unless a hard blocker stops it.
+
+On approval, immediately load `gsd-handoff` in `Execution handoff write` mode and create the next positive sequential handoff (`handoff-1.toon` when none exists) with the ordered source paths/hashes, selected execution mode, `phase=approved`, no completed task, and `next_action` set to start `gsd-executing-plans`. Read it back and verify the binding before dispatch. A fresh approval after Spec escalation supersedes older bindings for active execution without modifying their immutable handoffs; validate the highest-numbered existing handoff structurally, but do not treat its expected old hashes as a conflict with the newly approved packet. Never overwrite. Then load `gsd-executing-plans` without another prompt.
 
 ## Contextual disclosure
 

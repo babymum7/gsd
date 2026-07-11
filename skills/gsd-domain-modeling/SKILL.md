@@ -48,7 +48,7 @@ Run this flow only **after the caller selects its route and Invocation Mode**:
 
 ## File Invariants
 - `docs/domain.toon` — the single canonical domain model. Strict UTF-8, LF line endings, no blank lines, ordered rows. Strict parsing fails closed on malformed existing content without creating a runtime parser.
-  - Table: `terms[count]{scope,term,definition,avoid}` — project-specific glossary terms. No implementation details or utility programming concepts. Pick ONE word per concept, list synonyms under `avoid`, define what it IS in 1-2 sentences. Stable identity is scope+term.
+  - Table: `terms[count]{scope,term,definition,avoid}` — project-specific glossary terms, sorted lexicographically by `scope` then `term`. No implementation details or utility programming concepts. Pick ONE word per concept, list synonyms under `avoid`, define what it IS in 1-2 sentences. Stable identity is scope+term.
   - Table: `decisions[count]{id,scope,decision,rationale}` — architectural decisions. Stable decision IDs are D-N in order.
 
 ## Decision capture — all gates plus evidence

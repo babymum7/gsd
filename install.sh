@@ -60,7 +60,7 @@ fi
 # --- Write Target atomically ---
 mkdir -p "$OMP_COMMANDS_DIR"
 
-tmp_target=$(mktemp "${OMP_COMMANDS_DIR}/gsd.md.XXXXXX.tmp")
+tmp_target=$(mktemp "${OMP_COMMANDS_DIR}/gsd.md.XXXXXX")
 trap 'rm -f "$tmp_target"' EXIT
 
 cat <<EOF > "$tmp_target"

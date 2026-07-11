@@ -13,6 +13,20 @@ function required(value, label) {
   return normalized;
 }
 
+function canonicalSource(value, label) {
+  if (typeof value !== "string" || value.trim() === "") fail(`${label} is required`);
+  if (value.includes("\r")) fail(`${label} must use LF line endings`);
+  if (/^[ \t]*\n/.test(value) || /\n(?:[ \t]*\n|[ \t]+)$/.test(value)) fail(`${label} must not have leading or trailing blank lines`);
+  return value;
+}
+
+function validateTitle(content, title) {
+  const headings = [...content.matchAll(/^# (.+)$/gm)].map(([, heading]) => heading);
+  if (headings.length !== 1 || headings[0] !== title || !content.startsWith(`# ${title}\n`)) {
+    fail(`top-level heading must be exactly # ${title}`);
+  }
+}
+
 function section(content, heading, requiredSection = true) {
   const expression = new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "m");
   const matches = [...content.matchAll(new RegExp(expression.source, "gm"))];
@@ -61,7 +75,7 @@ function parseCriteria(content) {
       ["State", "Outcome", "Action", "Expected"],
     );
     if (state !== "active" && state !== "superseded") fail(`${id} has invalid state`);
-    if (VAGUE.test(action) || VAGUE.test(expected)) fail(`${id} action and expected must be concrete`);
+    if (VAGUE.test(outcome) || VAGUE.test(action) || VAGUE.test(expected)) fail(`${id} outcome, action, and expected must be concrete`);
     return { id, ordinal: Number(ordinal), title: required(title, `${id} title`), state, outcome, action, expected };
   });
 }
@@ -102,7 +116,6 @@ function parseTasks(content, criteria) {
   const entries = [...value.matchAll(/^### (T([1-9]\d*)): (.+)\n([\s\S]*?)(?=^### |(?![\s\S]))/gm)];
   if (entries.length === 0) fail("at least one task is required");
   const active = new Set(criteria.filter((criterion) => criterion.state === "active").map((criterion) => criterion.id));
-  const covered = new Set();
   return entries.map(([, id, ordinal, title, block], index) => {
     if (Number(ordinal) !== index + 1) fail("task IDs must be sequential");
     const { Satisfies: satisfiesValue, Files: filesValue, Test: testValue, Status: status } = orderedFields(
@@ -111,13 +124,12 @@ function parseTasks(content, criteria) {
     );
     const satisfies = satisfiesValue.split(",").map((value) => value.trim());
     if (satisfies.length === 0 || satisfies.some((criterion) => !active.has(criterion))) fail(`${id} has unknown criterion`);
-    satisfies.forEach((criterion) => covered.add(criterion));
     const files = [...filesValue.matchAll(/`([^`]+)`/g)].map(([, path]) => path);
     if (files.length === 0) fail(`${id} needs at least one file`);
     const test = testValue.replace(/^`|`$/g, "");
-    if (!test || test === "none") fail(`${id} needs a focused test`);
+    if (!test) fail(`${id} needs a focused test or none`);
     if (!new Set(["pending", "in_progress", "done", "superseded"]).has(status)) fail(`${id} has invalid status`);
-    return { id, title: required(title, `${id} title`), satisfies, files, test, status, covered };
+    return { id, title: required(title, `${id} title`), satisfies, files, test, status };
   });
 }
 
@@ -126,13 +138,17 @@ export function sha256(bytes) {
 }
 
 export function parseMarkdownPacket(files) {
-  for (const name of REQUIRED_PACKET_FILES) required(files[name], name);
-  const proposal = files["proposal.md"];
-  const spec = files["spec.md"];
-  const plan = files["plan.md"];
+  const proposal = canonicalSource(files["proposal.md"], "proposal.md");
+  const spec = canonicalSource(files["spec.md"], "spec.md");
+  const plan = canonicalSource(files["plan.md"], "plan.md");
+  validateTitle(proposal, "Proposal");
+  validateTitle(spec, "Specification");
+  validateTitle(plan, "Plan");
   validateSections(proposal, ["Feature", "Summary", "Why", "Scope", "Impact", "Questions"]);
   validateSections(spec, ["Feature", "Context", "Acceptance Criteria", "Invariants", "Non-goals", "Interfaces", "Publication"], ["Publication"]);
   validateSections(plan, ["Feature", "Base", "Self-host bootstrap", "Tasks"], ["Self-host bootstrap"]);
+  for (const heading of ["Summary", "Why", "Scope", "Impact", "Questions"]) required(section(proposal, heading), heading);
+  required(section(spec, "Context"), "Context");
   const feature = parseFeature(proposal);
   if (parseFeature(spec) !== feature || parseFeature(plan) !== feature) fail("feature mismatch");
   required(section(plan, "Base"), "Base");
@@ -152,9 +168,12 @@ export function parseMarkdownPacket(files) {
   }
   const active = criteria.filter((criterion) => criterion.state === "active").map((criterion) => criterion.id);
   if (active.some((criterion) => coverage.get(criterion) !== 1)) fail("plan must cover every active criterion exactly once");
-  if (files["design.md"]) {
-    validateSections(files["design.md"], ["Feature", "Decisions", "Alternatives rejected", "Risks and mitigations"]);
-    if (parseFeature(files["design.md"]) !== feature) fail("feature mismatch");
+  if (Object.hasOwn(files, "design.md")) {
+    const design = canonicalSource(files["design.md"], "design.md");
+    validateTitle(design, "Design");
+    validateSections(design, ["Feature", "Decisions", "Alternatives rejected", "Risks and mitigations"]);
+    for (const heading of ["Decisions", "Alternatives rejected", "Risks and mitigations"]) required(section(design, heading), heading);
+    if (parseFeature(design) !== feature) fail("feature mismatch");
   }
   return { feature, criteria, interfaces, invariants, nonGoals, tasks };
 }
@@ -162,7 +181,7 @@ export function parseMarkdownPacket(files) {
 export function bindApprovedSources(files) {
   parseMarkdownPacket(files);
   return Object.fromEntries(Object.entries(files)
-    .filter(([name, content]) => REQUIRED_PACKET_FILES.includes(name) || (name === "design.md" && content))
+    .filter(([name]) => REQUIRED_PACKET_FILES.includes(name) || name === "design.md")
     .map(([name, content]) => [name, sha256(content)]));
 }
 

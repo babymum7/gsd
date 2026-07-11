@@ -8,14 +8,14 @@ consumes: [docs/domain.toon, .scratch/<feature>/tasks/<Tn>/a<N>.toon]
 
 # Test-Driven Development
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
+> **Direct invocation guard** — internal GSD sub-skill. `gsd-executing-plans` loads it for dispatched task TDD; another active parent skill may compose inline TDD support, but `/gsd` has no standalone TDD route. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
 
 ## Invocation modes
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
 | Dispatched task TDD | `.scratch/<feature>/tasks/<Tn>/a<N>.toon` | `docs/domain.toon` | — | Missing attempt TOON: STOP and escalate; task-brief attempt must exist to proceed |
-| Direct TDD | — | `docs/domain.toon` | — | — |
+| Inline TDD support | — | `docs/domain.toon` | — | — |
 
 Tests verify **behavior through public interfaces**, not implementation. Code can change entirely; tests shouldn't. A good test reads like a spec ("user can checkout with valid cart") and survives refactors. A bad test is coupled to implementation (mocks internals, tests privates) — it breaks on refactor though behavior is unchanged.
 
@@ -39,7 +39,7 @@ RIGHT:  RED→GREEN: test1→impl1, test2→impl2, ...
 ## Optional context signal
 Context harvesting is optional and bounded to the selected test/task. Reuse only the task-brief attempt TOON, tests, implementation files, and relevant domain docs already read for TDD; never run a repository-wide term/decision scan or create missing scaffolds. Trigger `gsd-domain-modeling` only if that already-relevant work reveals a recurring project-specific term or explicit decision/rationale signal. Generic test vocabulary, fixture names, one-off identifiers, and code shape are no-op. This skill never writes a domain artifact itself.
 
-Direct pre-approval TDD delegates material term/ownership/trade-off ambiguity to domain modeling's one-question rule. Dispatched TDD is post-approval: ask zero documentation questions; return load-bearing AC/interface/invariant ambiguity to `gsd-executing-plans` for Spec escalation, otherwise skip the documentation write and keep the RED→GREEN loop moving.
+Inline pre-approval TDD delegates material term/ownership/trade-off ambiguity to domain modeling's one-question rule. Dispatched TDD is post-approval: ask zero documentation questions; return load-bearing AC/interface/invariant ambiguity to `gsd-executing-plans` for Spec escalation, otherwise skip the documentation write and keep the RED→GREEN loop moving.
 
 ## Per-cycle checklist
 - [ ] Focused test describes behavior, not implementation, and has a concrete `action → expected observable result`: actual operation/input at the seam → observed subject with explicit state/value, never padded generic pass prose.

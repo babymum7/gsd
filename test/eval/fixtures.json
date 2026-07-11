@@ -96,5 +96,61 @@
     "prompt": "what can you do? list your skills",
     "route": "meta",
     "skill": "catalog"
+  },
+  {
+    "id": "converged-spec",
+    "state": ".scratch/oauth-login/proposal.md and active spec.md exist; plan.md is absent",
+    "prompt": "continue with OAuth login",
+    "route": "3",
+    "skill": "gsd-to-plan"
+  },
+  {
+    "id": "interface-design",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "redesign the public interface of the billing module",
+    "route": "5",
+    "skill": "gsd-codebase-design"
+  },
+  {
+    "id": "domain-glossary",
+    "state": "clean repo; docs/domain.toon exists",
+    "prompt": "sharpen our domain glossary for invoice settlement",
+    "route": "5",
+    "skill": "gsd-domain-modeling"
+  },
+  {
+    "id": "lavish-report",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "render this architecture comparison as a lavish visual report",
+    "route": "meta",
+    "skill": "gsd-lavish"
+  },
+  {
+    "id": "milestone-ledger-recovery",
+    "state": "fresh clone; .scratch/ is absent; origin/wip/oauth-rollout is absent; docs/gsd/oauth-rollout/milestones.toon has one first pending row and matching base",
+    "prompt": "continue the oauth-rollout milestone",
+    "route": "1",
+    "skill": "gsd-handoff"
+  },
+  {
+    "id": "plan-binding-drift",
+    "state": ".scratch/oauth-login has an approved plan.md and handoff-1.toon, but spec.md no longer matches the recorded SHA-256 binding",
+    "prompt": "implement the next OAuth task",
+    "route": "3",
+    "skill": "gsd-executing-plans"
+  },
+  {
+    "id": "multi-feature-resume",
+    "state": ".scratch/oauth-login and .scratch/csv-export both have valid handoffs; csv-export is most recently modified",
+    "prompt": "continue",
+    "route": "1",
+    "skill": "gsd-handoff"
+  },
+  {
+    "id": "quick-fix-repair",
+    "state": "active Quick-fix WIP gate returned Quick-fix WIP Fail with terminal_repair_round=1 and preserved plan.md",
+    "prompt": "continue the bounded quick-fix repair",
+    "route": "2",
+    "skill": "gsd-verify"
   }
 ]

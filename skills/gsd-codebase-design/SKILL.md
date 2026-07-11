@@ -83,7 +83,7 @@ Good interfaces make testing natural:
    function calculateDiscount(cart): Discount {}
 
    // Hard to test
-   function applyDiscount(cart): void {
+   function applyDiscount(cart, discount): void {
      cart.total -= discount;
    }
    ```

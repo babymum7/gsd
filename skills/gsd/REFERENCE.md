@@ -106,9 +106,15 @@ A Quick-fix is not a converged feature packet. Its direct fast path may write a 
 
 `gsd-to-plan` validates the complete packet, writes `plan.md`, prints the task/AC summary, calculates SHA-256 for every present Markdown source, and asks exactly one approval question. Approval records the feature, ordered source set, and hashes in runtime state. After approval, every dispatch, handoff/resume, reviewer, verifier, repair loop, and merge gate compares the live packet byte-for-byte with that binding. Missing, changed, extra, or malformed source is a Spec escalation. Never regenerate a new packet or derive requirements from runtime TOON.
 
+On approval, `gsd-to-plan` immediately loads `gsd-handoff` and creates the next positive sequential execution handoff (`handoff-1.toon` when none exists). It records the approved feature, ordered source set and hashes, selected execution mode, `phase=approved`, no completed task, and `next_action` for `gsd-executing-plans`. A fresh approval after Spec escalation starts a new active binding generation in that next handoff; older handoffs remain immutable history and their old hashes are expected, not a conflict. Later task/pause handoffs continue from the newest approval binding. Execution never depends on prompt-local memory for the approval binding.
+
 ### Convergence Ledger publication contract
 
 A milestone ledger is optional Git-tracked state at exactly `docs/gsd/<feature>/milestones.toon`. It is allowed only when a large feature has materially precise, user-approved milestone goals. Its creation/update is a convergence-time domain write owned by one exact plan task's Files field and subject to normal review/acceptance. `spec.md` may contain optional `## Publication` with either `null` or that exact path. It authorizes planned publication only, never completion, task selection, or resume. Ledger presence alone is metadata.
+
+### Milestone Ledger completion contract
+
+Only the `Milestone WIP gate` may complete ledger lifecycle state. `gsd-executing-plans` treats the selected first-pending row and all ledger bytes as read-only during task work. At terminal verification, `gsd-verify` proves the selected row still matches the approved milestone and is still the first pending row. For a non-final milestone it changes exactly that row from `pending` to `done`; for the final milestone it deletes the ledger. The transition is part of the reviewed WIP diff and lands only in the same green squash commit as the milestone implementation. Normal execution/publication never completes or deletes a row.
 
 ## Runtime TOON contract
 
@@ -120,7 +126,7 @@ The attempt derives all acceptance and interface values from `spec.md` and `plan
 
 ### Handoff
 
-After a green task or pause, write a new `.scratch/<feature>/handoff-<n>.toon` with a fresh monotonically numbered name. Never overwrite or suffix an existing handoff. It records opaque `mode`/`phase`, completed task, verified evidence, next action, runtime toggles, and the exact approved Markdown source paths/hashes. Resume verifies the current packet against the handoff binding before it accepts progress. Runtime evidence determines completed work; it never changes Markdown Status, requirements, or task order.
+After approval, every approval, green-task, or pause transition writes a new `.scratch/<feature>/handoff-<n>.toon` with a fresh monotonically numbered name. Never overwrite or suffix an existing handoff. It records opaque `mode`/`phase`, completed task, verified evidence, next action, runtime toggles, and the exact approved Markdown source paths/hashes. The highest-numbered handoff is the only active runtime generation; older handoffs are immutable history. Resume selects that file first, fails closed if it is invalid, and verifies the current packet against its binding before accepting progress. Runtime evidence determines completed work; it never changes Markdown Status, requirements, or task order.
 
 ### Squash and cleanup result marker contract
 

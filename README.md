@@ -45,7 +45,7 @@ New work routes to **Discussion**. The agent explores the codebase (targeted, gi
 When you pick an approach and open questions close, the agent writes `.scratch/<feature>/proposal.md` and `.scratch/<feature>/spec.md` (plus conditional `.scratch/<feature>/design.md`). These human-readable Markdown sources carry checkable ACs with a concrete action and expected observable result. A vague AC returns to Discussion; downstream stages read the exact same approved bytes. Large work splits into milestone features, each with its own cycle.
 
 ### 2. Plan — automatic, summarized inline
-`gsd-to-plan` validates the converged packet and writes `.scratch/<feature>/plan.md`: ordered tasks with exact AC ownership, files, focused public-seam tests, and status. It prints the inline summary, records SHA-256 hashes for every present Markdown source, then asks one approval question. Approval is the last prompt of the cycle.
+`gsd-to-plan` validates the converged packet and writes `.scratch/<feature>/plan.md`: ordered tasks with exact AC ownership, files, focused public-seam tests, and status. It prints the inline summary, records SHA-256 hashes for every present Markdown source, then asks one approval question. Approval is the last prompt of the cycle and immediately writes the first immutable execution handoff containing that binding, so execution and crash recovery never depend on conversation memory.
 
 ### 3. Execute — per-task loop, hands-free
 Once approved, `gsd-executing-plans` creates `wip/<feature>` from the Base recorded in `plan.md`, then for each task — no questions, no menus, just progress reports:
@@ -156,10 +156,10 @@ cd tools/lavish-axi && pnpm install && pnpm run build
 The skill set is a **string contract** — the suite pins routing rules, artifact formats, gates, and degradation paths:
 
 ```bash
-node --test test/skills.test.js
+node --test test/*.test.js
 ```
 
-A second, **opt-in** harness proves a model *reading* the master skill actually routes correctly: 14 workspace-state + prompt fixtures, checked in two modes (`classify` — route/skill decision as JSON; `trace` — the literal `Route N → gsd-*` first line). It calls an OpenAI-compatible endpoint and is never part of `node --test`:
+A second, **opt-in** harness proves a model *reading* the master skill actually routes correctly: 22 workspace-state + prompt fixtures, checked in two modes (`classify` — route/skill decision as JSON; `trace` — the literal `Route N → gsd-*` first line). It calls an OpenAI-compatible endpoint and is never part of `node --test`:
 
 ```bash
 GSD_EVAL_KEY=sk-... node test/eval/route-eval.mjs   # GSD_EVAL_URL / GSD_EVAL_MODEL to override
