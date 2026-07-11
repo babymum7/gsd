@@ -16,12 +16,14 @@ const read = (path) => readFileSync(join(ROOT, path), "utf8");
 const skillNames = () => readdirSync(SKILLS, { withFileTypes: true })
   .filter((entry) => entry.isDirectory() && entry.name.startsWith("gsd"))
   .map((entry) => entry.name);
-const markdownFiles = (directory) => readdirSync(directory, { withFileTypes: true })
+const filesUnder = (directory) => readdirSync(directory, { withFileTypes: true })
   .flatMap((entry) => {
     const path = join(directory, entry.name);
-    if (entry.isDirectory()) return markdownFiles(path);
-    return entry.isFile() && entry.name.endsWith(".md") ? [path] : [];
+    if (entry.isDirectory()) return filesUnder(path);
+    return entry.isFile() ? [path] : [];
   });
+const markdownFiles = (directory) => filesUnder(directory)
+  .filter((path) => path.endsWith(".md"));
 const canonicalPacket = () => ({
   "proposal.md": "# Proposal\n## Feature\n`canonical-fixture`\n## Summary\nValidate Markdown packets.\n## Why\nPrevent runtime drift.\n## Scope\n- Validate packet\n## Impact\n- **runtime:** binds sources\n## Questions\nNone.\n",
   "spec.md": "# Specification\n## Feature\n`canonical-fixture`\n## Context\nA tracked inline fixture.\n## Acceptance Criteria\n### AC-1: Packet parses\n- **State:** active\n- **Outcome:** A valid packet becomes an execution contract.\n- **Action:** Parse the approved Markdown sources.\n- **Expected:** Return the matching feature and acceptance criterion.\n## Invariants\n- **I-1:** Approved source bytes remain immutable.\n## Non-goals\n- **NG-1:** Runtime TOON is not edited by the parser.\n## Interfaces\n| Criterion | Seam | Path | Lower-seam reason |\n| --- | --- | --- | --- |\n| AC-1 | parser | `test/skills.test.js` | none |\n",
@@ -71,6 +73,13 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   assert.throws(() => parseMarkdownPacket({ ...files, "proposal.md": files["proposal.md"].replace("## Summary\nValidate Markdown packets.", "## Summary\n") }), /Summary is required/);
   assert.throws(() => parseMarkdownPacket({ ...files, "design.md": "" }), /design\.md is required/);
   assert.doesNotThrow(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("`node --test test/skills.test.js`", "`none`") }));
+  const publishedSpec = `${files["spec.md"]}\n## Publication\n\n\`docs/gsd/canonical-fixture/milestones.md\`\n`;
+  assert.doesNotThrow(() => parseMarkdownPacket({ ...files, "spec.md": publishedSpec }));
+  const legacyPublication = publishedSpec.replace("milestones.md", ["milestones", ".toon"].join(""));
+  assert.throws(
+    () => parseMarkdownPacket({ ...files, "spec.md": legacyPublication }),
+    /canonical Markdown ledger path/,
+  );
 });
 
 test("legacy pre-approval TOON is explicitly rejected", () => {
@@ -115,41 +124,115 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
   assert.match(execution, /Never fall back to an older handoff/);
   assert.match(handoff, /Execution resume \| `handoff-<n>\.toon`; `proposal\.md`; `spec\.md`; `plan\.md`/);
   assert.match(reference, /Execution never depends on prompt-local memory for the approval binding/);
+  assert.match(reference, /# Milestones[\s\S]*\| ID \| Slug \| Goal \| Status \|/);
+  assert.match(reference, /status is exactly `pending` or `done`/);
+  assert.match(master, /all-`done`, fail closed/);
+});
+
+test("master route and policy tables retain their declared shape", () => {
+  const master = read("skills/gsd/SKILL.md");
+  const classifier = master.match(/\*\*Route 0 classifier \(normative\)\.\*\*([\s\S]*?)\n1\. \*\*Resume\*\*:/)?.[1];
+  assert.ok(classifier, "Route 0 classifier boundary");
+  const classifierRows = classifier.split("\n").filter((line) => line.startsWith("|"));
+  assert.equal(classifierRows.length, 5);
+  assert.ok(classifierRows.every((line) => line.split("|").length === 7), "Route 0 table must have five columns");
+
+  for (const [route, title] of [
+    [1, "Resume"], [2, "Review/Diff"], [3, "Spec/Plan"],
+    [4, "Issue/Bug"], [5, "Codebase Exploration"], [6, "New Work / Vague Input"],
+  ]) {
+    assert.match(master, new RegExp(`^${route}\\. \\*\\*${title.replace("/", "\\/")}\\*\\*:$`, "m"));
+  }
+
+  const matrix = master.match(/### Executable policy scenario matrix \(normative\)([\s\S]*?)\n## Dynamic Sub-Skill Loading/)?.[1];
+  assert.ok(matrix, "context-harvest matrix boundary");
+  const matrixRows = matrix.split("\n").filter((line) => line.startsWith("|"));
+  assert.ok(matrixRows.length > 2);
+  assert.ok(matrixRows.every((line) => line.split("|").length === 10), "policy matrix must have eight columns");
 });
 
 test("domain model has exactly one writer", () => {
-  const writers = skillNames().filter((name) => read(`skills/${name}/SKILL.md`).match(/^produces: .*docs\/domain\.toon/m));
+  const writers = skillNames().filter((name) => {
+    const skill = read(`skills/${name}/SKILL.md`);
+    return /^produces: .*docs\/domain\/index\.md.*docs\/domain\/<scope>\.md/m.test(skill);
+  });
   assert.deepEqual(writers, ["gsd-domain-modeling"]);
+  const modeler = read("skills/gsd-domain-modeling/SKILL.md");
+  assert.match(modeler, /orphan shard, or any other partial directory fails closed/);
 });
 
-test("domain model satisfies its deterministic table invariants", () => {
-  const domain = read("docs/domain.toon");
-  assert.doesNotMatch(domain, /\r|\n\n/);
-  assert.match(domain, /^schema:v1\n/);
-  const lines = domain.trimEnd().split("\n");
-  const termHeader = lines[1].match(/^terms\[(\d+)\]\{scope,term,definition,avoid\}:$/);
-  assert.ok(termHeader);
-  const decisionIndex = lines.findIndex((line) => line.startsWith("decisions["));
-  const termRows = lines.slice(2, decisionIndex);
-  assert.equal(termRows.length, Number(termHeader[1]));
-  const termKeys = termRows.map((line) => {
-    const match = line.match(/^  ([a-z0-9-]+),([^,]+),/);
-    assert.ok(match, `malformed term row: ${line}`);
-    return `${match[1]}\0${match[2]}`;
-  });
-  assert.deepEqual(termKeys, [...termKeys].sort());
-  const decisionHeader = lines[decisionIndex].match(/^decisions\[(\d+)\]\{id,scope,decision,rationale\}:$/);
-  assert.ok(decisionHeader);
-  const decisionRows = lines.slice(decisionIndex + 1);
-  assert.equal(decisionRows.length, Number(decisionHeader[1]));
-  assert.deepEqual(
-    decisionRows.map((line) => line.match(/^  D-(\d+),/)?.[1]),
-    decisionRows.map((_, index) => String(index + 1)),
-  );
+test("domain model satisfies its deterministic Markdown invariants", () => {
+  const index = read("docs/domain/index.md");
+  assert.doesNotMatch(index, /\r/);
+  assert.match(index, /^# Domain Model\n/);
+  assert.match(index, /^## Scopes$/m);
+
+  const scopeRows = [...index.matchAll(/^\| ([a-z0-9-]+) \| `([^`]+\.md)` \| ([^|]+) \|$/gm)]
+    .map(([, scope, file, purpose]) => ({ scope, file, purpose: purpose.trim() }));
+  const scopes = scopeRows.map(({ scope }) => scope);
+  assert.ok(scopeRows.length > 0, "domain index must declare at least one scope");
+  assert.deepEqual(scopes, [...scopes].sort());
+  const shardFiles = readdirSync(join(ROOT, "docs/domain"), { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && entry.name !== "index.md")
+    .map((entry) => entry.name)
+    .sort();
+  assert.deepEqual(scopeRows.map(({ file }) => file), shardFiles);
+
+  for (const { scope, file, purpose } of scopeRows) {
+    assert.ok(purpose, `${scope} purpose is required`);
+    assert.equal(file, `${scope}.md`, `${scope} shard name`);
+    assert.ok(existsSync(join(ROOT, "docs/domain", file)), `${file} must exist`);
+
+    const shard = read(`docs/domain/${file}`);
+    assert.doesNotMatch(shard, /\r/);
+    assert.match(shard, /^# Domain Scope\n/);
+    assert.equal(shard.match(/^## Scope\n\n`([^`]+)`$/m)?.[1], scope);
+    assert.match(shard, /^## Terms$/m);
+    assert.match(shard, /^## Decisions$/m);
+
+    const termRows = [...shard.matchAll(/^\| ([^|]+) \| ([^|]+) \| ([^|]+) \|$/gm)]
+      .map(([, term]) => term.trim())
+      .filter((term) => !["Term", "---"].includes(term));
+    assert.deepEqual(termRows, [...termRows].sort(), `${scope} terms must be sorted`);
+
+    const decisions = [...shard.matchAll(/^### D-([a-z0-9-]+)-(\d+): (.+)$/gm)];
+    assert.ok(
+      decisions.every(([, decisionScope, , title]) => decisionScope === scope && title.trim()),
+      `${scope} decision headings`,
+    );
+    assert.deepEqual(
+      decisions.map(([, , ordinal]) => Number(ordinal)),
+      decisions.map((_, index_) => index_ + 1),
+      `${scope} decision IDs`,
+    );
+    assert.ok(termRows.length + decisions.length > 0, `${scope} shard cannot be empty`);
+  }
+});
+
+test("durable domain and milestone documentation has no legacy TOON paths", () => {
+  const contractFiles = [
+    join(ROOT, "README.md"),
+    join(ROOT, "install.sh"),
+    join(ROOT, "VERSION"),
+    join(ROOT, ".gitattributes"),
+    ...filesUnder(join(ROOT, "skills")),
+    ...filesUnder(join(ROOT, "docs")),
+    ...filesUnder(join(ROOT, "test")),
+  ];
+  const legacyDomainPath = ["docs/domain", ".toon"].join("");
+  const legacyMilestoneSuffix = ["/milestones", ".toon"].join("");
+  for (const path of contractFiles) {
+    const content = readFileSync(path, "utf8");
+    assert.ok(!content.includes(legacyDomainPath) && !content.includes(legacyMilestoneSuffix), path);
+  }
 });
 
 test("all relative Markdown links resolve", () => {
-  const paths = [join(ROOT, "README.md"), ...markdownFiles(SKILLS)];
+  const paths = [
+    join(ROOT, "README.md"),
+    ...markdownFiles(SKILLS),
+    ...markdownFiles(join(ROOT, "docs")),
+  ];
   for (const path of paths) {
     const content = readFileSync(path, "utf8");
     for (const match of content.matchAll(/(?<!!)\[[^\]]+\]\(([^)]+)\)/g)) {

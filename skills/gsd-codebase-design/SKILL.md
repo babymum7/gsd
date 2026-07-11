@@ -17,7 +17,7 @@ consumes: []
 | Standalone interface design | — | — | — | — |
 | Inline design support | — | — | — | — |
 
-Select Standalone interface design when Route 5 targets a named module or interface directly. Select Inline design support when another loaded GSD skill needs the shared vocabulary or design-it-twice process for its already-scoped work. Neither mode fabricates repository context or writes an artifact.
+Select Standalone interface design when Route 5 targets a named module or interface directly. Select Inline design support when another loaded GSD skill needs the shared vocabulary or design-it-twice process for its already-scoped work. An inline caller may pass relevant domain vocabulary it already read, but this skill never opens domain artifacts itself; therefore they are not cataloged as `consumes:` here. Neither mode fabricates repository context or writes an artifact.
 
 Design **deep modules**: a lot of behaviour behind a small interface, placed at a clean seam, testable through that interface. Use this language and these principles wherever code is being designed or restructured. The aim is leverage for callers, locality for maintainers, and testability for everyone.
 

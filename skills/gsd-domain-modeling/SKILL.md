@@ -1,72 +1,113 @@
 ---
 name: gsd-domain-modeling
-description: Internal GSD sub-skill (routed via /gsd). Build/sharpen the project's domain model — challenge terms, sharpen fuzzy language, capture decisions to `docs/domain.toon`. Auto-triggered when a durable term/decision crystallizes; also invokable directly to sharpen the glossary.
+description: Internal GSD sub-skill (routed via /gsd). Build and sharpen a scalable Markdown domain model—an index plus bounded-context shards under `docs/domain/`. Auto-triggered when a durable term or decision crystallizes; also invokable directly.
 triggers: durable term/decision crystallizes (auto); invokable directly
-produces: [docs/domain.toon]
-consumes: [docs/domain.toon]
+produces: [docs/domain/index.md, docs/domain/<scope>.md]
+consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 ---
 
 # Domain Modeling
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action.
 
 ## Invocation modes
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| First-run domain modeling | — | `docs/domain.toon` | `docs/domain.toon` (lazy and evidence-gated) | — |
-| Existing-model update | — | `docs/domain.toon` | `docs/domain.toon` (updated lazily) | — |
+| First-run domain modeling | — | — | `docs/domain/index.md`; one `docs/domain/<scope>.md` shard, both only after an evidenced write | — |
+| Existing-model update | `docs/domain/index.md`; every index-selected relevant shard | — | selected shard; index plus a new shard only for a new durable bounded context | Malformed/missing index or referenced shard fails closed; never reconstruct it by sweeping code |
 
-Both invocation modes are evidence-driven. Existing-model update lazily reads and updates only `docs/domain.toon` if it exists. First-run starts from available route evidence and creates only `docs/domain.toon` when there is content to persist; missing `docs/domain.toon` is normal/no-op, and it never fabricates prior definitions or empty scaffolds.
+Both modes are evidence-driven. Missing `docs/domain/` is normal until a certain write exists. First-run is valid only when `docs/domain/` is absent or empty; it creates the index and exactly one populated shard atomically. A pre-existing index without every indexed shard, an orphan shard, or any other partial directory fails closed and is never overwritten or reconstructed by sweeping code. Existing-model update reads the index, selects only scope rows relevant to evidence already in hand, and reads only those shards.
 
-This skill is the **sole writer** of `docs/domain.toon`. Other skills may notice a signal and invoke it, but never edit or write `docs/domain.toon` themselves.
+This skill is the **sole writer** of `docs/domain/index.md` and `docs/domain/<scope>.md`. Other skills may notice a signal and invoke it, but never edit the domain model themselves.
 
-Triggered by `gsd`, `gsd-executing-plans`, or a scope-bounded caller only after the selected route's already-relevant work reveals a durable term or decision signal; also invokable directly to sharpen the glossary.
+## Scaling boundary
+
+Shard by a stable **bounded context**, never by feature, ticket, package path, or individual term. Many features reuse one context shard; a feature gets no file merely because it exists. Create a new scope only when evidence establishes durable vocabulary or decisions with an owner meaningfully distinct from every indexed scope. Use lowercase kebab-case scope slugs. A genuinely cross-cutting concept may use a `shared` scope, but `shared` is not a dumping ground.
+
+The index stays small—one row per bounded context. A caller reads `docs/domain/index.md` only after a domain signal exists, then reads the minimum relevant shard set. Never open all shards by default, and never merge unrelated scopes back into one growing file.
 
 ## Conservative context harvest
+
 Run this flow only **after the caller selects its route and Invocation Mode**:
 
-0. **Confirm write authority first.** The selected invocation must be write-authorized before this skill may reach a certain-write outcome. Explicit first-run or existing-model domain work and write-authorized non-trivial caller modes remain eligible. A standalone advisory/read-only Route 0, Standalone review (Route 2), or Nano caller is a report-only no-op for domain artifacts even when its input contains strong evidence: report the observation to the caller, but do not create or mutate `docs/domain.toon`.
-1. **Start with selected-route evidence.** Reuse the prompt, spec/task brief, and code or docs already needed for that route. Their evidence must establish project meaning or state an actual decision and why; raw occurrence counts are not evidence.
-2. **Require a durable signal before extra reads.** A candidate is a recurring project-specific concept whose meaning matters across the work, or an explicit architectural decision/rationale signal. Only after that signal may you make narrow reads of the code/docs that bear on it, or inspect `docs/domain.toon` if it exists.
-3. **Reject weak signals.** Generic vocabulary, a one-off identifier, implementation detail, code shape without stated rationale, reversible preference, and absent or contradictory evidence are **none** (no-op). Do not scan the repository to try to upgrade them into candidates.
-4. **Choose exactly one outcome.** Every harvest emits exactly one visible decision:
-   - **none** (no-op) — the invocation lacks write authority, has no durable signal, has immaterial uncertainty, or has insufficient evidence: write nothing and continue the caller; make no extra read when the signal itself is absent.
-   - **candidate** — before plan approval only, material uncertainty about meaning, ownership, or the trade-off: ask exactly one focused question for this harvest pass and write nothing until the answer resolves it. Do not ask about immaterial uncertainty.
-   - **write** (certain write) — only after write authority passes, evidence establishes the term's meaning and ownership or establishes every decision gate and rationale: create or update only `docs/domain.toon`.
+0. **Confirm write authority first.** Explicit domain work and write-authorized non-trivial caller modes remain eligible. Standalone advisory/read-only Route 0, Standalone review, and Nano are report-only no-op modes even with strong evidence.
+1. **Start with selected-route evidence.** Reuse the prompt, spec/task brief, and code/docs already needed for that route. Raw occurrence counts are not evidence.
+2. **Require a durable signal before domain reads.** A candidate is a recurring project-specific concept whose meaning matters across features, or an explicit architectural decision with evidenced rationale.
+3. **Resolve ownership.** Map the candidate to exactly one indexed bounded context. If no scope exists, create one only when the evidence proves a durable ownership boundary; otherwise the outcome is `candidate` or `none`.
+4. **Reject weak signals.** Generic vocabulary, one-off identifiers, implementation details, feature-local wording, reversible preferences, and code shape without rationale are `none`.
+5. **Choose exactly one outcome:**
+   - **none** — no authority, durable signal, sufficient evidence, or stable scope; write nothing.
+   - **candidate** — before approval only, material ambiguity about meaning, ownership, or trade-off; ask one focused question and write nothing.
+   - **write** — evidence establishes the term/decision and owning scope; update exactly one shard, plus the index only when creating that scope.
 
 ### Glossary scenario matrix
+
 | Scenario | Evidence and phase | Deterministic outcome |
 |---|---|---|
-| Certain recurring domain term | Already-relevant code/docs use one project-specific concept repeatedly and establish one meaning | Emits `write` decision; create or update exactly one term row in `docs/domain.toon` |
-| Ambiguous overloaded term | Before approval, evidence supports materially different meanings or owners | Emits `candidate` decision; ask one focused meaning/ownership question; write nothing until resolved |
-| Missing domain.toon | Missing `docs/domain.toon` is normal/no-op until evidenced write | Emits `none` decision; do not create empty scaffold |
+| Certain recurring domain term | Relevant code/docs establish one durable meaning and one owning context | Write exactly one term row in the owning shard |
+| Feature-local term | Meaning is confined to one feature and has no durable cross-feature role | `none`; do not create a feature shard |
+| Ambiguous overloaded term | Before approval, evidence supports materially different meanings or owners | `candidate`; ask one focused question and write nothing |
+| Missing domain directory | No domain signal exists | `none`; create no index or empty shard |
+| New durable bounded context | Evidence establishes vocabulary/decisions with distinct long-lived ownership | Atomically add one sorted index row and one populated shard |
 
 ## Ambiguity by phase
-- **Before approval:** material uncertainty requires exactly one focused question through the `candidate` decision outcome above, and write nothing until resolved. A resolved, evidence-backed answer may then produce the `write` decision; an unresolved answer remains `none` (no-op).
-- **After approval:** ask **zero documentation questions**. If ambiguity changes an AC, interface, or invariant, or prevents correct implementation, return a load-bearing blocker to `gsd-executing-plans`' existing **Spec escalation** path. Otherwise skip the documentation write and continue with `none` decision. Never turn an uncertain inference into prose.
 
-## File Invariants
-- `docs/domain.toon` — the single canonical domain model. Strict UTF-8, LF line endings, no blank lines, ordered rows. Strict parsing fails closed on malformed existing content without creating a runtime parser.
-  - Table: `terms[count]{scope,term,definition,avoid}` — project-specific glossary terms, sorted lexicographically by `scope` then `term`. No implementation details or utility programming concepts. Pick ONE word per concept, list synonyms under `avoid`, define what it IS in 1-2 sentences. Stable identity is scope+term.
-  - Table: `decisions[count]{id,scope,decision,rationale}` — architectural decisions. Stable decision IDs are D-N in order.
+- **Before approval:** material uncertainty requires exactly one focused question and no write until resolved.
+- **After approval:** ask zero documentation questions. Load-bearing AC/interface/invariant ambiguity returns to `gsd-executing-plans` as Spec escalation; otherwise skip the domain write.
 
-## Decision capture — all gates plus evidence
-Offer or write a decision row only when **all three** gates hold:
-1. **Hard to reverse.**
-2. **Surprising without context** (a future reader asks "why?").
-3. **The result of a real trade-off.**
+## Markdown contracts
 
-The selected-route evidence must also state the decision's rationale: what was chosen, the meaningful alternative or constraint, and why the trade-off favored this choice. Code shape alone cannot supply or invent that rationale. Missing any gate or rationale evidence is no-op.
+All domain files are UTF-8/LF Markdown with exact headings and one terminal newline. They permit no trailing whitespace, duplicate IDs, duplicate terms, unknown sections, empty required values, or literal `|` inside a table cell.
 
-After a decision signal, read only related existing decision rows in `docs/domain.toon` before proposing one. If `docs/domain.toon` already carries the rationale, no-op; if the same still-authoritative decision has materially evolved, update its rationale; create a new D-N row only for a distinct decision. Never duplicate rationale.
+`docs/domain/index.md`:
 
-### Decision scenario matrix
-| Scenario | Gate/evidence result | Deterministic outcome |
-|---|---|---|
-| Evidenced durable decision | Hard to reverse + surprising without context + real trade-off, with evidenced rationale; no existing decision row covers it | Emits `write` decision; write exactly one decision row |
-| Reversible preference | Hard-to-reverse gate fails, regardless of code shape | Emits `none` decision; write no row |
-| Ambiguous post-approval decision | Rationale or a gate is uncertain after approval | Emits `none` decision; zero prompts; Spec escalation only when load-bearing |
+```markdown
+# Domain Model
+
+## Scopes
+
+| Scope | File | Purpose |
+| --- | --- | --- |
+| billing | `billing.md` | Invoicing, settlement, and payment ownership. |
+```
+
+Index rows are sorted by scope. `Scope` is lowercase kebab-case, `File` is exactly `<scope>.md`, every row resolves to one shard, and every shard has one row. `Purpose` states the durable boundary, not a feature list.
+
+`docs/domain/<scope>.md`:
+
+```markdown
+# Domain Scope
+
+## Scope
+
+`billing`
+
+## Terms
+
+| Term | Definition | Avoid |
+| --- | --- | --- |
+| Settlement | The final application of captured funds to an invoice. | payment completion |
+
+## Decisions
+
+### D-billing-1: Keep settlement owned by billing
+
+- **Decision:** Billing owns settlement state transitions.
+- **Rationale:** The invoice lifecycle is the only boundary that can preserve settlement invariants.
+```
+
+Terms are sorted lexicographically by `Term`; stable identity is scope+term. Decisions are sequential within a shard as `D-<scope>-N`, and each contains exactly one non-empty `Decision` bullet followed by one non-empty `Rationale` bullet. Empty `Terms` or `Decisions` may contain exactly `None.`; a shard itself must contain at least one real term or decision.
+
+## Decision capture
+
+Write a decision only when all three gates hold:
+1. hard to reverse;
+2. surprising without context;
+3. the result of a real trade-off.
+
+Evidence must state what was chosen, the meaningful alternative or constraint, and why the trade-off favored the choice. Read only the owning shard's related decisions before dedupe/update. If the rationale already exists, no-op; if the same decision evolved, update it; otherwise append the next scope-local ID. Never duplicate rationale.
 
 ## Tracked-document lifecycle
-The domain model `docs/domain.toon` is a tracked project artifact, **never scratch**. After every certain write, return the exact repository-relative changed path (`docs/domain.toon`) to the master; this is the ownership-transfer record, not commit authority. A certain pre-approval write stays as an intentional working-tree change and is carried into the approved WIP plan and work only after convergence assigns the returned path to exactly one named plan task's `files`. A certain post-approval, in-scope write is committed with the task whose evidence owns it. Never silently commit `<base>`, create an unplanned generic documentation commit, or exclude a valid domain write under “code only.”
+
+The domain directory is Git-tracked durable documentation, never scratch or runtime state. After a certain write, return every exact changed path to the master. Creating a scope returns both `docs/domain/index.md` and its shard; updating a scope returns only that shard. Pre-approval writes remain intentional working-tree changes until one plan task owns every returned path. Post-approval in-scope writes commit with the task whose evidence owns them. Never create a generic documentation commit or silently exclude a valid domain write.

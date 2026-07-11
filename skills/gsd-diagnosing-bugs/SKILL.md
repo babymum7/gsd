@@ -3,7 +3,7 @@ name: gsd-diagnosing-bugs
 description: Internal GSD sub-skill (routed via /gsd). Diagnosis loop for hard bugs and performance regressions. Triggered when gsd-executing-plans hits a real bug/regression, or on explicit "diagnose/debug". Six phases — skip only when justified.
 triggers: hard bug / regression / non-obvious error (gsd Route 4); gsd-executing-plans blocker
 produces: []
-consumes: [docs/domain.toon]
+consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 ---
 
 # Diagnosing Bugs
@@ -14,10 +14,10 @@ consumes: [docs/domain.toon]
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| Route 4 diagnosis | — | `docs/domain.toon` | — | — |
-| Execution-blocker diagnosis | — | `docs/domain.toon` | — | — |
+| Route 4 diagnosis | — | `docs/domain/index.md`; relevant domain shards | — | — |
+| Execution-blocker diagnosis | — | `docs/domain/index.md`; relevant domain shards | — | — |
 
-A discipline for hard bugs. After selecting the diagnosis mode, read `docs/domain.toon` if it exists. Skip phases only when explicitly justified.
+A discipline for hard bugs. After selecting the diagnosis mode, read `docs/domain/index.md` only when the bug evidence contains a durable domain signal, then load only the relevant indexed shard(s). Missing domain documentation is normal. Skip phases only when explicitly justified.
 
 ## Phase 1 — Build a feedback loop (THIS is the skill)
 Everything else is mechanical. A **tight** pass/fail signal that goes red on *this* bug → you'll find the cause. No loop → no amount of staring saves you. Be aggressive, creative, refuse to give up.

@@ -113,7 +113,7 @@
   },
   {
     "id": "domain-glossary",
-    "state": "clean repo; docs/domain.toon exists",
+    "state": "clean repo; docs/domain/index.md and docs/domain/billing.md exist",
     "prompt": "sharpen our domain glossary for invoice settlement",
     "route": "5",
     "skill": "gsd-domain-modeling"
@@ -127,7 +127,7 @@
   },
   {
     "id": "milestone-ledger-recovery",
-    "state": "fresh clone; .scratch/ is absent; origin/wip/oauth-rollout is absent; docs/gsd/oauth-rollout/milestones.toon has one first pending row and matching base",
+    "state": "fresh clone; .scratch/ is absent; origin/wip/oauth-rollout is absent; docs/gsd/oauth-rollout/milestones.md has one first pending row and matching base",
     "prompt": "continue the oauth-rollout milestone",
     "route": "1",
     "skill": "gsd-handoff"

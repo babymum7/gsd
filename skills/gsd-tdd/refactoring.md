@@ -72,5 +72,5 @@ Refactoring is done when the smell is gone, not when the code is maximally cleve
 
 - **Stop at "no duplication, small interface, tests survive."** Deepening past that is speculative abstraction — the thing ponytail/YAGNI warns against.
 - **Don't gold-plate.** A helper used once, an interface with one implementation, a config knob nobody asked for — these add interface without leverage. Shallow the other direction.
-- **Don't reopen settled design.** Settled domain terms and decisions in `docs/domain.toon` are not refactor targets; a genuine structural rethink is a `gsd-improve-codebase-architecture` candidate, not a step in this loop.
+- **Don't reopen settled design.** Settled terms and decisions in the relevant `docs/domain/<scope>.md` shard are not refactor targets; a genuine structural rethink is a `gsd-improve-codebase-architecture` candidate, not a step in this loop.
 - **Time-box it.** If a refactor balloons past the task's scope, note it as a deepening candidate and move on — don't stall the tracer bullet.

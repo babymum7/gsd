@@ -156,7 +156,7 @@ export function parseMarkdownPacket(files) {
   if (bootstrap !== null && feature !== "markdown-canonical-contracts") fail("Self-host bootstrap is reserved for the Markdown cutover");
   if (bootstrap !== null) required(bootstrap, "Self-host bootstrap");
   const publication = section(spec, "Publication", false);
-  if (publication !== null && !/^(null|`docs\/gsd\/[a-z0-9]+(?:-[a-z0-9]+)*\/milestones\.toon`)$/.test(publication)) fail("Publication must be null or the canonical ledger path");
+  if (publication !== null && !/^(null|`docs\/gsd\/[a-z0-9]+(?:-[a-z0-9]+)*\/milestones\.md`)$/.test(publication)) fail("Publication must be null or the canonical Markdown ledger path");
   const criteria = parseCriteria(spec);
   const interfaces = parseInterfaces(spec, criteria);
   const invariants = parseIdentifierList(spec, "Invariants", "I");

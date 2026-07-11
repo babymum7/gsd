@@ -29,7 +29,7 @@ Prompt each sub-agent with a separate technical brief (file paths, coupling deta
 - Agent 3: "Optimise for the most common caller — make the default case trivial."
 - Agent 4 (if applicable): "Design around an adapter seam for cross-seam dependencies."
 
-Always include [SKILL.md](SKILL.md) vocabulary. Include docs/domain.toon vocabulary only when it was supplied and is relevant; otherwise state that domain context is unavailable, use the user's terms, and never search for or fabricate project vocabulary.
+Always include [SKILL.md](SKILL.md) vocabulary. Include vocabulary from the relevant `docs/domain/<scope>.md` shards only when it was supplied and is relevant; otherwise state that domain context is unavailable, use the user's terms, and never search for or fabricate project vocabulary.
 
 Each sub-agent outputs:
 

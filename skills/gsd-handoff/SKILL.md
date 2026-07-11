@@ -3,7 +3,7 @@ name: gsd-handoff
 description: Internal GSD sub-skill (routed via /gsd). Writes and resumes immutable runtime handoffs bound to an approved canonical Markdown packet.
 triggers: resume/continue (read existing); pause/breakpoint/context-pressure/task completion (write new)
 produces: [handoff-<n>.toon]
-consumes: [handoff-<n>.toon, proposal.md, spec.md, design.md, plan.md, docs/gsd/<feature>/milestones.toon]
+consumes: [handoff-<n>.toon, proposal.md, spec.md, design.md, plan.md, docs/gsd/<feature>/milestones.md]
 ---
 
 # Handoff

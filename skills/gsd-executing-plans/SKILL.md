@@ -2,8 +2,8 @@
 name: gsd-executing-plans
 description: Internal GSD sub-skill (routed via /gsd). Executes approved Markdown plan tasks with immutable source binding, JIT runtime attempts, review, repair, and terminal verification.
 triggers: approved Markdown plan exists, pending/in-progress (gsd Route 3)
-produces: [handoff-<n>.toon, docs/gsd/<feature>/milestones.toon, .scratch/<feature>/tasks/<Tn>/a<N>.toon]
-consumes: [proposal.md, spec.md, design.md, plan.md, handoff-<n>.toon, docs/gsd/<feature>/milestones.toon]
+produces: [handoff-<n>.toon, docs/gsd/<feature>/milestones.md, .scratch/<feature>/tasks/<Tn>/a<N>.toon]
+consumes: [proposal.md, spec.md, design.md, plan.md, handoff-<n>.toon, docs/gsd/<feature>/milestones.md]
 ---
 
 # Executing Plans

@@ -3,7 +3,7 @@ name: gsd-to-plan
 description: Internal GSD sub-skill (routed via /gsd). Validates a converged Markdown packet, writes plan.md, binds exact approval sources, and starts the non-interactive pipeline.
 triggers: Markdown spec converged, no plan yet (gsd Route 3)
 produces: [plan.md, handoff-<n>.toon]
-consumes: [proposal.md, spec.md, design.md, plan.md, handoff-<n>.toon, docs/gsd/<feature>/milestones.toon]
+consumes: [proposal.md, spec.md, design.md, plan.md, handoff-<n>.toon, docs/gsd/<feature>/milestones.md]
 ---
 
 # To Plan
@@ -14,7 +14,7 @@ consumes: [proposal.md, spec.md, design.md, plan.md, handoff-<n>.toon, docs/gsd/
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| Converged planning | `proposal.md`; `spec.md` | `design.md`; `handoff-<n>.toon`; `docs/gsd/<feature>/milestones.toon` | `plan.md`; `handoff-<n>.toon` | Stop and return to `/gsd` Discussion to recover the Markdown packet; never synthesize a contract or read legacy pre-approval TOON |
+| Converged planning | `proposal.md`; `spec.md` | `design.md`; `handoff-<n>.toon`; `docs/gsd/<feature>/milestones.md` | `plan.md`; `handoff-<n>.toon` | Stop and return to `/gsd` Discussion to recover the Markdown packet; never synthesize a contract or read legacy pre-approval TOON |
 
 ## Intake
 

@@ -3,7 +3,7 @@ name: gsd-tdd
 description: Internal GSD sub-skill (routed via /gsd). Focused TDD through public interfaces, vertical tracer-bullet slices, red-green-refactor. Triggered by gsd-executing-plans for each task's focused test/path/self-check.
 triggers: gsd-executing-plans per-task focused TDD test
 produces: []
-consumes: [docs/domain.toon, .scratch/<feature>/tasks/<Tn>/a<N>.toon]
+consumes: [docs/domain/index.md, docs/domain/<scope>.md, .scratch/<feature>/tasks/<Tn>/a<N>.toon]
 ---
 
 # Test-Driven Development
@@ -14,8 +14,8 @@ consumes: [docs/domain.toon, .scratch/<feature>/tasks/<Tn>/a<N>.toon]
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| Dispatched task TDD | `.scratch/<feature>/tasks/<Tn>/a<N>.toon` | `docs/domain.toon` | — | Missing attempt TOON: STOP and escalate; task-brief attempt must exist to proceed |
-| Inline TDD support | — | `docs/domain.toon` | — | — |
+| Dispatched task TDD | `.scratch/<feature>/tasks/<Tn>/a<N>.toon` | `docs/domain/index.md`; relevant domain shards | — | Missing attempt TOON: STOP and escalate; task-brief attempt must exist to proceed |
+| Inline TDD support | — | `docs/domain/index.md`; relevant domain shards | — | — |
 
 Tests verify **behavior through public interfaces**, not implementation. Code can change entirely; tests shouldn't. A good test reads like a spec ("user can checkout with valid cart") and survives refactors. A bad test is coupled to implementation (mocks internals, tests privates) — it breaks on refactor though behavior is unchanged.
 
@@ -30,11 +30,12 @@ Triggered by `gsd-executing-plans` for each task's **Focused TDD test**. That fo
 WRONG:  RED: test1..5  →  GREEN: impl1..5
 RIGHT:  RED→GREEN: test1→impl1, test2→impl2, ...
 ```
+
 ## Workflow
-1. **Planning** — read `docs/domain.toon` if it exists (match domain vocabulary). Take the selected public seam, lower-seam reason, focused check, and safety facts from the task brief attempt TOON; verify each against the satisfied criterion's Markdown Interfaces row, its Action/Expected oracle, the plan task, the deterministic same-tier tie-break, and the relevant live test layout before writing. Derive the exact required behavior layers and owned files from the criterion and live codebase; list complete behaviors, not generic implementation layers. **Dispatched headless by `gsd-executing-plans`** (the common path): consume and parse the exact immutable attempt bytes, reject malformed or mismatched bytes, and use only its bound Markdown packet (`proposal.md`, `spec.md`, optional `design.md`, and `plan.md`) as the contract — no user is available to confirm scope. **Invoked directly by a user**: inspect and select the seam under the same ladder, then confirm the behavior list and get approval before writing tests.
-2. **Tracer bullet** — at the selected public seam, write ONE focused test confirming ONE observable thing: RED (test fails) → GREEN (minimal production path through exactly every required layer for that behavior passes). This proves one complete task seam end-to-end; never stop at a green test double, implementation layer, or partial path. A focused browser/HTTP test is still per-task; it does not replace the terminal whole-journey E2E.
-3. **Incremental loop** — each remaining behavior: RED → GREEN. One focused test at a time, only enough code to pass, no anticipating future tests, focused on observable behavior.
-4. **Refactor** — after all focused tests have produced verified-green facts: extract duplication, deepen modules, SOLID where natural, consider what new code reveals about old. Run tests after each step. **Never refactor while RED.**
+1. **Planning** — consume the exact immutable task attempt, reject malformed or mismatched bytes, and verify its source paths/hashes, criterion, interface pin, focused check, and safety facts against the bound Markdown packet (`proposal.md`, `spec.md`, optional `design.md`, and `plan.md`). When task evidence already contains a durable domain signal, read `docs/domain/index.md` and only the relevant indexed shard(s); otherwise perform no domain read. Derive every production layer and owned file required for the behavior, not generic implementation layers.
+2. **Tracer bullet** — at the selected public seam, write ONE focused test confirming ONE observable thing: RED (test fails) → GREEN (the minimal production path through every required layer passes). Never stop at a green test double, implementation layer, or partial path. A focused browser/HTTP test remains per-task and does not replace terminal whole-journey E2E.
+3. **Incremental loop** — for each remaining behavior, RED → GREEN. Write one focused test at a time and only enough production code to pass.
+4. **Refactor** — after every focused behavior is verified green, remove duplication and deepen modules where natural, running tests after each step. Never refactor while RED.
 
 ## Optional context signal
 Context harvesting is optional and bounded to the selected test/task. Reuse only the task-brief attempt TOON, tests, implementation files, and relevant domain docs already read for TDD; never run a repository-wide term/decision scan or create missing scaffolds. Trigger `gsd-domain-modeling` only if that already-relevant work reveals a recurring project-specific term or explicit decision/rationale signal. Generic test vocabulary, fixture names, one-off identifiers, and code shape are no-op. This skill never writes a domain artifact itself.

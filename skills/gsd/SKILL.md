@@ -2,8 +2,8 @@
 name: gsd
 description: "Master entry point for all coding tasks. Routes, starts, resumes, and coordinates sub-skills automatically — new features, debugging, code review, architecture/refactoring, testing, domain modeling. One skill, one command: /gsd."
 triggers: /gsd on any prompt (entry router; routes 0-6)
-produces: [proposal.md, spec.md, design.md, plan.md, .scratch/<feature>/result.toon, docs/gsd/<feature>/milestones.toon]
-consumes: [handoff-<n>.toon, plan.md, proposal.md, spec.md, design.md, .scratch/<feature>/result.toon, docs/gsd/<feature>/milestones.toon, docs/domain.toon]
+produces: [proposal.md, spec.md, design.md, plan.md, .scratch/<feature>/result.toon, docs/gsd/<feature>/milestones.md]
+consumes: [handoff-<n>.toon, plan.md, proposal.md, spec.md, design.md, .scratch/<feature>/result.toon, docs/domain/index.md, docs/domain/<scope>.md, docs/gsd/<feature>/milestones.md]
 ---
 
 # GSD (Master Entry)
@@ -29,8 +29,8 @@ On entry, analyze the prompt and workspace state to route to the correct sub-flo
 **Step 0 — Detect result.toon marker first.** Before ordinary scratch proposal/spec/plan routing, check if `.scratch/<feature>/result.toon` exists. If present, strictly validate it under the exact schema and enums in [REFERENCE.md](REFERENCE.md) § Squash and cleanup result marker contract. A malformed marker fails closed immediately. A valid marker always blocks implementation resume. If scratch status is `pending` (indicating a crash-visible pending state), resume only the one cleanup decision (prompting the user exactly once for delete or retain) and never resume implementation. If scratch status is `retained` and status is `merged`, allow only explicit packet deletion (abandon/cleanup). If status is `merged_cleanup_residual`, allow only explicit residual cleanup. This blocks all other proposal/spec/plan routing, while preserving separate active-feature abandon semantics without creating a second postmerge cleanup flow.
 
 **Step 0 — Detect state first (before matching routes).** Glob `.scratch/*/` for `proposal.md` / `spec.md` / `design.md` / `plan.md` / `handoff-*.toon`, and scan the prompt for a pasted diff/PR. Workspace state — not just the prompt's wording — drives Routes 1/2/3: a "continue"/"resume" prompt with a live `handoff-*.toon` is Route 1 even when it reads like new work; a feature ask **related to** an existing feature with a `plan.md` is Route 3; an **unrelated** feature ask with a `plan.md` is Route 6 (new work), not Route 3. Resume-style prompt but no local `.scratch/` (fresh clone / other machine)? `git fetch --prune`, then list local + remote WIP branches: `git branch -a --list 'wip/*' --list '*/wip/*'` — a portable handoff materializes `.scratch/<feature>/` via `git switch --track origin/wip/<feature>` (or plain `git switch wip/<feature>` if local; see gsd-handoff § Portable); no synced scratch → reconstruct per gsd-handoff.
-**Step 0 — domain artifacts are presence-only metadata.** In the same cheap entry pass, check only whether `docs/domain.toon` exists (existence metadata only). Do not open or sweep its contents, infer a domain model, trigger `gsd-domain-modeling`, propose an artifact, or write one at entry. Missing domain docs are normal.
-**Step 0 — milestone-ledger presence is metadata-only.** For a named feature, check only whether the exact `docs/gsd/<feature>/milestones.toon` path exists; do not open it, select work from it, or infer large-feature mode solely from presence during entry routing. Missing ledger state is normal, and ordinary or single-milestone work requires no ledger.
+**Domain documentation is lazy context, not routing state.** Do not scan `docs/domain/` at entry, infer a model, trigger `gsd-domain-modeling`, propose an artifact, or write one at entry. Missing domain docs are normal. A selected downstream skill may read `docs/domain/index.md` only after its already-bounded work reveals a durable domain signal, then load only the relevant indexed shard(s).
+**Step 0 — milestone-ledger presence is metadata-only.** For a named feature, check only whether the exact `docs/gsd/<feature>/milestones.md` path exists; do not open it, select work from it, or infer large-feature mode solely from presence during entry routing. Missing ledger state is normal, and ordinary or single-milestone work requires no ledger.
 **Artifact validation — mode before requirements.** Route and load the target skill, then select its Invocation Mode from explicit intent and entry context before validating artifacts. On resume preserve the handoff's open `mode` and `phase` values; never infer a mode solely from `spec.md` or `plan.md` presence. Validate only the selected row's Required artifacts and follow its Missing required action. Flat `consumes:`/`produces:` remain catalog unions, and missing Optional artifacts never redirect. Load [REFERENCE.md](REFERENCE.md) § Artifact Contract for the canonical roles and ordering.
 **Git repo guard.** Route 0 Direct/read-only and Nano are completely git-free: do not run any git subprocess, and do not initialize, branch, diff, stage, or commit. Pasted-diff review (Route 2) also works without git. For every branch-backed workspace write/commit path (quick-fix, resume/execute/verify), run `git rev-parse --is-inside-work-tree`; not in a repo → `git init` before writing.
 **Intent signals — check before Route 0.** If the prompt asks to *perform* one of these actions, skip Route 0 and route to the target. Mentioning a word in passing is not a signal — "the architecture is fine, just fix the typo" stays Route 0.
@@ -51,7 +51,7 @@ On entry, analyze the prompt and workspace state to route to the correct sub-flo
 0. **Direct / Trivial (check first)**:
    - A simple question, advisory, or read-only targeted lookup → answer directly.
    - For a write, classify before acting: **Nano** is purely mechanical and non-behavioral (typo, formatting, import cleanup, or a literal/rename that does not alter behavior) and stays direct with no Ponytail load; line count alone is insufficient. **Real quick-fix** is a behavioral small code change in at most one module, with no design work and a known single spot/root cause that needs no investigation; it always loads `gsd-ponytail` and then uses the existing quick-fix fast path. A one-line behavioral correction such as a known off-by-one is Real quick-fix, not Nano. An obvious failing-test/error fix belongs here only when it meets that real quick-fix boundary. **Do NOT explore broadly or trigger architecture skills.**
-   - **No-signal contract:** a typo, read-only fixture, nano-fix, or other trivial Route 0 task with no durable domain/decision signal stops at the Step 0 presence check. Perform no glossary/decision scan and propose or write no `docs/domain.toon`.
+   - **No-signal contract:** a typo, read-only fixture, nano-fix, or other trivial Route 0 task with no durable domain/decision signal performs no domain-document metadata or content read and proposes or writes nothing under `docs/domain/`.
 
 **Route 0 classifier (normative).**
 | Class | Deterministic boundary | Route | Skill | Activation cue |
@@ -62,15 +62,14 @@ On entry, analyze the prompt and workspace state to route to the correct sub-flo
 1. **Resume**:
    - If `.scratch/<feature>/handoff-<n>.toon` exists or is passed → Read the handoff file's `mode` and `phase`, automatically load the required sub-skills, and execute the `next_action` directly.
    - If no usable local handoff, plan, or spec can satisfy the continue intent (when `.scratch/` is absent or lacks these files) and the user intent is explicitly to continue/resume:
-     - Scan tracked base-branch canonical Milestone Ledger paths (`docs/gsd/<feature>/milestones.toon`) only after scratch/handoff/plan/spec recovery cannot satisfy the continue intent.
-     - If the feature is explicitly named, select that feature's ledger (if the ledger is absent, report no ledger and never fall through; if all milestones are done, report complete).
-     - If no feature is named and exactly one open ledger (with at least one pending milestone) exists, auto-select it.
-     - If no feature is named: If multiple open ledgers exist, ask exactly one feature-selection question listing the options and make no selection or write.
-     - If no feature is named: If no ledgers exist on disk (empty ledger set), report no ledger without inventing work.
-     - If no feature is named: If ledgers exist but all are fully completed (zero open ledgers), report complete without inventing work.
-     - If any scanned or selected ledger is malformed or has a base mismatch, the recovery fails closed, makes no selection, and stops with an error.
-     - Tracked canonical goals in the ledger are authoritative and must not be re-run through the precision or approval gates during recovery.
-     - Once a ledger is selected, choose the first pending milestone row, enter Discussion/reconstruction, and output the selected milestone's slug and goal. Do not detail later rows, change any ledger bytes/status, mark completion, start execution, or authorize a merge. Make missing `.scratch/`, handoff, and plan non-blocking only for this recovery mode.
+     - Scan tracked base-branch canonical Milestone Ledger paths (`docs/gsd/<feature>/milestones.md`) only after scratch/handoff/plan/spec recovery cannot satisfy the continue intent.
+     - Strictly parse each candidate under [REFERENCE.md](REFERENCE.md) § Convergence Ledger publication contract: exact headings/table, feature equal to the path slug, valid Base, sequential unique IDs, unique kebab-case slugs, a `done` prefix followed by a non-empty `pending` suffix, and no extra rows or columns.
+     - If the feature is explicitly named, select only that exact valid ledger. If absent, report no ledger and stop; if malformed, Base-mismatched, or all-`done`, fail closed and name the path.
+     - If no feature is named and exactly one valid open ledger exists, auto-select it.
+     - If no feature is named and multiple valid open ledgers exist, ask exactly one feature-selection question listing them; make no selection or write.
+     - If no feature is named and no ledger exists, report no ledger without inventing work. Any scanned malformed, Base-mismatched, or all-`done` residual fails closed rather than being skipped or reported complete.
+     - Tracked canonical goals are approved authority and must not be re-run through precision or approval gates during recovery.
+     - Once selected, choose the first `pending` row, enter Discussion/reconstruction, and output only its slug and goal. Do not detail later rows, mutate ledger bytes, mark completion, start execution, or authorize a merge. Missing `.scratch/`, handoff, and plan are non-blocking only for this recovery mode.
 2. **Review/Diff**:
    - If the prompt contains a diff, PR description, or asks for code review → route to `gsd-verify`.
 3. **Spec/Plan**:
@@ -105,34 +104,35 @@ Match exploration breadth to prompt complexity; over-exploration drifts from the
 - **Delegating exploration** (Explore subagent) → pass these bounds in its prompt; an unscoped explore subagent walks everything.
 
 ## Conservative context harvest
-Domain harvesting happens **after route selection**, never as an entry scan. Its fixed flow is:
-`existence check → selected-route evidence → no-op | certain write | one ambiguity question`.
 
-**Authority gate (before every domain write).** Derive domain-write authority from the selected route and Invocation Mode before considering any certain-write outcome. The selected invocation MUST be write-authorized before `gsd-domain-modeling` may create or update a project artifact. Standalone advisory/read-only Route 0 and Standalone review (Route 2) are domain no-op modes even when their inspected input contains strong term or decision evidence: they may report the observation, but must not mutate or create a domain artifact. Nano is also no-domain-write. This gate does not ban write-authorized non-trivial routes; those routes remain eligible for the evidence-gated outcomes below.
+Domain harvesting happens **after route selection**, never as an entry scan. Its only purpose is to reuse evidence already bounded by the selected route and preserve certain, durable project language or decisions without turning every task into documentation work.
 
-1. Reuse the code, docs, task brief, spec, and relevant existing domain artifacts already read to perform the selected route. Do not add a repository-wide glossary or decision sweep.
-2. A harvest candidate exists only when that evidence reveals a recurring project-specific term or an explicit architectural decision/rationale signal. Only then may the selected flow make targeted reads of code/docs that bear on that term, or read `docs/domain.toon` if it exists. Generic vocabulary, a one-off identifier, implementation detail, code shape without rationale, a reversible preference, and absent evidence are no-op.
-3. **Write-authorized outcomes.** Invoke `gsd-domain-modeling` as the sole writer only for a real candidate and only after the authority gate passes. Certain evidence creates or updates `docs/domain.toon`. Before plan approval, material uncertainty about meaning, ownership, or trade-off asks exactly one focused question and writes nothing until resolved; immaterial uncertainty is no-op.
-4. After plan approval, documentation ambiguity asks zero questions. If it changes an AC, interface, or invariant, or prevents correct implementation, use `gsd-executing-plans`' existing Spec escalation blocker; otherwise skip the documentation write and continue.
+**Authority gate (before every domain write).** Derive domain-write authority from the selected route and Invocation Mode before considering any write outcome. Standalone advisory/read-only Route 0, Standalone review (Route 2), and Nano are domain no-op modes even when inspected input contains strong evidence: they may report an observation but never mutate or create domain documentation. Write-authorized non-trivial routes remain eligible for the evidence-gated outcomes below.
 
-Missing `docs/domain.toon` is normal/no-op. Related existing decisions in `docs/domain.toon` must be checked for dedupe/update/no-op before a new decision row is proposed.
+1. Reuse the code, docs, task brief, spec, and relevant domain shards already read for the selected route. Do not add a repository-wide glossary or decision sweep.
+2. A candidate exists only when that evidence reveals a recurring project-specific term or an explicit architectural decision with rationale. Only then may the flow make targeted reads that bear on that candidate, read `docs/domain/index.md`, and load the minimum relevant indexed shards. Generic vocabulary, one-off identifiers, implementation details, code shape without rationale, reversible preferences, and absent evidence are no-op.
+3. **Write-authorized outcomes.** Invoke `gsd-domain-modeling` as the sole writer only for a real candidate after the authority gate passes. Certain evidence creates or updates one owning `docs/domain/<scope>.md` shard and creates/updates `docs/domain/index.md` only when scope membership changes. Before approval, material uncertainty about meaning, ownership, or trade-offs asks exactly one focused question and writes nothing until resolved; immaterial uncertainty is no-op.
+4. After plan approval, documentation ambiguity asks zero questions. If it changes an AC, interface, or invariant, or prevents correct implementation, use `gsd-executing-plans`' existing Spec-escalation blocker; otherwise skip the documentation write and continue.
+
+Missing `docs/domain/index.md` is normal. Before a new decision is proposed, related decisions in the minimum relevant existing shards must be checked for dedupe, update, or no-op.
 
 ### Executable policy scenario matrix (normative)
-This ordered table is the decision oracle for context harvest. Match the explicit inputs, then apply every outcome column exactly; `meta:` reads are existence/glob metadata only, and `none` means no action. A pre-approval write returns its exact path for the convergence ownership gate rather than authorizing a commit by itself.
+
+This ordered table is the decision oracle for context harvest. Match the explicit inputs, then apply every outcome column exactly; `none` means no action. A pre-approval write returns its exact path(s) for the convergence ownership gate rather than authorizing a commit by itself.
 
 | Scenario | Inputs | Route | Reads | Writes | Questions | Escalation | Owning task |
 |---|---|---|---|---|---|---|---|
-| Entry typo read-only | `phase=entry;authority=read-only;mode=typo;signal=none` | `0:direct` | `meta:docs/domain.toon` | `none` | `0` | `none` | `none` |
-| Nano no-domain-write | `phase=entry;authority=no-domain-write;mode=nano;signal=none` | `0:direct` | `meta:docs/domain.toon` | `none` | `0` | `none` | `none` |
-| Standalone review read-only | `phase=selected-route;authority=read-only;mode=standalone-review;signal=decision` | `2:gsd-verify` | `selected-route-evidence,related-decisions` | `none` | `0` | `none` | `none` |
-| Certain recurring domain term | `phase=pre-approval;authority=write-authorized;signal=term;certainty=certain;map=absent` | `5:gsd-domain-modeling` | `selected-route-evidence,targeted-term-evidence` | `docs/domain.toon` | `0` | `none` | `return=<write-path>;state=pending-transfer` |
-| Mapped multi-context term | `phase=pre-approval;authority=write-authorized;signal=term;certainty=certain;map=mapped` | `5:gsd-domain-modeling` | `selected-route-evidence,targeted-term-evidence` | `docs/domain.toon` | `0` | `none` | `return=<write-path>;state=pending-transfer` |
+| Entry typo read-only | `phase=entry;authority=read-only;mode=typo;signal=none` | `0:direct` | `none` | `none` | `0` | `none` | `none` |
+| Nano no-domain-write | `phase=entry;authority=no-domain-write;mode=nano;signal=none` | `0:direct` | `none` | `none` | `0` | `none` | `none` |
+| Standalone review read-only | `phase=selected-route;authority=read-only;mode=standalone-review;signal=decision` | `2:gsd-verify` | `selected-route-evidence,relevant-supplied-domain-context` | `none` | `0` | `none` | `none` |
+| Certain recurring domain term, new scope | `phase=pre-approval;authority=write-authorized;signal=term;certainty=certain;map=absent` | `5:gsd-domain-modeling` | `selected-route-evidence,targeted-term-evidence` | `docs/domain/index.md,docs/domain/<scope>.md` | `0` | `none` | `return=<write-paths>;state=pending-transfer` |
+| Certain term, mapped scope | `phase=pre-approval;authority=write-authorized;signal=term;certainty=certain;map=mapped` | `5:gsd-domain-modeling` | `selected-route-evidence,docs/domain/index.md,relevant-shards,targeted-term-evidence` | `docs/domain/<scope>.md` | `0` | `none` | `return=<write-path>;state=pending-transfer` |
 | Material pre-approval ambiguity | `phase=pre-approval;authority=write-authorized;signal=term;certainty=material-ambiguous;map=unresolved` | `5:gsd-domain-modeling` | `selected-route-evidence,targeted-term-evidence` | `none` | `1` | `none` | `none` |
-| Fully evidenced domain decision | `phase=pre-approval;authority=write-authorized;signal=decision;reversibility=hard;surprise=yes;tradeoff=real;rationale=evidenced;existingDecision=none` | `5:gsd-domain-modeling` | `selected-route-evidence,related-decisions` | `docs/domain.toon` | `0` | `none` | `return=<write-path>;state=pending-transfer` |
+| Fully evidenced domain decision | `phase=pre-approval;authority=write-authorized;signal=decision;reversibility=hard;surprise=yes;tradeoff=real;rationale=evidenced` | `5:gsd-domain-modeling` | `selected-route-evidence,docs/domain/index.md,relevant-shards` | `docs/domain/<scope>.md` | `0` | `none` | `return=<write-path>;state=pending-transfer` |
 | Reversible preference | `phase=pre-approval;authority=write-authorized;signal=decision;reversibility=reversible` | `5:gsd-domain-modeling` | `selected-route-evidence` | `none` | `0` | `none` | `none` |
 | Post-approval load-bearing ambiguity | `phase=post-approval;authority=write-authorized;signal=domain;certainty=material-ambiguous;loadBearing=yes` | `3:gsd-executing-plans` | `selected-route-evidence,targeted-domain-evidence` | `none` | `0` | `spec` | `none` |
 | Post-approval non-load-bearing ambiguity | `phase=post-approval;authority=write-authorized;signal=domain;certainty=material-ambiguous;loadBearing=no` | `3:gsd-executing-plans` | `selected-route-evidence,targeted-domain-evidence` | `none` | `0` | `none` | `none` |
-| Pre-approval write ownership | `phase=convergence;authority=write-authorized;intentionalWrite=yes;changedPaths=returned;ownership=assigned` | `3:gsd-to-plan` | `returned-changed-paths` | `none` | `0` | `none` | `task=<task-id>;files=<changed-path>;commit=with-task` |
+| Pre-approval write ownership | `phase=convergence;authority=write-authorized;intentionalWrite=yes;changedPaths=returned;ownership=assigned` | `3:gsd-to-plan` | `returned-changed-paths` | `none` | `0` | `none` | `task=<task-id>;files=<changed-paths>;commit=with-task` |
 
 ## Dynamic Sub-Skill Loading
 All `gsd-*` sub-skills are loaded directly by absolute root paths from `$GSD_ROOT/skills/gsd-<target>/SKILL.md`. There is no internal registry schema, `.agents/skills/` symlink, or readlink loader fallback. A sub-skill selected directly applies its own invocation-mode table under [REFERENCE.md](REFERENCE.md) § Artifact Contract, not a blanket “missing `consumes:`” guard.
@@ -182,8 +182,8 @@ Cleanup is automated via the squash branch result scratch lifecycle terminal sta
 
 
 
-**TOON** (Token-Oriented Object Notation, [spec](https://toonformat.dev/reference/spec.html)) is reserved for runtime attempt, handoff, result, and milestone state. Pre-approval proposal, specification, design, and plan contracts are Markdown only.
-`docs/domain.toon` — the single canonical domain model at repo root (sole writer: `gsd-domain-modeling`).
+TOON remains runtime-only: immutable task attempts, handoffs, result markers, and runtime counters/state. It never stores human-approved goals, plans, milestone ledgers, glossary prose, or architectural decisions.
+Durable project documentation is strict Markdown: the canonical proposal/spec/design/plan packet, bounded-context domain knowledge under `docs/domain/`, and optional milestone ledgers under `docs/gsd/<feature>/milestones.md`.
 Contextual disclosure — use [REFERENCE.md](REFERENCE.md) § Contextual disclosure templates. Master surfaces use the canonical numbered human end-session menu; directly-invoked sub-skills use the canonical `Next steps:` command bullets; post-approval pipeline progress and blocker stops use their templates; inline sub-skill firing appends nothing. Cue: `Next steps:` = technical; numbered = human.
 Graceful degradation — optional capabilities (browser, lavish, `task`/`reviewer` subagents) assumed absent; unavailable → terminal silently. Missing lavish → terminal, not error. No subagents → do the work inline in self-contained passes under the same verdict contract (see gsd-executing-plans / gsd-verify).
 Monorepo — `.scratch/` at the git repo root; feature slug may include a package prefix (e.g. `pkg-auth-oauth`) to disambiguate. Scope discipline naturally bounds to one package.

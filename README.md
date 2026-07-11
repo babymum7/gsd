@@ -110,7 +110,7 @@ A user-requested non-portable pause never snapshots unrelated work: dirty paths 
 3.  **Branch Isolation**: Every feature runs on an isolated `wip/<feature>` branch; the squash merge delivers exactly one commit to base.
 4.  **No Re-litigation**: On resume the agent verifies the Markdown source binding, adopts runtime state, and jumps to `next_action`.
 5.  **Broken/missing state**: Missing, malformed, or hash-mismatched packet state is a Spec escalation; runtime state never reconstructs human requirements.
-6.  **Milestone Ledger**: Large features split tasks into milestones via `docs/gsd/<feature>/milestones.toon` (never in scratch). Non-final milestones update the current row status from pending to done, while the final milestone atomically deletes the ledger path from base-present to absent in the same squash commit.
+6.  **Milestone Ledger**: Large features split work through the human-readable `docs/gsd/<feature>/milestones.md` contract. Non-final milestones update only the current row from `pending` to `done`; the final milestone atomically deletes the ledger in the same green squash commit, so an all-done ledger never remains.
 
 ---
 
@@ -128,7 +128,7 @@ skills/
 ├── gsd-tdd/                          # Red-Green-Refactor & vertical slices (+ tests/mocking/refactoring docs)
 ├── gsd-ponytail/                     # Enforcing the YAGNI ladder & lazy code
 ├── gsd-diagnosing-bugs/              # Hard bugs & regressions diagnosis loop
-├── gsd-domain-modeling/              # Aligning glossary & domain logic (docs/domain.toon)
+├── gsd-domain-modeling/              # Bounded-context glossary & decisions (docs/domain/*.md)
 ├── gsd-codebase-design/              # Defining deep modules & interface design
 ├── gsd-improve-codebase-architecture/ # Deepening scans & architecture audits
 └── gsd-lavish/                       # Visual HTML reporting & HITL (opt-in)

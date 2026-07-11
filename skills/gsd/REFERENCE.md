@@ -15,6 +15,15 @@ Load this file only when the matching flow needs its policy. It defines the shar
 
 Choose mode from explicit intent and entry context first. Artifact presence alone never selects a mode. Preserve opaque handoff `mode` and `phase` values on resume. A missing, malformed, duplicate, or hash-mismatched **required** artifact fails closed; optional state does not.
 
+## Durable documentation contract
+
+Git-tracked knowledge intended for both people and agents is strict Markdown under `docs/`; TOON is never used for durable prose or human-approved goals.
+
+- `docs/domain/index.md` is a small bounded-context index; `docs/domain/<scope>.md` shards hold durable glossary terms and architectural decisions. Shard by stable bounded context, never by feature. `gsd-domain-modeling` owns the exact schema and is the sole writer.
+- `docs/gsd/<feature>/milestones.md` is the human-reviewable milestone contract and lifecycle ledger. Its goals are approved authority; its status column is controlled by terminal verification.
+
+Runtime-only attempts, handoffs, and result markers stay TOON under `.scratch/`. A format is authoritative by its declared role and canonical path, never by extension alone.
+
 ## Canonical Markdown contract
 
 ### Authority
@@ -28,7 +37,7 @@ The sole pre-approval human/agent contract is the UTF-8/LF Markdown packet in `.
 
 The feature slug is identical in every present file. The Markdown packet is the only authority for intent, acceptance, task order, seams, files, and focused checks. Root or scratch `proposal.toon`, `spec.toon`, `design.toon`, and `plan.toon` are stale non-authoritative files: never derive scope, recovery, acceptance, or task order from them. A detected legacy packet stops normal routing with a Spec escalation, except an explicitly approved one-time bootstrap that removes it before ordinary routing resumes.
 
-TOON remains runtime-only: immutable task attempts, handoffs, result markers, and optional milestone ledgers. Runtime records report progress and bind source bytes; they cannot author, amend, or reinterpret the Markdown contract.
+TOON remains runtime-only: immutable task attempts, handoffs, and result markers. Runtime records report progress and bind source bytes; they cannot author, amend, or reinterpret Markdown contracts or durable documentation.
 
 ### Packet grammar
 
@@ -110,11 +119,38 @@ On approval, `gsd-to-plan` immediately loads `gsd-handoff` and creates the next 
 
 ### Convergence Ledger publication contract
 
-A milestone ledger is optional Git-tracked state at exactly `docs/gsd/<feature>/milestones.toon`. It is allowed only when a large feature has materially precise, user-approved milestone goals. Its creation/update is a convergence-time domain write owned by one exact plan task's Files field and subject to normal review/acceptance. `spec.md` may contain optional `## Publication` with either `null` or that exact path. It authorizes planned publication only, never completion, task selection, or resume. Ledger presence alone is metadata.
+A milestone ledger is optional Git-tracked Markdown at exactly `docs/gsd/<feature>/milestones.md`. It is allowed only when a large feature has materially precise, user-approved milestone goals. Its creation/update is a convergence-time write owned by one exact plan task's Files field and subject to normal review/acceptance. `spec.md` may contain optional `## Publication` with either `null` or that exact path. It authorizes planned publication only, never completion, task selection, or resume. Ledger presence alone is metadata.
+
+The canonical UTF-8/LF grammar is:
+
+```markdown
+# Milestones
+
+## Feature
+
+`<feature>`
+
+## Base
+
+`<base>`
+
+## Milestones
+
+| ID | Slug | Goal | Status |
+| --- | --- | --- | --- |
+| M1 | `<milestone-slug>` | <precise user-approved goal> | pending |
+```
+
+IDs are positive sequential `M1..MN`; slugs are unique lowercase kebab-case; goals are non-empty, concrete single-line text without `|`; status is exactly `pending` or `done`. Feature must equal the directory slug, Base must name the approved base branch, headings and columns are exact, and no extra sections, rows, or columns are allowed. Rows consist of a possibly empty `done` prefix followed by a non-empty `pending` suffix. Creation or convergence-time append preserves every existing row byte-for-byte and adds only new `pending` rows. A ledger with no pending row is a stale lifecycle residual, not a completed canonical ledger.
 
 ### Milestone Ledger completion contract
 
-Only the `Milestone WIP gate` may complete ledger lifecycle state. `gsd-executing-plans` treats the selected first-pending row and all ledger bytes as read-only during task work. At terminal verification, `gsd-verify` proves the selected row still matches the approved milestone and is still the first pending row. For a non-final milestone it changes exactly that row from `pending` to `done`; for the final milestone it deletes the ledger. The transition is part of the reviewed WIP diff and lands only in the same green squash commit as the milestone implementation. Normal execution/publication never completes or deletes a row.
+Only the `Milestone WIP gate` may complete ledger lifecycle state. `gsd-executing-plans` treats the selected first-pending row and all ledger bytes as read-only during task work. At terminal verification, `gsd-verify` proves the selected row still matches the approved milestone and remains first pending.
+
+- **Non-final milestone:** change exactly the selected row's status from `pending` to `done`; preserve every other byte.
+- **Final milestone:** delete `docs/gsd/<feature>/milestones.md` instead of writing an all-`done` ledger.
+
+The status transition or deletion is part of the reviewed WIP diff and lands only in the same green squash commit as the milestone implementation. A red gate never changes base ledger state. Normal execution/publication never completes or deletes a row.
 
 ## Runtime TOON contract
 

@@ -2,8 +2,8 @@
 name: gsd-verify
 description: Internal GSD sub-skill (routed via /gsd). Verifies approved Markdown packets against the WIP diff, blocks on Critical/Important findings, and completes terminal squash/cleanup.
 triggers: diff/PR review (gsd Route 2); terminal after gsd-executing-plans; quick-fix gate
-produces: [docs/gsd/<feature>/milestones.toon, .scratch/<feature>/result.toon]
-consumes: [proposal.md, spec.md, design.md, plan.md, handoff-<n>.toon, docs/gsd/<feature>/milestones.toon]
+produces: [docs/gsd/<feature>/milestones.md, .scratch/<feature>/result.toon]
+consumes: [proposal.md, spec.md, design.md, plan.md, handoff-<n>.toon, docs/gsd/<feature>/milestones.md]
 ---
 
 # Verify
