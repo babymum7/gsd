@@ -30,8 +30,8 @@ One feature, from idea to merged commit. You drive it with plain language; the a
 ```mermaid
 flowchart LR
     U["/gsd 'build X'"] --> D[Discussion<br/>questions + recommendation]
-    D -->|converges| S[proposal.toon + spec.toon<br/>acceptance criteria]
-    S --> P[plan.toon<br/>task table + inline summary]
+    D -->|converges| S[proposal.md + spec.md<br/>acceptance criteria]
+    S --> P[plan.md<br/>task headings + inline summary]
     P -->|"approve (last prompt)"| E[Execute<br/>per-task loop on wip/]
     E --> V[Verify<br/>full-diff review + E2E]
     V -->|pass| M[squash → base]
@@ -42,23 +42,20 @@ flowchart LR
 ### 1. Discuss — `/gsd build feature X`
 New work routes to **Discussion**. The agent explores the codebase (targeted, git-scoped — no tree-wide crawling), asks clarifying questions only when the answer changes route/scope/action, stress-tests the idea (risks, edge cases, missing decisions), and recommends the **smallest approach that meets the ask** — a small ask converges to a 2–4-AC spec, never padded with retries/telemetry/config nobody asked for.
 
-When you pick an approach and open questions close, the agent writes `.scratch/<feature>/proposal.toon` and `.scratch/<feature>/spec.toon` (plus conditionally `.scratch/<feature>/design.toon`) — context plus **checkable acceptance criteria** (`AC-1`, `AC-2`, …), each carrying a Check action and expected outcome. That check is the convergence gate: an AC you can't sketch a concrete expected result for is still vague and gets sharpened in Discussion before the spec is written — and it becomes the spec-time oracle the execute stage specializes into a real command. These files are the contract every downstream stage reads. A large feature (would exceed ~10 tasks) is split into milestone specs (`<feature>-m1`, `-m2`, …), each running its own full cycle.
+When you pick an approach and open questions close, the agent writes `.scratch/<feature>/proposal.md` and `.scratch/<feature>/spec.md` (plus conditional `.scratch/<feature>/design.md`). These human-readable Markdown sources carry checkable ACs with a concrete action and expected observable result. A vague AC returns to Discussion; downstream stages read the exact same approved bytes. Large work splits into milestone features, each with its own cycle.
 
 ### 2. Plan — automatic, summarized inline
-`gsd-to-plan` turns the converged spec into `.scratch/<feature>/plan.toon` — a token-efficient task table (`id, task, satisfies, files, test, status`). Rows are pointers, not payloads: detail lives in the spec; every AC must appear in some task's `satisfies`. Docs/comments-only tasks get `test:none`; anything that alters runtime behavior names a test.
-
-Right after writing the file, the agent prints an **inline plan summary** (one line per task + AC coverage) — you never open `plan.toon` — and asks **one approval question**. That approval is the **last prompt of the cycle**: everything after it runs hands-free.
+`gsd-to-plan` validates the converged packet and writes `.scratch/<feature>/plan.md`: ordered tasks with exact AC ownership, files, focused public-seam tests, and status. It prints the inline summary, records SHA-256 hashes for every present Markdown source, then asks one approval question. Approval is the last prompt of the cycle.
 
 ### 3. Execute — per-task loop, hands-free
-Once the plan is approved, `gsd-executing-plans` creates `wip/<feature>` (capturing your current branch as `base:` in `plan.toon`), then for each task — no questions, no menus, just progress reports:
+Once approved, `gsd-executing-plans` creates `wip/<feature>` from the Base recorded in `plan.md`, then for each task — no questions, no menus, just progress reports:
 
-1. **Dispatch** a fresh implementer subagent with just that task's JIT structured attempt TOON packet.
+1. **Dispatch** a fresh immutable JIT attempt TOON packet bound to the approved Markdown hashes.
 2. **TDD** (`gsd-tdd`): one behavior test through the public interface → minimal code → green.
-3. **Review**: a reviewer subagent checks the task diff — task-compliance AND code-quality. Critical/Important findings loop back until fixed.
-4. **Acceptance**: when the task's AC is runnable now, a targeted acceptance check exercises that AC end-to-end (curl/CLI/headless-browser/script) before the commit; a slice not yet independently runnable records an explicit `Acceptance Check: deferred` and is re-exercised at the terminal gate.
-5. **Commit** to `wip/<feature>` (code only) and mark the task `done` in the ledger.
+3. **Review and acceptance**: the reviewer checks task compliance and code quality; targeted runnable acceptance proves the AC.
+4. **Commit and handoff**: commit green task-owned changes and record completion/next action in a fresh immutable runtime handoff; the approved Markdown packet remains unchanged.
 
-Interrupt any time — the ledger plus `git log` mean a resumed session never redoes finished work.
+Interrupt any time — immutable runtime handoffs plus `git log` mean a resumed session never redoes finished work.
 
 `gsd-verify` reviews the **whole branch diff** against the spec: every non-superseded AC met (spec-compliance) + universal code-quality, then the project's full build+test suite, then an **acceptance/E2E gate** — the end-to-end user path for user-facing features (real user path via browser or script) *plus* an acceptance check for every non-superseded AC that is runtime-observable, absorbing any per-task `Acceptance Check: deferred`. Any Critical/Important finding, red suite, or failing acceptance/E2E **blocks the merge** — the pipeline stops and reports, never merging past a red gate. Pass → squash to a single commit on your base branch **automatically** (findings, build/E2E outcome, and the final commit are still reported); session artifacts never land there. An automated terminal state machine handles the squash commit, force-with-lease remote cleanup, local branch deletion, and writes a canonical `result.toon` marker to `.scratch/` to manage the post-merge cleanup lifecycle and block any implementation resume.
 
@@ -81,7 +78,7 @@ After you approve the plan, no menu appears until the feature merges (or a hard 
 | You say | What happens |
 |---|---|
 | "fix this typo" | **Nano-fix** — in-place, completely git-free fix; no scratch, branch, commit, or gate |
-| "fix this small bug" | **Quick-fix** — ponytail mindset, minimal `plan.toon`, `wip/` branch, code-quality verify only |
+| "fix this small bug" | **Quick-fix** — ponytail mindset, minimal `plan.md`, `wip/` branch, code-quality verify only |
 | "review this diff/PR" | Standalone review — read-only, two verdicts, no merge mechanics |
 | "why does X crash?" (hard bug) | `gsd-diagnosing-bugs` — feedback-loop-first diagnosis discipline |
 | "audit the architecture" | `gsd-improve-codebase-architecture` — deepening opportunities, you pick one |
@@ -109,10 +106,10 @@ A user-requested non-portable pause never snapshots unrelated work: dirty paths 
 ## State Management & Resume Contract
 
 1.  **Handoff Artifacts**: On pause, conversation context is compacted into `.scratch/<feature>/handoff-<n>.toon` — active `mode`, `phase`, resolved decisions, open questions, `next_action`, skills to reload, and active toggles (`settings[]`).
-2.  **Progress Ledger**: Task plans and completion statuses live in `.scratch/<feature>/plan.toon` (`schema:v1`, `base:<branch>`). The executor reads this ledger plus `git log` on start and never redoes finished tasks.
+2.  **Runtime progress**: Immutable attempt and handoff TOON records completed tasks, verified evidence, and next action; the approved Markdown packet remains byte-for-byte unchanged.
 3.  **Branch Isolation**: Every feature runs on an isolated `wip/<feature>` branch; the squash merge delivers exactly one commit to base.
-4.  **No Re-litigation**: On resume the agent adopts the documented state and jumps to `next_action` — no re-inferring decisions, no re-interviewing.
-5.  **Broken/missing state**: With no handoff, the agent reconstructs from durable artifacts — `plan.toon` (intended), `git log` (committed), `git status`/`diff` (uncommitted), `proposal.toon`/`spec.toon` (intent) — and resumes at the divergence.
+4.  **No Re-litigation**: On resume the agent verifies the Markdown source binding, adopts runtime state, and jumps to `next_action`.
+5.  **Broken/missing state**: Missing, malformed, or hash-mismatched packet state is a Spec escalation; runtime state never reconstructs human requirements.
 6.  **Milestone Ledger**: Large features split tasks into milestones via `docs/gsd/<feature>/milestones.toon` (never in scratch). Non-final milestones update the current row status from pending to done, while the final milestone atomically deletes the ledger path from base-present to absent in the same squash commit.
 
 ---

@@ -1,76 +1,36 @@
 ---
 name: gsd-handoff
-description: Internal GSD sub-skill (routed via /gsd). Compact the current conversation into a resume-aware gsd-handoff document for another agent/session. Triggered at pauses/breakpoints; read back on resume.
-triggers: resume/continue (read existing); pause/breakpoint/context-pressure (write new)
+description: Internal GSD sub-skill (routed via /gsd). Writes and resumes immutable runtime handoffs bound to an approved canonical Markdown packet.
+triggers: resume/continue (read existing); pause/breakpoint/context-pressure/task completion (write new)
 produces: [handoff-<n>.toon]
-consumes: [handoff-<n>.toon, plan.toon, proposal.toon, spec.toon, design.toon, docs/gsd/<feature>/milestones.toon]
+consumes: [handoff-<n>.toon, proposal.md, spec.md, design.md, plan.md, docs/gsd/<feature>/milestones.toon]
 ---
 
 # Handoff
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Select the Invocation Mode before validating its Required artifacts. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
 
 ## Invocation modes
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| Pre-plan handoff write | — | `proposal.toon`; `spec.toon`; `design.toon`; `plan.toon` (absent by design) | `handoff-<n>.toon` | — |
-| Execution handoff write | `plan.toon` | `proposal.toon`; `spec.toon`; `design.toon` | `handoff-<n>.toon` | Missing `plan.toon`: stop and recover or block through `/gsd`; never record invented execution state |
-| Pre-plan resume | `handoff-<n>.toon` | `proposal.toon`; `spec.toon`; `design.toon`; `plan.toon` (absent by design) | — | Missing `handoff-<n>.toon`: return once to `/gsd` state detection to recover the next pending milestone from Fallback `docs/gsd/<feature>/milestones.toon` when the scratch directory is absent; if no valid ledger exists, return once to `/gsd` state detection and preserve explicit intent; never infer a mode or invent the handoff or a plan |
-| Execution resume | `handoff-<n>.toon`; `plan.toon` | `proposal.toon`; `spec.toon`; `design.toon` | — | Missing `handoff-<n>.toon`: reconstruct from Fallback `plan.toon` plus git log and status/diff, with `proposal.toon`/`spec.toon` when present. Missing `plan.toon` in a claimed execution resume: stop and recover or block through `/gsd`; never fabricate either artifact |
+| Pre-plan handoff write | — | Markdown packet | `handoff-<n>.toon` | — |
+| Execution handoff write | `plan.md` | Remaining Markdown packet; milestone ledger | `handoff-<n>.toon` | Stop through `/gsd`; never invent execution state |
+| Pre-plan resume | `handoff-<n>.toon` | Markdown packet | — | Return once to state detection; preserve explicit intent |
+| Execution resume | `handoff-<n>.toon`; `plan.md` | Remaining Markdown packet; milestone ledger | — | Recover only from valid runtime state and binding; packet drift is Spec escalation |
 
- Compacts the conversation into `.scratch/<feature>/handoff-<n>.toon` so another session (or a fresh context) can resume without re-deriving state. Triggered at pauses, breakpoints, or context-pressure.
-Numbering: glob existing `handoff-*.toon`, use `max + 1`. If the target already exists (concurrent sessions), re-glob and increment until free — never use a suffixed variant (the Read rule expects `handoff-<n>.toon` only).
- 
- ## Write — the resume contract (AXI TOON Format)
- A gsd-handoff file MUST use the following token-efficient TOON format:
- 
- ```
-schema:v1
- handoff[1]{mode,phase,next_action}:
-   <skill-name>,<phase-description>,<single next step to take>
- decisions[count]{topic,decision}:
-   <topic-1>,<resolved design decision with brief why>
-   <topic-2>,<resolved design decision with brief why>
- questions[count]{question}:
-   <unresolved question 1>
-   <unresolved question 2>
- skills[count]{name}:
-   <skill-to-reload-1>
-   <skill-to-reload-2>
-settings[count]{name,value}:
-  ponytail_level,full
-  autosync,on
- ```
-`mode` and `phase` are open, opaque values, not a closed enumeration. Write the active values, preserve unknown values on read, and never replace them by inferring a mode from `proposal.toon`, `spec.toon`, or `plan.toon` presence.
+## Write
 
-Gate-local resume state is separate from user settings and uses this optional table:
-```
-runtime[count]{name,value}:
-  terminal_repair_round,<1|2>
-```
-Write exactly one `terminal_repair_round` row only while a terminal verifier repair is active, copying the gate's current value without incrementing it. Outside that gate, omit this known row; omit `runtime[]` entirely only when no preserved unknown rows remain. It is not a toggle, must never appear in `settings[]`, and is cleared when the gate passes or stops. Preserve unknown runtime rows across every subsequent handoff, whether or not a terminal verifier repair is active, but ignore them for behavior; they never activate a feature or alter a known field.
+Write the next positive sequential `.scratch/<feature>/handoff-<n>.toon`; never overwrite or suffix an existing handoff. Store opaque `mode` and `phase`, resolved decisions, unresolved questions, `next_action`, runtime settings, current completed task/evidence when applicable, and the exact approved Markdown source paths plus SHA-256 hashes. A handoff is immutable runtime state, not a source of requirements.
 
-`settings[]` = **active non-default toggles only** (rows above are examples, not defaults); omit the table entirely when nothing is toggled. For Ponytail, "active" means an **explicit** `/gsd ponytail [lite|full|ultra]` toggle, including explicitly selected `full`: write exactly `ponytail_level,<level>` for that valid active level. With no explicit toggle or after "stop ponytail"/"normal mode", omit `ponytail_level`; never write `ponytail_level,none`. Quick-fix auto-fire is prompt-local, is never a setting, and MUST NOT be serialized even if context pressure causes a handoff during the fix. Exception: `autosync` is **tri-state** — no row = unset (triggers ask-once below); `autosync,on` and `autosync,off` are both explicit user choices worth a row (`off` = remembered decline, never re-ask). Second exception: every pre-plan portable handoff records `base,<branch>` here per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics — with no `plan.toon` yet, the latest handoff is the only durable place for it, so an already-existing `wip/` branch never permits the next portable handoff to omit it.
+The default handoff is machine-local under git-ignored scratch. Portable handoff retains the existing WIP/base mechanics from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics; it never modifies the Markdown packet or makes scratch authoritative.
 
-## Portable handoff (cross-machine)
-The default handoff is machine-local (`.scratch/` is git-ignored). When the user will resume **on another machine** ("continue on my laptop", "handoff to another machine"), resolve `<base>` with [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics before writing any pre-plan handoff and record `base,<base>` in that handoff's `settings[]`, even when `wip/<feature>` already exists. Write the handoff as usual, then check out the existing `wip/<feature>` or, when absent, create it from the resolved `<base>`; surface any non-scratch dirty code for explicit user handling before snapshotting; approved dirty-code snapshots use commit message `chore(gsd): wip snapshot`, pathspec approved paths, and `:(exclude).scratch`; **skip** — dirty code stays local remains valid; Never snapshot silently. Then `git add -f .scratch/<feature>/`, commit the scratch path only when dirty with `-- .scratch/<feature>`, and **always** `git push -u origin wip/<feature>`.
-On the other machine, `git checkout wip/<feature>` materializes `.scratch/<feature>/` → resume normally. The synced files are tracked on `wip/` only; `gsd-verify` strips them before the squash commit, so nothing lands on `<base>`.
+## Resume
 
-**Autosync** — `/gsd autosync on|off`, **tri-state**: unset (no `settings[]` row, the default) = ask-once below; `on` = always sync at safe sync points; `off` = remembered decline, no asking. Persisted like `ponytail_level` via `settings[]` so the choice survives the handoff to the other machine. Autosync `on` runs automatically only at a user-requested pause or portable handoff and after a completed task commit; a completed-task autosync requires a clean non-scratch tree, otherwise it is deferred locally without a question. `gsd-executing-plans` re-syncs scratch after each clean task commit using the canonical scratch sync. An automatic context-pressure handoff while a task has uncommitted work stays machine-local even when autosync is `on`; it writes the local handoff but never silently snapshots or pushes mid-task work. At a user-requested portable handoff, list every non-scratch dirty path. Unless the user already approved those exact paths, ask exactly one dirty-snapshot question: "Snapshot these listed paths before portable sync? (yes / no)". `yes` = commit only the listed approved paths as `chore(gsd): wip snapshot` with `:(exclude).scratch`, then sync scratch and push; `no` = leave dirty code local and sync only committed state plus scratch. Autosync `on` and cross-machine phrasing authorize portable sync, not a dirty-code snapshot. Requires a remote: none → stay machine-local and say so (graceful degradation, no error).
-A user-requested non-portable pause with autosync `on` never asks for or creates a dirty-code snapshot. Non-scratch dirty paths stay local; sync only committed state plus scratch. Only an explicit portable-resume request may ask the exact dirty-snapshot question above.
-**Ask-once on first pause** — pause/handoff with autosync **unset** and a remote present → ask ONE autosync-choice question before finishing: "Sync to the remote so you can resume on another machine? (yes / no / always)". `yes` = run the portable sync this once (stays unset); `always` = set `autosync,on`; `no` = set `autosync,off` — the row makes the decline durable, never re-ask. Cross-machine phrasing in the prompt skips the question — it IS the consent to portable sync; it is never consent to snapshot dirty code, so apply the exact dirty-snapshot rule above when needed. No remote → skip the question entirely. During post-approval auto-pilot, an automatic inline or context-pressure handoff with autosync unset never asks this question: leave autosync unset and keep scratch machine-local unless the user's interrupt explicitly requested cross-machine resume. Post-approval auto-pilot also never asks to snapshot uncommitted code during an automatic context-pressure handoff; keep it local and let the next clean completed task commit become the next safe autosync point. A user interrupt explicitly requesting portable resume may reach the dirty-snapshot question above, but no snapshot occurs without `yes`.
+Read the highest valid handoff when no path is supplied. Preserve unknown `mode`, `phase`, settings, and runtime rows exactly. Before applying `next_action`, parse the complete live packet and compare every source path, source set, and SHA-256 hash with the binding. Invalid/missing/changed source is a Spec escalation; do not reconstruct an interpretation from dirty files, plan status, or legacy pre-approval TOON.
 
-
-## Read (on resume)
- If no file is passed, read the highest-numbered `handoff-<n>.toon` in `.scratch/<feature>/`. Open it, preserve its `mode` and `phase` exactly (including unknown values), and jump to `next_action`; never re-infer the mode or re-litigate resolved decisions. A pre-plan resume does not require `plan.toon`. If the recorded mode resumes `gsd-executing-plans`, also read `.scratch/<feature>/plan.toon` (skip the `schema:v1` and `base:` lines; task status is in the `plan[` table) + `git log` — the handoff says what/next, the `plan.toon` says what's done.
- If `spec.toon` is present, preserve it byte-for-byte and parse its exact `criteria[count]{id,state,outcome,action,expected}` and `interfaces[count]{criterion,seam,path,lower_seam_reason}` tables before `next_action`. Require canonical TOON shape/encoding, unique valid criterion IDs and lifecycle states, concrete `action`/`expected` values, and exactly one interface pin for every active criterion; reject missing, duplicate, unknown, superseded-only, or conflicting pins rather than inferring or normalizing them. When `plan.toon` is also present, each non-superseded row's satisfied criteria must share the exact pinned `seam`, `path`, and `lower_seam_reason`, with `path` equal to that row's `test`; a mismatch blocks resume. If `spec.toon` has a non-null `milestone_ledger` field, re-read its raw marker before `next_action`, plan dispatch, and verify. Exactly one canonical value may carry publication entry across a handoff; a mismatching value means no publication authority, while a null marker does not block ordinary resume. Never infer or restore publication authority from handoff `mode`, `phase`, settings, ledger presence, or plan path alone.
- Before `next_action`, initialize the Ponytail runtime fields to `explicit_level=none` and `auto_scope=none`, and initialize `autosync=unset`, then restore the toggle `settings[]` values (`ponytail_level`, `autosync`) by parsing at most one row for each known toggle. For `ponytail_level`, one valid `lite|full|ultra` row is accepted: a valid row overrides only `explicit_level`, while an absent or invalid row leaves both fields at `none`; duplicate rows also leave both fields at `none`. `auto_scope` is never restored. For autosync, exactly one `autosync,on` or `autosync,off` row restores that value; an absent row, or an invalid or duplicate set of autosync rows, leaves it `unset` and never activates sync. A `base` row is metadata, not a toggle — don't "restore" it; it is consumed by `gsd-to-plan` and Conventions when capturing `<base>` pre-plan. Preserve `mode`, `phase`, and unrelated or unknown settings behavior exactly.
- **No gsd-handoff exists** (interrupted without one, or state looks broken): for an explicitly claimed execution resume, reconstruct from Fallback artifacts — `.scratch/<feature>/plan.toon` (intended status) + `git log wip/<feature>` (committed) + `git status`/`git diff` (uncommitted/broken) + `proposal.toon`/`spec.toon` when present (intent). Compare actual vs. `plan.toon` to find the divergence and resume there; if `plan.toon` is also missing, stop and recover or block through `/gsd` rather than inventing execution state. Without an explicit execution-resume claim, if `.scratch/` is absent, recover the next pending milestone from Fallback `docs/gsd/<feature>/milestones.toon` through `/gsd` state detection; if no valid ledger exists, return to `/gsd` state detection once and preserve explicit intent; do not infer a handoff mode solely from available artifacts. If the working state is broken, route to `gsd-diagnosing-bugs`.
-
-When the handoff resumes an active terminal verifier repair, require exactly one `terminal_repair_round` row within `runtime[]`, with value `1` or `2`, and restore it before returning to the same gate invocation. Preserved unknown `runtime[]` rows do not count as duplicates, are ignored for behavior, and never alter the known counter. A missing, invalid, or duplicate `terminal_repair_round` row is a canonical Blocker stop, never `terminal_repair_round=0`; a stale known row outside an active terminal gate is ignored and omitted from the next handoff.
-
-Forks the conversation — you open a new session referencing the file. `/compact` continues in place; `gsd-handoff` forks.
+For a valid execution resume, derive the last completed task and next task from immutable runtime handoff evidence, then continue the exact plan order. Do not mutate a prior attempt, change approved Markdown status, or re-dispatch completed work. Runtime terminal-repair counters retain their existing blocker semantics.
 
 ## Contextual disclosure
-Use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates → Direct sub-skill Next steps when invoked directly. Inline firing from `/gsd` appends nothing; the master owns the numbered human menu.
+
+Use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates. Inline firing appends nothing.

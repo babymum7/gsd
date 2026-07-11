@@ -36,14 +36,14 @@
   },
   {
     "id": "resume-handoff",
-    "state": ".scratch/oauth-login/handoff-2.toon and plan.toon exist",
+    "state": ".scratch/oauth-login/handoff-2.toon and approved plan.md exist",
     "prompt": "continue",
     "route": "1",
     "skill": "gsd-handoff"
   },
   {
     "id": "pause-save",
-    "state": ".scratch/oauth-login/plan.toon exists; task 3 of 6 in progress",
+    "state": ".scratch/oauth-login/plan.md exists; task 3 of 6 in progress",
     "prompt": "pause here, I'll pick this up on my laptop tonight",
     "route": "meta",
     "skill": "gsd-handoff"
@@ -71,14 +71,14 @@
   },
   {
     "id": "plan-related",
-    "state": ".scratch/oauth-login/spec.toon and plan.toon exist; tasks 2-5 pending",
+    "state": ".scratch/oauth-login/spec.md and plan.md exist; tasks 2-5 pending",
     "prompt": "implement the token refresh task next",
     "route": "3",
     "skill": "gsd-executing-plans"
   },
   {
     "id": "plan-unrelated",
-    "state": ".scratch/oauth-login/spec.toon and plan.toon exist; tasks 2-5 pending",
+    "state": ".scratch/oauth-login/spec.md and plan.md exist; tasks 2-5 pending",
     "prompt": "add a CSV export button to the reports page",
     "route": "6",
     "skill": "none"

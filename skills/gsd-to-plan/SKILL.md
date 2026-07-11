@@ -1,88 +1,55 @@
 ---
 name: gsd-to-plan
-description: Internal GSD sub-skill (routed via /gsd). Produce an implementation plan from a converged design — no interview, just write the plan. Triggered by `gsd` when the spec/design converges; outputs task-decomposed plan(s) to `.scratch/<feature>/plan.toon`.
-triggers: spec converged, no plan yet (gsd Route 3)
-produces: [plan.toon]
-consumes: [proposal.toon, spec.toon, design.toon, handoff-<n>.toon, docs/gsd/<feature>/milestones.toon]
+description: Internal GSD sub-skill (routed via /gsd). Validates a converged Markdown packet, writes plan.md, binds exact approval sources, and starts the non-interactive pipeline.
+triggers: Markdown spec converged, no plan yet (gsd Route 3)
+produces: [plan.md]
+consumes: [proposal.md, spec.md, design.md, plan.md, handoff-<n>.toon, docs/gsd/<feature>/milestones.toon]
 ---
 
 # To Plan
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Select an Invocation Mode from explicit intent and entry context before validating only that row’s Required artifacts. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
 
 ## Invocation modes
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| Converged planning | `proposal.toon`; `spec.toon` | `design.toon`; `handoff-<n>.toon` (pre-plan portable base metadata only); `docs/gsd/<feature>/milestones.toon` (intentional Milestone Ledger) | `plan.toon` | Missing `proposal.toon` or `spec.toon`: STOP and return to `/gsd` Discussion to recover or create a converged spec; never synthesize these artifacts or a plan from unstated requirements |
-Turn a converged design into an executable implementation plan. No interview — the design is settled (`gsd` did that). Read `.scratch/<feature>/spec.toon` for the acceptance criteria this plan must deliver. Write the plan.
+| Converged planning | `proposal.md`; `spec.md` | `design.md`; `handoff-<n>.toon`; `docs/gsd/<feature>/milestones.toon` | `plan.md` | Stop and return to `/gsd` Discussion to recover the Markdown packet; never synthesize a contract or read legacy pre-approval TOON |
 
-At intake, also accept the exact set of repository-relative pre-approval domain artifact paths returned by `gsd-domain-modeling`. This set is transient conversational or pre-plan handoff input, not a new state artifact; no returned paths (an empty or absent set) is normal. On a pre-plan resume, reuse the set only when those returned paths are still present in conversational/handoff state. If no returned-path set exists, use the empty set: do not invent paths, scan `docs/domain.toon` to reconstruct it, or infer domain changes from arbitrary dirty files.
-Independently parse the raw converged `spec.toon` for the `milestone_ledger` field. This marker is durable intent carried by the spec, unlike transient returned domain paths: never reconstruct it from dirty files, ledger presence, a context boolean, or a handoff mode.
- ## Output (AXI TOON Format)
- Write a single consolidated plan file to `.scratch/<feature>/plan.toon`. This format is highly token-efficient, omitting braces, quotes, and markdown boilerplate. The first line declares the schema version (`schema:v1`); the second line is `base:<base>` (the repo's default branch captured per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics; already on `wip/<feature>` from a pre-plan portable resume? read the `base` row from the latest handoff `settings[]`, never the wip branch itself); consumers read from the `plan[` table.
+## Intake
 
+Read the complete packet from `.scratch/<feature>/`. Parse and validate it under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Canonical Markdown contract. The optional design must share the feature slug. Root or scratch pre-approval `proposal.toon`, `spec.toon`, `design.toon`, and `plan.toon` are stale non-authoritative files and cannot provide missing scope, ACs, task order, or recovery.
 
- 
- Format:
- ```
-schema:v1
-base:<base>
-plan[count]{id,task,satisfies,files,test,status}:
-  T1,<task description>,AC-1|AC-2,src/auth.ts|src/user.ts,tests/auth.test.ts,pending
-  T2,<task description>,AC-3,src/router.ts,none,pending
- ```
- 
- Columns:
- - `id` — T1, T2, etc. (numbered sequentially).
- - `task` — short task description (5-8 words).
-- `satisfies` — pipe-separated list of active AC IDs from the exact `criteria` table in `spec.toon`.
- - `files` — pipe-separated list of affected files.
-- `test` — the focused automated test/path/self-check at the selected public seam; it may be a unit test, integration test, CLI check, or focused browser/HTTP check. Use `none` only when test-exempt. Test-exempt covers ONLY docs/comments/metadata or mechanically verifiable non-behavioral changes; anything that alters runtime behavior (including config) names an automated test path or focused self-check command. `none` on logic-bearing code is a planning error.
- - `status` — `pending`, `in_progress`, `done`, or `superseded`. `superseded` is terminal history and is never dispatched: a spec revision keeps the obsolete row for provenance, removes its current ownership authority, and adds the replacement under a fresh `pending` ID.
- 
-Escaping — `,` separates columns and `|` separates values within a field (GSD's sub-separator; canonical TOON also allows `"quoted"` fields — see [spec](https://toonformat.dev/reference/spec.html)). For `plan.toon` keep it simple: a `task` needing a comma or pipe is the wrong shape — rephrase it (5-8 words) or split the task. File paths containing either are unsupported.
+Accept returned pre-approval domain paths only from `gsd-domain-modeling` conversational/handoff state. An absent returned set is normal; do not reconstruct it by scanning docs or dirty files. A Milestone Ledger is optional context unless the selected mode explicitly authorizes publication.
 
-Non-superseded tasks run sequentially — `gsd-executing-plans` dispatches one executable `task` subagent at a time, in `id` order, and skips `done` and `superseded` rows. Order the tasks so each runs after what it depends on; the sequence itself carries the dependencies.
+## Write plan.md
 
-Before writing rows, apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Planning decomposition & precision contract as the deterministic planning oracle. It changes task shape and the existing `test` value only; it never adds a plan column, dependency field, progress frontier, or local state tracker. The separate ledger is not a plan column, progress frontier, or local tracker, and does not weaken this prohibition.
+Write `.scratch/<feature>/plan.md` in this order:
 
-## Pre-approval domain-path ownership gate
-During plan generation, add each returned path as an ordinary, exact `files` entry on the behavior-owning task — exactly one current non-superseded task whose implementation or decision evidence owns the domain change. Superseded rows have no current ownership authority. Never create a generic documentation task merely to carry these paths.
+```md
+# Plan
+## Feature
+`<feature-slug>`
+## Base
+`<base>`
+## Tasks
+### T1: <short task>
+- **Satisfies:** AC-1
+- **Files:** `<path>`
+- **Test:** `<focused command or public-seam test>`
+- **Status:** pending
+```
 
-After writing the completed `plan.toon`, but **before printing the inline summary or asking approval**, parse every completed row in the `plan[...]` table, including historical rows. Split each row's `files` field on `|` and compare whole path tokens exactly; for every returned path, count occurrences across non-superseded rows only. The check passes only when each path has exactly one current occurrence and that sole owning row has `status=pending`; an occurrence on a superseded row is provenance, has no ownership authority, and cannot satisfy or duplicate the current-owner count. The empty returned-path set passes without adding or inferring work. This returned domain-path rule does not apply to the separately governed canonical Milestone Ledger token below.
+Only the self-host feature may add `## Self-host bootstrap` between Base and Tasks. Tasks are sequential `T1`…`TN`; their order encodes dependencies. Every active AC occurs exactly once across non-superseded tasks. Each task owns exact paths, has a concrete focused check, and pins the highest deterministic public seam specified for its AC. A task spanning ACs requires identical seam, test path, and lower-seam reason. Keep rows as pointers; the immutable dispatch attempt carries the detailed task facts.
 
-Before writing ownership rows, select exactly one ledger-intent source. **Milestone planning** requires explicit milestone-entry intent plus the authoritative base ledger: derive the root feature, canonical path, and current milestone slug from its first-pending row; require the active scratch/plan slug to match, and require no publication marker. **Normal root publication** requires a valid `milestone_ledger` value in raw `spec.toon`; require its path to equal the active root feature's canonical ledger path. A malformed, duplicate, whitespace-padded, wrong-root, or Milestone-plus-marker input blocks before plan summary. **Ordinary Normal planning** has neither source and therefore requires zero ledger-looking `files` tokens. For either valid ledger-writing source, parse every completed `plan[...]` row, split `files` on `|` by exact whole tokens, and require the derived path exactly once across all rows with its sole row `status=pending`. Unlike an ordinary returned domain path, the canonical Milestone Ledger token must not remain on a superseded row: a spec revision removes it from the superseded row and assigns it to exactly one fresh pending replacement before approval. Never derive root publication from a domain-write return, dirty ledger, path presence, context boolean, or handoff mode.
+Plan complete observable behavior, not layers. Use Expand → Migrate → Contract only when all callers cannot migrate atomically; Contract requires a completed caller/reference inventory. `none` is only for mechanically verified non-behavioral work. A vague check, duplicate/unowned AC, missing file owner, or an unresolved design choice returns to Discussion rather than creating a plan.
 
-Zero occurrences, more than one occurrence (including repetition within one row or duplicate cross-row ownership), a sole non-pending owner, an extra plan column, or round-trip drift is a plan defect: rewrite and rerun the gates before summary/approval. Revise or redistribute the plan rows, rewrite `plan.toon`, then parse and run the entire check again. **Do not print the summary, ask the approval question, or launch plan review until the check passes.** Keep the path in the existing `files` field; this gate changes neither `schema:v1`, the columns, nor sequential task order, and creates no state artifact.
+## Approval binding
 
-## Exact plan serialization gate
-After all validated tasks are known, serialize them using the unchanged `schema:v1` columns and order, parse every generated row back, and compare exact `id`, `task`, `satisfies`, `files`, `test`, and `status` values with those validated tasks. Any row reorder, changed file/test, changed status, missing/duplicate/unknown AC ID, or other round-trip drift is a plan defect: rewrite and repeat the full parse/compare before summary or approval. For Expand/Migrate/Contract, the short task descriptions and row order must retain their respective `Expand`, `Migrate`, and `Contract` identity. Their semantic safety facts stay in the validated spec/task brief; never imply that safety lives in a new plan column. This gate changes neither `schema:v1`, its column order, sequential dependencies, nor the artifact inventory.
+Before the approval gate, parse the finalized packet and prove feature consistency, canonical ordering, concrete AC semantics, interface pins, task coverage, file ownership, and focused checks. Record the exact path and SHA-256 digest of every present Markdown source. Source bytes and source set are immutable for the execution cycle; execution, review, repair, handoff/resume, and verification must compare them before proceeding.
 
-## Plan summary + approval gate (mandatory, only after the ownership and serialization gates pass)
-After the ownership and exact serialization gates pass, print an inline human-readable summary in the terminal — the user never has to open the file. The summary contains:
-- One line per task: `T<n> — <task> (satisfies AC-x|AC-y; files; test or test:none)`.
-- A footer: task count, `base:` branch, and AC coverage (`all ACs covered` or the gap — a gap means the plan is incomplete, fix before asking).
-- Print `Convergence Ledger publication: <path> (owner T<n>)` when the spec carries a non-null `milestone_ledger`. When the spec carries a non-null `milestone_ledger`, the single approval explicitly approves that publication entry together with the plan; omission or a path/owner mismatch blocks the approval question.
-Then ask **one approval question** using [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates → Direct sub-skill Next steps adapted as the approval gate: approve → execute; revise the plan first; or (when the `plan.toon` is lavish offer-eligible and the Fire gate holds) review the plan visually — the visual-review choice rides *inside* this one gate, it is not an extra prompt. **This approval is the last prompt of the cycle**; on approve, route to `gsd-executing-plans` and follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Post-approval pipeline contract. Local responsibility here is to make the final prompt explicit and block approval until both domain-path ownership and AC coverage are complete. "Revise" edits `plan.toon`, reruns both completeness checks, and re-presents the summary + the same single approval ask; picking visual review launches `gsd-lavish` on the plan, then returns to this same gate.
-
-## Auto-triggers & visual-review ask
-- `gsd-codebase-design` — when a task involves designing/redesigning a module interface.
-- `gsd-lavish` — a non-trivial finalized `plan.toon` is an offer-eligible deliverable **only before approval**: follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish opt-in gate taxonomy. When it is offer-eligible and the Fire gate holds, you MUST surface the visual-review option — folded into the single approval gate as one more choice (approve / revise / review the plan visually), never a second prompt. Launch lavish only after explicit opt-in (the user picks that choice) plus the Fire gate. After the approval question is answered, post-approval pipeline no-offer mode begins.
-
-## Rules
-- **Decompose ordinary work by complete observable behavior, not architectural layer or file type.** Derive the required layers from the AC and live codebase; UI/API/domain/storage are examples, not a required universal stack. One vertical task emits exactly all required behavior layers, owns at least one affected file per required layer, and includes its selected-seam focused check. Reject and rewrite ordinary rows named only `add DB`, `add service`, `add API`, or `write all tests`, and any slice omitting a required layer, unless the row independently exposes and verifies a real public contract.
-- **Put the selected public seam in `test`.** Parse the exact `interfaces[count]{criterion,seam,path,lower_seam_reason}` table from `spec.toon`. Missing, duplicate, unknown, superseded-only, conflicting, or mismatched pins block planning; never infer or normalize them. For each behavior-bearing task, use the focused automated test/path/self-check for the highest deterministic existing public interface/harness pinned by that criterion: existing browser/CLI/HTTP boundary first, otherwise the highest existing public module API. Resolve a same-tier choice by the production entrypoint named by the criterion's `action`, then the repository's canonical existing harness convention, then greater production-path coverage with no test-only bypass; an unresolved tie returns to Discussion as materially ambiguous. The pin's `path` must equal the plan row's `test`. A lower seam requires the concrete recorded `lower_seam_reason` that the higher seam is absent or cannot deterministically isolate the criterion. Never invent a test-only API or drop merely because a lower seam is easier.
-- **One row has one seam decision.** A row may satisfy several criteria only when all of their `interfaces` rows pin the exact same `seam`, `path`, and `lower_seam_reason`, and the path equals the row's `test`. If any value differs, split them into separate vertical behavior rows; one task brief cannot represent conflicting seam decisions.
-- **Make green verification mandatory without predicting a pass.** Every Vertical, Expand, Migrate, and Contract row defines a concrete focused `action → expected observable result` check and the obligation to run it. Planning never fabricates the future green result: `gsd-executing-plans` runs the check after implementation and records the verified-green fact before the row lands or a later stage proceeds. When validating an already produced candidate row/stage result, false, missing, TBD/TODO, or placeholder green state fails. Explicit acceptance deferral may defer only the broader runtime acceptance action; the focused TDD test must still become green now. No result or safety fact becomes a plan column.
-- **Validate criterion semantics, not keyword padding.** Each criterion's separate `action` and `expected` fields must identify an actual operation/input and its expected observed subject and result; labels such as `works correctly`, `run tests`, `valid`, `covered`, `TBD`, and `TODO` are not concrete merely because both fields are nonempty. Expand/Migrate/Contract checks must use separate affirmative clauses to invoke or exercise each old and new seam in the `action` and require a positive result from each in the `expected`; one aggregate command or generic success claim cannot prove both seams.
-- **Reserve Expand → Migrate → Contract for unavoidable wide mechanical refactors.** Only when a blast-radius contract/API/schema change cannot migrate all callers atomically while green, emit sequential `Expand` (proved backward-compatible), one or more bounded `Migrate` rows (both seams proved working), then `Contract`. Contract is eligible only after a complete caller/reference inventory proves repository references gone and all owned/external consumers migrated, or a completed precise compatibility/deprecation obligation; its check explicitly performs that inventory and expects zero stale callers/references. External consumers without migration/obligation evidence, or unknown ownership, retain the old seam and defer Contract to a later precise milestone/evidence gate. Never force this sequence onto an ordinary feature as ceremony.
-- **Rows are pointers, not payloads.** Detail lives in `spec.toon` ACs and validated safety facts (what must be true) and the dispatch-time task-brief `gsd-executing-plans` composes from the *current* code state (how) using the deterministic task-brief template — never pre-written into the plan, where it goes stale after the first diff lands. A task needing a paragraph to describe is two tasks.
-- **Right-size the plan.** Task count proportional to the ask: quick-fix 1-2, typical feature 3-7. A plan pushing past ~10 tasks or containing independently-shippable chunks is a milestone smell — STOP, route back to `gsd` (Discussion) to split into milestone features (`<feature>-m1`, `-m2`, …), each with its own spec→plan→verify→merge cycle. Never one giant plan on one long-lived branch.
-- **Use only actual current spec AC IDs and cover them all.** Parse raw `spec.toon` using the exact `criteria[count]{id,state,outcome,action,expected}` table contract in [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § proposal.toon, spec.toon, design.toon — template & rules. Reject non-canonical shape or encoding, invalid lifecycle state, missing/nonconcrete `action` or `expected`, duplicate IDs (including one ID in both active and superseded states), and malformed IDs; never normalize them. Every `satisfies` token on a non-superseded plan row must be a known, unique active AC ID; reject missing, duplicate, unknown (for example `AC-404`), or extra/conflicting pins. Cross-check the union across non-superseded plan rows against the active AC set before finishing — a missing AC is an incomplete plan, not a verify-time surprise. Superseded criteria and plan rows remain provenance only and may retain their old references; never count or validate either as current coverage.
-- Encode every inter-task dependency in the task order — a dependent task gets a later `id`. Never bury a sequencing constraint in `task` prose.
-- If the design has a gap that blocks planning, STOP — route back to `gsd` (Discussion) → revise `spec.toon` → re-plan. Do not invent scope to fill it.
-- No interviews, no scope expansion. The plan reflects the design; it doesn't renegotiate it.
+Print a compact feature/AC/task summary and the source binding. Ask one approval question: approve and execute, revise in Discussion, or review visually when the existing Lavish Fire gate holds. This is the last prompt: approval immediately starts `gsd-executing-plans`; no later menu, offer, or confirmation appears unless a hard blocker stops the pipeline.
 
 ## Contextual disclosure
-Use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates. This skill's standalone terminal surface is the plan summary + approval gate: one approval question, then no further menus or offers after approval. Inline firing appends nothing.
+
+Use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates. Inline firing appends nothing.
