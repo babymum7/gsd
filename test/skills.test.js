@@ -1088,6 +1088,8 @@ test("master has a git repo guard qualifying read-only vs write/commit paths", (
   assert.match(gsd, /git rev-parse/, "master must check git repo status");
   assert.match(gsd, /git init/, "master must git init when not in a repo");
   assert.match(gsd, /read-only.*without git|works without git/i, "read-only Route 0 must be explicitly git-free");
+  assert.match(gsd, /Route 0 Direct\/read-only and Nano are completely git-free/, "Nano must obey the installed command's zero-git contract");
+  assert.match(gsd, /Nano-fix[\s\S]*no git subprocess or commit[\s\S]*No git initialization\/diff\/stage\/commit/, "Nano fast path must neither call git nor claim commit ownership");
   assert.match(gsd, /pasted-diff.*without git|Route 2.*without git/i, "pasted-diff review (Route 2) must be explicitly git-free — it is read-only");
   const guardLine = gsd.split("\n").find(l => l.includes("Git repo guard")) || "";
   assert.ok(!/Routes\s*1.\s*3/.test(guardLine), "git guard line must not blanket-require git for Routes 1–3 (Route 2 pasted-diff is read-only)");
@@ -1721,9 +1723,9 @@ test("autosync: opt-in toggle persisted via settings[], synced per pause and per
 
 test("pre-plan portable handoff: base survives the machine switch", () => {
   const handoff = readSkill("gsd-handoff");
-  assert.match(handoff, /no wip branch yet \(paused before execution/, "portable step 1 must bootstrap the wip branch pre-plan");
-  assert.match(handoff, /record `base,<base>` in this handoff's `settings\[\]`/, "bootstrapped base must persist in the handoff settings");
-  assert.match(handoff, /pre-plan portable sync records `base,<branch>`/, "settings note must carve out the base row exception");
+  assert.match(handoff, /every pre-plan portable handoff records `base,<branch>`/, "every portable pre-plan handoff must persist base metadata");
+  assert.match(handoff, /already-existing `wip\/` branch never permits the next portable handoff to omit it/, "a repeated portable pause must not drop base metadata");
+  assert.match(handoff, /record `base,<base>`[\s\S]*even when `wip\/<feature>` already exists/, "portable sync must carry base after the WIP branch already exists");
   assert.match(handoff, /restore the toggle `settings\[\]` values \(`ponytail_level`, `autosync`\)/, "resume must restore only real toggles");
   assert.match(handoff, /A `base` row is metadata, not a toggle — don't "restore" it/, "base row must not be restored as a session toggle");
   const toPlan = readSkill("gsd-to-plan");
@@ -1747,12 +1749,15 @@ test("sub-skill loading is imperative: route = load skill, catalog on capability
   assert.doesNotMatch(gsd, /skill:\/\//, "no skill:// should be referenced for loading");
 });
 
-test("sub-skills declare internality and a direct-invocation guard", () => {
+test("sub-skills declare internality, a direct-invocation guard, and invocation modes", () => {
   for (const name of listSkillDirs()) {
     if (name === "gsd") continue;
     const c = readSkill(name);
     assert.match(c, /Internal GSD sub-skill \(routed via \/gsd\)/, `${name} description must declare internality`);
     assert.match(c, /Direct invocation guard/, `${name} must carry the direct-invocation guard`);
+    const modes = parseInvocationModes(c);
+    assert.deepEqual(modes.header, INVOCATION_MODE_HEADER, `${name} must expose the canonical invocation-mode table`);
+    assert.ok(modes.rows.length > 0, `${name} must declare at least one invocation mode`);
   }
 });
 
@@ -4659,7 +4664,7 @@ test("T3 blocker stop expires auto scope and resume reclassifies the same fix", 
   assert.deepEqual(resumed.state, { explicit_level: "none", auto_scope: "quick-fix" });
 });
 
-test("T3 handoff restore covers lite/full/ultra, absent, and invalid rows", () => {
+test("T3 handoff restore covers lite/full/ultra, absent, invalid, and duplicate rows", () => {
   const policy = parsePonytailPolicy(readSkill("gsd-ponytail"));
   const stale = { explicit_level: "ultra", auto_scope: "quick-fix" };
   for (const level of policy.acceptedLevels) {
@@ -4693,6 +4698,13 @@ test("T3 handoff restore covers lite/full/ultra, absent, and invalid rows", () =
     },
   );
   assert.deepEqual(invalid.state, { explicit_level: "none", auto_scope: "none" });
+  const duplicate = applyPonytailTransition(
+    policy,
+    "Handoff restore with duplicate explicit toggle",
+    stale,
+    { event: PONYTAIL_EVENTS.handoffRestore, row: "duplicate" },
+  );
+  assert.deepEqual(duplicate.state, { explicit_level: "none", auto_scope: "none" });
 });
 
 test("T3 dispatch, handoff, blocker, and invalid-toggle boundaries share the policy schema (AC-8)", () => {

@@ -8,7 +8,16 @@ consumes: []
 
 # Ponytail
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Invoked standalone with its `consumes:` artifacts missing → load the `gsd` skill and enter through its router (it detects workspace state); don't improvise missing context.
+> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
+
+## Invocation modes
+
+| Mode | Required | Optional | Produced | Missing required |
+|---|---|---|---|---|
+| Quick-fix auto-fire | — | — | — | — |
+| Explicit session toggle | — | — | — | — |
+
+Select Quick-fix auto-fire only for a real Route 0 quick-fix. Select Explicit session toggle only for `/gsd ponytail [lite|full|ultra]` or the stop/normal-mode command. Both modes are runtime policy transitions with no artifact requirements or writes; Nano never loads this skill.
 
 Lazy senior dev: efficient, not careless. The best code is the code never written. The runtime keeps two distinct fields: `explicit_level` is exactly `none|lite|full|ultra`, and `auto_scope` is exactly `none|quick-fix`. **Auto-fire** is scoped to that fix only: it expires when the real quick-fix lands/merges, hits a hard-blocker or verify-fail stop, or stops being the active prompt, and never silently minimizes the next, unrelated prompt. **Explicit toggle** (`/gsd ponytail [lite|full|ultra]`, omitted level = **full**) is session state until "stop ponytail"/"normal mode" via `/gsd`. Nano work never loads this skill.
 Only an active **explicit** `lite|full|ultra` toggle survives a session reset, and only via a `gsd-handoff` `settings[]` row; auto-fire is never serialized. A hard reset without a handoff loses the explicit level like any unsaved scratch — re-toggle through `/gsd` to restore it.
@@ -33,9 +42,10 @@ Only an active **explicit** `lite|full|ultra` toggle survives a session reset, a
 | Handoff restore with explicit toggle | `event=handoff-restore;explicit_level=<current>;auto_scope=<scope>;row=ponytail_level,<level>` | `explicit_level=<level>;auto_scope=none` | `none` | `none` | `none` | `ponytail_level,<level>` |
 | Handoff restore without explicit toggle | `event=handoff-restore;explicit_level=<current>;auto_scope=<scope>;row=missing` | `explicit_level=none;auto_scope=none` | `none` | `none` | `none` | `omit` |
 | Handoff restore with invalid explicit toggle | `event=handoff-restore;explicit_level=<current>;auto_scope=<scope>;row=ponytail_level,<invalid>` | `explicit_level=none;auto_scope=none` | `none` | `none` | `none` | `omit` |
+| Handoff restore with duplicate explicit toggle | `event=handoff-restore;explicit_level=<current>;auto_scope=<scope>;row=duplicate` | `explicit_level=none;auto_scope=none` | `none` | `none` | `none` | `omit` |
 
 For a supplied toggle, only the accepted domain can enter `explicit_level`; omission means `full`. An invalid level preserves the prior `explicit_level`, clears `auto_scope`, emits exactly the table's concise allowed-level feedback, and never becomes state. Stop/normal sets both fields to `none`.
-On every handoff restore, initialize `explicit_level=none` and `auto_scope=none` **before** inspecting `settings[]`. A valid `ponytail_level,lite|full|ultra` row overrides only `explicit_level`; an absent or invalid row leaves both fields at `none`. Do this before `next_action`; auto scope is never restored.
+On every handoff restore, initialize `explicit_level=none` and `auto_scope=none` **before** inspecting `settings[]`. A valid `ponytail_level,lite|full|ultra` row overrides only `explicit_level`; an absent, invalid, or duplicate row leaves both fields at `none`. Do this before `next_action`; auto scope is never restored.
 A hard-blocker or verify-fail stop preserves `explicit_level` and clears `auto_scope`. A later resume of the same fix reclassifies it and may auto-fire anew rather than inheriting stale state. Landing/merge and an unrelated prompt apply the same clearing rule.
 Auto-fire never becomes explicit state, never reaches a fresh task brief, and never appears in `settings[]`. Every real quick-fix loads this skill and emits exactly one table cue; an explicit level takes precedence without setting `auto_scope`. Append no menu, question, or prompt.
 

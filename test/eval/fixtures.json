@@ -71,14 +71,14 @@
   },
   {
     "id": "plan-related",
-    "state": ".scratch/oauth-login/spec.md and plan.toon exist; tasks 2-5 pending",
+    "state": ".scratch/oauth-login/spec.toon and plan.toon exist; tasks 2-5 pending",
     "prompt": "implement the token refresh task next",
     "route": "3",
     "skill": "gsd-executing-plans"
   },
   {
     "id": "plan-unrelated",
-    "state": ".scratch/oauth-login/spec.md and plan.toon exist; tasks 2-5 pending",
+    "state": ".scratch/oauth-login/spec.toon and plan.toon exist; tasks 2-5 pending",
     "prompt": "add a CSV export button to the reports page",
     "route": "6",
     "skill": "none"

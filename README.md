@@ -80,7 +80,7 @@ After you approve the plan, no menu appears until the feature merges (or a hard 
 
 | You say | What happens |
 |---|---|
-| "fix this typo" | **Nano-fix** — in-place fix on the current branch; no scratch, no branch, no gate |
+| "fix this typo" | **Nano-fix** — in-place, completely git-free fix; no scratch, branch, commit, or gate |
 | "fix this small bug" | **Quick-fix** — ponytail mindset, minimal `plan.toon`, `wip/` branch, code-quality verify only |
 | "review this diff/PR" | Standalone review — read-only, two verdicts, no merge mechanics |
 | "why does X crash?" (hard bug) | `gsd-diagnosing-bugs` — feedback-loop-first diagnosis discipline |

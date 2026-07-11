@@ -10,6 +10,15 @@ consumes: []
 
 > **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. This skill has no required artifacts (`consumes: []`), so a standalone interface-design invocation proceeds directly from the user-supplied area without fabricating workspace context. If no module, interface, or area is supplied, stop and ask one focused target question; never survey the repository or invent a target. A system-wide audit is not standalone interface design: return through `/gsd` Route 5 to `gsd-improve-codebase-architecture`.
 
+## Invocation modes
+
+| Mode | Required | Optional | Produced | Missing required |
+|---|---|---|---|---|
+| Standalone interface design | — | — | — | — |
+| Inline design support | — | — | — | — |
+
+Select Standalone interface design when Route 5 targets a named module or interface directly. Select Inline design support when another loaded GSD skill needs the shared vocabulary or design-it-twice process for its already-scoped work. Neither mode fabricates repository context or writes an artifact.
+
 Design **deep modules**: a lot of behaviour behind a small interface, placed at a clean seam, testable through that interface. Use this language and these principles wherever code is being designed or restructured. The aim is leverage for callers, locality for maintainers, and testability for everyone.
 
 ## Glossary
