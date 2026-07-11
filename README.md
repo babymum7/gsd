@@ -12,16 +12,15 @@ Inspired by:
 
 ## Installation
 
-Install ONLY the `gsd` master entry — the single trigger that routes and coordinates every sub-skill from context. You never install sub-skills separately:
+Install the GSD command for OMP. You never install sub-skills separately:
 
 ```bash
 bash install.sh
 ```
 
-`install.sh` symlinks **every** `skills/gsd*` directory into `~/.agents/skills/` (master + all sub-skills), initializes the `lavish-axi` submodule, and — when `pnpm` is available — builds the optional visual path automatically (no pnpm or a failed build → skills degrade to terminal). Registering all skills lets the agent load `skill://gsd-<sub>` directly — no path-resolution turn. Invoke `/gsd` on any prompt; it routes internally.
+`install.sh` registers the GSD master entry point as a user command under `~/.omp/agent/commands/gsd.md` (which maps `/gsd`), cleans up legacy skill symlinks, initializes the `lavish-axi` submodule, and — when `pnpm` is available — builds the optional visual path automatically (no pnpm or a failed build → skills degrade to terminal). The command supplies the absolute `GSD_ROOT` path, allowing GSD to load all master and sub-skills directly from the checkout. Invoke `/gsd` on any prompt; it routes internally.
 
 You only ever type `/gsd` (plus what you want, in plain language). The `/gsd-<sub>` names that appear in the skills are the agent's own internal calls after it routes — never commands you invoke yourself.
-
 ---
 
 ## The complete feature flow
@@ -31,7 +30,7 @@ One feature, from idea to merged commit. You drive it with plain language; the a
 ```mermaid
 flowchart LR
     U["/gsd 'build X'"] --> D[Discussion<br/>questions + recommendation]
-    D -->|converges| S[spec.md<br/>acceptance criteria]
+    D -->|converges| S[proposal.toon + spec.toon<br/>acceptance criteria]
     S --> P[plan.toon<br/>task table + inline summary]
     P -->|"approve (last prompt)"| E[Execute<br/>per-task loop on wip/]
     E --> V[Verify<br/>full-diff review + E2E]
@@ -43,7 +42,7 @@ flowchart LR
 ### 1. Discuss — `/gsd build feature X`
 New work routes to **Discussion**. The agent explores the codebase (targeted, git-scoped — no tree-wide crawling), asks clarifying questions only when the answer changes route/scope/action, stress-tests the idea (risks, edge cases, missing decisions), and recommends the **smallest approach that meets the ask** — a small ask converges to a 2–4-AC spec, never padded with retries/telemetry/config nobody asked for.
 
-When you pick an approach and open questions close, the agent writes `.scratch/<feature>/spec.md` — context plus **checkable acceptance criteria** (`AC-1`, `AC-2`, …), each carrying a `Check:` sketch (the action + expected observable result). That sketch is the convergence gate: an AC you can't sketch a concrete expected result for is still vague and gets sharpened in Discussion before the spec is written — and it becomes the spec-time oracle the execute stage specializes into a real command. This file is the contract every downstream stage reads. A large feature (would exceed ~10 tasks) is split into milestone specs (`<feature>-m1`, `-m2`, …), each running its own full cycle.
+When you pick an approach and open questions close, the agent writes `.scratch/<feature>/proposal.toon` and `.scratch/<feature>/spec.toon` (plus conditionally `.scratch/<feature>/design.toon`) — context plus **checkable acceptance criteria** (`AC-1`, `AC-2`, …), each carrying a Check action and expected outcome. That check is the convergence gate: an AC you can't sketch a concrete expected result for is still vague and gets sharpened in Discussion before the spec is written — and it becomes the spec-time oracle the execute stage specializes into a real command. These files are the contract every downstream stage reads. A large feature (would exceed ~10 tasks) is split into milestone specs (`<feature>-m1`, `-m2`, …), each running its own full cycle.
 
 ### 2. Plan — automatic, summarized inline
 `gsd-to-plan` turns the converged spec into `.scratch/<feature>/plan.toon` — a token-efficient task table (`id, task, satisfies, files, test, status`). Rows are pointers, not payloads: detail lives in the spec; every AC must appear in some task's `satisfies`. Docs/comments-only tasks get `test:none`; anything that alters runtime behavior names a test.
@@ -53,7 +52,7 @@ Right after writing the file, the agent prints an **inline plan summary** (one l
 ### 3. Execute — per-task loop, hands-free
 Once the plan is approved, `gsd-executing-plans` creates `wip/<feature>` (capturing your current branch as `base:` in `plan.toon`), then for each task — no questions, no menus, just progress reports:
 
-1. **Dispatch** a fresh implementer subagent with just that task's brief.
+1. **Dispatch** a fresh implementer subagent with just that task's JIT structured attempt TOON packet.
 2. **TDD** (`gsd-tdd`): one behavior test through the public interface → minimal code → green.
 3. **Review**: a reviewer subagent checks the task diff — task-compliance AND code-quality. Critical/Important findings loop back until fixed.
 4. **Acceptance**: when the task's AC is runnable now, a targeted acceptance check exercises that AC end-to-end (curl/CLI/headless-browser/script) before the commit; a slice not yet independently runnable records an explicit `Acceptance Check: deferred` and is re-exercised at the terminal gate.
@@ -61,8 +60,7 @@ Once the plan is approved, `gsd-executing-plans` creates `wip/<feature>` (captur
 
 Interrupt any time — the ledger plus `git log` mean a resumed session never redoes finished work.
 
-### 4. Verify — the merge gate, auto-merge on pass
-`gsd-verify` reviews the **whole branch diff** against the spec: every non-superseded AC met (spec-compliance) + universal code-quality, then the project's full build+test suite, then an **acceptance/E2E gate** — the end-to-end user path for user-facing features (real user path via browser or script) *plus* an acceptance check for every non-superseded AC that is runtime-observable, absorbing any per-task `Acceptance Check: deferred`. Any Critical/Important finding, red suite, or failing acceptance/E2E **blocks the merge** — the pipeline stops and reports, never merging past a red gate. Pass → squash to a single commit on your base branch **automatically** (findings, build/E2E outcome, and the final commit are still reported); session artifacts never land there.
+`gsd-verify` reviews the **whole branch diff** against the spec: every non-superseded AC met (spec-compliance) + universal code-quality, then the project's full build+test suite, then an **acceptance/E2E gate** — the end-to-end user path for user-facing features (real user path via browser or script) *plus* an acceptance check for every non-superseded AC that is runtime-observable, absorbing any per-task `Acceptance Check: deferred`. Any Critical/Important finding, red suite, or failing acceptance/E2E **blocks the merge** — the pipeline stops and reports, never merging past a red gate. Pass → squash to a single commit on your base branch **automatically** (findings, build/E2E outcome, and the final commit are still reported); session artifacts never land there. An automated terminal state machine handles the squash commit, force-with-lease remote cleanup, local branch deletion, and writes a canonical `result.toon` marker to `.scratch/` to manage the post-merge cleanup lifecycle and block any implementation resume.
 
 ### 5. Next steps
 Outside the post-approval pipeline, every response ends with numbered, non-technical choices — reply with a number:
@@ -114,7 +112,8 @@ A user-requested non-portable pause never snapshots unrelated work: dirty paths 
 2.  **Progress Ledger**: Task plans and completion statuses live in `.scratch/<feature>/plan.toon` (`schema:v1`, `base:<branch>`). The executor reads this ledger plus `git log` on start and never redoes finished tasks.
 3.  **Branch Isolation**: Every feature runs on an isolated `wip/<feature>` branch; the squash merge delivers exactly one commit to base.
 4.  **No Re-litigation**: On resume the agent adopts the documented state and jumps to `next_action` — no re-inferring decisions, no re-interviewing.
-5.  **Broken/missing state**: With no handoff, the agent reconstructs from durable artifacts — `plan.toon` (intended), `git log` (committed), `git status`/`diff` (uncommitted), `spec.md` (intent) — and resumes at the divergence.
+5.  **Broken/missing state**: With no handoff, the agent reconstructs from durable artifacts — `plan.toon` (intended), `git log` (committed), `git status`/`diff` (uncommitted), `proposal.toon`/`spec.toon` (intent) — and resumes at the divergence.
+6.  **Milestone Ledger**: Large features split tasks into milestones via `docs/gsd/<feature>/milestones.toon` (never in scratch). Non-final milestones update the current row status from pending to done, while the final milestone atomically deletes the ledger path from base-present to absent in the same squash commit.
 
 ---
 
@@ -132,21 +131,16 @@ skills/
 ├── gsd-tdd/                          # Red-Green-Refactor & vertical slices (+ tests/mocking/refactoring docs)
 ├── gsd-ponytail/                     # Enforcing the YAGNI ladder & lazy code
 ├── gsd-diagnosing-bugs/              # Hard bugs & regressions diagnosis loop
-├── gsd-domain-modeling/              # Aligning glossary & domain logic (CONTEXT.md)
+├── gsd-domain-modeling/              # Aligning glossary & domain logic (docs/domain.toon)
 ├── gsd-codebase-design/              # Defining deep modules & interface design
 ├── gsd-improve-codebase-architecture/ # Deepening scans & architecture audits
 └── gsd-lavish/                       # Visual HTML reporting & HITL (opt-in)
 ```
 
-All skills are registered, but `/gsd` is the orchestrator: sub-skills carry a **direct-invocation guard** — selected standalone with their consumed artifacts missing, they route back through `gsd` instead of improvising. Partial/old installs degrade gracefully: `gsd` resolves its own symlink and reads siblings directly:
-
-```bash
-SKILLS_DIR="$(dirname "$(readlink ~/.agents/skills/gsd)")"   # → …/this-repo/skills
-```
+All sub-skills carry a **direct-invocation guard** — selected standalone with their consumed artifacts missing, they route back through `/gsd` instead of improvising. Since the OMP command supplies the absolute `GSD_ROOT`, GSD loads master and sub-skills directly by absolute path from the checkout.
 
 ### Auto-Update
-All skills are symlinked, so any edit or `git pull` here applies instantly. Re-run `bash install.sh` only if you move the repo or a new sub-skill directory appears.
-
+All master and sub-skills are loaded directly from the checkout path, so any edit or `git pull` here applies instantly. Re-run `bash install.sh` only if you move the repo.
 ### Vendored Tool: Lavish Editor (`tools/lavish-axi`)
 The Lavish Editor CLI is tracked as a **git submodule** pointing to [kunchenguid/lavish-axi](https://github.com/kunchenguid/lavish-axi). `bash install.sh` initializes the submodule and builds the CLI automatically when `pnpm` is available. No pnpm? Build once manually (skills degrade to terminal until then):
 

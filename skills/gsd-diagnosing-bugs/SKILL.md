@@ -3,7 +3,7 @@ name: gsd-diagnosing-bugs
 description: Internal GSD sub-skill (routed via /gsd). Diagnosis loop for hard bugs and performance regressions. Triggered when gsd-executing-plans hits a real bug/regression, or on explicit "diagnose/debug". Six phases — skip only when justified.
 triggers: hard bug / regression / non-obvious error (gsd Route 4); gsd-executing-plans blocker
 produces: []
-consumes: [CONTEXT.md, docs/adr/]
+consumes: [docs/domain.toon]
 ---
 
 # Diagnosing Bugs
@@ -14,10 +14,10 @@ consumes: [CONTEXT.md, docs/adr/]
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| Route 4 diagnosis | — | `CONTEXT.md`; `docs/adr/` | — | — |
-| Execution-blocker diagnosis | — | `CONTEXT.md`; `docs/adr/` | — | — |
+| Route 4 diagnosis | — | `docs/domain.toon` | — | — |
+| Execution-blocker diagnosis | — | `docs/domain.toon` | — | — |
 
-A discipline for hard bugs. After selecting the diagnosis mode, read `CONTEXT.md` and only relevant ADRs if they exist. Skip phases only when explicitly justified.
+A discipline for hard bugs. After selecting the diagnosis mode, read `docs/domain.toon` if it exists. Skip phases only when explicitly justified.
 
 ## Phase 1 — Build a feedback loop (THIS is the skill)
 Everything else is mechanical. A **tight** pass/fail signal that goes red on *this* bug → you'll find the cause. No loop → no amount of staring saves you. Be aggressive, creative, refuse to give up.
@@ -50,7 +50,7 @@ Write the regression test **before** the fix — but only if a **correct seam** 
 In standalone Route 4 only, ask what would have prevented this. After a successful Route 4 diagnosis, an architectural cause may hand off to `gsd-improve-codebase-architecture` as a pre-approval post-diagnosis architecture audit, after the fix. In Execution-blocker diagnosis, ask no post-mortem question. After a successful in-task Execution-blocker diagnosis, return to `gsd-executing-plans` immediately with the fixed repro evidence and preserve `explicit_level` while setting `auto_scope=none`. An Execution-blocker diagnosis entered after terminal repair exhaustion with `terminal_repair_round=2` never opens another repair even when it identifies the cause: retain the evidence, emit the canonical Blocker stop, and wait for a later `/gsd` resume to begin a genuinely new gate. If architecture is load-bearing for a current acceptance criterion, interface, or invariant, use Spec escalation; otherwise pass only a report-only future candidate through `gsd-improve-codebase-architecture` and return, with no selection, lavish offer, or refactor.
 
 ## Optional context signal
-Diagnosis harvest is optional and bounded to the minimized bug path. Reuse only the prompt/trace, reproduction, hypotheses, and code/docs already relevant to the diagnosis; never widen into a repository glossary/ADR scan or create missing scaffolds. Trigger `gsd-domain-modeling` only if that evidence reveals a recurring project-specific term or explicit decision/rationale signal. Generic error vocabulary, a one-off identifier, implementation detail, and code shape without rationale are no-op. Diagnosis never writes domain artifacts itself.
+Diagnosis harvest is optional and bounded to the minimized bug path. Reuse only the prompt/trace, reproduction, hypotheses, and code/docs already relevant to the diagnosis; never widen into a repository glossary/decision scan or create missing scaffolds. Trigger `gsd-domain-modeling` only if that evidence reveals a recurring project-specific term or explicit decision/rationale signal. Generic error vocabulary, a one-off identifier, implementation detail, and code shape without rationale are no-op. Diagnosis never writes domain artifacts itself.
 
 In Route 4 pre-approval work, domain modeling may ask its one focused question only for material meaning/ownership/trade-off ambiguity. In Execution-blocker diagnosis, approval has already happened: ask zero documentation questions; send load-bearing AC/interface/invariant ambiguity to `gsd-executing-plans`' Spec escalation, otherwise skip the documentation write and continue the diagnosis.
 

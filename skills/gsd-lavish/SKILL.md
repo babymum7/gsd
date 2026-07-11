@@ -25,15 +25,14 @@ The input is a caller-supplied completed deliverable; its source remains read-on
 An explicit visual-review request already supplies launch acceptance under the canonical taxonomy: when the Fire gate holds, launch directly and never ask a second time. The ask-first clause applies only to an offer-eligible deliverable without prior explicit acceptance.
 
 ## Path resolution (cross-project)
-The CLI lives in the GSD repo, not the user's project. Resolve from the registered symlink (any cwd):
+The CLI lives in the GSD repo, not the user's project. Resolve from the absolute GSD_ROOT:
 ```
-SKILLS_DIR="$(dirname "$(readlink ~/.agents/skills/gsd 2>/dev/null || echo ~/.agents/skills/gsd)")"
-CLI="$SKILLS_DIR/../tools/lavish-axi/dist/cli.mjs"
+GSD_ROOT="/absolute/path/to/gsd/checkout"
+CLI="$GSD_ROOT/tools/lavish-axi/dist/cli.mjs"
 ```
 Then every invocation below uses `node "$CLI"`.
-`$CLI` missing (`[ -f "$CLI" ]` fails — submodule not built)? **Degrade to terminal**: deliver the same content as terminal prose, say the visual path is unavailable, and point at `bash "$SKILLS_DIR/../install.sh"` (auto-builds when pnpm exists). Never block or fail the deliverable on the visual path.
+`$CLI` missing (`[ -f "$CLI" ]` fails — submodule not built)? **Degrade to terminal**: deliver the same content as terminal prose, say the visual path is unavailable, and point at `bash "$GSD_ROOT/install.sh"` (auto-builds when pnpm exists). Never block or fail the deliverable on the visual path.
 The same fallback applies at every visual step, not only when the file is missing. If `node` is unavailable, any `node "$CLI" ...` invocation exits nonzero, the browser/session cannot start, or CLI output is malformed or not one of the documented states, stop the visual loop and **Degrade to terminal** with the completed deliverable; never turn optional visual review into a blocker. A foreground poll killed only by a harness runtime limit may be re-run as described below; other command failures degrade instead of retrying indefinitely.
-
 Resolve and verify the session-artifact boundary before creating HTML:
 ```
 PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"

@@ -22,14 +22,14 @@ Spawn 3+ fresh `task` subagents in parallel. Each must produce a **radically dif
 
 No `task`/subagent capability → run at least three separate self-contained inline design passes, resetting assumptions and applying a different constraint in each pass. Preserve the same independence and comparison contract; never collapse the fallback to one design.
 
-Prompt each sub-agent with a separate technical brief (file paths, coupling details, dependency category from [DEEPENING.md](DEEPENING.md), what sits behind the seam). The brief is independent of the user-facing problem-space explanation in Step 1. Give each agent a different design constraint:
+Prompt each sub-agent with a separate technical brief (file paths, coupling details, dependency category from [DEEPENING.md](DEEPENING.md), what sits behind the seam, plus direct-root instructions with the absolute GSD_ROOT so sub-agents do not depend on skill discovery). The brief is independent of the user-facing problem-space explanation in Step 1. Give each agent a different design constraint:
 
 - Agent 1: "Minimize the interface — aim for 1–3 entry points max. Maximise leverage per entry point."
 - Agent 2: "Maximise flexibility — support many use cases and extension."
 - Agent 3: "Optimise for the most common caller — make the default case trivial."
 - Agent 4 (if applicable): "Design around an adapter seam for cross-seam dependencies."
 
-Always include [SKILL.md](SKILL.md) vocabulary. Include CONTEXT.md vocabulary only when it was supplied and is relevant; otherwise state that domain context is unavailable, use the user's terms, and never search for or fabricate project vocabulary.
+Always include [SKILL.md](SKILL.md) vocabulary. Include docs/domain.toon vocabulary only when it was supplied and is relevant; otherwise state that domain context is unavailable, use the user's terms, and never search for or fabricate project vocabulary.
 
 Each sub-agent outputs:
 

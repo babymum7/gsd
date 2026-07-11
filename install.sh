@@ -1,65 +1,107 @@
 #!/usr/bin/env bash
-# Install GSD: register the `gsd` master entry AND every gsd-* sub-skill.
-# Full registration lets the harness resolve skill://gsd-<sub> directly — no
-# path-resolution turn per sub-skill. /gsd stays the only user-facing command;
-# sub-skills are internal routing targets (each carries a direct-invocation guard).
+# Install GSD: register GSD as an OMP command.
+# Registers zero GSD skills in ~/.agents/skills/, cleans up legacy symlinks,
+# and creates ~/.omp/agent/commands/gsd.md.
 set -euo pipefail
 
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
-AGENTS_DIR="${HOME}/.agents"
-REG="$AGENTS_DIR/skills"
-if [ -L "$AGENTS_DIR" ]; then
-  echo "error: registration parent $AGENTS_DIR is a symlink; move or remove it, then rerun install.sh." >&2
-  exit 1
-fi
-if [ -e "$AGENTS_DIR" ] && [ ! -d "$AGENTS_DIR" ]; then
-  echo "error: registration parent $AGENTS_DIR exists and is not a directory; move or remove it, then rerun install.sh." >&2
-  exit 1
-fi
-if [ -L "$REG" ]; then
-  echo "error: registration path $REG is a symlink; move or remove it, then rerun install.sh." >&2
-  exit 1
-fi
-if [ -e "$REG" ] && [ ! -d "$REG" ]; then
-  echo "error: registration path $REG exists and is not a directory; move or remove it, then rerun install.sh." >&2
-  exit 1
-fi
 
-# 1. Register every skill (refresh if already linked): master + sub-skills.
-# Preflight every target before mutating the registry so a late collision cannot
-# leave an earlier subset refreshed.
-skill_dirs=()
-for dir in "$REPO"/skills/gsd*; do
-  [ -d "$dir" ] || continue
-  skill_dirs+=("$dir")
-  target="$REG/$(basename "$dir")"
-  if [ -L "$target" ]; then
-    if ! resolved_target="$(cd -P "$target" 2>/dev/null && pwd -P)"; then
-      resolved_target=""
-    fi
-    if [ "$resolved_target" != "$dir" ]; then
-      echo "error: $target existing symlink does not point to this checkout; move or remove it, then rerun install.sh." >&2
-      exit 1
-    fi
-  elif [ -e "$target" ]; then
-    echo "error: $target exists and is not a symlink; move or remove it, then rerun install.sh." >&2
+# Escaping double quotes and backslashes in REPO
+REPO_ESCAPED="${REPO//\\/\\\\}"
+REPO_ESCAPED="${REPO_ESCAPED//\"/\\\"}"
+
+OMP_DIR="${HOME}/.omp"
+OMP_AGENT_DIR="${OMP_DIR}/agent"
+OMP_COMMANDS_DIR="${OMP_AGENT_DIR}/commands"
+OMP_TARGET="${OMP_COMMANDS_DIR}/gsd.md"
+
+# --- Complete Preflight ---
+
+# Check each parent dir in the ~/.omp path
+for p in "$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_COMMANDS_DIR"; do
+  if [ -L "$p" ]; then
+    echo "error: registration parent $p is a symlink; move or remove it, then rerun install.sh." >&2
+    exit 1
+  fi
+  if [ -e "$p" ] && [ ! -d "$p" ]; then
+    echo "error: registration parent $p exists and is not a directory; move or remove it, then rerun install.sh." >&2
     exit 1
   fi
 done
-mkdir -p "$REG"
 
-for dir in "${skill_dirs[@]}"; do
-  target="$REG/$(basename "$dir")"
-  ln -sfn "$dir" "$target"
-done
+# Check target
+if [ -L "$OMP_TARGET" ]; then
+  echo "error: registration path $OMP_TARGET is a symlink; move or remove it, then rerun install.sh." >&2
+  exit 1
+fi
+if [ -e "$OMP_TARGET" ]; then
+  if [ ! -f "$OMP_TARGET" ]; then
+    echo "error: registration path $OMP_TARGET exists and is not a regular file; move or remove it, then rerun install.sh." >&2
+    exit 1
+  fi
+  if ! head -n 10 "$OMP_TARGET" | grep -q '^<!-- gsd-managed-command:v1 -->$'; then
+    echo "error: existing unmarked/malformed target: $OMP_TARGET exists and is not managed by GSD; move or remove it." >&2
+    exit 1
+  fi
+  if ! grep -q '^GSD_ROOT=".*"$' "$OMP_TARGET"; then
+    echo "error: existing unmarked/malformed target: $OMP_TARGET exists but has no GSD_ROOT; move or remove it." >&2
+    exit 1
+  fi
+  existing_root=$(grep -E '^GSD_ROOT=' "$OMP_TARGET" | head -n1 | cut -d'"' -f2 || true)
 
-# 2. Ensure the lavish-axi submodule is present (optional visual surface; skills degrade to terminal if absent/unbuilt).
+  if [ "$existing_root" != "$REPO" ]; then
+    if [ -d "$existing_root" ]; then
+      echo "error: live-other-root managed collision: $OMP_TARGET already exists and points to active checkout $existing_root; move or remove it." >&2
+      exit 1
+    fi
+  fi
+fi
+
+# --- Write Target atomically ---
+mkdir -p "$OMP_COMMANDS_DIR"
+
+tmp_target=$(mktemp "${OMP_COMMANDS_DIR}/gsd.md.XXXXXX.tmp")
+trap 'rm -f "$tmp_target"' EXIT
+
+cat <<EOF > "$tmp_target"
+---
+description: Master entry point for all GSD coding tasks. Routes, starts, resumes, and coordinates sub-skills automatically.
+---
+<!-- gsd-managed-command:v1 -->
+# GSD Command
+GSD_ROOT="${REPO_ESCAPED}"
+
+Run GSD. Execute the GSD loop by loading the master skill directly from the root path:
+1. Verify that GSD_ROOT is valid and "\$GSD_ROOT/skills/gsd/SKILL.md" exists. If GSD_ROOT is missing or moved, stop with an actionable error immediately.
+2. Read the master skill directly from "\$GSD_ROOT/skills/gsd/SKILL.md".
+3. Evaluate the GSD smart routing engine on the arguments: \$ARGUMENTS.
+4. Route 0 (Direct/read-only or Nano) must be executed directly without any git subprocess calls (completely git-free).
+5. For any routed subskill, load it directly from "\$GSD_ROOT/skills/gsd-<target>/SKILL.md". Never use \`skill://\` or ~/.agents/skills/ or readlink.
+6. Pass self-contained direct-root instructions to subagent dispatch so subagents do not depend on skill discovery.
+EOF
+
+mv "$tmp_target" "$OMP_TARGET"
+trap - EXIT
+
+# --- Remove old ~/.agents/skills/gsd* symlinks proven to resolve to this checkout ---
+if [ -d "${HOME}/.agents/skills" ]; then
+  for link in "${HOME}/.agents/skills"/gsd*; do
+    [ -L "$link" ] || continue
+    if resolved_target="$(cd -P "$link" 2>/dev/null && pwd -P)"; then
+      canonical_repo="$(cd -P "$REPO" 2>/dev/null && pwd -P)"
+      if [[ "$resolved_target" == "$canonical_repo"/skills/gsd* ]]; then
+        rm -f "$link"
+      fi
+    fi
+  done
+fi
+
+# --- Optional lavish AXI submodule and build ---
 if [ -f "$REPO/.gitmodules" ]; then
   git -C "$REPO" submodule update --init --recursive >/dev/null 2>&1 \
     || echo "  warn: lavish-axi submodule not initialized — lavish HTML path unavailable; skills degrade to terminal."
 fi
 
-# 3. Build lavish-axi when possible (dist missing + pnpm available); otherwise skills degrade to terminal.
 LAVISH="$REPO/tools/lavish-axi"
 if [ -d "$LAVISH" ] && [ ! -f "$LAVISH/dist/cli.mjs" ] && command -v pnpm >/dev/null 2>&1; then
   echo "  building lavish-axi (pnpm install && pnpm build)..."
@@ -68,7 +110,7 @@ if [ -d "$LAVISH" ] && [ ! -f "$LAVISH/dist/cli.mjs" ] && command -v pnpm >/dev/
 fi
 
 VERSION="$(cat "$REPO/VERSION" 2>/dev/null || echo unknown)"
-COUNT="${#skill_dirs[@]}"
 LAVISH_STATE="lavish visual path ready (dist/cli.mjs present)"
 [ -f "$LAVISH/dist/cli.mjs" ] || LAVISH_STATE="lavish not built — install pnpm and re-run, or: cd tools/lavish-axi && pnpm i && pnpm build"
-echo "Installed GSD v$VERSION: registered $COUNT skills in $REG (user entry: /gsd only — gsd-* are internal routing targets). $LAVISH_STATE."
+
+echo "Installed GSD v$VERSION: registered OMP command at $OMP_TARGET. $LAVISH_STATE."
