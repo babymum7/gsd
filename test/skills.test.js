@@ -7,7 +7,8 @@ import {
   bindApprovedSources, parseMarkdownPacket, rejectLegacyPreapprovalFiles, verifyApprovedSources,
 } from "./support/markdown-packet.mjs";
 import {
-  parseClassifyResponse, parseTraceResponse, validateFixtureSet,
+  decisionHasRoute, parseClassifyResponse, parseTraceResponse, responseMatchesFixture,
+  validateDecisionTarget, validateFixtureSet,
 } from "./eval/route-eval-contract.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -250,7 +251,7 @@ test("README documents the Markdown contract without legacy plan authority", () 
   assert.doesNotMatch(readme, /proposal\.toon|spec\.toon|design\.toon|plan\.toon/);
 });
 
-test("route evaluation fixtures and response parsers enforce the routing contract", () => {
+test("route evaluation fixtures and response parsers enforce routing and pre-route decisions", () => {
   const fixtureText = read("test/eval/fixtures.json");
   const fixtures = JSON.parse(fixtureText);
   const installed = new Set(skillNames());
@@ -260,14 +261,110 @@ test("route evaluation fixtures and response parsers enforce the routing contrac
   assert.equal(fixtures.length, Number(documentedFixtureCount[1]));
   assert.match(fixtureText, /approved plan\.md exist/);
   assert.doesNotMatch(fixtureText, /proposal\.toon|spec\.toon|design\.toon|plan\.toon/);
-  assert.deepEqual(parseClassifyResponse('{"route":"0","skill":"none"}', installed), {
-    ok: true,
-    value: { route: "0", skill: "none" },
-  });
-  assert.match(parseClassifyResponse('{"route":"0","skill":"none","route":"6"}', installed).detail, /duplicate keys/);
+
+  const byId = new Map(fixtures.map((fixture) => [fixture.id, fixture]));
+  assert.equal(byId.get("result-pending-unrelated").decision, "cleanup-question");
+  assert.equal(byId.get("result-retained-related-resume").decision, "block-resume");
+  assert.equal(byId.get("result-retained-related-cleanup").decision, "cleanup-only");
+  assert.equal(byId.get("result-retained-unrelated").decision, "ignore-terminal-record");
+  assert.equal(byId.get("result-residual-related-resume").decision, "block-resume");
+  assert.equal(byId.get("result-residual-related-cleanup").decision, "cleanup-only");
+  assert.equal(byId.get("result-residual-unrelated").decision, "ignore-terminal-record");
+  assert.equal(byId.get("result-malformed-with-active").decision, "fail-closed");
+  assert.deepEqual(
+    {
+      decision: byId.get("result-retained-newer-than-active").decision,
+      route: byId.get("result-retained-newer-than-active").route,
+      skill: byId.get("result-retained-newer-than-active").skill,
+    },
+    { decision: "ignore-terminal-record", route: "1", skill: "gsd-handoff" },
+  );
+
+  assert.equal(decisionHasRoute("ordinary-routing"), true);
+  assert.equal(decisionHasRoute("ignore-terminal-record"), true);
+  assert.equal(decisionHasRoute("block-resume"), false);
+  assert.deepEqual(
+    validateDecisionTarget(
+      { decision: "block-resume", route: null, skill: null },
+      installed,
+    ),
+    { ok: true },
+  );
+  assert.match(
+    validateDecisionTarget(
+      { decision: "block-resume", route: "0", skill: "none" },
+      installed,
+    ).detail,
+    /null route and skill/,
+  );
+  assert.deepEqual(
+    parseClassifyResponse(
+      '{"decision":"ordinary-routing","route":"0","skill":"none"}',
+      installed,
+    ),
+    {
+      ok: true,
+      value: { decision: "ordinary-routing", route: "0", skill: "none" },
+    },
+  );
+  assert.deepEqual(
+    parseClassifyResponse(
+      '{"decision":"cleanup-question","route":null,"skill":null}',
+      installed,
+    ),
+    {
+      ok: true,
+      value: { decision: "cleanup-question", route: null, skill: null },
+    },
+  );
+  assert.match(
+    parseClassifyResponse(
+      '{"decision":"ordinary-routing","route":"0","skill":"none","route":"6"}',
+      installed,
+    ).detail,
+    /duplicate keys/,
+  );
   assert.deepEqual(parseTraceResponse("Route 5 → gsd-codebase-design", installed), {
     ok: true,
     value: { route: "5", skill: "gsd-codebase-design" },
   });
   assert.match(parseTraceResponse("Route meta → catalog", installed).detail, /noncanonical/);
+  assert.equal(
+    responseMatchesFixture(
+      { route: "1", skill: "gsd-handoff" },
+      byId.get("result-retained-newer-than-active"),
+    ),
+    true,
+  );
+  assert.equal(
+    responseMatchesFixture(
+      { route: "1", skill: "gsd-handoff" },
+      byId.get("result-pending-unrelated"),
+    ),
+    false,
+  );
+
+  const master = read("skills/gsd/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const evalRunner = read("test/eval/route-eval.mjs");
+  for (const decision of [
+    "ordinary-routing",
+    "ignore-terminal-record",
+    "cleanup-question",
+    "cleanup-only",
+    "block-resume",
+    "fail-closed",
+  ]) {
+    assert.ok(reference.includes(`\`${decision}\``));
+  }
+  assert.match(reference, /generic `continue`/);
+  assert.match(reference, /merged_cleanup_residual/);
+  assert.match(evalRunner, /skills\", \"gsd\", \"REFERENCE\.md\"/);
+  assert.equal(evalRunner.match(/routingContract,/g)?.length, 2);
+  assert.match(master, /apply the ordered decision matrix/);
+  assert.ok(
+    master.indexOf("Apply the result-marker decision matrix first")
+      < master.indexOf("Canonical contract check"),
+  );
+  assert.match(master, /Retained and residual markers never participate in modification-time selection/);
 });

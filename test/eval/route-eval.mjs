@@ -4,10 +4,11 @@
 // The string-contract suite (test/skills.test.js) proves the skill SAYS the right
 // thing; this eval proves a model READING it DOES the right thing. Two modes per
 // fixture (workspace state + user prompt):
-//   classify — model returns {"route","skill"} JSON; asserts the routing decision.
+//   classify — model returns {"decision","route","skill"} JSON; asserts the
+//              pre-route marker decision and any resulting routing decision.
 //   trace    — model returns the FIRST LINE of its first response; asserts the
-//              documented route-trace contract (`Route N → target`). Meta fixtures
-//              (pause/catalog) have no numbered trace and are skipped here.
+//              documented route-trace contract (`Route N → target`). Decisions
+//              that stop before numbered routing are skipped here.
 //
 // Opt-in and network-bound — NEVER wired into `node --test`. Skips (exit 0) unless
 // an OpenAI-compatible endpoint is configured:
@@ -20,12 +21,15 @@ import { readFileSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  parseClassifyResponse, parseTraceResponse, responseMatchesFixture, validateFixtureSet,
+  decisionHasRoute, parseClassifyResponse, parseTraceResponse, responseMatchesFixture,
+  validateFixtureSet,
 } from "./route-eval-contract.mjs";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const fixtures = JSON.parse(readFileSync(join(here, "fixtures.json"), "utf8"));
 const skill = readFileSync(join(here, "..", "..", "skills", "gsd", "SKILL.md"), "utf8");
+const reference = readFileSync(join(here, "..", "..", "skills", "gsd", "REFERENCE.md"), "utf8");
+const routingContract = [skill, "", "Normative REFERENCE.md:", reference].join("\n");
 const skillsDir = join(here, "..", "..", "skills");
 const installedSkills = new Set(
   readdirSync(skillsDir, { withFileTypes: true })
@@ -83,22 +87,23 @@ if (!KEY) {
 
 
 const PREAMBLE = [
-  "You are a coding agent. Exactly one skill is loaded: the gsd master entry below.",
-  "Given the workspace state and the user prompt, apply its Smart Routing Engine and decide the route.",
+  "You are a coding agent. The gsd master entry and its normative REFERENCE.md are loaded below.",
+  "Given the workspace state and the user prompt, apply its result-marker pre-route decision matrix and Smart Routing Engine.",
+  "Use a numbered route only when the pre-route decision allows ordinary routing to continue.",
 ];
 const SYSTEMS = {
   classify: [
     ...PREAMBLE,
-    'Reply with ONLY a JSON object: {"route": "<0|1|2|3|4|5|6|meta>", "skill": "<the gsd-* skill you would load next; \\"none\\" when you answer directly / enter Discussion; \\"catalog\\" for the skill-catalog action>"}.',
+    'Reply with ONLY a JSON object: {"decision": "<ordinary-routing|ignore-terminal-record|cleanup-question|cleanup-only|block-resume|fail-closed>", "route": "<0|1|2|3|4|5|6|meta>" or null, "skill": "<the gsd-* skill you would load next; \\"none\\" when you answer directly / enter Discussion; \\"catalog\\" for the skill-catalog action>" or null}. Use route/skill strings only for ordinary-routing or ignore-terminal-record; use null for both fields otherwise.',
     "No prose, no markdown fence.",
     "",
-    skill,
+    routingContract,
   ].join("\n"),
   trace: [
     ...PREAMBLE,
     "Reply with ONLY the exact trace line `Route <route> → <target>`, where target is the selected skill, `none`, or `catalog`. Nothing else.",
     "",
-    skill,
+    routingContract,
   ].join("\n"),
 };
 
@@ -128,11 +133,13 @@ const checks = {
     const pass = responseMatchesFixture(parsed.value, fx);
     return {
       pass,
-      detail: `want ${fx.route}->${fx.skill}, got ${parsed.value.route}->${parsed.value.skill}`,
+      detail: `want ${fx.decision}:${fx.route}->${fx.skill}, got ${parsed.value.decision}:${parsed.value.route}->${parsed.value.skill}`,
     };
   },
   async trace(fx) {
-    if (fx.route === "meta") return { pass: true, detail: "meta — no numbered trace, skipped" };
+    if (!decisionHasRoute(fx.decision) || fx.route === "meta") {
+      return { pass: true, detail: "no numbered trace for this decision, skipped" };
+    }
     const text = await ask(SYSTEMS.trace, fx);
     const parsed = parseTraceResponse(text, installedSkills);
     if (!parsed.ok) return { pass: false, detail: parsed.detail };

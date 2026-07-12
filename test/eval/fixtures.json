@@ -3,6 +3,7 @@
     "id": "nano-typo",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "fix the typo in README.md line 3: 'teh' -> 'the'",
+    "decision": "ordinary-routing",
     "route": "0",
     "skill": "none"
   },
@@ -10,6 +11,7 @@
     "id": "readonly-question",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "how does the auth middleware validate tokens?",
+    "decision": "ordinary-routing",
     "route": "0",
     "skill": "none"
   },
@@ -17,6 +19,7 @@
     "id": "obvious-error",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "tests fail with `TypeError: cfg.retries is undefined` at src/http.js:12 — fix it",
+    "decision": "ordinary-routing",
     "route": "0",
     "skill": "gsd-ponytail"
   },
@@ -24,6 +27,7 @@
     "id": "behavioral-one-line",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "fix the known off-by-one at src/range.js:42 by changing `i < end` to `i <= end`",
+    "decision": "ordinary-routing",
     "route": "0",
     "skill": "gsd-ponytail"
   },
@@ -31,6 +35,7 @@
     "id": "review-diff",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "review this diff:\n--- a/src/auth.js\n+++ b/src/auth.js\n@@ -10,3 +10,6 @@\n+  if (!token) return null;\n+  const claims = jwt.decode(token);\n+  return claims;",
+    "decision": "ordinary-routing",
     "route": "2",
     "skill": "gsd-verify"
   },
@@ -38,6 +43,7 @@
     "id": "resume-handoff",
     "state": ".scratch/oauth-login/handoff-2.toon and approved plan.md exist",
     "prompt": "continue",
+    "decision": "ordinary-routing",
     "route": "1",
     "skill": "gsd-handoff"
   },
@@ -45,6 +51,7 @@
     "id": "pause-save",
     "state": ".scratch/oauth-login/plan.md exists; task 3 of 6 in progress",
     "prompt": "pause here, I'll pick this up on my laptop tonight",
+    "decision": "ordinary-routing",
     "route": "meta",
     "skill": "gsd-handoff"
   },
@@ -52,6 +59,7 @@
     "id": "hard-bug",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "users report intermittent 401s in production but I can't reproduce locally",
+    "decision": "ordinary-routing",
     "route": "4",
     "skill": "gsd-diagnosing-bugs"
   },
@@ -59,6 +67,7 @@
     "id": "arch-audit",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "audit the architecture of this codebase and tell me where the friction is",
+    "decision": "ordinary-routing",
     "route": "5",
     "skill": "gsd-improve-codebase-architecture"
   },
@@ -66,6 +75,7 @@
     "id": "new-feature",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "add OAuth login support",
+    "decision": "ordinary-routing",
     "route": "6",
     "skill": "none"
   },
@@ -73,6 +83,7 @@
     "id": "plan-related",
     "state": ".scratch/oauth-login/spec.md and plan.md exist; tasks 2-5 pending",
     "prompt": "implement the token refresh task next",
+    "decision": "ordinary-routing",
     "route": "3",
     "skill": "gsd-executing-plans"
   },
@@ -80,6 +91,7 @@
     "id": "plan-unrelated",
     "state": ".scratch/oauth-login/spec.md and plan.md exist; tasks 2-5 pending",
     "prompt": "add a CSV export button to the reports page",
+    "decision": "ordinary-routing",
     "route": "6",
     "skill": "none"
   },
@@ -87,6 +99,7 @@
     "id": "mention-not-ask",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "the architecture is fine overall, just fix the typo in utils.py",
+    "decision": "ordinary-routing",
     "route": "0",
     "skill": "none"
   },
@@ -94,6 +107,7 @@
     "id": "catalog",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "what can you do? list your skills",
+    "decision": "ordinary-routing",
     "route": "meta",
     "skill": "catalog"
   },
@@ -101,6 +115,7 @@
     "id": "converged-spec",
     "state": ".scratch/oauth-login/proposal.md and active spec.md exist; plan.md is absent",
     "prompt": "continue with OAuth login",
+    "decision": "ordinary-routing",
     "route": "3",
     "skill": "gsd-to-plan"
   },
@@ -108,6 +123,7 @@
     "id": "interface-design",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "redesign the public interface of the billing module",
+    "decision": "ordinary-routing",
     "route": "5",
     "skill": "gsd-codebase-design"
   },
@@ -115,6 +131,7 @@
     "id": "domain-glossary",
     "state": "clean repo; docs/domain/index.md and docs/domain/billing.md exist",
     "prompt": "sharpen our domain glossary for invoice settlement",
+    "decision": "ordinary-routing",
     "route": "5",
     "skill": "gsd-domain-modeling"
   },
@@ -122,6 +139,7 @@
     "id": "lavish-report",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "render this architecture comparison as a lavish visual report",
+    "decision": "ordinary-routing",
     "route": "meta",
     "skill": "gsd-lavish"
   },
@@ -129,6 +147,7 @@
     "id": "milestone-ledger-recovery",
     "state": "fresh clone; .scratch/ is absent; origin/wip/oauth-rollout is absent; docs/gsd/oauth-rollout/milestones.md has one first pending row and matching base",
     "prompt": "continue the oauth-rollout milestone",
+    "decision": "ordinary-routing",
     "route": "1",
     "skill": "gsd-handoff"
   },
@@ -136,6 +155,7 @@
     "id": "plan-binding-drift",
     "state": ".scratch/oauth-login has an approved plan.md and handoff-1.toon, but spec.md no longer matches the recorded SHA-256 binding",
     "prompt": "implement the next OAuth task",
+    "decision": "ordinary-routing",
     "route": "3",
     "skill": "gsd-executing-plans"
   },
@@ -143,6 +163,7 @@
     "id": "multi-feature-resume",
     "state": ".scratch/oauth-login and .scratch/csv-export both have valid handoffs; csv-export is most recently modified",
     "prompt": "continue",
+    "decision": "ordinary-routing",
     "route": "1",
     "skill": "gsd-handoff"
   },
@@ -150,7 +171,80 @@
     "id": "quick-fix-repair",
     "state": "active Quick-fix WIP gate returned Quick-fix WIP Fail with terminal_repair_round=1 and preserved plan.md",
     "prompt": "continue the bounded quick-fix repair",
+    "decision": "ordinary-routing",
     "route": "2",
     "skill": "gsd-verify"
+  },
+  {
+    "id": "result-pending-unrelated",
+    "state": ".scratch/oauth-login/result.toon is exact schema:v1 with status:merged and scratch:pending; no active packet",
+    "prompt": "fix the typo in README.md",
+    "decision": "cleanup-question",
+    "route": null,
+    "skill": null
+  },
+  {
+    "id": "result-retained-related-resume",
+    "state": ".scratch/oauth-login/result.toon is exact schema:v1 with status:merged and scratch:retained",
+    "prompt": "continue implementing oauth-login",
+    "decision": "block-resume",
+    "route": null,
+    "skill": null
+  },
+  {
+    "id": "result-retained-related-cleanup",
+    "state": ".scratch/oauth-login/result.toon is exact schema:v1 with status:merged and scratch:retained",
+    "prompt": "delete the completed oauth-login packet",
+    "decision": "cleanup-only",
+    "route": null,
+    "skill": null
+  },
+  {
+    "id": "result-retained-unrelated",
+    "state": ".scratch/oauth-login/result.toon is exact schema:v1 with status:merged and scratch:retained; no active packet",
+    "prompt": "add a CSV export button",
+    "decision": "ignore-terminal-record",
+    "route": "6",
+    "skill": "none"
+  },
+  {
+    "id": "result-residual-related-resume",
+    "state": ".scratch/oauth-login/result.toon is exact schema:v1 with status:merged_cleanup_residual and scratch:retained",
+    "prompt": "continue implementing oauth-login",
+    "decision": "block-resume",
+    "route": null,
+    "skill": null
+  },
+  {
+    "id": "result-residual-related-cleanup",
+    "state": ".scratch/oauth-login/result.toon is exact schema:v1 with status:merged_cleanup_residual and scratch:retained",
+    "prompt": "clean up the remaining oauth-login merge residue",
+    "decision": "cleanup-only",
+    "route": null,
+    "skill": null
+  },
+  {
+    "id": "result-residual-unrelated",
+    "state": ".scratch/oauth-login/result.toon is exact schema:v1 with status:merged_cleanup_residual and scratch:retained; no active packet",
+    "prompt": "add a CSV export button",
+    "decision": "ignore-terminal-record",
+    "route": "6",
+    "skill": "none"
+  },
+  {
+    "id": "result-malformed-with-active",
+    "state": ".scratch/oauth-login/result.toon is malformed; .scratch/csv-export has a valid handoff and approved plan",
+    "prompt": "continue csv-export",
+    "decision": "fail-closed",
+    "route": null,
+    "skill": null
+  },
+  {
+    "id": "result-retained-newer-than-active",
+    "state": ".scratch/oauth-login has a newer exact merged + retained result.toon; .scratch/csv-export has an older valid handoff and approved plan",
+    "prompt": "continue",
+    "decision": "ignore-terminal-record",
+    "route": "1",
+    "skill": "gsd-handoff"
   }
 ]

@@ -163,7 +163,7 @@ The skill set is a **string contract** — the suite pins routing rules, artifac
 node --test test/*.test.js
 ```
 
-A second, **opt-in** harness proves a model *reading* the master skill actually routes correctly: 22 workspace-state + prompt fixtures, checked in two modes (`classify` — route/skill decision as JSON; `trace` — the literal `Route N → gsd-*` first line). It calls an OpenAI-compatible endpoint and is never part of `node --test`:
+A second, **opt-in** harness proves a model *reading* the master skill actually routes correctly: 31 workspace-state + prompt fixtures, checked in two modes (`classify` — explicit pre-route decision plus nullable route/skill as JSON; `trace` — the literal `Route N → gsd-*` first line when the decision reaches numbered routing). It calls an OpenAI-compatible endpoint and is never part of `node --test`:
 
 ```bash
 GSD_EVAL_KEY=sk-... node test/eval/route-eval.mjs   # GSD_EVAL_URL / GSD_EVAL_MODEL to override

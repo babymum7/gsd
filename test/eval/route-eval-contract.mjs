@@ -10,6 +10,25 @@ const ROUTE_TARGETS = new Map([
   ["meta", new Set(["gsd-handoff", "gsd-lavish", "catalog"])],
 ]);
 
+const ROUTE_BEARING_DECISIONS = new Set([
+  "ordinary-routing",
+  "ignore-terminal-record",
+]);
+const STOPPING_DECISIONS = new Set([
+  "cleanup-question",
+  "cleanup-only",
+  "block-resume",
+  "fail-closed",
+]);
+const ALLOWED_DECISIONS = new Set([
+  ...ROUTE_BEARING_DECISIONS,
+  ...STOPPING_DECISIONS,
+]);
+
+export function decisionHasRoute(decision) {
+  return ROUTE_BEARING_DECISIONS.has(decision);
+}
+
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
@@ -95,6 +114,25 @@ export function validateRouteTarget(value, installedSkills, { allowMeta = true }
   return { ok: true };
 }
 
+export function validateDecisionTarget(value, installedSkills) {
+  if (!(installedSkills instanceof Set)) {
+    return { ok: false, detail: "installed skill set is required" };
+  }
+  if (!hasExactKeys(value, ["decision", "route", "skill"])) {
+    return { ok: false, detail: "decision target must contain exactly decision, route, and skill" };
+  }
+  if (typeof value.decision !== "string" || !ALLOWED_DECISIONS.has(value.decision)) {
+    return { ok: false, detail: `unsupported decision ${value.decision}` };
+  }
+  if (decisionHasRoute(value.decision)) {
+    return validateRouteTarget(value, installedSkills);
+  }
+  if (value.route !== null || value.skill !== null) {
+    return { ok: false, detail: `decision ${value.decision} requires null route and skill` };
+  }
+  return { ok: true };
+}
+
 export function validateFixtureSet(fixtures, installedSkills) {
   if (!Array.isArray(fixtures)) {
     return { ok: false, detail: "fixtures.json must contain a top-level array" };
@@ -106,8 +144,8 @@ export function validateFixtureSet(fixtures, installedSkills) {
   const ids = new Set();
   for (const [index, fixture] of fixtures.entries()) {
     const requiredKeys = fixture?.accept === undefined
-      ? ["id", "state", "prompt", "route", "skill"]
-      : ["id", "state", "prompt", "route", "skill", "accept"];
+      ? ["id", "state", "prompt", "decision", "route", "skill"]
+      : ["id", "state", "prompt", "decision", "route", "skill", "accept"];
     if (!hasExactKeys(fixture, requiredKeys)) {
       return { ok: false, detail: `fixture ${index + 1} has an invalid object shape` };
     }
@@ -121,7 +159,10 @@ export function validateFixtureSet(fixtures, installedSkills) {
     }
     ids.add(fixture.id);
 
-    const expected = validateRouteTarget(fixture, installedSkills);
+    const expected = validateDecisionTarget(
+      { decision: fixture.decision, route: fixture.route, skill: fixture.skill },
+      installedSkills,
+    );
     if (!expected.ok) {
       return { ok: false, detail: `${fixture.id}: ${expected.detail}` };
     }
@@ -130,13 +171,17 @@ export function validateFixtureSet(fixtures, installedSkills) {
         return { ok: false, detail: `${fixture.id}: accept must be an array` };
       }
       for (const alternate of fixture.accept) {
-        if (!hasExactKeys(alternate, ["route", "skill"])) {
+        if (!hasExactKeys(alternate, ["decision", "route", "skill"])) {
           return { ok: false, detail: `${fixture.id}: invalid accept entry shape` };
         }
-        if ((fixture.route === "meta") !== (alternate.route === "meta")) {
+        if (fixture.decision !== alternate.decision) {
+          return { ok: false, detail: `${fixture.id}: accept entries must use the primary pre-route decision` };
+        }
+        if (decisionHasRoute(fixture.decision)
+          && ((fixture.route === "meta") !== (alternate.route === "meta"))) {
           return { ok: false, detail: `${fixture.id}: accept entries must use the primary route's trace mode` };
         }
-        const accepted = validateRouteTarget(alternate, installedSkills);
+        const accepted = validateDecisionTarget(alternate, installedSkills);
         if (!accepted.ok) {
           return { ok: false, detail: `${fixture.id}: ${accepted.detail}` };
         }
@@ -161,17 +206,20 @@ export function parseClassifyResponse(text, installedSkills) {
     return { ok: false, detail: `classify reply contains duplicate keys: ${text}` };
   }
 
-  if (!hasExactKeys(parsed, ["route", "skill"])) {
+  if (!hasExactKeys(parsed, ["decision", "route", "skill"])) {
     return {
       ok: false,
-      detail: `classify reply must contain exactly string route and skill: ${text}`,
+      detail: `classify reply must contain exactly decision, route, and skill: ${text}`,
     };
   }
-  const validated = validateRouteTarget(parsed, installedSkills);
+  const validated = validateDecisionTarget(parsed, installedSkills);
   if (!validated.ok) {
     return { ok: false, detail: `invalid classify reply: ${validated.detail}` };
   }
-  return { ok: true, value: { route: parsed.route, skill: parsed.skill } };
+  return {
+    ok: true,
+    value: { decision: parsed.decision, route: parsed.route, skill: parsed.skill },
+  };
 }
 
 export function parseTraceResponse(text, installedSkills) {
@@ -193,6 +241,17 @@ export function parseTraceResponse(text, installedSkills) {
 }
 
 export function responseMatchesFixture(value, fixture) {
-  return [{ route: fixture.route, skill: fixture.skill }, ...(fixture.accept ?? [])]
-    .some((want) => value.route === want.route && value.skill === want.skill);
+  return [
+    { decision: fixture.decision, route: fixture.route, skill: fixture.skill },
+    ...(fixture.accept ?? []),
+  ].some((want) => {
+    if (Object.hasOwn(value, "decision")) {
+      return value.decision === want.decision
+        && value.route === want.route
+        && value.skill === want.skill;
+    }
+    return decisionHasRoute(want.decision)
+      && value.route === want.route
+      && value.skill === want.skill;
+  });
 }

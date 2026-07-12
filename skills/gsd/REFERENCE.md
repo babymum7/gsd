@@ -180,7 +180,25 @@ remote_branch:<deleted|none>
 scratch:<retained|pending>
 ```
 
-Validate schema, field order, enum values, non-empty identities, and status consistency fail-closed. A valid result marker blocks implementation resume. `scratch:pending` permits only the one explicit user cleanup decision. `status:merged_cleanup_residual` permits only explicit residual cleanup. No result-marker state can reopen execution or author a second cleanup flow.
+Validate schema, field order, enum values, non-empty identities, and status consistency fail-closed. A valid result marker blocks implementation resume for its completed feature. No result-marker state can reopen execution or author a second cleanup flow.
+
+#### Entry pre-route decision matrix
+
+Master entry validates every discovered result marker before deriving prompt relevance. Apply the first matching row:
+
+| Order | Marker state and prompt relation | Decision | Consequence |
+| --- | --- | --- | --- |
+| 1 | Any discovered marker is malformed | `fail-closed` | Stop before ordinary routing. |
+| 2 | Any valid marker has `scratch:pending` | `cleanup-question` | Resume only that marker's existing delete-or-retain decision; never resume implementation or emit a numbered route. |
+| 3 | Explicit cleanup targets `status:merged` with `scratch:retained` | `cleanup-only` | Permit deletion of that named packet only. |
+| 4 | Explicit cleanup targets `status:merged_cleanup_residual` | `cleanup-only` | Permit residual cleanup for that named feature only. |
+| 5 | Resume, implementation, or new-work intent explicitly targets a retained or residual completed feature | `block-resume` | Stop and report that the feature is completed; do not emit a numbered route. |
+| 6 | A retained or residual marker is unrelated to the prompt, including generic `continue` | `ignore-terminal-record` | Exclude that marker from feature relevance and continue existing active-packet, ledger-recovery, and ordinary routing. |
+| 7 | No marker condition above applies | `ordinary-routing` | Apply ordinary Step 0 state selection and Routes 0–6/meta. |
+
+`scratch:pending` is a global crash-recovery gate because its cleanup choice was not durably resolved. When several pending markers exist, prefer an explicitly named pending feature; otherwise select the most-recently-modified pending feature, breaking equal timestamps by feature slug, and resolve only that marker's single cleanup decision on this entry.
+
+After pending recovery, only explicit feature naming can make retained or residual terminal history related. Generic `continue` never selects terminal history; retained and residual marker mtimes never compete with active packets. The route-bearing decisions are `ordinary-routing` and `ignore-terminal-record`; all other decisions stop before numbered routing and carry no route or skill target.
 
 ## Post-approval pipeline contract
 
