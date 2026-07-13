@@ -18,7 +18,7 @@ Install the GSD command for OMP. You never install sub-skills separately:
 bash install.sh
 ```
 
-`install.sh` registers the GSD master entry point as a user command under `~/.omp/agent/commands/gsd.md` (which maps `/gsd`), cleans up legacy skill symlinks, refreshes every configured git submodule from its remote tip with a detached checkout (`git submodule update --init --remote --checkout --recursive`), and — when `pnpm` is available — rebuilds the optional lavish visual path when the submodule tip changed or `dist/cli.mjs` is missing (no pnpm, network/git failure, or a failed build → skills degrade to terminal). Install never commits the parent submodule pointer. The command supplies the absolute `GSD_ROOT` path, allowing GSD to load all master and sub-skills directly from the checkout. Invoke `/gsd` on any prompt; it routes internally.
+`install.sh` registers the GSD master entry point as a user command under `~/.omp/agent/commands/gsd.md` (which maps `/gsd`), cleans up legacy skill symlinks, creates the single direct symlink `~/.omp/agent/extensions/gsd-context.js` to the current checkout’s tracked `extensions/gsd-context.js` (with no wrapper; unmanaged existing files or symlinks to other sources fail closed as collisions), refreshes every configured git submodule from its remote tip with a detached checkout (`git submodule update --init --remote --checkout --recursive`), and — when `pnpm` is available — rebuilds the optional lavish visual path when the submodule tip changed or `dist/cli.mjs` is missing (no pnpm, network/git failure, or a failed build → skills degrade to terminal). Install never commits the parent submodule pointer. The command supplies the absolute `GSD_ROOT` path, allowing GSD to load all master and sub-skills directly from the checkout. Invoke `/gsd` on any prompt; it routes internally. Start a new OMP session after install or update to load the extension and updated command.
 
 You only ever type `/gsd` (plus what you want, in plain language). The `/gsd-<sub>` names that appear in the skills are the agent's own internal calls after it routes — never commands you invoke yourself.
 ---
@@ -30,22 +30,20 @@ One feature, from idea to merged commit. You drive it with plain language; the a
 ```mermaid
 flowchart LR
     U["/gsd 'build X'"] --> D[Discussion<br/>questions + recommendation]
-    D -->|converges| S[proposal.md + spec.md<br/>acceptance criteria]
-    S --> P[plan.md<br/>task headings + inline summary]
+    D -->|converges| P[plan.md<br/>acceptance criteria + task headings + inline summary]
     P -->|"approve (last prompt)"| E[Execute<br/>per-task loop on wip/]
     E --> V[Verify<br/>full-diff review + E2E]
     V -->|pass| M[squash → base]
     V -.fail.-> E
-    V -.spec flawed.-> D
+    V -.plan flawed.-> D
 ```
 
 ### 1. Discuss — `/gsd build feature X`
-New work routes to **Discussion**. The agent explores the codebase (targeted, git-scoped — no tree-wide crawling), asks clarifying questions only when the answer changes route/scope/action, stress-tests the idea (risks, edge cases, missing decisions), and recommends the **smallest approach that meets the ask** — a small ask converges to a 2–4-AC spec, never padded with retries/telemetry/config nobody asked for.
+New work routes to **Discussion**. The agent explores the codebase (targeted, git-scoped — no tree-wide crawling), asks clarifying questions only when the answer changes route/scope/action, stress-tests the idea (risks, edge cases, missing decisions), and recommends the **smallest approach that meets the ask** — a small ask converges to a 2–4-AC plan, never padded with retries/telemetry/config nobody asked for.
 
-When you pick an approach and open questions close, the agent writes `.scratch/<feature>/proposal.md` and `.scratch/<feature>/spec.md` (plus conditional `.scratch/<feature>/design.md`). These human-readable Markdown sources carry checkable ACs with a concrete action and expected observable result. A vague AC returns to Discussion; downstream stages read the exact same approved bytes. Large work splits into milestone features, each with its own cycle.
-
+When you pick an approach and open questions close, the agent writes `.scratch/<feature>/plan.md`. This human-readable Markdown source carries checkable ACs with a concrete action and expected observable result. A vague AC returns to Discussion; downstream stages read the exact same approved bytes. Large work splits into milestone features, each with its own cycle.
 ### 2. Plan — automatic, summarized inline
-`gsd-to-plan` validates the converged packet and writes `.scratch/<feature>/plan.md`: ordered tasks with exact AC ownership, files, focused public-seam tests, and status. It prints the inline summary, records SHA-256 hashes for every present Markdown source, then asks one approval question. Approval is the last prompt of the cycle and immediately writes the first immutable execution handoff containing that binding, so execution and crash recovery never depend on conversation memory.
+`gsd-to-plan` validates the converged plan and writes `.scratch/<feature>/plan.md`: ordered tasks with exact AC ownership, files, focused public-seam tests, and status. It prints the inline summary, records the SHA-256 hash for the plan.md source, then asks one approval question. Approval is the last prompt of the cycle and immediately writes the first immutable execution handoff containing that binding, so execution and crash recovery never depend on conversation memory.
 
 ### 3. Execute — per-task loop, hands-free
 Once approved, `gsd-executing-plans` creates `wip/<feature>` from the Base recorded in `plan.md`, then for each task — no questions, no menus, just progress reports:
@@ -57,7 +55,7 @@ Once approved, `gsd-executing-plans` creates `wip/<feature>` from the Base recor
 
 Interrupt any time — immutable runtime handoffs plus `git log` mean a resumed session never redoes finished work.
 
-`gsd-verify` reviews the **whole branch diff** against the spec: every non-superseded AC met (spec-compliance) + universal code-quality, then the project's full build+test suite, then an **acceptance/E2E gate** — the end-to-end user path for user-facing features (real user path via browser or script) *plus* an acceptance check for every non-superseded AC that is runtime-observable, absorbing any per-task `Acceptance Check: deferred`. Any Critical/Important finding, red suite, or failing acceptance/E2E **blocks the merge** — the pipeline stops and reports, never merging past a red gate. Pass → squash to a single commit on your base branch **automatically** (findings, build/E2E outcome, and the final commit are still reported); session artifacts never land there. An automated terminal state machine handles the squash commit, force-with-lease remote cleanup, local branch deletion, and writes a canonical `result.toon` marker to `.scratch/` to manage the post-merge cleanup lifecycle and block any implementation resume.
+`gsd-verify` reviews the **whole branch diff** against the plan: every non-superseded AC met (plan-compliance) + universal code-quality, then the project's full build+test suite, then an **acceptance/E2E gate** — the end-to-end user path for user-facing features (real user path via browser or script) *plus* an acceptance check for every non-superseded AC that is runtime-observable, absorbing any per-task `Acceptance Check: deferred`. Any Critical/Important finding, red suite, or failing acceptance/E2E **blocks the merge** — the pipeline stops and reports, never merging past a red gate. Pass → squash to a single commit on your base branch **automatically** (findings, build/E2E outcome, and the final commit are still reported); session artifacts never land there. An automated terminal state machine handles the squash commit, force-with-lease remote cleanup, local branch deletion, and writes a canonical `result.toon` marker to `.scratch/` to manage the post-merge lifecycle and block any implementation resume.
 
 ### 5. Next steps
 Outside the post-approval pipeline, every response ends with numbered, non-technical choices — reply with a number:
@@ -69,7 +67,7 @@ Next steps (reply with number or text):
 3. Pause & Save progress
 ```
 
-After you approve the plan, no menu appears until the feature merges (or a hard blocker — spec flaw, unresolvable conflict, red gate — stops the run and reports why).
+After you approve the plan, no menu appears until the feature merges (or a hard blocker — plan flawed, unresolvable conflict, red gate — stops the run and reports why).
 
 ---
 
@@ -109,7 +107,7 @@ A user-requested non-portable pause never snapshots unrelated work: dirty paths 
 2.  **Runtime progress**: Immutable attempt and handoff TOON records completed tasks, verified evidence, and next action; the approved Markdown packet remains byte-for-byte unchanged.
 3.  **Branch Isolation**: Every feature runs on an isolated `wip/<feature>` branch; the squash merge delivers exactly one commit to base.
 4.  **No Re-litigation**: On resume the agent verifies the Markdown source binding, adopts runtime state, and jumps to `next_action`.
-5.  **Broken/missing state**: Missing, malformed, or hash-mismatched packet state is a Spec escalation; runtime state never reconstructs human requirements.
+5.  **Broken/missing state**: Missing, malformed, or hash-mismatched packet state is a Plan escalation; runtime state never reconstructs human requirements.
 6.  **Milestone Ledger**: Large features split work through the human-readable `docs/gsd/<feature>/milestones.md` contract. Non-final milestones update only the current row from `pending` to `done`; the final milestone atomically deletes the ledger in the same green squash commit, so an all-done ledger never remains.
 
 ---
@@ -120,8 +118,8 @@ A user-requested non-portable pause never snapshots unrelated work: dirty paths 
 skills/
 ├── gsd/                              # Master Entry: routing, discussion & requirements
 │   ├── SKILL.md
-│   └── REFERENCE.md                  # Load-on-demand payloads (spec template, milestones, cleanup)
-├── gsd-to-plan/                      # Spec decomposition & task-planning
+│   └── REFERENCE.md                  # Load-on-demand payloads (plan template, milestones, cleanup)
+├── gsd-to-plan/                      # Plan decomposition & task-planning
 ├── gsd-executing-plans/              # Task execution & subagent dispatching
 ├── gsd-verify/                       # Terminal quality & compliance gate
 ├── gsd-handoff/                      # Handoff contracts, portable/autosync cross-machine sync
@@ -137,7 +135,7 @@ skills/
 All sub-skills carry a **direct-invocation guard** — selected standalone with their consumed artifacts missing, they route back through `/gsd` instead of improvising. Since the OMP command supplies the absolute `GSD_ROOT`, GSD loads master and sub-skills directly by absolute path from the checkout.
 
 ### Auto-Update
-All master and sub-skills are loaded directly from the checkout path, so any edit or `git pull` of GSD skill text applies instantly. Re-run `bash install.sh` after moving the repo, or whenever you want install to refresh vendored tool submodules from upstream and rebuild lavish when needed.
+All master and sub-skills are loaded directly from the checkout path, so any edit or `git pull` of GSD skill text applies instantly. Re-run `bash install.sh` after moving the repo, or whenever you want install to refresh vendored tool submodules from upstream, update the `~/.omp/agent/extensions/gsd-context.js` symlink to the current checkout's tracked `extensions/gsd-context.js`, and rebuild lavish when needed. Start a new OMP session after install or update so OMP loads the extension.
 ### Vendored Tool: Lavish Editor (`tools/lavish-axi`)
 The Lavish Editor CLI is tracked as a **git submodule** pointing to [kunchenguid/lavish-axi](https://github.com/kunchenguid/lavish-axi). **Primary path:** `bash install.sh` updates configured submodules from remote (detached checkout) and rebuilds the CLI when the tip SHA changes or `dist/cli.mjs` is missing and `pnpm` is available. That may leave the parent repo's submodule gitlink dirty until you choose to commit a pin — install never auto-commits it.
 

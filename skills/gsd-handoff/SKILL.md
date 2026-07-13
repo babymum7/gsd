@@ -3,7 +3,7 @@ name: gsd-handoff
 description: Internal GSD sub-skill (routed via /gsd). Writes and resumes immutable runtime handoffs bound to an approved canonical Markdown packet.
 triggers: resume/continue (read existing); pause/breakpoint/context-pressure/task completion (write new)
 produces: [handoff-<n>.toon]
-consumes: [handoff-<n>.toon, proposal.md, spec.md, design.md, plan.md, docs/gsd/<feature>/milestones.md]
+consumes: [handoff-<n>.toon, plan.md, docs/gsd/<feature>/milestones.md]
 ---
 
 # Handoff
@@ -15,20 +15,22 @@ consumes: [handoff-<n>.toon, proposal.md, spec.md, design.md, plan.md, docs/gsd/
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
 | Pre-plan handoff write | — | Markdown packet | `handoff-<n>.toon` | — |
-| Execution handoff write | `proposal.md`; `spec.md`; `plan.md` | `design.md`; milestone ledger | `handoff-<n>.toon` | Missing or drifted packet is Spec escalation; never invent execution state or a binding |
+| Execution handoff write | `plan.md` | milestone ledger | `handoff-<n>.toon` | Missing or drifted plan is Spec escalation; never invent execution state or a binding |
 | Pre-plan resume | `handoff-<n>.toon` | Markdown packet | — | Return once to state detection; preserve explicit intent |
-| Execution resume | `handoff-<n>.toon`; `proposal.md`; `spec.md`; `plan.md` | `design.md`; milestone ledger | — | Recover only from valid runtime state and the complete bound packet; packet drift is Spec escalation |
+| Execution resume | `handoff-<n>.toon`; `plan.md` | milestone ledger | — | Recover only from valid runtime state and the bound plan.md; plan drift is Spec escalation |
 | Milestone ledger recovery | authoritative ledger selected by `/gsd` state detection | — | — | Missing/malformed/base-mismatched ledger fails closed; never invent work |
 
 ## Write
 
-Write the next positive sequential `.scratch/<feature>/handoff-<n>.toon`; never overwrite or suffix an existing handoff. The approval binding is the first execution handoff (`handoff-1.toon` when none exists), written immediately after approval and before dispatch. Store opaque `mode` and `phase`, resolved decisions, unresolved questions, `next_action`, runtime settings, current completed task/evidence when applicable, and—after approval—the exact approved Markdown source paths plus SHA-256 hashes. Pre-plan handoffs omit an approval binding rather than fabricating one. A handoff is immutable runtime state, not a source of requirements.
+Write the next positive sequential `.scratch/<feature>/handoff-<n>.toon`; never overwrite or suffix an existing handoff. The approval binding is the first execution handoff (`handoff-1.toon` when none exists), written immediately after approval and before dispatch. Store opaque `mode` and `phase`, resolved decisions, unresolved questions, `next_action`, runtime settings, current completed task/evidence when applicable, and—after approval—the exact approved `plan.md` path plus SHA-256 hash. Pre-plan handoffs omit an approval binding rather than fabricating one. A handoff is immutable runtime state, not a source of requirements.
+
+Every execution handoff write requires exact manifest coverage for the `next_action` being transitioned to. Serialize the reload manifest as `reload[N]{skill,path}` rows, where `N` is exactly equal to the following row count in the manifest table. The manifest must specify exactly the active subskills required for the `next_action`. Master (`gsd`) must never be written to or duplicated in the `reload` manifest. The byte parser requires the exact ordered schema `reload[N]{skill,path}` with a canonical numeric count and exact row arity, and rejects extra, reordered, or unknown columns before decoded validation.
 
 The default handoff is machine-local under git-ignored scratch. Portable handoff retains the existing WIP/base mechanics from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics; it never modifies the Markdown packet or makes scratch authoritative.
 
 ## Runtime settings
 
-Serialize settings as `settings[N]{key,value}` rows. Known keys are unique: `autosync` accepts only `on|off`, and `ponytail_level` accepts only `lite|full|ultra`. Omission means autosync is unset or Ponytail is inactive. Preserve an unknown well-formed key/value row verbatim for forward compatibility. A malformed row, duplicate key, or invalid known value makes the handoff invalid and fails closed; never silently reset, choose one duplicate, or reinterpret a value.
+Require exact `settings[N]{key,value}` presence for executable handoffs, including canonical `settings[0]{key,value}:`; reject missing, scalarized, duplicated, malformed, or count-mismatched settings tables. Known keys are unique: `autosync` accepts only `on|off`, and `ponytail_level` accepts only `lite|full|ultra`. `design_state` and `domain_state` are deleted as persisted conditional rows and reload inputs. Omission means autosync is unset, and ponytail is inactive. Inline codebase-design/domain-modeling complete before handoff and their authoritative outputs are already in plan/attempt; they are not resumable execution modes. At every execution-handoff write, derive their conditional reload entries directly from the currently loaded active subskill/action context; the reload table itself persists them. Ponytail remains settings-derived. Add active/inactive design/domain writer cases without inventing set/clear rows. Preserve an unknown well-formed key/value row verbatim for forward compatibility (unknown settings remain opaque). A malformed row, duplicate key, or invalid known value makes the handoff invalid and fails closed; never silently reset, choose one duplicate, or reinterpret a value. The byte parser requires the exact ordered schema `settings[N]{key,value}` with a canonical numeric count and exact row arity, and rejects extra, reordered, or unknown columns before decoded validation.
 
 ## Portable and autosync
 
@@ -38,7 +40,16 @@ An explicit cross-machine handoff lists only uncommitted non-scratch paths and a
 
 ## Resume
 
-When no path is supplied, select the highest-numbered handoff first and validate that exact file; never search backward for an older valid handoff. Preserve unknown `mode`, `phase`, settings, and runtime rows exactly. Before applying `next_action`, parse the complete live packet and compare every source path, source set, and SHA-256 hash with the selected binding. Malformed handoff state fails closed; invalid/missing/changed source is a Spec escalation. Do not reconstruct an interpretation from an older handoff, dirty files, plan status, or legacy pre-approval TOON.
+When no path is supplied, select the highest-numbered handoff first and validate that exact file; never search backward for an older valid handoff. On resume, the compaction/generic bootstrap (validated and rendered per the generic renderer protocol defined in [../gsd/REFERENCE.md](../gsd/REFERENCE.md)) loads the master once. Ordinary handoff processing parses and validates the handoff and executes next_action without circular re-entry, capsule execution, or duplicated action. Preserve unknown `mode`, `phase`, settings, and runtime rows exactly. Malformed handoff state fails closed; invalid/missing/changed plan is a Spec escalation. Do not reconstruct an interpretation from an older handoff, dirty files, plan status, or legacy pre-approval TOON.
+
+Perform ordinary handoff processing by parsing and validating the handoff and executing next_action without circular re-entry, capsule execution, or duplicated action. Strict validation rules apply to the `reload[N]{skill,path}` manifest:
+- Reject duplicate skill names or duplicate paths.
+- Reject unknown or non-installed skills (never treat unknown reload skills as forward-compatible).
+- Reject mismatched skill names and paths (e.g. skill `gsd-handoff` paired with path `skills/gsd-verify/SKILL.md`).
+- Reject absolute paths, backslashes, empty paths, dot/traversal segments (`.` or `..`), or malformed row counts/structures.
+- Reject non-canonical numeric counts, non-matching table headers/schemas, extra/reordered/unknown columns, or incorrect row arity before decoded validation.
+Fail closed immediately if any entry is invalid.
+Preserve unknown runtime settings (`settings[N]{key,value}`) rows exactly, but never treat unknown reload skills in the manifest as forward-compatible.
 
 Validate runtime settings before applying them. Unknown well-formed rows remain opaque; malformed, duplicate, or conflicting rows block resume.
 

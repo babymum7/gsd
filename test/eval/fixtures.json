@@ -81,7 +81,7 @@
   },
   {
     "id": "plan-related",
-    "state": ".scratch/oauth-login/spec.md and plan.md exist; tasks 2-5 pending",
+    "state": ".scratch/oauth-login/plan.md and handoff-1.toon exist; tasks 2-5 pending",
     "prompt": "implement the token refresh task next",
     "decision": "ordinary-routing",
     "route": "3",
@@ -89,7 +89,7 @@
   },
   {
     "id": "plan-unrelated",
-    "state": ".scratch/oauth-login/spec.md and plan.md exist; tasks 2-5 pending",
+    "state": ".scratch/oauth-login/plan.md and handoff-1.toon exist; tasks 2-5 pending",
     "prompt": "add a CSV export button to the reports page",
     "decision": "ordinary-routing",
     "route": "6",
@@ -113,7 +113,7 @@
   },
   {
     "id": "converged-spec",
-    "state": ".scratch/oauth-login/proposal.md and active spec.md exist; plan.md is absent",
+    "state": ".scratch/oauth-login/plan.md exists; no approval binding",
     "prompt": "continue with OAuth login",
     "decision": "ordinary-routing",
     "route": "3",
@@ -153,7 +153,7 @@
   },
   {
     "id": "plan-binding-drift",
-    "state": ".scratch/oauth-login has an approved plan.md and handoff-1.toon, but spec.md no longer matches the recorded SHA-256 binding",
+    "state": ".scratch/oauth-login has an approved plan.md and handoff-1.toon, but plan.md no longer matches the recorded SHA-256 binding",
     "prompt": "implement the next OAuth task",
     "decision": "ordinary-routing",
     "route": "3",

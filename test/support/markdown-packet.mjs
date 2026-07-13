@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 
-const REQUIRED_PACKET_FILES = ["proposal.md", "spec.md", "plan.md"];
+const REQUIRED_PACKET_FILES = ["plan.md"];
 const VAGUE = /^(?:tbd|todo|works correctly|run tests|valid|covered|success)\.?$/i;
 
 function fail(message) {
@@ -13,11 +13,61 @@ function required(value, label) {
   return normalized;
 }
 
+function requiredExact(value, label) {
+  if (typeof value !== "string") {
+    fail(`${label} is required`);
+  }
+  if (value !== value.trim()) {
+    fail(`${label} must not have leading or trailing whitespace`);
+  }
+  if (!value) {
+    fail(`${label} is required`);
+  }
+  return value;
+}
+
 function canonicalSource(value, label) {
   if (typeof value !== "string" || value.trim() === "") fail(`${label} is required`);
   if (value.includes("\r")) fail(`${label} must use LF line endings`);
   if (/^[ \t]*\n/.test(value) || /\n(?:[ \t]*\n|[ \t]+)$/.test(value)) fail(`${label} must not have leading or trailing blank lines`);
   return value;
+}
+
+function validatePathsField(fieldValue, fieldLabel) {
+  if (typeof fieldValue !== "string") {
+    fail(`${fieldLabel} must be a string`);
+  }
+  if (!/^`[^`]+`(\s*,\s*`[^`]+`)*$/.test(fieldValue)) {
+    fail(`${fieldLabel} must be comma-separated backticked repository-relative paths with no trailing/unbackticked text`);
+  }
+  const paths = [...fieldValue.matchAll(/`([^`]+)`/g)].map(([, p]) => p);
+  for (const p of paths) {
+    if (p !== p.trim()) {
+      fail(`${fieldLabel} path has leading or trailing whitespace: ${p}`);
+    }
+    if (p.includes("\\")) {
+      fail(`${fieldLabel} contains backslash: ${p}`);
+    }
+    if (p.startsWith("/")) {
+      fail(`${fieldLabel} must be repository-relative (cannot start with /): ${p}`);
+    }
+    const segments = p.split("/");
+    for (const segment of segments) {
+      if (segment === "") {
+        fail(`${fieldLabel} contains empty segment: ${p}`);
+      }
+      if (segment === "." || segment === "..") {
+        fail(`${fieldLabel} contains dot/traversal: ${p}`);
+      }
+      if (segment === ".scratch") {
+        fail(`${fieldLabel} contains .scratch: ${p}`);
+      }
+    }
+    if (p.endsWith(".toon")) {
+      fail(`${fieldLabel} contains runtime TOON path: ${p}`);
+    }
+  }
+  return paths;
 }
 
 function validateTitle(content, title) {
@@ -27,7 +77,19 @@ function validateTitle(content, title) {
   }
 }
 
-function section(content, heading, requiredSection = true) {
+export function validateSectionEdges(value, heading) {
+  if (value.trim() === "") {
+    fail(`${heading} section must not be empty or blank`);
+  }
+  if (/^\s/.test(value)) {
+    fail(`${heading} section must not have leading blank or whitespace-only lines`);
+  }
+  if (/\s$/.test(value)) {
+    fail(`${heading} section must not have trailing blank or whitespace-only lines`);
+  }
+}
+
+function section(content, heading, requiredSection = true, trim = true) {
   const expression = new RegExp(`^## ${heading}\\n([\\s\\S]*?)(?=^## |(?![\\s\\S]))`, "m");
   const matches = [...content.matchAll(new RegExp(expression.source, "gm"))];
   if (matches.length > 1) fail(`duplicate ${heading} section`);
@@ -35,7 +97,10 @@ function section(content, heading, requiredSection = true) {
     if (requiredSection) fail(`missing ${heading} section`);
     return null;
   }
-  return matches[0][1].trim();
+  const raw = matches[0][1];
+  const body = raw.endsWith("\n") ? raw.slice(0, -1) : raw;
+  validateSectionEdges(body, heading);
+  return body;
 }
 
 function validateSections(content, allowed, optional = []) {
@@ -51,138 +116,470 @@ function orderedFields(block, labels) {
   if (entries.length !== labels.length || entries.some(([, label], index) => label !== labels[index])) {
     fail(`fields must be exactly ordered: ${labels.join(", ")}`);
   }
-  return Object.fromEntries(entries.map(([, label, value]) => [label, required(value, label)]));
+  return Object.fromEntries(entries.map(([, label, value]) => [label, requiredExact(value, label)]));
 }
 
 function parseFeature(content) {
   const value = section(content, "Feature");
-  const matches = [...value.matchAll(/^`([a-z0-9]+(?:-[a-z0-9]+)*)`$/gm)];
-  if (matches.length !== 1) fail("Feature must contain exactly one backticked slug");
-  return matches[0][1];
+  const match = value.match(/^`([a-z0-9]+(?:-[a-z0-9]+)*)`$/);
+  if (!match) fail("Feature must be exactly one complete backticked slug with no extra text");
+  return match[1];
+}
+
+function parseBase(content) {
+  const value = section(content, "Base");
+  const match = value.match(/^`([a-zA-Z0-9_./-]+)`$/);
+  if (!match) fail("Base must be exactly one complete backticked branch or reference line with no extra text");
+  return match[1];
+}
+
+function parseSummary(content) {
+  const value = section(content, "Summary");
+  const text = requiredExact(value, "Summary");
+  if (VAGUE.test(text)) fail("Summary must not be vague");
+  return text;
+}
+
+function parseContext(content) {
+  const value = section(content, "Context");
+  const text = requiredExact(value, "Context");
+  if (VAGUE.test(text)) fail("Context must not be vague");
+  return text;
+}
+
+function parseScope(content) {
+  const value = section(content, "Scope");
+  const lines = value.split("\n");
+  if (lines.length === 0) fail("Scope section must not be empty");
+  const items = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (!line.startsWith("- ")) {
+      fail(`Scope line ${i + 1} must be a bullet point starting with "- "`);
+    }
+    const text = line.slice(2);
+    const normalized = requiredExact(text, `Scope item ${i + 1}`);
+    if (VAGUE.test(normalized)) {
+      fail(`Scope item ${i + 1} text must not be vague`);
+    }
+    items.push(normalized);
+  }
+  return items;
 }
 
 function parseCriteria(content) {
-  const value = section(content, "Acceptance Criteria");
-  const entries = [...value.matchAll(/^### (AC-([1-9]\d*)): (.+)\n([\s\S]*?)(?=^### |(?![\s\S]))/gm)];
-  if (entries.length === 0) fail("at least one acceptance criterion is required");
+  const value = section(content, "Acceptance Criteria", true);
+  const lines = value.split("\n");
+  if (lines.some(line => line.trim() === "")) {
+    fail("Acceptance Criteria must not contain blank or whitespace lines");
+  }
+  if (lines.length === 0 || lines.length % 5 !== 0) {
+    fail("Acceptance Criteria must consist of sequential AC blocks with no stray content");
+  }
+
+  const criteria = [];
   const ids = new Set();
-  return entries.map(([, id, ordinal, title, block], index) => {
-    if (Number(ordinal) !== index + 1) fail("criterion IDs must be sequential");
+  const numBlocks = lines.length / 5;
+
+  for (let i = 0; i < numBlocks; i++) {
+    const l1 = lines[i * 5];
+    const l2 = lines[i * 5 + 1];
+    const l3 = lines[i * 5 + 2];
+    const l4 = lines[i * 5 + 3];
+    const l5 = lines[i * 5 + 4];
+
+    const m1 = l1.match(/^### (AC-([1-9]\d*)): (.+)$/);
+    if (!m1) fail(`Acceptance criterion block ${i + 1} heading is invalid or malformed`);
+    const [, id, ordinalStr, title] = m1;
+    const ordinal = Number(ordinalStr);
+
+    const m2 = l2.match(/^- \*\*State:\*\* (.+)$/);
+    const m3 = l3.match(/^- \*\*Outcome:\*\* (.+)$/);
+    const m4 = l4.match(/^- \*\*Action:\*\* (.+)$/);
+    const m5 = l5.match(/^- \*\*Expected:\*\* (.+)$/);
+    if (!m2 || !m3 || !m4 || !m5) {
+      fail("fields must be exactly ordered: State, Outcome, Action, Expected");
+    }
+    const state = requiredExact(m2[1], `${id} State`);
+    const outcome = requiredExact(m3[1], `${id} Outcome`);
+    const action = requiredExact(m4[1], `${id} Action`);
+    const expected = requiredExact(m5[1], `${id} Expected`);
+
+    if (ordinal !== i + 1) fail("criterion IDs must be sequential");
     if (ids.has(id)) fail(`duplicate criterion ${id}`);
     ids.add(id);
-    const { State: state, Outcome: outcome, Action: action, Expected: expected } = orderedFields(
-      block,
-      ["State", "Outcome", "Action", "Expected"],
-    );
+
     if (state !== "active" && state !== "superseded") fail(`${id} has invalid state`);
-    if (VAGUE.test(outcome) || VAGUE.test(action) || VAGUE.test(expected)) fail(`${id} outcome, action, and expected must be concrete`);
-    return { id, ordinal: Number(ordinal), title: required(title, `${id} title`), state, outcome, action, expected };
-  });
+    if (VAGUE.test(outcome) || VAGUE.test(action) || VAGUE.test(expected)) {
+      fail(`${id} outcome, action, and expected must be concrete`);
+    }
+
+    criteria.push({
+      id,
+      ordinal,
+      title: requiredExact(title, `${id} title`),
+      state,
+      outcome,
+      action,
+      expected
+    });
+  }
+
+  return criteria;
 }
 
 function parseIdentifierList(content, heading, prefix) {
-  const value = section(content, heading);
-  const entries = [...value.matchAll(new RegExp(`^- \\*\\*(${prefix}-[1-9]\\d*):\\*\\* (.+)$`, "gm"))];
-  if (entries.length === 0) fail(`${heading} must not be empty`);
-  const ids = new Set();
-  return entries.map(([, id, text]) => {
-    if (ids.has(id)) fail(`duplicate ${id}`);
-    ids.add(id);
-    return { id, text: required(text, id) };
-  });
+  const trimmed = section(content, heading, true);
+  if (trimmed === "") {
+    fail(`${heading} must not be empty`);
+  }
+  const lines = trimmed.split("\n");
+  const result = [];
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    const regex = new RegExp(`^- \\*\\*${prefix}-([1-9]\\d*):\\*\\* (.+)$`);
+    const match = line.match(regex);
+    if (!match) {
+      fail(`${heading} line ${i + 1} does not match the canonical format`);
+    }
+    const [, idNumStr, text] = match;
+    const ordinal = Number(idNumStr);
+    if (ordinal !== i + 1) {
+      fail(`${heading} IDs must equal ${prefix}-1 through ${prefix}-N in order`);
+    }
+    const id = `${prefix}-${ordinal}`;
+    const textVal = requiredExact(text, `${id} text`);
+    if (VAGUE.test(textVal)) {
+      fail(`${id} text must not be vague`);
+    }
+    result.push({ id, text: textVal });
+  }
+  return result;
 }
 
 function parseInterfaces(content, criteria) {
-  const value = section(content, "Interfaces");
-  const rows = value.split("\n").filter((line) => line.startsWith("|"));
-  if (rows.length < 3) fail("Interfaces table is required");
-  const parseRow = (line) => line.split("|").slice(1, -1).map((cell) => cell.trim().replace(/^`|`$/g, ""));
-  const header = parseRow(rows[0]);
-  if (header.join("|") !== "Criterion|Seam|Path|Lower-seam reason") fail("Interfaces header is invalid");
+  const value = section(content, "Interfaces", true);
+  const lines = value.split("\n");
+  if (lines.length < 3) fail("Interfaces table is required");
+  if (lines[0] !== "| Criterion | Seam | Path | Lower-seam reason |") fail("Interfaces header is invalid");
+  if (lines[1] !== "| --- | --- | --- | --- |") fail("Interfaces separator is invalid");
+
+  const parseRow = (line, lineIndex) => {
+    if (!line.startsWith("| ") || !line.endsWith(" |")) {
+      fail(`Interfaces row at line ${lineIndex + 1} must start and end with '| ' and ' |'`);
+    }
+    const pipeCount = (line.match(/\|/g) || []).length;
+    if (pipeCount !== 5) {
+      fail(`Interfaces row at line ${lineIndex + 1} must have exactly 4 columns`);
+    }
+    const parts = line.split("|");
+    
+    const getCellContent = (part, columnName) => {
+      if (!part.startsWith(" ") || !part.endsWith(" ") || part === " " || part.startsWith("  ") || part.endsWith("  ")) {
+        fail(`Interfaces row cell for ${columnName} at line ${lineIndex + 1} must start and end with a single space`);
+      }
+      const content = part.slice(1, -1);
+      if (content !== content.trim()) {
+        fail(`Interfaces row cell for ${columnName} at line ${lineIndex + 1} must not have leading or trailing whitespace`);
+      }
+      if (content === "") {
+        fail(`Interfaces row cell for ${columnName} at line ${lineIndex + 1} must not be empty`);
+      }
+      return content;
+    };
+
+    const extractCapture = (content, columnName) => {
+      if (content.startsWith("`") || content.endsWith("`")) {
+        if (!content.startsWith("`") || !content.endsWith("`")) {
+          fail(`Interfaces row cell for ${columnName} at line ${lineIndex + 1} has mismatched backticks`);
+        }
+        const inner = content.slice(1, -1);
+        if (inner.includes("`")) {
+          fail(`Interfaces row cell for ${columnName} at line ${lineIndex + 1} has multiple backticks`);
+        }
+        if (inner !== inner.trim()) {
+          fail(`Interfaces row cell for ${columnName} at line ${lineIndex + 1} capture must not have leading or trailing whitespace`);
+        }
+        if (inner === "") {
+          fail(`Interfaces row cell for ${columnName} at line ${lineIndex + 1} capture must not be empty`);
+        }
+        return inner;
+      }
+      return content;
+    };
+
+    const rawCriterion = getCellContent(parts[1], "Criterion");
+    const rawSeam = getCellContent(parts[2], "Seam");
+    const rawPathValue = getCellContent(parts[3], "Path");
+    const rawLowerReason = getCellContent(parts[4], "Lower-seam reason");
+
+    const criterion = extractCapture(rawCriterion, "Criterion");
+    const seam = extractCapture(rawSeam, "Seam");
+    const lowerReason = extractCapture(rawLowerReason, "Lower-seam reason");
+
+    return [criterion, seam, rawPathValue, lowerReason];
+  };
+
   const active = new Set(criteria.filter((criterion) => criterion.state === "active").map((criterion) => criterion.id));
   const pins = new Map();
-  for (const row of rows.slice(2)) {
-    const [criterion, seam, path, lowerReason] = parseRow(row);
+
+  for (let i = 2; i < lines.length; i++) {
+    const row = lines[i];
+    if (row === "") {
+      fail(`stray prose or empty line in Interfaces at line ${i + 1}`);
+    }
+    const [criterion, seam, pathValue, lowerReason] = parseRow(row, i);
     if (!active.has(criterion) || pins.has(criterion)) fail(`invalid interface pin ${criterion}`);
-    if (!seam || !path || !lowerReason) fail(`incomplete interface pin ${criterion}`);
-    pins.set(criterion, { seam, path, lowerReason });
+    if (!seam || !pathValue || !lowerReason) fail(`incomplete interface pin ${criterion}`);
+    validatePathsField(pathValue, `Interface pin ${criterion} Path`);
+    pins.set(criterion, { seam, path: pathValue, lowerReason });
   }
   if (pins.size !== active.size) fail("every active criterion needs exactly one interface pin");
   return pins;
 }
 
 function parseTasks(content, criteria) {
-  const value = section(content, "Tasks");
-  const entries = [...value.matchAll(/^### (T([1-9]\d*)): (.+)\n([\s\S]*?)(?=^### |(?![\s\S]))/gm)];
-  if (entries.length === 0) fail("at least one task is required");
+  const value = section(content, "Tasks", true);
+  const lines = value.split("\n");
+  if (lines.some(line => line.trim() === "")) {
+    fail("Tasks must not contain blank or whitespace lines");
+  }
+  if (lines.length === 0 || lines.length % 5 !== 0) {
+    fail("Tasks must consist of sequential T blocks with no stray content");
+  }
+
+  const tasks = [];
+  const ids = new Set();
+  const numBlocks = lines.length / 5;
   const active = new Set(criteria.filter((criterion) => criterion.state === "active").map((criterion) => criterion.id));
-  return entries.map(([, id, ordinal, title, block], index) => {
-    if (Number(ordinal) !== index + 1) fail("task IDs must be sequential");
-    const { Satisfies: satisfiesValue, Files: filesValue, Test: testValue, Status: status } = orderedFields(
-      block,
-      ["Satisfies", "Files", "Test", "Status"],
-    );
+
+  for (let i = 0; i < numBlocks; i++) {
+    const l1 = lines[i * 5];
+    const l2 = lines[i * 5 + 1];
+    const l3 = lines[i * 5 + 2];
+    const l4 = lines[i * 5 + 3];
+    const l5 = lines[i * 5 + 4];
+
+    const m1 = l1.match(/^### (T([1-9]\d*)): (.+)$/);
+    if (!m1) fail(`Task block ${i + 1} heading is invalid or malformed`);
+    const [, id, ordinalStr, title] = m1;
+    const ordinal = Number(ordinalStr);
+
+    const m2 = l2.match(/^- \*\*Satisfies:\*\* (.+)$/);
+    const m3 = l3.match(/^- \*\*Files:\*\* (.+)$/);
+    const m4 = l4.match(/^- \*\*Test:\*\* (.+)$/);
+    const m5 = l5.match(/^- \*\*Status:\*\* (.+)$/);
+    if (!m2 || !m3 || !m4 || !m5) {
+      fail("fields must be exactly ordered: Satisfies, Files, Test, Status");
+    }
+    const satisfiesValue = requiredExact(m2[1], `${id} Satisfies`);
+    const filesValue = requiredExact(m3[1], `${id} Files`);
+    const testValue = requiredExact(m4[1], `${id} Test`);
+    const status = requiredExact(m5[1], `${id} Status`);
+
+    if (ordinal !== i + 1) fail("task IDs must be sequential");
+    if (ids.has(id)) fail(`duplicate task ${id}`);
+    ids.add(id);
+
     const satisfies = satisfiesValue.split(",").map((value) => value.trim());
-    if (satisfies.length === 0 || satisfies.some((criterion) => !active.has(criterion))) fail(`${id} has unknown criterion`);
-    const files = [...filesValue.matchAll(/`([^`]+)`/g)].map(([, path]) => path);
+    if (satisfies.length === 0 || satisfies.some((criterion) => !active.has(criterion))) {
+      fail(`${id} has unknown criterion`);
+    }
+    const files = validatePathsField(filesValue, `${id} Files`);
     if (files.length === 0) fail(`${id} needs at least one file`);
-    const test = testValue.replace(/^`|`$/g, "");
-    if (!test) fail(`${id} needs a focused test or none`);
-    if (!new Set(["pending", "in_progress", "done", "superseded"]).has(status)) fail(`${id} has invalid status`);
-    return { id, title: required(title, `${id} title`), satisfies, files, test, status };
-  });
+
+    const isBackticked = testValue.startsWith("`") && testValue.endsWith("`") && !testValue.slice(1, -1).includes("`");
+    if (!isBackticked) {
+      fail(`${id} Test must be one fully backticked nonempty command or none`);
+    }
+    const test = testValue.slice(1, -1);
+    if (!test || test !== test.trim()) {
+      fail(`${id} Test must be one fully backticked nonempty command or none`);
+    }
+    if (VAGUE.test(test)) {
+      fail(`${id} Test must not be vague`);
+    }
+    if (!new Set(["pending", "in_progress", "done", "superseded"]).has(status)) {
+      fail(`${id} has invalid status`);
+    }
+    tasks.push({
+      id,
+      ordinal,
+      title: requiredExact(title, `${id} title`),
+      satisfies,
+      files,
+      test,
+      status
+    });
+  }
+
+  return tasks;
 }
+
+function parseDecisions(content) {
+  const value = section(content, "Decisions", true);
+  if (value === "None.") return [];
+
+  const lines = value.split("\n");
+  if (lines.some(line => line.trim() === "")) {
+    fail("Decisions must not contain blank or whitespace lines");
+  }
+  if (lines.length === 0 || lines.length % 3 !== 0) {
+    fail("Decisions must be None. or sequential D blocks with no stray content");
+  }
+  const decisions = [];
+  const ids = new Set();
+  const numBlocks = lines.length / 3;
+
+  for (let i = 0; i < numBlocks; i++) {
+    const l1 = lines[i * 3];
+    const l2 = lines[i * 3 + 1];
+    const l3 = lines[i * 3 + 2];
+
+    const m1 = l1.match(/^### (D-([1-9]\d*)): (.+)$/);
+    if (!m1) fail(`Decision block ${i + 1} heading is invalid or malformed`);
+    const [, id, ordinalStr, title] = m1;
+    const ordinal = Number(ordinalStr);
+
+    const m2 = l2.match(/^- \*\*Decision:\*\* (.+)$/);
+    const m3 = l3.match(/^- \*\*Rationale:\*\* (.+)$/);
+    if (!m2 || !m3) {
+      fail("fields must be exactly ordered: Decision, Rationale");
+    }
+    const decision = requiredExact(m2[1], `${id} Decision`);
+    const rationale = requiredExact(m3[1], `${id} Rationale`);
+    if (VAGUE.test(decision) || VAGUE.test(rationale)) {
+      fail(`${id} decision and rationale must be concrete`);
+    }
+    if (ordinal !== i + 1) fail("decision IDs must be sequential");
+    if (ids.has(id)) fail(`duplicate decision ${id}`);
+    ids.add(id);
+
+    decisions.push({
+      id,
+      ordinal,
+      title: requiredExact(title, `${id} title`),
+      decision,
+      rationale
+    });
+  }
+
+  return decisions;
+}
+
 
 export function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
 export function parseMarkdownPacket(files) {
-  const proposal = canonicalSource(files["proposal.md"], "proposal.md");
-  const spec = canonicalSource(files["spec.md"], "spec.md");
+  if (typeof files !== "object" || files === null || Array.isArray(files) || Object.prototype.toString.call(files) !== "[object Object]") {
+    fail("files must be a plain mapping");
+  }
+  const ownKeys = Reflect.ownKeys(files);
+  if (ownKeys.some((k) => typeof k === "string" && ["proposal.md", "spec.md", "design.md"].includes(k))) {
+    fail("legacy multi-file state is not allowed");
+  }
+  if (ownKeys.length !== 1 || ownKeys[0] !== "plan.md") {
+    fail("files mapping must contain exactly plan.md");
+  }
   const plan = canonicalSource(files["plan.md"], "plan.md");
-  validateTitle(proposal, "Proposal");
-  validateTitle(spec, "Specification");
   validateTitle(plan, "Plan");
-  validateSections(proposal, ["Feature", "Summary", "Why", "Scope", "Impact", "Questions"]);
-  validateSections(spec, ["Feature", "Context", "Acceptance Criteria", "Invariants", "Non-goals", "Interfaces", "Publication"], ["Publication"]);
-  validateSections(plan, ["Feature", "Base", "Self-host bootstrap", "Tasks"], ["Self-host bootstrap"]);
-  for (const heading of ["Summary", "Why", "Scope", "Impact", "Questions"]) required(section(proposal, heading), heading);
-  required(section(spec, "Context"), "Context");
-  const feature = parseFeature(proposal);
-  if (parseFeature(spec) !== feature || parseFeature(plan) !== feature) fail("feature mismatch");
-  required(section(plan, "Base"), "Base");
-  const bootstrap = section(plan, "Self-host bootstrap", false);
-  if (bootstrap !== null && feature !== "markdown-canonical-contracts") fail("Self-host bootstrap is reserved for the Markdown cutover");
-  if (bootstrap !== null) required(bootstrap, "Self-host bootstrap");
-  const publication = section(spec, "Publication", false);
-  if (publication !== null && !/^(null|`docs\/gsd\/[a-z0-9]+(?:-[a-z0-9]+)*\/milestones\.md`)$/.test(publication)) fail("Publication must be null or the canonical Markdown ledger path");
-  const criteria = parseCriteria(spec);
-  const interfaces = parseInterfaces(spec, criteria);
-  const invariants = parseIdentifierList(spec, "Invariants", "I");
+  validateSections(plan, [
+    "Feature",
+    "Base",
+    "Summary",
+    "Context",
+    "Scope",
+    "Acceptance Criteria",
+    "Decisions",
+    "Invariants",
+    "Non-goals",
+    "Interfaces",
+    "Publication",
+    "Tasks"
+  ]);
+
+  const feature = parseFeature(plan);
+  parseBase(plan);
+  parseSummary(plan);
+  parseContext(plan);
+  parseScope(plan);
+
+  const criteria = parseCriteria(plan);
+  const decisions = parseDecisions(plan);
+  const invariants = parseIdentifierList(plan, "Invariants", "I");
+  const nonGoals = parseIdentifierList(plan, "Non-goals", "NG");
+  const interfaces = parseInterfaces(plan, criteria);
+
+  const publication = section(plan, "Publication", true);
+  if (publication !== "null" && publication !== `\`docs/gsd/${feature}/milestones.md\``) {
+    fail("Publication must be null or the canonical Markdown ledger path whose slug exactly equals Feature");
+  }
+
   const tasks = parseTasks(plan, criteria);
-  const nonGoals = parseIdentifierList(spec, "Non-goals", "NG");
+
+  let pubPath = null;
+  if (publication !== "null") {
+    pubPath = publication.replace(/^`|`$/g, "");
+  }
+
+  let pubPathCount = 0;
+  for (const task of tasks) {
+    for (const file of task.files) {
+      const isMilestone = /^docs\/gsd\/[^/]+\/milestones\.md$/.test(file);
+      if (isMilestone) {
+        if (pubPath === null || file !== pubPath) {
+          fail(`unowned or mismatched milestone ledger path is not allowed: ${file}`);
+        }
+      }
+      if (task.status !== "superseded") {
+        if (pubPath !== null && file === pubPath) {
+          pubPathCount++;
+        }
+      }
+    }
+  }
+
+  if (pubPath !== null && pubPathCount !== 1) {
+    fail(`non-null publication path must occur exactly once across non-superseded tasks, but found ${pubPathCount}`);
+  }
+
+  // For each non-superseded task satisfying multiple ACs, require all pinned seam/path/lower-reason triples identical
+  for (const task of tasks) {
+    if (task.status !== "superseded" && task.satisfies.length > 1) {
+      const firstAc = task.satisfies[0];
+      const firstPin = interfaces.get(firstAc);
+      for (let i = 1; i < task.satisfies.length; i++) {
+        const currentAc = task.satisfies[i];
+        const currentPin = interfaces.get(currentAc);
+        if (
+          firstPin.seam !== currentPin.seam ||
+          firstPin.path !== currentPin.path ||
+          firstPin.lowerReason !== currentPin.lowerReason
+        ) {
+          fail(`Task ${task.id} satisfies multiple ACs but their interface pins (seam, path, lower-seam reason) are not identical`);
+        }
+      }
+    }
+  }
   const coverage = new Map();
-  for (const criterion of tasks.flatMap((task) => task.satisfies)) {
-    coverage.set(criterion, (coverage.get(criterion) ?? 0) + 1);
+  for (const task of tasks) {
+    if (task.status !== "superseded") {
+      for (const criterion of task.satisfies) {
+        coverage.set(criterion, (coverage.get(criterion) ?? 0) + 1);
+      }
+    }
   }
   const active = criteria.filter((criterion) => criterion.state === "active").map((criterion) => criterion.id);
   if (active.some((criterion) => coverage.get(criterion) !== 1)) fail("plan must cover every active criterion exactly once");
-  if (Object.hasOwn(files, "design.md")) {
-    const design = canonicalSource(files["design.md"], "design.md");
-    validateTitle(design, "Design");
-    validateSections(design, ["Feature", "Decisions", "Alternatives rejected", "Risks and mitigations"]);
-    for (const heading of ["Decisions", "Alternatives rejected", "Risks and mitigations"]) required(section(design, heading), heading);
-    if (parseFeature(design) !== feature) fail("feature mismatch");
-  }
-  return { feature, criteria, interfaces, invariants, nonGoals, tasks };
+
+  return { feature, criteria, interfaces, invariants, nonGoals, tasks, decisions };
 }
 
 export function bindApprovedSources(files) {
   parseMarkdownPacket(files);
-  return Object.fromEntries(Object.entries(files)
-    .filter(([name]) => REQUIRED_PACKET_FILES.includes(name) || name === "design.md")
-    .map(([name, content]) => [name, sha256(content)]));
+  return { "plan.md": sha256(files["plan.md"]) };
 }
 
 export function verifyApprovedSources(files, binding) {

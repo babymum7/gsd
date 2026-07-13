@@ -28,66 +28,15 @@ Runtime-only attempts, handoffs, and result markers stay TOON under `.scratch/`.
 
 ### Authority
 
-The sole pre-approval human/agent contract is the UTF-8/LF Markdown packet in `.scratch/<feature>/`:
+The sole pre-approval human/agent contract is the canonical UTF-8/LF `plan.md` in `.scratch/<feature>/`, written only by `gsd-to-plan`.
 
-- `proposal.md`
-- `spec.md`
-- optional `design.md`
-- `plan.md`, written only by `gsd-to-plan`
-
-The feature slug is identical in every present file. The Markdown packet is the only authority for intent, acceptance, task order, seams, files, and focused checks. Root or scratch `proposal.toon`, `spec.toon`, `design.toon`, and `plan.toon` are stale non-authoritative files: never derive scope, recovery, acceptance, or task order from them. A detected legacy packet stops normal routing with a Spec escalation, except an explicitly approved one-time bootstrap that removes it before ordinary routing resumes.
+The `plan.md` is the only authority for intent, acceptance, task order, seams, files, and focused checks. Any legacy `proposal.md`, `spec.md`, or `design.md` is rejected and stops normal routing with a Spec escalation. Root or scratch `proposal.toon`, `spec.toon`, `design.toon`, and `plan.toon` are stale non-authoritative files: never derive scope, recovery, acceptance, or task order from them. A detected legacy packet stops normal routing with a Spec escalation.
 
 TOON remains runtime-only: immutable task attempts, handoffs, and result markers. Runtime records report progress and bind source bytes; they cannot author, amend, or reinterpret Markdown contracts or durable documentation.
 
 ### Packet grammar
 
-All sources use exact headings, exact field labels, canonical field order, UTF-8, LF, and no blank leading/trailing lines. Reject missing, duplicate, malformed, unknown, empty, vague, or reordered required fields. Never normalize, infer, or repair source values.
-
-`proposal.md`:
-
-```markdown
-# Proposal
-## Feature
-`<feature>`
-## Summary
-<one concrete outcome>
-## Why
-<user value>
-## Scope
-- <included behavior>
-## Impact
-- **<area>:** <change>
-## Questions
-None.
-```
-
-`spec.md`:
-
-```markdown
-# Specification
-## Feature
-`<feature>`
-## Context
-<bounded context>
-## Acceptance Criteria
-### AC-1: <title>
-- **State:** active
-- **Outcome:** <concrete behavior>
-- **Action:** <concrete operation>
-- **Expected:** <observable result>
-## Invariants
-- **I-1:** <must remain true>
-## Non-goals
-- **NG-1:** <explicit exclusion>
-## Interfaces
-| Criterion | Seam | Path | Lower-seam reason |
-| --- | --- | --- | --- |
-| AC-1 | <public seam> | `<repository-relative path>` | none |
-```
-
-An AC ID is a positive sequential integer. Only `active` criteria execute; a replacement receives a new ID while the former criterion is `superseded`. Outcome, Action, and Expected must independently name a concrete behavior, operation, and observable result. `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid. Every active AC has exactly one matching Interfaces row. A lower seam is valid only with a concrete reason that the higher production boundary is absent or cannot deterministically isolate the criterion.
-
-`design.md` exists only for a resolved load-bearing decision, alternative, or risk. It has `# Design`, `## Feature`, `## Decisions`, `## Alternatives rejected`, and `## Risks and mitigations`. Its absence means no such decision; downstream work never infers one.
+All fields use exact headings, exact field labels, canonical field order, UTF-8, LF, and no blank leading/trailing lines. Reject missing, duplicate, malformed, unknown, empty, vague, or reordered required fields. Never normalize, infer, or repair source values.
 
 `plan.md`:
 
@@ -97,6 +46,30 @@ An AC ID is a positive sequential integer. Only `active` criteria execute; a rep
 `<feature>`
 ## Base
 `<base>`
+## Summary
+<one concrete outcome>
+## Context
+<bounded context>
+## Scope
+- <included behavior>
+## Acceptance Criteria
+### AC-1: <title>
+- **State:** active
+- **Outcome:** <concrete behavior>
+- **Action:** <concrete operation>
+- **Expected:** <observable result>
+## Decisions
+None.
+## Invariants
+- **I-1:** <must remain true>
+## Non-goals
+- **NG-1:** <explicit exclusion>
+## Interfaces
+| Criterion | Seam | Path | Lower-seam reason |
+| --- | --- | --- | --- |
+| AC-1 | <public seam> | `<repository-relative path>` | none |
+## Publication
+null
 ## Tasks
 ### T1: <short task>
 - **Satisfies:** AC-1
@@ -105,7 +78,14 @@ An AC ID is a positive sequential integer. Only `active` criteria execute; a rep
 - **Status:** pending
 ```
 
-Task IDs are positive sequential integers in heading order. Every active AC appears exactly once across non-superseded task `Satisfies` fields. Every task owns at least one exact repository-relative path and one focused public-seam check unless it changes no runtime behavior. Task status is `pending`, `in_progress`, `done`, or `superseded`; the approved Markdown status is immutable after approval and is never progress evidence.
+Decisions is exact `None.` or sequential D blocks with Decision and Rationale:
+```markdown
+### D-1: <title>
+- **Decision:** <value>
+- **Rationale:** <value>
+```
+
+An AC ID is a positive sequential integer. Only `active` criteria execute; a replacement receives a new ID while the former criterion is `superseded`. Outcome, Action, and Expected must independently name a concrete behavior, operation, and observable result. `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid. Every active AC has exactly one matching Interfaces row. A lower seam is valid only with a concrete reason that the higher production boundary is absent or cannot deterministically isolate the criterion. Task IDs are positive sequential integers in heading order. Every active AC appears exactly once across non-superseded task `Satisfies` fields. Every task owns at least one exact repository-relative path and one focused public-seam check unless it changes no runtime behavior. Task status is `pending`, `in_progress`, `done`, or `superseded`; the approved Markdown status is immutable after approval and is never progress evidence.
 
 ### Quick-fix plan exception
 
@@ -113,13 +93,13 @@ A Quick-fix is not a converged feature packet. Its direct fast path may write a 
 
 ### Approval binding
 
-`gsd-to-plan` validates the complete packet, writes `plan.md`, prints the task/AC summary, calculates SHA-256 for every present Markdown source, and asks exactly one approval question. Approval records the feature, ordered source set, and hashes in runtime state. After approval, every dispatch, handoff/resume, reviewer, verifier, repair loop, and merge gate compares the live packet byte-for-byte with that binding. Missing, changed, extra, or malformed source is a Spec escalation. Never regenerate a new packet or derive requirements from runtime TOON.
+`gsd-to-plan` validates the canonical `plan.md`, writes the plan, prints the task/AC summary, calculates SHA-256 for `plan.md`, and asks exactly one approval question. Approval records the feature, `plan.md` path, and its hash in runtime state. After approval, the execution-control plane applies phase-boundary plan validation: full semantic parse and binding checks occur only at plan approval, execution entry/resume, and terminal entry. Digest guards verify the binding at task attempt creation and pre-squash. Child roles (implementer, reviewer, fixer) consume the attempt directly without independently parsing or validating the plan. A missing, changed, extra, or malformed `plan.md` or any legacy source file is a Spec escalation. Never regenerate a new plan or derive requirements from runtime TOON.
 
-On approval, `gsd-to-plan` immediately loads `gsd-handoff` and creates the next positive sequential execution handoff (`handoff-1.toon` when none exists). It records the approved feature, ordered source set and hashes, selected execution mode, `phase=approved`, no completed task, and `next_action` for `gsd-executing-plans`. A fresh approval after Spec escalation starts a new active binding generation in that next handoff; older handoffs remain immutable history and their old hashes are expected, not a conflict. Later task/pause handoffs continue from the newest approval binding. Execution never depends on prompt-local memory for the approval binding.
+On approval, `gsd-to-plan` immediately loads `gsd-handoff` and creates the next positive sequential execution handoff (`handoff-1.toon` when none exists). It records the approved feature, the `plan.md` path and hash, selected execution mode, `phase=approved`, no completed task, and `next_action` set to `start/continue task`. A fresh approval after Spec escalation starts a new active binding generation in that next handoff; older handoffs remain immutable history and their old hashes are expected, not a conflict. Later task/pause handoffs continue from the newest approval binding. Execution never depends on prompt-local memory for the approval binding.
 
 ### Convergence Ledger publication contract
 
-A milestone ledger is optional Git-tracked Markdown at exactly `docs/gsd/<feature>/milestones.md`. It is allowed only when a large feature has materially precise, user-approved milestone goals. Its creation/update is a convergence-time write owned by one exact plan task's Files field and subject to normal review/acceptance. `spec.md` may contain optional `## Publication` with either `null` or that exact path. It authorizes planned publication only, never completion, task selection, or resume. Ledger presence alone is metadata.
+A milestone ledger is optional Git-tracked Markdown at exactly `docs/gsd/<feature>/milestones.md`. It is allowed only when a large feature has materially precise, user-approved milestone goals. Its creation/update is a convergence-time write owned by one exact plan task's Files field and subject to normal review/acceptance. `plan.md` must contain `## Publication` with either `null` or the canonical ledger path whose slug exactly equals Feature. It authorizes planned publication only, never completion, task selection, or resume. Ledger presence alone is metadata.
 
 The canonical UTF-8/LF grammar is:
 
@@ -156,14 +136,116 @@ The status transition or deletion is part of the reviewed WIP diff and lands onl
 
 ### JIT task attempt
 
-Immediately before dispatch, `gsd-executing-plans` writes `.scratch/<feature>/tasks/<Tn>/a<N>.toon`, fsyncs, closes, and reads it back. It is immutable. The attempt contains task/attempt identity; approved Markdown source paths, SHA-256 hashes, and source anchors; verbatim active criterion facts; pinned seam/path/lower-seam reason; task-owned files; focused check; relevant invariant/non-goal; and safety facts. The implementer, TDD skill, reviewer, and fixer read the same bytes.
+Immediately before dispatch, `gsd-executing-plans` writes `.scratch/<feature>/tasks/<Tn>/a<N>.toon`, fsyncs, closes, and reads it back. It is immutable. The attempt contains task/attempt identity; approved `plan.md` path, SHA-256 hash, and source anchors; verbatim active criterion facts; lossless ordered Decisions; pinned seam/path/lower-seam reason; task-owned files; focused check; relevant invariant/non-goal; and safety facts. The implementer, TDD skill, reviewer, and fixer consume the validated immutable attempt and relevant pinned sections (including the lossless ordered Decisions) directly without independently parsing or validating the plan. `None.` is represented as an explicit empty decisions marker in the attempt.
 
-The attempt derives all acceptance and interface values from `spec.md` and `plan.md` before dispatch. It never reads or embeds a legacy pre-approval TOON table. Missing, duplicate, unknown, superseded-only, conflicting, or mismatched criterion/interface/task facts block dispatch rather than being inferred or normalized.
+The attempt derives all acceptance and interface values from `plan.md` before dispatch. It never reads or embeds a legacy pre-approval TOON table. Missing, duplicate, unknown, superseded-only, conflicting, or mismatched criterion/interface/task facts block dispatch rather than being inferred or normalized.
 
 ### Handoff
 
-After approval, every approval, green-task, or pause transition writes a new `.scratch/<feature>/handoff-<n>.toon` with a fresh monotonically numbered name. Never overwrite or suffix an existing handoff. It records opaque `mode`/`phase`, completed task, verified evidence, next action, runtime toggles, and the exact approved Markdown source paths/hashes. The highest-numbered handoff is the only active runtime generation; older handoffs are immutable history. Resume selects that file first, fails closed if it is invalid, and verifies the current packet against its binding before accepting progress. Runtime evidence determines completed work; it never changes Markdown Status, requirements, or task order.
+After approval, every approval, task-active, context-pressure, pause, green-task, repair, or terminal transition writes a new `.scratch/<feature>/handoff-<n>.toon` with a fresh monotonically numbered name. Never overwrite or suffix an existing handoff. It records opaque `mode`/`phase`, completed task, verified evidence, `next_action`, runtime settings, and the exact approved plan.md path/hash. Fresh handoff writes are required and wired for approval, task-active before dispatch, automatic context-pressure/pause, green-task, task repair before fixer dispatch, terminal entry, and terminal repair before fixer dispatch. Every approval/task-active/context-pressure/pause/green-task/repair/terminal transition emits a fresh handoff before dispatch/return. The highest-numbered handoff is the only active runtime generation; older handoffs are immutable history. Resume selects that file first, fails closed if it is invalid, and verifies the current plan.md against its binding before accepting progress. Runtime evidence determines completed work; it never changes Markdown Status, requirements, or task order.
 
+#### Handoff reload manifest
+Every execution handoff carries strict unique `reload[N]{skill,path}` entries for subskills required by its `next_action`. The `N` in the header `reload[N]{skill,path}` must be exactly equal to the following row count in the manifest table. Master (`gsd`) is always reloaded from its fixed direct-root path (`skills/gsd/SKILL.md`) and must never be duplicated or included in the `reload` manifest.
+The paths in the manifest are exact GSD_ROOT-relative paths formatted as `skills/<gsd-name>/SKILL.md`.
+
+Active subskill mappings for `next_action` are:
+- `start/continue task`: requires unconditional base skills `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`.
+- `run task review/repair`: requires unconditional base skills `gsd-executing-plans`, `gsd-handoff`, `gsd-verify`, and `gsd-diagnosing-bugs`.
+- `enter terminal verification/repair`: requires unconditional base skills `gsd-verify` and `gsd-handoff`.
+- `Discussion/Spec-escalation`: requires unconditional base skill `gsd-handoff`.
+
+Every executable `next_action` (including task review/repair, terminal verification/repair, and preserved pause destinations) additionally applies the following conditional active skills:
+- `gsd-ponytail` (active if and only if `ponytail_level` setting is `lite`, `full`, or `ultra`).
+- `gsd-codebase-design` (active if and only if it is currently loaded in the active subskill/action context at handoff write; the reload table itself persists its active/inactive design writer case). Inline codebase-design/domain-modeling complete before handoff and their authoritative outputs are already in plan/attempt; they are not resumable execution modes.
+- `gsd-domain-modeling` (active if and only if it is currently loaded in the active subskill/action context at handoff write; the reload table itself persists its active/inactive domain writer case).
+
+Unknown settings remain opaque and do not affect manifest validation.
+
+Strict validation rules for the reload manifest and settings are:
+- Reject duplicate skill names or duplicate paths.
+- Reject unknown or non-installed skills (never treat unknown reload skills as forward-compatible).
+- Reject mismatched skill names and paths (e.g. skill `gsd-handoff` paired with path `skills/gsd-verify/SKILL.md`).
+- Reject absolute paths, paths containing backslashes, empty paths, dot/traversal segments (`.` or `..`), or malformed row counts/structures.
+- Reject non-canonical numeric counts, non-matching table headers/schemas (settings must match exactly `settings[N]{key,value}` and reload must match exactly `reload[N]{skill,path}`), extra/reordered/unknown columns, or incorrect row arity before decoded validation. Require exact `settings[N]{key,value}` presence for executable handoffs, including canonical `settings[0]{key,value}:`; reject missing, scalarized, duplicated, malformed, or count-mismatched settings tables.
+- Fail closed immediately if any entry is invalid.
+
+During resume, the rehydration sequence is executed in the following order:
+1. Parse the handoff (common byte parse/validation). Reject any scalar `reload` key, empty or nonempty, during common byte validation before classification.
+2. Classify pre-plan versus execution from mode and phase rules. Require exact explicit `mode=discussion` and `phase=pre-plan` for pre-plan; return once to state detection with no master log.
+3. For execution handoffs:
+   a. Confirm the master is loaded via the bootstrap capsule (never load master recursively or execute the capsule again).
+   b. Validate that supplied execution handoff path equals highest canonical handoff path (supplied/highest guard).
+   c. Compare handoff `plan_path` and hash to the trusted liveBinding values passed by caller.
+   d. Validate settings and `reload[N]{skill,path}` manifest, then reload every listed subskill in order.
+   e. Validate next_action and execute/log.
+
+#### Compaction Recovery Capsule
+
+The Compaction Recovery Capsule is owned by GSD and is the canonical recovery interface. The exact model-independent recovery capsule template is:
+
+```text
+[GSD Recovery Capsule]
+Active GSD features: <features>
+To resume execution, perform direct-root rehydration in this exact order:
+1. Load master (gsd) from <GSD_ROOT>/skills/gsd/SKILL.md first.
+2. <resume_instruction>
+Stop immediately on any malformed or ambiguous state, or if the intent is unrelated to the active features.
+```
+
+#### Canonical Candidate State-Selection & Discovery Algorithm
+
+Generic agents and harness adapters derive active feature candidates from the workspace filesystem using metadata inspection only:
+1. **Directory Inspection**: Check if `.scratch/` exists and is a directory in `cwd`. If missing or not a directory, candidate list is empty (`[]`).
+2. **Feature Directory Filtering**: Inspect child entries of `.scratch/`. A candidate entry is eligible if:
+   - It is a directory (not a regular file, symlink, or special file type).
+   - Its name matches the safe kebab-case feature slug grammar `^[a-z0-9]+(?:-[a-z0-9]+)*$` and UTF-8 byte length is <= 255 bytes.
+3. **Feature Requirements & Blockers**: Inspect child entries of `.scratch/<feature>/`:
+   - Must contain a regular file `plan.md` (`isFile()`).
+   - Must contain at least one regular file matching the canonical handoff naming scheme `handoff-<n>.toon` where `<n>` is a positive integer `[1-9]\d*` (`isFile()`).
+   - Must NOT contain any entry named `result.toon` (whether regular file, directory, or symlink). Any `result.toon` entry renders the feature completed/inert.
+4. **No Content Reading/Execution**: Discovery operates exclusively on name and file-type metadata. Artifact contents are never read or executed.
+5. **Candidate Array**: Returns all eligible feature names sorted alphabetically (by byte order). Every finite discovered count is accepted; count alone never causes a lifecycle failure.
+
+#### Generic Renderer Protocol
+
+The canonical renderer is a generic protocol with the following requirements:
+1. **Inputs & Validation Preconditions**:
+   - `features`: An array of feature name strings. Must contain at least 1 feature. Accepts every finite candidate count. Each feature must match the safe-slug grammar `^[a-z0-9]+(?:-[a-z0-9]+)*$` and must not exceed a maximum length of 255 bytes. All feature names must be unique; duplicates are rejected.
+   - `gsdRoot`: The absolute GSD_ROOT master path. Must be a non-empty string, must be an absolute path (`path.isAbsolute`), must contain no control characters (`[\x00-\x1F\x7F]`, including NUL `\0`, CR `\r`, LF `\n`), and its input byte length must not exceed 1024 bytes.
+   - `masterPath`: Emitted master path `<gsdRoot>/skills/gsd/SKILL.md` must not exceed 1024 UTF-8 bytes.
+   - Fail-closed rule: If any input validation precondition is violated, the renderer must immediately throw an error and fail closed, rendering no partial capsule.
+2. **Literal Byte Rendering**:
+   - Build canonical capsule lines using direct string interpolation / concatenation of validated fields. Do not use pattern-replacement mechanisms (`String.replace`) with untrusted strings, ensuring special characters (`$&`, `$'`, backticks, spaces, non-ASCII UTF-8 path bytes, placeholder-like strings) remain literal.
+3. **Stable Sorting**:
+   - The array of feature names is sorted alphabetically (by byte order).
+4. **Normal vs. Bounded-Ambiguity Selection**:
+   - If candidate count is <= 5, the renderer selects the **Normal** mode.
+   - If candidate count is > 5, the renderer selects the **Bounded-Ambiguity** mode.
+5. **Omitted-Count Formatting**:
+   - The candidate list is serialized once only. Normal and ambiguity instructions refer to that list rather than repeating it.
+   - In Normal mode, the `<features>` placeholder is replaced by the list of all feature names joined by `", "`.
+   - In Bounded-Ambiguity mode, `<features>` is replaced by the first 5 sorted features joined by `", "`, followed by the exact omitted-count suffix: ` (and <omittedCount> more)` where `<omittedCount>` is `features.length - 5`.
+6. **Exact Instruction Values**:
+   - For Normal mode (<= 5 active features), `<resume_instruction>` is:
+     `Delegate one complete ordinary Route 1 resume to that master's ordinary Route 1 algorithm.` (90 UTF-8 bytes)
+   - For Bounded-Ambiguity mode (> 5 active features), `<resume_instruction>` is:
+     `Stop immediately and select exactly one active feature to resume.` (65 UTF-8 bytes)
+7. **Byte-Budget Limits & Accounting**:
+   - Fixed template static text: exactly 264 UTF-8 bytes.
+   - Emitted absolute master path (`<gsdRoot>/skills/gsd/SKILL.md`): maximum 1024 bytes.
+   - Feature slug: maximum 255 bytes per slug.
+   - Displayed candidate count: maximum 5 feature slugs displayed in `<features>`.
+   - Omitted count digits: maximum 16 bytes.
+   - Candidate serialization bytes (`<features>`):
+     - Normal mode (<=5): 5 * 255 + 4 * 2 = 1283 bytes max.
+     - Bounded-Ambiguity mode (>5): 5 * 255 + 4 * 2 + 12 + 16 = 1311 bytes max.
+   - Total capsule formula:
+     `totalBytes = fixedTemplateBytes (264) + masterPathBytes (<=1024) + instructionBytes (90 or 65) + featuresSerializationBytes (<=1283 or <=1311)`
+   - Maximum worst-case complete capsule size:
+     - Normal mode (<=5): 264 + 1024 + 90 + 1283 = 2661 bytes.
+     - Bounded-Ambiguity mode (>5): 264 + 1024 + 65 + 1311 = 2664 bytes.
+   - Complete UTF-8 capsule cap: maximum 4000 bytes.
+   - Post-rendering rule: The rendered capsule must be fully formed. If the complete UTF-8 byte count of the rendered capsule exceeds 4000 bytes, the renderer must fail closed and throw an error. No post-render truncation or slicing of root, slug, instruction, or Unicode is permitted.
 ### Squash and cleanup result marker contract
 
 After all terminal verification gates pass, write `.scratch/<feature>/result.toon` as the exact nine-line UTF-8/LF scalar record:
@@ -202,9 +284,9 @@ After pending recovery, only explicit feature naming can make retained or residu
 
 ## Post-approval pipeline contract
 
-Approval is the final prompt of the normal feature cycle. Immediately dispatch `gsd-executing-plans`; no later menu, confirmation, or visual-review offer appears unless the user explicitly asks. For each ordered task: bind the packet, create an immutable attempt, implement the owned slice with focused TDD, review the exact attempt/diff, run the focused test and runnable acceptance, commit only green owned changes to `wip/<feature>`, then write a fresh immutable handoff. Critical/Important review findings, failed checks, merge conflicts, source-binding drift, or a non-convergent repair loop stop and report the applicable blocker. A changed requirement is a Spec escalation, never an implementation repair.
+Approval is the final prompt of the normal feature cycle. Immediately dispatch `gsd-executing-plans`; no later menu, confirmation, or visual-review offer appears unless the user explicitly asks. For each ordered task: bind `plan.md`, record task base, create an immutable attempt using a lightweight bound-source digest comparison under the phase-boundary semantic-validation and digest-guard model, and explicitly dispatch a fresh task implementer with direct-root TDD instructions. The implementer runs the focused check once after implementation; it never runs acceptance checks. The parent dispatches a fresh read-only reviewer against the task diff and recorded green evidence (the reviewer consumes recorded green evidence rather than rerunning it). If needed for blocking findings or red focused checks, the parent writes a fresh task-repair handoff for the `task repair` transition with `next_action` set to `run task review/repair` before any fresh finding-scoped `task` fixer or inline repair pass begins. Missing optional agent capabilities degrade gracefully: missing `task` capability makes implementer and fixer separate inline passes by the parent executor using the same attempt; missing `reviewer` capability makes review a separate read-only self-review. Any available role is still dispatched. Critical/Important findings and repair limits remain unchanged; prose never claims a subagent was dispatched when it was not. Commit only green owned changes to `wip/<feature>` on the shared worktree sequentially, then write a fresh immutable handoff. The parent executor retains task order, Git commits, handoff generation, and terminal transition. Critical/Important review findings, failed checks, merge conflicts, source-binding drift, or a non-convergent repair loop stop and report the applicable blocker. A changed requirement is a Spec escalation, never an implementation repair.
 
-When every non-superseded task is complete, `gsd-verify` checks the whole WIP diff, all active ACs through their pinned public seams, applicable project suite, and terminal acceptance/E2E. Only a green terminal verifier can squash to base.
+When every non-superseded task is complete, `gsd-verify` checks the whole WIP diff, all active ACs through their pinned public seams, applicable project suite, and terminal acceptance/E2E. Terminal verification performs one full parse at entry. The parent dispatches a fresh read-only reviewer (falling back to a separate read-only self-review if the reviewer capability is missing). If needed for blocking findings or red suite/acceptance/E2E gates, the parent writes a fresh terminal-repair handoff for the `terminal repair` transition with `next_action` set to `enter terminal verification/repair` and persists a bounded repair counter before any fresh finding-scoped task terminal fixer or inline repair pass begins. Any available role is still dispatched. Terminal verification explicitly skips focused checks when exact-target or documented-superset coverage is proven. Replay of a focused check is performed only when such coverage proof is absent. The verifier performs one lightweight pre-squash digest comparison immediately before squash, and records the result. Only a green terminal verifier can squash to base.
 
 ## Git/base/WIP/scratch mechanics
 
