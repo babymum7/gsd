@@ -138,6 +138,9 @@ test("installer registers idempotently and refuses unmanaged collisions", () => 
     const installed = readFileSync(target, "utf8");
     assert.match(installed, /^<!-- gsd-managed-command:v1 -->$/m);
     assert.match(installed, new RegExp(`^GSD_ROOT=${JSON.stringify(ROOT).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+    assert.match(installed, /Use the configured GSD_ROOT and read the master skill directly/);
+    assert.match(installed, /If the master skill cannot be read because the checkout is missing or moved, stop with an actionable error immediately\./);
+    assert.doesNotMatch(installed, /^\d+\. Verify\b/m);
     assert.match(installed, /Preserve same-session continuity:/);
     assert.match(installed, /\$ARGUMENTS is only the latest input, not a fresh task or the complete context\./);
     assert.deepEqual(readdirSync(commands), ["gsd.md"]);
