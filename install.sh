@@ -481,10 +481,11 @@ GSD_ROOT="${repo_escaped}"
 Run GSD. Execute the GSD loop by loading the master skill directly from the root path:
 1. Verify that GSD_ROOT is valid and "\$GSD_ROOT/skills/gsd/SKILL.md" exists. If GSD_ROOT is missing or moved, stop with an actionable error immediately.
 2. Read the master skill directly from "\$GSD_ROOT/skills/gsd/SKILL.md".
-3. Evaluate the GSD smart routing engine on the arguments: \$ARGUMENTS.
-4. Route 0 (Direct/read-only or Nano) must be executed directly without any git subprocess calls (completely git-free).
-5. For any routed subskill, load it directly from "\$GSD_ROOT/skills/gsd-<target>/SKILL.md". Never use \`skill://\` or ~/.agents/skills/ or readlink.
-6. Pass self-contained direct-root instructions to subagent dispatch so subagents do not depend on skill discovery.
+3. Preserve same-session continuity: use relevant earlier user and assistant turns, settled requirements, and the active GSD route or feature as context. \$ARGUMENTS is only the latest input, not a fresh task or the complete context. Continue existing work unless the user explicitly starts or switches work.
+4. Evaluate the GSD smart routing engine on that combined conversation context, the current workspace state, and \$ARGUMENTS.
+5. Route 0 (Direct/read-only or Nano) must be executed directly without any git subprocess calls (completely git-free).
+6. For any routed subskill, load it directly from "\$GSD_ROOT/skills/gsd-<target>/SKILL.md". Never use \`skill://\` or ~/.agents/skills/ or readlink.
+7. Pass self-contained direct-root instructions to subagent dispatch so subagents do not depend on skill discovery.
 EOF
 
   mv "$tmp_target" "$target"

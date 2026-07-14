@@ -138,6 +138,8 @@ test("installer registers idempotently and refuses unmanaged collisions", () => 
     const installed = readFileSync(target, "utf8");
     assert.match(installed, /^<!-- gsd-managed-command:v1 -->$/m);
     assert.match(installed, new RegExp(`^GSD_ROOT=${JSON.stringify(ROOT).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
+    assert.match(installed, /Preserve same-session continuity:/);
+    assert.match(installed, /\$ARGUMENTS is only the latest input, not a fresh task or the complete context\./);
     assert.deepEqual(readdirSync(commands), ["gsd.md"]);
 
     const second = runInstaller(home, fakeBin);
