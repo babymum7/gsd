@@ -1,14 +1,14 @@
 ---
 name: gsd-tdd
-description: Internal GSD sub-skill (routed via /gsd). Focused TDD through public interfaces, vertical tracer-bullet slices, red-green-refactor. Triggered by gsd-executing-plans for each task's focused test/path/self-check.
-triggers: gsd-executing-plans per-task focused TDD test
+description: "Use as a helper while implementing observable behavior through an existing public seam, especially from gsd-executing-plans or gsd-diagnosing-bugs. Do not start a lifecycle or create a plan."
+triggers: active executor or diagnosis requests focused red-green-refactor support
 produces: []
 consumes: [docs/domain/index.md, docs/domain/<scope>.md, .scratch/<feature>/tasks/<Tn>/a<N>.toon]
 ---
 
 # Test-Driven Development
 
-> **Direct invocation guard** — internal GSD sub-skill. `gsd-executing-plans` loads it for dispatched task TDD; another active parent skill may compose inline TDD support, but `/gsd` has no standalone TDD route. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
+> **Direct invocation guard** — internal GSD sub-skill. `gsd-executing-plans` loads it for dispatched task TDD; another active parent skill may compose inline TDD support, but automatic selection never makes TDD a standalone primary owner. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
 
 ## Invocation modes
 

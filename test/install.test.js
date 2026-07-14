@@ -29,6 +29,8 @@ function populateInstallRepo(repo, { withDist = false } = {}) {
   const lavish = join(repo, "tools", "lavish-axi");
   mkdirSync(lavish, { recursive: true });
   copyFileSync(join(ROOT, "install.sh"), join(repo, "install.sh"));
+  mkdirSync(join(repo, "extensions"), { recursive: true });
+  copyFileSync(join(ROOT, "extensions", "gsd-context.js"), join(repo, "extensions", "gsd-context.js"));
   copyFileSync(join(ROOT, "VERSION"), join(repo, "VERSION"));
   copyFileSync(join(ROOT, ".gitmodules"), join(repo, ".gitmodules"));
   writeFileSync(join(lavish, "package.json"), '{"name":"lavish-axi-fixture"}\n');
@@ -124,7 +126,17 @@ exit ${exitCode}
   );
 }
 
-test("installer registers idempotently and refuses unmanaged collisions", () => {
+function legacyManagedCommand(root, version = "v1") {
+  const escaped = root.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
+  return `---
+description: Legacy GSD command
+---
+<!-- gsd-managed-command:${version} -->
+GSD_ROOT="${escaped}"
+`;
+}
+
+test("installer publishes only the extension and is idempotent", () => {
   const { temporary, home, fakeBin } = makeHomeSandbox();
   for (const command of ["git", "pnpm"]) {
     writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
@@ -133,234 +145,133 @@ test("installer registers idempotently and refuses unmanaged collisions", () => 
   try {
     const first = runInstaller(home, fakeBin);
     assert.equal(first.status, 0, first.stderr);
-    const commands = join(home, ".omp", "agent", "commands");
-    const target = join(commands, "gsd.md");
-    const installed = readFileSync(target, "utf8");
-    assert.match(installed, /^<!-- gsd-managed-command:v1 -->$/m);
-    assert.match(installed, new RegExp(`^GSD_ROOT=${JSON.stringify(ROOT).replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}$`, "m"));
-    assert.match(installed, /Use the configured GSD_ROOT and read the master skill directly/);
-    assert.match(installed, /If the master skill cannot be read because the checkout is missing or moved, stop with an actionable error immediately\./);
-    assert.doesNotMatch(installed, /^\d+\. Verify\b/m);
-    assert.match(installed, /Preserve same-session continuity:/);
-    assert.match(installed, /\$ARGUMENTS is only the latest input, not a fresh task or the complete context\./);
-    assert.deepEqual(readdirSync(commands), ["gsd.md"]);
+    const extTarget = join(home, ".omp", "agent", "extensions", "gsd-context.js");
+    const commandTarget = join(home, ".omp", "agent", "commands", "gsd.md");
+    assert.ok(lstatSync(extTarget).isSymbolicLink());
+    assert.equal(readlinkSync(extTarget), join(ROOT, "extensions", "gsd-context.js"));
+    assert.equal(existsSync(commandTarget), false);
+    assert.equal(existsSync(join(home, ".agents", "skills")), false);
+    assert.doesNotMatch(first.stdout, /OMP command file|Version:|Managed paths/);
+    assert.match(first.stdout, /Source checkout:/);
+    assert.match(first.stdout, /OMP extension symlink:/);
+    assert.match(first.stdout, /Lavish:/);
+    assert.match(first.stdout, /start a new OMP session/);
 
     const second = runInstaller(home, fakeBin);
     assert.equal(second.status, 0, second.stderr);
-    assert.equal(readFileSync(target, "utf8"), installed);
-
-    writeFileSync(target, "user-owned command\n");
-    const collision = runInstaller(home, fakeBin);
-    assert.equal(collision.status, 1);
-    assert.match(collision.stderr, /not managed by GSD/);
-    assert.equal(readFileSync(target, "utf8"), "user-owned command\n");
+    assert.equal(readlinkSync(extTarget), join(ROOT, "extensions", "gsd-context.js"));
+    assert.equal(existsSync(commandTarget), false);
+    assert.deepEqual(readdirSync(dirname(extTarget)), ["gsd-context.js"]);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
 });
 
-test("AC-1: special paths round-trip idempotently", () => {
-  const specialName = 'repo space " \\ $ ` * ? [ ]';
-  const { temporary, home, fakeBin, repo } = makeInstallFixture({ repoName: specialName });
-  for (const command of ["git", "pnpm"]) {
-    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
-  }
-
-  try {
-    const first = runInstallerAt(repo, home, fakeBin);
-    assert.equal(first.status, 0, first.stderr + first.stdout);
-
-    const commands = join(home, ".omp", "agent", "commands");
-    const target = join(commands, "gsd.md");
-    const installed = readFileSync(target, "utf8");
-    assert.match(installed, /^<!-- gsd-managed-command:v1 -->$/m);
-
-    const expectedEscaped = repo
-      .replace(/\\/g, "\\\\")
-      .replace(/"/g, '\\"');
-
-    assert.match(installed, new RegExp(`^GSD_ROOT="${expectedEscaped.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"$`, "m"));
-
-    const second = runInstallerAt(repo, home, fakeBin);
-    assert.equal(second.status, 0, second.stderr + second.stdout);
-    assert.equal(readFileSync(target, "utf8"), installed);
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test("stale-template/same-root refresh scenario", () => {
+test("installer removes supported current-root and dead-root legacy commands", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   for (const command of ["git", "pnpm"]) {
     writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
   }
-
   const commands = join(home, ".omp", "agent", "commands");
   const target = join(commands, "gsd.md");
   mkdirSync(commands, { recursive: true });
 
-  const staleContent = `---
-description: Test stale template
----
-<!-- gsd-managed-command:v1 -->
-GSD_ROOT="${repo.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"
-
-Old stale template text that is different from new one.
-`;
-
-  writeFileSync(target, staleContent);
-
   try {
-    const result = runInstallerAt(repo, home, fakeBin);
-    assert.equal(result.status, 0, result.stderr + result.stdout);
+    writeFileSync(target, legacyManagedCommand(repo));
+    const current = runInstallerAt(repo, home, fakeBin);
+    assert.equal(current.status, 0, current.stderr + current.stdout);
+    assert.equal(existsSync(target), false);
+    assert.match(current.stdout, /removed legacy OMP command/);
 
-    const installed = readFileSync(target, "utf8");
-    assert.match(installed, /^# GSD Command$/m);
-    assert.match(installed, new RegExp(`^GSD_ROOT="${repo.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"$`, "m"));
-    assert.notEqual(installed, staleContent, "Template must be refreshed and not match the stale content");
+    const deadRoot = join(temporary, "deleted-checkout");
+    writeFileSync(target, legacyManagedCommand(deadRoot));
+    const dead = runInstallerAt(repo, home, fakeBin);
+    assert.equal(dead.status, 0, dead.stderr + dead.stdout);
+    assert.equal(existsSync(target), false);
+    assert.match(dead.stdout, /removed legacy OMP command/);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
 });
 
-test("AC-2: live checkout ownership is protected", () => {
-  const specialName = 'repo space " \\ $ ` * ? [ ]';
-  const { temporary, home, fakeBin, repo: repo1 } = makeInstallFixture({ repoName: specialName });
-  for (const command of ["git", "pnpm"]) {
-    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
-  }
-
-  const repo2 = join(temporary, "repo-second");
-  populateInstallRepo(repo2);
-
-  try {
-    const first = runInstallerAt(repo1, home, fakeBin);
-    assert.equal(first.status, 0, first.stderr + first.stdout);
-
-    const target = join(home, ".omp", "agent", "commands", "gsd.md");
-    const firstContent = readFileSync(target, "utf8");
-
-    const second = runInstallerAt(repo2, home, fakeBin);
-    assert.equal(second.status, 1);
-    assert.match(second.stderr, /live-other-root managed collision/);
-    assert.match(second.stderr, new RegExp(repo1.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
-
-    assert.equal(readFileSync(target, "utf8"), firstContent);
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test("AC-3: stale checkout ownership relocates safely", () => {
-  const specialName = 'repo space " \\ $ ` * ? [ ]';
-  const { temporary: temp1, home, fakeBin, repo: repo1 } = makeInstallFixture({ repoName: specialName });
-  for (const command of ["git", "pnpm"]) {
-    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
-  }
-
-  const temp2 = mkdtempSync(join(tmpdir(), "gsd-install-repo2-"));
-  const repo2 = join(temp2, "repo-second");
-  populateInstallRepo(repo2);
-
-  try {
-    const first = runInstallerAt(repo1, home, fakeBin);
-    assert.equal(first.status, 0, first.stderr + first.stdout);
-
-    const target = join(home, ".omp", "agent", "commands", "gsd.md");
-    const firstContent = readFileSync(target, "utf8");
-
-    rmSync(repo1, { recursive: true, force: true });
-
-    const second = runInstallerAt(repo2, home, fakeBin);
-    assert.equal(second.status, 0, second.stderr + second.stdout);
-
-    const secondContent = readFileSync(target, "utf8");
-    assert.notEqual(secondContent, firstContent);
-    assert.match(secondContent, new RegExp(`^GSD_ROOT="${repo2.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"$`, "m"));
-
-    const extDir = join(home, ".omp", "agent", "extensions");
-    const extFiles = readdirSync(extDir);
-    assert.deepEqual(extFiles, ["gsd-context.js"], "extensions directory must contain exactly gsd-context.js");
-    assert.ok(!extFiles.some(f => f.includes(".tmp") || f.includes(".backup")), "should contain no temp or backup entries");
-  } finally {
-    rmSync(temp1, { recursive: true, force: true });
-    rmSync(temp2, { recursive: true, force: true });
-  }
-});
-
-test("AC-4: malformed managed roots fail closed", () => {
+test("installer preserves ambiguous legacy command objects with warnings", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   for (const command of ["git", "pnpm"]) {
     writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
   }
-
   const commands = join(home, ".omp", "agent", "commands");
   const target = join(commands, "gsd.md");
+  const liveOther = join(temporary, "live-other");
+  const symlinkReferent = join(temporary, "user-command.md");
   mkdirSync(commands, { recursive: true });
+  mkdirSync(liveOther);
+  writeFileSync(symlinkReferent, "user command\n");
 
-  const testCases = [
-    {
-      name: "unsupported escape",
-      content: '---\ndescription: Test\n---\n<!-- gsd-managed-command:v1 -->\nGSD_ROOT="a\\b\\c\\d"\n',
-      errorPattern: /malformed target|unsupported escape/
-    },
-    {
-      name: "missing root",
-      content: '---\ndescription: Test\n---\n<!-- gsd-managed-command:v1 -->\n',
-      errorPattern: /unmarked\/malformed target|no GSD_ROOT/
-    },
-    {
-      name: "empty root",
-      content: '---\ndescription: Test\n---\n<!-- gsd-managed-command:v1 -->\nGSD_ROOT=""\n',
-      errorPattern: /malformed target|non-absolute/
-    },
-    {
-      name: "relative root",
-      content: '---\ndescription: Test\n---\n<!-- gsd-managed-command:v1 -->\nGSD_ROOT="some-path"\n',
-      errorPattern: /malformed target|non-absolute/
-    },
-    {
-      name: "duplicate GSD_ROOT lines",
-      content: '---\ndescription: Test\n---\n<!-- gsd-managed-command:v1 -->\nGSD_ROOT="path1"\nGSD_ROOT="path2"\n',
-      errorPattern: /malformed target|duplicate/
-    },
-    {
-      name: "unsupported escape character",
-      content: '---\ndescription: Test\n---\n<!-- gsd-managed-command:v1 -->\nGSD_ROOT="path\\$"\n',
-      errorPattern: /malformed target|unsupported escape/
-    },
-    {
-      name: "carriage return in GSD_ROOT line",
-      content: "---\r\ndescription: Test\r\n---\r\n<!-- gsd-managed-command:v1 -->\r\nGSD_ROOT=\"path\"\r\n",
-      errorPattern: /malformed target|carriage return/
-    },
-    {
-      name: "unsupported managed command version",
-      content: '---\ndescription: Test\n---\n<!-- gsd-managed-command:v2 -->\nGSD_ROOT="some-path"\n',
-      errorPattern: /malformed target|unsupported managed command version/
-    },
-    {
-      name: "duplicate markers with different versions",
-      content: '---\ndescription: Test\n---\n<!-- gsd-managed-command:v1 -->\n<!-- gsd-managed-command:v2 -->\nGSD_ROOT="some-path"\n',
-      errorPattern: /malformed target|exactly one/
-    },
-    {
-      name: "NUL bytes in target",
-      content: '---\ndescription: Test\n---\n<!-- gsd-managed-command:v1 -->\nG\0SD_ROOT="some-path"\n',
-      errorPattern: /malformed target|contains NUL bytes/
-    }
+  const cases = [
+    ["unmanaged file", () => writeFileSync(target, "user-owned command\n")],
+    ["missing root", () => writeFileSync(target, "<!-- gsd-managed-command:v1 -->\n")],
+    ["unsupported version", () => writeFileSync(target, legacyManagedCommand(repo, "v2"))],
+    ["duplicate root", () => writeFileSync(target, `${legacyManagedCommand(repo)}GSD_ROOT="${repo}"\n`)],
+    ["carriage return", () => writeFileSync(target, legacyManagedCommand(repo).replace(/\n/g, "\r\n"))],
+    ["NUL byte", () => writeFileSync(target, `${legacyManagedCommand(repo)}\0`)],
+    ["live other checkout", () => writeFileSync(target, legacyManagedCommand(liveOther))],
+    ["symlink target", () => symlinkSync(symlinkReferent, target)],
+    ["directory target", () => mkdirSync(target)],
   ];
 
   try {
-    for (const tc of testCases) {
-      writeFileSync(target, tc.content);
+    for (const [name, arrange] of cases) {
+      rmSync(target, { recursive: true, force: true });
+      arrange();
+      const before = lstatSync(target);
+      const content = before.isFile() ? readFileSync(target) : null;
+      const link = before.isSymbolicLink() ? readlinkSync(target) : null;
       const result = runInstallerAt(repo, home, fakeBin);
-      assert.equal(result.status, 1, `Should fail for: ${tc.name}`);
-      assert.match(result.stderr, tc.errorPattern, `Error message for ${tc.name} must match ${tc.errorPattern}`);
-      assert.equal(readFileSync(target, "utf8"), tc.content, `Content for ${tc.name} must be unchanged`);
+      assert.equal(result.status, 0, `${name}: ${result.stderr}${result.stdout}`);
+      assert.match(result.stderr, /warn: preserving legacy command/, name);
+      const after = lstatSync(target);
+      assert.equal(after.isSymbolicLink(), before.isSymbolicLink(), name);
+      assert.equal(after.isDirectory(), before.isDirectory(), name);
+      if (content) assert.deepEqual(readFileSync(target), content, name);
+      if (link) assert.equal(readlinkSync(target), link, name);
     }
   } finally {
     rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("unsafe commands directories warn and do not block extension publication", () => {
+  for (const kind of ["symlink", "file"]) {
+    const { temporary, home, fakeBin, repo } = makeInstallFixture();
+    for (const command of ["git", "pnpm"]) {
+      writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+    }
+    const agentDir = join(home, ".omp", "agent");
+    const commands = join(agentDir, "commands");
+    mkdirSync(agentDir, { recursive: true });
+    if (kind === "symlink") {
+      const external = join(temporary, "external-commands");
+      mkdirSync(external);
+      writeFileSync(join(external, "gsd.md"), legacyManagedCommand(repo));
+      symlinkSync(external, commands);
+    } else {
+      writeFileSync(commands, "user-owned commands object\n");
+    }
+
+    try {
+      const result = runInstallerAt(repo, home, fakeBin);
+      assert.equal(result.status, 0, result.stderr + result.stdout);
+      assert.match(result.stderr, /warn: preserving legacy command: commands path/);
+      const extTarget = join(agentDir, "extensions", "gsd-context.js");
+      assert.ok(lstatSync(extTarget).isSymbolicLink());
+      if (kind === "symlink") {
+        assert.ok(existsSync(join(commands, "gsd.md")));
+      } else {
+        assert.equal(readFileSync(commands, "utf8"), "user-owned commands object\n");
+      }
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
   }
 });
 
@@ -375,8 +286,7 @@ test("reject repository roots containing carriage return or newline", () => {
   const lfTerminalRepoName = 'repo-lf-terminal\n';
   const crTerminalRepoName = 'repo-cr-terminal\r';
 
-  const commands = join(home, ".omp", "agent", "commands");
-  const target = join(commands, "gsd.md");
+  const target = join(home, ".omp", "agent", "extensions", "gsd-context.js");
 
   for (const name of [lfRepoName, crRepoName, lfTerminalRepoName, crTerminalRepoName]) {
     const repo = join(temporary, name);
@@ -394,7 +304,7 @@ test("reject repository roots containing carriage return or newline", () => {
 test("portable mktemp templates end in X", () => {
   const installer = readFileSync(join(ROOT, "install.sh"), "utf8");
   const lavish = readFileSync(join(ROOT, "skills", "gsd-lavish", "SKILL.md"), "utf8");
-  assert.match(installer, /mktemp "\$\{commands_dir\}\/gsd\.md\.XXXXXX"/);
+  assert.doesNotMatch(installer, /sync_managed_command|TMP_COMMAND_FILE|mktemp [^\n]*gsd\.md/);
   assert.doesNotMatch(installer, /mktemp [^\n]*XXXXXX\.[A-Za-z]/);
   assert.match(lavish, /mktemp "\$ARTIFACT_DIR\/\$\{STEM\}\.XXXXXX"/);
   assert.doesNotMatch(lavish, /mktemp [^\n]*XXXXXX\.[A-Za-z]/);
@@ -409,8 +319,8 @@ test("installer refreshes submodules from remote with detached checkout", () => 
   try {
     const result = runInstallerAt(repo, home, fakeBin);
     assert.equal(result.status, 0, result.stderr + result.stdout);
-    const target = join(home, ".omp", "agent", "commands", "gsd.md");
-    assert.match(readFileSync(target, "utf8"), /^<!-- gsd-managed-command:v1 -->$/m);
+    const target = join(home, ".omp", "agent", "extensions", "gsd-context.js");
+    assert.ok(lstatSync(target).isSymbolicLink());
     const log = readFileSync(gitLog, "utf8");
     assert.match(log, /submodule update --init --remote --checkout --recursive/);
     assert.doesNotMatch(log, /--merge/);
@@ -488,8 +398,8 @@ test("installer warns and still registers when submodule or lavish build fails",
   try {
     const result = runInstallerAt(repo, home, fakeBin);
     assert.equal(result.status, 0, result.stderr + result.stdout);
-    const target = join(home, ".omp", "agent", "commands", "gsd.md");
-    assert.match(readFileSync(target, "utf8"), /^<!-- gsd-managed-command:v1 -->$/m);
+    const target = join(home, ".omp", "agent", "extensions", "gsd-context.js");
+    assert.ok(lstatSync(target).isSymbolicLink());
     assert.match(result.stdout + result.stderr, /warn:|degrade|unavailable/i);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
@@ -596,6 +506,9 @@ test("T4: transaction - command remains unchanged when extension preflight fails
 
     const cmdTarget = join(home, ".omp", "agent", "commands", "gsd.md");
     const extTarget = join(home, ".omp", "agent", "extensions", "gsd-context.js");
+    mkdirSync(dirname(cmdTarget), { recursive: true });
+    const legacyCommand = legacyManagedCommand(repo);
+    writeFileSync(cmdTarget, legacyCommand);
 
     // Ensure extension target has a collision (e.g. regular file)
     mkdirSync(dirname(extTarget), { recursive: true });
@@ -606,8 +519,8 @@ test("T4: transaction - command remains unchanged when extension preflight fails
     assert.equal(res.status, 1, "should fail due to extension collision");
     assert.match(res.stderr, /unmanaged collision/);
 
-    // Verify command was NOT created
-    assert.ok(!existsSync(cmdTarget), "command target should not be created");
+    // Legacy removal occurs only after successful extension publication.
+    assert.equal(readFileSync(cmdTarget, "utf8"), legacyCommand);
     // Verify extension was NOT mutated
     assert.equal(readFileSync(extTarget, "utf8"), "original extension file", "extension target should not be mutated");
   } finally {

@@ -1,14 +1,14 @@
 ---
 name: gsd-domain-modeling
-description: Internal GSD sub-skill (routed via /gsd). Build and sharpen a scalable Markdown domain model—an index plus bounded-context shards under `docs/domain/`. Auto-triggered when a durable term or decision crystallizes; also invokable directly.
-triggers: durable term/decision crystallizes (auto); invokable directly
+description: "Use when already-bounded work reveals a durable project-specific term or an evidenced architectural decision requiring the canonical domain model. Do not scan for terminology proactively or write during read-only or Nano work."
+triggers: explicit domain-model work or a durable term or decision found in already-bounded evidence
 produces: [docs/domain/index.md, docs/domain/<scope>.md]
 consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 ---
 
 # Domain Modeling
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action.
+> **Invocation guard** — automatic selection or an active owner loads this skill from the injected catalog. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action.
 
 ## Invocation modes
 
@@ -29,10 +29,10 @@ The index stays small—one row per bounded context. A caller reads `docs/domain
 
 ## Conservative context harvest
 
-Run this flow only **after the caller selects its route and Invocation Mode**:
+Run this flow only **after the caller selects its owner and Invocation Mode**:
 
-0. **Confirm write authority first.** Explicit domain work and write-authorized non-trivial caller modes remain eligible. Standalone advisory/read-only Route 0, Standalone review, and Nano are report-only no-op modes even with strong evidence.
-1. **Start with selected-route evidence.** Reuse the prompt, spec/task brief, and code/docs already needed for that route. Raw occurrence counts are not evidence.
+0. **Confirm write authority first.** Explicit domain work and write-authorized non-trivial caller modes remain eligible. Standalone advisory/read-only work, Standalone review, and Nano are report-only no-op modes even with strong evidence.
+1. **Start with selected-owner evidence.** Reuse the prompt, spec/task brief, and code/docs already needed for that owner. Raw occurrence counts are not evidence.
 2. **Require a durable signal before domain reads.** A candidate is a recurring project-specific concept whose meaning matters across features, or an explicit architectural decision with evidenced rationale.
 3. **Resolve ownership.** Map the candidate to exactly one indexed bounded context. If no scope exists, create one only when the evidence proves a durable ownership boundary; otherwise the outcome is `candidate` or `none`.
 4. **Reject weak signals.** Generic vocabulary, one-off identifiers, implementation details, feature-local wording, reversible preferences, and code shape without rationale are `none`.

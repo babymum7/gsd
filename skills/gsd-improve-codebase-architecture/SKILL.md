@@ -1,23 +1,23 @@
 ---
 name: gsd-improve-codebase-architecture
-description: Internal GSD sub-skill (routed via /gsd). Scan the codebase for deepening opportunities, present candidates (terminal by default; ask first for a lavish visual review when eligible, launch on accept), then grill through the one you pick. Triggered as gsd-diagnosing-bugs terminal, or for upkeep.
-triggers: architecture/refactor (gsd Route 5); upkeep; gsd-diagnosing-bugs terminal
+description: "Use when the user asks to audit or refactor architecture, or when diagnosis identifies an architectural cause requiring scoped deepening candidates. Do not use for one named interface design or unrelated broad exploration."
+triggers: explicit architecture audit or refactor; architectural cause returned by diagnosis
 produces: []
 consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 ---
 
 # Improve Codebase Architecture
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
+> **Invocation guard** — automatic selection loads this skill for explicit architecture intent or an architectural diagnosis result. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
 
 ## Invocation modes
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| Route 5 architecture audit | — | `docs/domain/index.md`; relevant domain shards | — | — |
+| Standalone architecture audit | — | `docs/domain/index.md`; relevant domain shards | — | — |
 | Post-diagnosis architecture audit | — | `docs/domain/index.md`; relevant domain shards | — | — |
 
-Route 5 starts from the user's requested area. Post-diagnosis mode starts from the diagnosis specifics already established in the active conversation, then surveys only the relevant code.
+Standalone audit starts from the user's requested area. Post-diagnosis mode starts from the diagnosis specifics already established in the active conversation, then surveys only the relevant code.
 
 Surface architectural friction and propose **deepening opportunities** — refactors turning shallow modules into deep ones. Aim: testability + AI-navigability.
 
@@ -40,13 +40,13 @@ Do NOT write manual HTML files. Compile the candidates and present them in the t
 
 Each candidate carries: recommendation strength (`Strong`/`Worth exploring`/`Speculative`) + dependency category (`in-process`/`local-substitutable`/`remote but owned`/`true external`), the files, a before/after sketch, the friction (one sentence), the deepen plan (one sentence), wins in exact glossary terms (locality, leverage, testability), and a decision callout if reopening one. Terminal renders this as prose/Mermaid; the visual card layout (badge colors, cross-sections) lives in the `gsd-lavish` `comparison`/`diagram` playbooks and only matters when the user explicitly opts into the browser surface.
 
-In Route 5 architecture-audit mode and pre-approval Post-diagnosis architecture-audit mode (the follow-up from a standalone Route 4 diagnosis), do not propose interfaces or write code yet: present the candidates, surface the optional lavish review only under the pre-approval gate above, and ask the user to pick one. In Post-diagnosis architecture-audit mode inside approved execution, the same candidates are report-only: ask no question and offer no lavish review. If deepening is required to satisfy the current approved AC/fix, return a Spec-escalation blocker; otherwise recommend the strongest future candidate and return to `gsd-executing-plans` without selection, grilling, or refactoring.
+In Standalone architecture-audit mode and pre-approval Post-diagnosis architecture-audit mode (the follow-up from a standalone diagnosis), do not propose interfaces or write code yet: present the candidates, surface the optional lavish review only under the pre-approval gate above, and ask the user to pick one. In Post-diagnosis architecture-audit mode inside approved execution, the same candidates are report-only: ask no question and offer no lavish review. If deepening is required to satisfy the current approved AC/fix, return a Spec-escalation blocker; otherwise recommend the strongest future candidate and return to `gsd-executing-plans` without selection, grilling, or refactoring.
 
 ## 3. Grilling loop
-A Route 5 or pre-approval Post-diagnosis user pick → run `/gsd` (Discussion) to walk the design tree (constraints, dependencies, the deepened module's shape, what survives behind the seam, what tests survive). Post-diagnosis mode never enters this grilling loop inside post-approval auto-pilot. Keep the model current via `gsd-domain-modeling` inline only under Optional context signal: a certain durable term may update the mapped glossary; a decision may update/write a decision row only when all three gates and its rationale are evidenced, after checking related decisions for dedupe. Explore alternative interfaces via `gsd-codebase-design` design-it-twice.
+A Standalone or pre-approval Post-diagnosis user pick → load `gsd-brainstorming` to walk the design tree (constraints, dependencies, the deepened module's shape, what survives behind the seam, what tests survive). Post-diagnosis mode never enters this grilling loop inside post-approval auto-pilot. Keep the model current via `gsd-domain-modeling` inline only under Optional context signal: a certain durable term may update the mapped glossary; a decision may update/write a decision row only when all three gates and its rationale are evidenced, after checking related decisions for dedupe. Explore alternative interfaces via `gsd-codebase-design` design-it-twice.
 
  ## Contextual disclosure (see gsd Conventions). Example:
  ```
  Next steps:
- - /gsd (to discuss the chosen candidate or save progress)
+ - Discuss the chosen candidate or save progress.
  ```

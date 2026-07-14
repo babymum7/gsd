@@ -1,21 +1,21 @@
 ---
 name: gsd-to-plan
-description: Internal GSD sub-skill (routed via /gsd). Validates a converged Markdown packet, writes plan.md, binds exact approval sources, and starts the non-interactive pipeline.
-triggers: Markdown spec converged, no plan yet (gsd Route 3)
+description: "Use when non-trivial requirements have converged into explicit acceptance criteria and an implementation plan must be created or finalized. Do not use while design decisions remain open or for Nano edits. Hands an approved bound plan to gsd-executing-plans."
+triggers: converged acceptance contract needs canonical plan creation, revision, or finalization
 produces: [plan.md, handoff-<n>.toon]
 consumes: [plan.md, handoff-<n>.toon, docs/gsd/<feature>/milestones.md]
 ---
 
 # To Plan
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Select an Invocation Mode from explicit intent and entry context before validating only that row’s Required artifacts. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
+> **Invocation guard** — load after `gsd-brainstorming` converges or when validated unapproved plan state requires finalization. Select an Invocation Mode from explicit intent and entry context before validating only that row’s Required artifacts. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
 
 ## Invocation modes
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
 | Initial converged creation | — | `handoff-<n>.toon`; `docs/gsd/<feature>/milestones.md` | `plan.md`; `handoff-<n>.toon` | — |
-| Resume/finalize | `plan.md` | `handoff-<n>.toon`; `docs/gsd/<feature>/milestones.md` | `plan.md`; `handoff-<n>.toon` | Stop and return to `/gsd` Discussion to recover `plan.md`; never synthesize a contract or read legacy pre-approval TOON |
+| Resume/finalize | `plan.md` | `handoff-<n>.toon`; `docs/gsd/<feature>/milestones.md` | `plan.md`; `handoff-<n>.toon` | Stop and load `gsd-brainstorming` to recover the missing contract before recreating `plan.md`; never synthesize a contract or read legacy pre-approval TOON |
 
 ## Intake
 

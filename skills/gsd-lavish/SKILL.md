@@ -1,14 +1,14 @@
 ---
 name: gsd-lavish
-description: Internal GSD sub-skill (routed via /gsd). Turn complex/visual agent responses into rich, reviewable HTML artifacts via the local lavish-axi CLI. Renders a substantial deliverable (spec, comparison, verify report) as a browser-reviewed artifact ONLY when its 2-part Fire gate holds — never on inline Q&A.
-triggers: substantial deliverable (spec/plan/verify report/audit) — ask before launching when offer-eligible; launch only when the user accepts (2-part Fire gate)
+description: "Use only after the user opts into a visual review of a substantial completed plan, comparison, audit, or verification report. Do not use for inline questions and answers or automatically launch a browser."
+triggers: explicit visual-review opt-in for an eligible completed deliverable
 produces: []
 consumes: []
 ---
 
 # Lavish
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation. This mode has no repository artifacts; the completed deliverable is interaction input. If the caller-supplied completed deliverable is absent, stop with a concise terminal prerequisite message and the Direct sub-skill Next step `/gsd` to produce or select one; do not reload `gsd` or re-enter its router from this invocation, and do not invent content.
+> **Invocation guard** — load only after explicit opt-in for an eligible completed deliverable. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation. This mode has no repository artifacts; the completed deliverable is interaction input. If the caller-supplied completed deliverable is absent, stop with a concise terminal prerequisite message and the natural-language next action to produce or select one; do not reload the hidden master or start another owner from this invocation, and do not invent content.
 
 ## Invocation modes
 

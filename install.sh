@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Install GSD: register GSD as an OMP command.
-# Registers zero GSD skills in ~/.agents/skills/, cleans up legacy symlinks,
-# and creates ~/.omp/agent/commands/gsd.md.
+# Install GSD: deploy the automatic OMP context extension.
+# Registers no command and no skills; removes supported legacy registrations
+# only after the extension has been published successfully.
 set -euo pipefail
 
 # Keep pwd's terminator behind a sentinel so path-ending CR/LF survives validation.
@@ -17,7 +17,6 @@ EXT_TARGET="${OMP_EXTENSIONS_DIR}/gsd-context.js"
 EXT_SOURCE="${REPO}/extensions/gsd-context.js"
 
 # Global variables for cleanup and restoration
-TMP_COMMAND_FILE=""
 CLEANUP_TMP_SYMLINK=""
 CLEANUP_BACKUP_TARGET=""
 CLEANUP_QUARANTINE_TARGET=""
@@ -297,9 +296,6 @@ cleanup_trap() {
       CLEANUP_QUARANTINE_TARGET=""
     fi
   fi
-  if [ -n "${TMP_COMMAND_FILE:-}" ]; then
-    rm -f "${TMP_COMMAND_FILE}" 2>/dev/null || true
-  fi
 }
 
 trap 'exit 129' HUP
@@ -307,193 +303,151 @@ trap 'exit 130' INT
 trap 'exit 131' QUIT
 trap 'exit 143' TERM
 trap cleanup_trap EXIT
-preflight_managed_command() {
+remove_legacy_managed_command() {
   local target="$1"
   local repo="$2"
 
+  if [ ! -e "$target" ] && [ ! -L "$target" ]; then
+    return 0
+  fi
   if [ -L "$target" ]; then
-    echo "error: registration path $target is a symlink; move or remove it, then rerun install.sh." >&2
+    printf "  warn: preserving legacy command %s: target is a symlink.\n" "$target" >&2
+    return 1
+  fi
+  if [ ! -f "$target" ]; then
+    printf "  warn: preserving legacy command %s: target is not a regular file.\n" "$target" >&2
     return 1
   fi
 
-  if [[ "$repo" == *$'\n'* || "$repo" == *$'\r'* ]]; then
-    echo "error: repository root cannot contain carriage return or newline characters." >&2
+  local orig_size clean_size
+  orig_size=$(wc -c < "$target")
+  clean_size=$(tr -d '\000' < "$target" | wc -c)
+  if [ "$orig_size" -ne "$clean_size" ]; then
+    printf "  warn: preserving legacy command %s: file contains NUL bytes.\n" "$target" >&2
     return 1
   fi
 
-  if [ -e "$target" ]; then
-    if [ ! -f "$target" ]; then
-      echo "error: registration path $target exists and is not a regular file; move or remove it, then rerun install.sh." >&2
-      return 1
-    fi
-    # Reject NUL before line parsing using a portable non-executing byte check
-    local orig_size
-    orig_size=$(wc -c < "$target")
-    local clean_size
-    clean_size=$(tr -d '\000' < "$target" | wc -c)
-    if [ "$orig_size" -ne "$clean_size" ]; then
-      echo "error: malformed target: $target contains NUL bytes." >&2
-      return 1
-    fi
+  local marker_in_header=0
+  local total_markers=0
+  local root_count=0
+  local root_line=""
+  local line_no=0
+  local has_cr=0
+  local malformed_canonical=0
+  local has_unsupported_version=0
+  local line clean_line marker_ver
 
-    local marker_in_header=0
-    local total_markers=0
-    local root_count=0
-    local root_line=""
-    local line_no=0
-    local has_cr=0
-    local malformed_canonical=0
-    local has_unsupported_version=0
-    local line
-    local clean_line
-    local marker_ver
+  while IFS= read -r line || [ -n "$line" ]; do
+    line_no=$((line_no + 1))
+    if [[ "$line" == *$'\r'* ]]; then
+      has_cr=1
+    fi
+    clean_line="${line%$'\r'}"
 
-    while IFS= read -r line || [ -n "$line" ]; do
-      line_no=$((line_no + 1))
-      if [[ "$line" == *$'\r'* ]]; then
-        has_cr=1
+    if [[ "$clean_line" =~ ^"<!-- gsd-managed-command:"(.*)" -->"$ ]]; then
+      marker_ver="${BASH_REMATCH[1]}"
+      total_markers=$((total_markers + 1))
+      if [ "$line_no" -le 10 ]; then
+        marker_in_header=$((marker_in_header + 1))
       fi
-      clean_line="${line%$'\r'}"
-
-      if [[ "$clean_line" =~ ^"<!-- gsd-managed-command:"(.*)" -->"$ ]]; then
-        marker_ver="${BASH_REMATCH[1]}"
-        total_markers=$((total_markers + 1))
-        if [ $line_no -le 10 ]; then
-          marker_in_header=$((marker_in_header + 1))
-        fi
-        if [ "$marker_ver" != "v1" ]; then
-          has_unsupported_version=1
-        fi
+      if [ "$marker_ver" != "v1" ]; then
+        has_unsupported_version=1
       fi
-      if [[ "$clean_line" =~ ^GSD_ROOT= ]]; then
-        if [[ "$clean_line" =~ ^GSD_ROOT=\"(.*)\"$ ]]; then
-          root_count=$((root_count + 1))
-          root_line="${BASH_REMATCH[1]}"
-        else
-          malformed_canonical=1
-        fi
-      fi
-    done < "$target"
-
-    if [ $total_markers -eq 0 ]; then
-      echo "error: existing unmarked/malformed target: $target exists and is not managed by GSD; move or remove it." >&2
-      return 1
     fi
-
-    if [ $marker_in_header -ne 1 ] || [ $total_markers -ne 1 ]; then
-      echo "error: malformed target: $target must contain exactly one managed marker in the first 10 lines." >&2
-      return 1
-    fi
-
-    if [ $has_unsupported_version -ne 0 ]; then
-      echo "error: malformed target: $target has an unsupported managed command version." >&2
-      return 1
-    fi
-
-    if [ $root_count -eq 0 ] && [ $malformed_canonical -eq 0 ]; then
-      echo "error: existing unmarked/malformed target: $target exists but has no GSD_ROOT; move or remove it." >&2
-      return 1
-    fi
-
-    if [ $root_count -ne 1 ] || [ $malformed_canonical -ne 0 ]; then
-      echo "error: malformed target: $target has duplicate or malformed GSD_ROOT lines." >&2
-      return 1
-    fi
-
-    if [ $has_cr -ne 0 ]; then
-      echo "error: malformed target: $target contains carriage return characters." >&2
-      return 1
-    fi
-
-    # Strictly decode only emitted escapes
-    local decoded=""
-    local i=0
-    local len=${#root_line}
-    local char
-    local next_char
-
-    while [ $i -lt $len ]; do
-      char="${root_line:$i:1}"
-      if [ "$char" = "\\" ]; then
-        i=$((i + 1))
-        if [ $i -ge $len ]; then
-          echo "error: malformed target: $target has an unsupported trailing backslash escape." >&2
-          return 1
-        fi
-        next_char="${root_line:$i:1}"
-        if [ "$next_char" = "\\" ]; then
-          decoded="${decoded}\\"
-        elif [ "$next_char" = "\"" ]; then
-          decoded="${decoded}\""
-        else
-          echo "error: malformed target: $target has an unsupported escape \\${next_char}." >&2
-          return 1
-        fi
-      elif [ "$char" = "\"" ]; then
-        echo "error: malformed target: $target has an unescaped double quote." >&2
-        return 1
+    if [[ "$clean_line" =~ ^GSD_ROOT= ]]; then
+      if [[ "$clean_line" =~ ^GSD_ROOT=\"(.*)\"$ ]]; then
+        root_count=$((root_count + 1))
+        root_line="${BASH_REMATCH[1]}"
       else
-        decoded="${decoded}${char}"
+        malformed_canonical=1
       fi
-      i=$((i + 1))
-    done
-
-    if [[ "$decoded" != /* ]]; then
-      echo "error: malformed target: $target has a non-absolute GSD_ROOT." >&2
-      return 1
     fi
+  done < "$target"
 
-    # Classification
-    if [ "$decoded" != "$repo" ] && [ -d "$decoded" ]; then
-      # Live other checkout
-      echo "error: live-other-root managed collision: $target already exists and points to active checkout $decoded; move or remove it." >&2
-      return 1
-    fi
+  if [ "$total_markers" -eq 0 ]; then
+    printf "  warn: preserving legacy command %s: file is not managed by GSD.\n" "$target" >&2
+    return 1
   fi
-  return 0
-}
+  if [ "$marker_in_header" -ne 1 ] || [ "$total_markers" -ne 1 ]; then
+    printf "  warn: preserving legacy command %s: managed marker is malformed or duplicated.\n" "$target" >&2
+    return 1
+  fi
+  if [ "$has_unsupported_version" -ne 0 ]; then
+    printf "  warn: preserving legacy command %s: managed version is unsupported.\n" "$target" >&2
+    return 1
+  fi
+  if [ "$root_count" -ne 1 ] || [ "$malformed_canonical" -ne 0 ]; then
+    printf "  warn: preserving legacy command %s: GSD_ROOT is missing, duplicated, or malformed.\n" "$target" >&2
+    return 1
+  fi
+  if [ "$has_cr" -ne 0 ]; then
+    printf "  warn: preserving legacy command %s: file contains carriage returns.\n" "$target" >&2
+    return 1
+  fi
 
-sync_managed_command() {
-  local target="$1"
-  local repo="$2"
+  local decoded=""
+  local i=0
+  local len=${#root_line}
+  local char next_char
+  while [ "$i" -lt "$len" ]; do
+    char="${root_line:$i:1}"
+    if [ "$char" = "\\" ]; then
+      i=$((i + 1))
+      if [ "$i" -ge "$len" ]; then
+        printf "  warn: preserving legacy command %s: GSD_ROOT has a trailing escape.\n" "$target" >&2
+        return 1
+      fi
+      next_char="${root_line:$i:1}"
+      if [ "$next_char" = "\\" ]; then
+        decoded="${decoded}\\"
+      elif [ "$next_char" = "\"" ]; then
+        decoded="${decoded}\""
+      else
+        printf "  warn: preserving legacy command %s: GSD_ROOT has an unsupported escape.\n" "$target" >&2
+        return 1
+      fi
+    elif [ "$char" = "\"" ]; then
+      printf "  warn: preserving legacy command %s: GSD_ROOT has an unescaped quote.\n" "$target" >&2
+      return 1
+    else
+      decoded="${decoded}${char}"
+    fi
+    i=$((i + 1))
+  done
 
-  # Write target atomically
-  local commands_dir
-  commands_dir="$(dirname "$target")"
-  mkdir -p "$commands_dir"
+  if [[ "$decoded" != /* ]]; then
+    printf "  warn: preserving legacy command %s: GSD_ROOT is not absolute.\n" "$target" >&2
+    return 1
+  fi
+  if [ "$decoded" != "$repo" ] && [ -d "$decoded" ]; then
+    printf "  warn: preserving legacy command %s: it belongs to live checkout %s.\n" "$target" "$decoded" >&2
+    return 1
+  fi
 
-  local tmp_target
-  tmp_target=$(mktemp "${commands_dir}/gsd.md.XXXXXX")
-  TMP_COMMAND_FILE="$tmp_target"
-
-  local repo_escaped
-  repo_escaped="${repo//\\/\\\\}"
-  repo_escaped="${repo_escaped//\"/\\\"}"
-
-  cat <<EOF > "$tmp_target"
----
-description: Master entry point for all GSD coding tasks. Routes, starts, resumes, and coordinates sub-skills automatically.
----
-<!-- gsd-managed-command:v1 -->
-# GSD Command
-GSD_ROOT="${repo_escaped}"
-
-Run GSD using the configured root:
-1. Use the configured GSD_ROOT and read the master skill directly from "\$GSD_ROOT/skills/gsd/SKILL.md". If the master skill cannot be read because the checkout is missing or moved, stop with an actionable error immediately.
-2. Preserve same-session continuity: use relevant earlier user and assistant turns, settled requirements, and the active GSD route or feature as context. \$ARGUMENTS is only the latest input, not a fresh task or the complete context. Continue existing work unless the user explicitly starts or switches work.
-3. Evaluate the GSD smart routing engine on that combined conversation context, the current workspace state, and \$ARGUMENTS.
-4. Route 0 (Direct/read-only or Nano) must be executed directly without any git subprocess calls (completely git-free).
-5. For any routed subskill, load it directly from "\$GSD_ROOT/skills/gsd-<target>/SKILL.md". Never use \`skill://\` or ~/.agents/skills/ or readlink.
-6. Pass self-contained direct-root instructions to subagent dispatch so subagents do not depend on skill discovery.
-EOF
-
-  mv "$tmp_target" "$target"
-  TMP_COMMAND_FILE=""
+  local target_arg="$target"
+  if [[ "$target_arg" == -* ]]; then
+    target_arg="./$target_arg"
+  fi
+  if rm -f -- "$target_arg"; then
+    printf "  removed legacy OMP command: %s\n" "$target"
+    return 0
+  fi
+  printf "  warn: could not remove legacy command %s; preserving it.\n" "$target" >&2
+  return 1
 }
 
 preflight_managed_extension() {
   local target="$1"
   local ext_source="$2"
+
+  if [[ "$ext_source" == *$'\n'* || "$ext_source" == *$'\r'* ]]; then
+    echo "error: repository root cannot contain carriage return or newline characters." >&2
+    return 1
+  fi
+  if [ -L "$ext_source" ] || [ ! -f "$ext_source" ]; then
+    printf "error: extension source %s is missing or is not a regular file.\n" "$ext_source" >&2
+    return 1
+  fi
 
   if [ -e "$target" ] || [ -L "$target" ]; then
     PREFLIGHT_EXT_EXISTS=1
@@ -1117,8 +1071,8 @@ sync_managed_extension() {
 
 # --- Complete Preflight ---
 
-# Check each parent dir in the ~/.omp path
-for p in "$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_COMMANDS_DIR" "$OMP_EXTENSIONS_DIR"; do
+# Extension parents are load-bearing and must be real directories.
+for p in "$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR"; do
   check_p="$p"
   if [[ "$check_p" == -* ]]; then
     check_p="./$check_p"
@@ -1133,11 +1087,18 @@ for p in "$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_COMMANDS_DIR" "$OMP_EXTENSIONS_DIR"; 
   fi
 done
 
-preflight_managed_command "$OMP_TARGET" "$REPO"
 preflight_managed_extension "$EXT_TARGET" "$EXT_SOURCE"
-
-sync_managed_command "$OMP_TARGET" "$REPO"
 sync_managed_extension "$EXT_TARGET" "$EXT_SOURCE"
+
+# The commands directory is migration-only. Unsafe or ambiguous objects are
+# preserved without rolling back the independently published extension.
+if [ -L "$OMP_COMMANDS_DIR" ]; then
+  printf "  warn: preserving legacy command: commands path %s is a symlink.\n" "$OMP_COMMANDS_DIR" >&2
+elif [ -e "$OMP_COMMANDS_DIR" ] && [ ! -d "$OMP_COMMANDS_DIR" ]; then
+  printf "  warn: preserving legacy command: commands path %s is not a directory.\n" "$OMP_COMMANDS_DIR" >&2
+elif [ -d "$OMP_COMMANDS_DIR" ]; then
+  remove_legacy_managed_command "$OMP_TARGET" "$REPO" || true
+fi
 # --- Remove old ~/.agents/skills/gsd* symlinks proven to resolve to this checkout ---
 if [ -d "${HOME}/.agents/skills" ]; then
   for link in "${HOME}/.agents/skills"/gsd*; do
@@ -1178,15 +1139,11 @@ if [ -d "$LAVISH" ] && command -v pnpm >/dev/null 2>&1; then
   fi
 fi
 
-VERSION="$(cat "$REPO/VERSION" 2>/dev/null || echo unknown)"
 LAVISH_STATE="lavish visual path ready (dist/cli.mjs present)"
 [ -f "$LAVISH/dist/cli.mjs" ] || LAVISH_STATE="lavish not built — install pnpm and re-run, or: cd tools/lavish-axi && pnpm i && pnpm build"
 
 printf "\nGSD installation complete\n"
-printf "  Version: %s\n" "$VERSION"
 printf "  Source checkout: %s\n" "$REPO"
-printf "  Managed paths:\n"
-printf "    OMP command file: %s (loads GSD from %s)\n" "$OMP_TARGET" "$REPO"
-printf "    OMP extension symlink: %s -> %s\n" "$EXT_TARGET" "$EXT_SOURCE"
+printf "  OMP extension symlink: %s -> %s\n" "$EXT_TARGET" "$EXT_SOURCE"
 printf "  Lavish: %s\n" "$LAVISH_STATE"
 printf "  Next: start a new OMP session to load the extension.\n"

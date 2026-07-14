@@ -1,17 +1,17 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
+import nodeFs from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRequire } from "node:module";
 import {
   bindApprovedSources, parseMarkdownPacket, rejectLegacyPreapprovalFiles, verifyApprovedSources,
   validateSectionEdges,
 } from "./support/markdown-packet.mjs";
 import {
-  decisionHasRoute, parseClassifyResponse, parseTraceResponse, responseMatchesFixture,
-  validateDecisionTarget, validateFixtureSet,
-} from "./eval/route-eval-contract.mjs";
+  parseActivationResponse, responseMatchesFixture, validateActivationTarget, validateFixtureSet,
+} from "./eval/activation-eval-contract.mjs";
+import gsdContextExtension, { CAPSULE_TEMPLATE } from "../extensions/gsd-context.js";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS = join(ROOT, "skills");
@@ -821,26 +821,37 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
   assert.match(master, /all-`done`, fail closed/);
 });
 
-test("master route and policy tables retain their declared shape", () => {
+test("master and visible skills declare automatic lazy activation", () => {
   const master = read("skills/gsd/SKILL.md");
-  const classifier = master.match(/\*\*Route 0 classifier \(normative\)\.\*\*([\s\S]*?)\n1\. \*\*Resume\*\*:/)?.[1];
-  assert.ok(classifier, "Route 0 classifier boundary");
-  const classifierRows = classifier.split("\n").filter((line) => line.startsWith("|"));
-  assert.equal(classifierRows.length, 5);
-  assert.ok(classifierRows.every((line) => line.split("|").length === 7), "Route 0 table must have five columns");
+  assert.match(master, /^description: "Session bootstrap injected by the GSD OMP extension;/m);
+  assert.match(master, /^hide: true$/m);
+  assert.match(master, /choose exactly one primary process owner/i);
+  assert.match(master, /same-session continuity/i);
+  assert.match(master, /no matching skill.*ordinary direct behavior/is);
+  const routeLabel = new RegExp(`\\b${"Rou" + "te"} (?:[0-6N]|meta)\\b`);
+  const oldEngine = new RegExp(`Smart ${"Routi" + "ng"} Engine`);
+  assert.doesNotMatch(master, routeLabel);
+  assert.doesNotMatch(master, oldEngine);
+  assert.match(master, /first action must be a `read` tool call/);
 
-  for (const [route, title] of [
-    [1, "Resume"], [2, "Review/Diff"], [3, "Spec/Plan"],
-    [4, "Issue/Bug"], [5, "Codebase Exploration"], [6, "New Work / Vague Input"],
-  ]) {
-    assert.match(master, new RegExp(`^${route}\\. \\*\\*${title.replace("/", "\\/")}\\*\\*:$`, "m"));
+  const descriptions = new Set();
+  const standaloneCommand = new RegExp(`(?:^|[\`"'(\\s])/${"gsd"}(?:\\s|\`|$)`, "m");
+  for (const name of skillNames().filter((skillName) => skillName !== "gsd")) {
+    const skill = read(`skills/${name}/SKILL.md`);
+    const line = skill.match(/^description: (.+)$/m)?.[1];
+    assert.ok(line, `${name} description`);
+    assert.equal(line.startsWith('"') && line.endsWith('"'), true, `${name} JSON-quoted description`);
+    const description = JSON.parse(line);
+    assert.equal(typeof description, "string", `${name} description string`);
+    assert.equal(descriptions.has(description), false, `${name} unique description`);
+    descriptions.add(description);
+    assert.doesNotMatch(skill, new RegExp(`${"routed"} via /${"gsd"}|${routeLabel.source}`), `${name} legacy activation`);
+    assert.doesNotMatch(skill, standaloneCommand, `${name} standalone command syntax`);
   }
 
-  const matrix = master.match(/### Executable policy scenario matrix \(normative\)([\s\S]*?)\n## Dynamic Sub-Skill Loading/)?.[1];
-  assert.ok(matrix, "context-harvest matrix boundary");
-  const matrixRows = matrix.split("\n").filter((line) => line.startsWith("|"));
-  assert.ok(matrixRows.length > 2);
-  assert.ok(matrixRows.every((line) => line.split("|").length === 10), "policy matrix must have eight columns");
+  assert.match(read("skills/gsd-domain-modeling/SKILL.md"), /## Scaling boundary[\s\S]*## Decision capture/);
+  assert.match(read("skills/gsd-codebase-design/SKILL.md"), /## Deep vs shallow[\s\S]*## Designing for testability/);
+  assert.match(read("skills/gsd-improve-codebase-architecture/SKILL.md"), /## 1\. Explore[\s\S]*## 3\. Grilling loop/);
 });
 
 test("domain model has exactly one writer", () => {
@@ -2604,102 +2615,104 @@ reload[3]{skill,path}:
   assert.match(verify, /terminal repair.*next_action.*set to.*enter terminal verification\/repair/);
 });
 
-test("route evaluation fixtures and response parsers enforce routing and pre-route decisions", () => {
+test("activation fixtures and response parser enforce lazy primary-skill selection", () => {
   const fixtureText = read("test/eval/fixtures.json");
   const fixtures = JSON.parse(fixtureText);
-  const installed = new Set(skillNames());
+  const installed = new Set(skillNames().filter((name) => name !== "gsd"));
   assert.deepEqual(validateFixtureSet(fixtures, installed), { ok: true });
   const documentedFixtureCount = read("README.md").match(/(\d+) workspace-state \+ prompt fixtures/);
   assert.ok(documentedFixtureCount);
   assert.equal(fixtures.length, Number(documentedFixtureCount[1]));
   assert.match(fixtureText, /approved plan\.md exist/);
   assert.doesNotMatch(fixtureText, /proposal\.toon|spec\.toon|design\.toon|plan\.toon/);
+  assert.doesNotMatch(fixtureText, /"route"|"skill"/);
 
   const byId = new Map(fixtures.map((fixture) => [fixture.id, fixture]));
-  assert.equal(byId.get("result-pending-unrelated").decision, "cleanup-question");
-  assert.equal(byId.get("result-retained-related-resume").decision, "block-resume");
-  assert.equal(byId.get("result-retained-related-cleanup").decision, "cleanup-only");
-  assert.equal(byId.get("result-retained-unrelated").decision, "ignore-terminal-record");
-  assert.equal(byId.get("result-residual-related-resume").decision, "block-resume");
-  assert.equal(byId.get("result-residual-related-cleanup").decision, "cleanup-only");
-  assert.equal(byId.get("result-residual-unrelated").decision, "ignore-terminal-record");
-  assert.equal(byId.get("result-malformed-with-active").decision, "fail-closed");
+  for (const id of ["nano-typo", "readonly-question", "mention-not-ask", "catalog"]) {
+    assert.deepEqual(
+      {
+        action: byId.get(id).expectedAction,
+        primarySkill: byId.get(id).expectedPrimarySkill,
+      },
+      { action: "direct", primarySkill: null },
+      id,
+    );
+  }
+  assert.deepEqual(
+    {
+      action: byId.get("new-feature").expectedAction,
+      primarySkill: byId.get("new-feature").expectedPrimarySkill,
+    },
+    { action: "load", primarySkill: "gsd-brainstorming" },
+  );
   assert.deepEqual(
     {
       decision: byId.get("result-retained-newer-than-active").decision,
-      route: byId.get("result-retained-newer-than-active").route,
-      skill: byId.get("result-retained-newer-than-active").skill,
+      action: byId.get("result-retained-newer-than-active").expectedAction,
+      primarySkill: byId.get("result-retained-newer-than-active").expectedPrimarySkill,
     },
-    { decision: "ignore-terminal-record", route: "1", skill: "gsd-handoff" },
+    { decision: "ignore-terminal-record", action: "load", primarySkill: "gsd-handoff" },
   );
 
-  assert.equal(decisionHasRoute("ordinary-routing"), true);
-  assert.equal(decisionHasRoute("ignore-terminal-record"), true);
-  assert.equal(decisionHasRoute("block-resume"), false);
   assert.deepEqual(
-    validateDecisionTarget(
-      { decision: "block-resume", route: null, skill: null },
+    validateActivationTarget(
+      { decision: "block-resume", action: "stop", primarySkill: null },
       installed,
     ),
     { ok: true },
   );
   assert.match(
-    validateDecisionTarget(
-      { decision: "block-resume", route: "0", skill: "none" },
+    validateActivationTarget(
+      { decision: "block-resume", action: "direct", primarySkill: null },
       installed,
     ).detail,
-    /null route and skill/,
+    /requires stop/,
   );
   assert.deepEqual(
-    parseClassifyResponse(
-      '{"decision":"ordinary-routing","route":"0","skill":"none"}',
+    parseActivationResponse(
+      '{"decision":"ordinary-routing","action":"direct","primarySkill":null}',
       installed,
     ),
     {
       ok: true,
-      value: { decision: "ordinary-routing", route: "0", skill: "none" },
+      value: { decision: "ordinary-routing", action: "direct", primarySkill: null },
     },
   );
   assert.deepEqual(
-    parseClassifyResponse(
-      '{"decision":"cleanup-question","route":null,"skill":null}',
+    parseActivationResponse(
+      '{"decision":"ordinary-routing","action":"load","primarySkill":"gsd-verify"}',
       installed,
     ),
     {
       ok: true,
-      value: { decision: "cleanup-question", route: null, skill: null },
+      value: { decision: "ordinary-routing", action: "load", primarySkill: "gsd-verify" },
     },
   );
   assert.match(
-    parseClassifyResponse(
-      '{"decision":"ordinary-routing","route":"0","skill":"none","route":"6"}',
+    parseActivationResponse(
+      '{"decision":"ordinary-routing","action":"direct","primarySkill":null,"action":"load"}',
       installed,
     ).detail,
     /duplicate keys/,
   );
-  assert.deepEqual(parseTraceResponse("Route 5 → gsd-codebase-design", installed), {
-    ok: true,
-    value: { route: "5", skill: "gsd-codebase-design" },
-  });
-  assert.match(parseTraceResponse("Route meta → catalog", installed).detail, /noncanonical/);
   assert.equal(
     responseMatchesFixture(
-      { route: "1", skill: "gsd-handoff" },
-      byId.get("result-retained-newer-than-active"),
+      { decision: "ordinary-routing", action: "direct", primarySkill: null },
+      byId.get("readonly-question"),
     ),
     true,
   );
   assert.equal(
     responseMatchesFixture(
-      { route: "1", skill: "gsd-handoff" },
-      byId.get("result-pending-unrelated"),
+      { decision: "ordinary-routing", action: "load", primarySkill: "gsd-handoff" },
+      byId.get("readonly-question"),
     ),
     false,
   );
 
   const master = read("skills/gsd/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  const evalRunner = read("test/eval/route-eval.mjs");
+  const evalRunner = read("test/eval/activation-eval.mjs");
   for (const decision of [
     "ordinary-routing",
     "ignore-terminal-record",
@@ -2712,20 +2725,13 @@ test("route evaluation fixtures and response parsers enforce routing and pre-rou
   }
   assert.match(reference, /generic `continue`/);
   assert.match(reference, /merged_cleanup_residual/);
-  assert.match(evalRunner, /skills\", \"gsd\", \"REFERENCE\.md\"/);
-  assert.equal(evalRunner.match(/routingContract,/g)?.length, 2);
-  assert.match(master, /apply the ordered decision matrix/);
-  assert.ok(
-    master.indexOf("Apply the result-marker decision matrix first")
-      < master.indexOf("Canonical contract check"),
-  );
-  assert.match(master, /Retained and residual markers never participate in modification-time selection/);
+  assert.match(evalRunner, /createBootstrap\(repoRoot\)/);
+  assert.match(evalRunner, /discoverSkillCatalog\(repoRoot\)/);
+  assert.doesNotMatch(evalRunner, /REFERENCE\.md|route|trace|--mode/);
+  assert.match(master, /result-marker decision matrix/i);
 });
 
 test("compaction recovery capsule byte identity and drift protection", async () => {
-  const require = createRequire(import.meta.url);
-  const gsdContextExtension = require("../extensions/gsd-context.js");
-  const { CAPSULE_TEMPLATE } = gsdContextExtension;
 
   const reference = read("skills/gsd/REFERENCE.md");
   const match = reference.match(/#### Compaction Recovery Capsule[\s\S]*?```text\r?\n([\s\S]*?)\r?\n```/);
@@ -2751,7 +2757,7 @@ test("compaction recovery capsule byte identity and drift protection", async () 
     writeFileSync(join(featDir, "handoff-1.toon"), "handoff");
 
     // Add an overlong otherwise-active directory (>255 UTF-8 bytes) via readdirSync interception
-    const fs = require("node:fs");
+    const fs = nodeFs;
     const realReaddirSync = fs.readdirSync;
     const overlongName = "ac-10-overlong-" + "a".repeat(250);
     fs.readdirSync = function(p, opts) {

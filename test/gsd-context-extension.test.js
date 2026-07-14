@@ -3,13 +3,21 @@ import assert from "node:assert/strict";
 import { readFileSync, mkdtempSync, writeFileSync, mkdirSync, rmSync, symlinkSync, realpathSync } from "node:fs";
 import { join, dirname, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
-import { fileURLToPath } from "node:url";
-
-// Create require to load CommonJS module safely
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
+
 const require = createRequire(import.meta.url);
-const gsdContextExtension = require("../extensions/gsd-context.js");
-const { createCapsule, CAPSULE_TEMPLATE, detectCandidates } = gsdContextExtension;
+
+import gsdContextExtension, {
+  createCapsule,
+  CAPSULE_TEMPLATE,
+  detectCandidates,
+  parseSkillMetadata,
+  discoverSkillCatalog,
+  createBootstrap,
+  messageContainsBootstrap,
+  firstNonCompactionSummaryIndex,
+} from "../extensions/gsd-context.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -136,8 +144,8 @@ test("capsule extension production API contract", (t) => {
   t.test("proves exact order of rehydration steps is preserved", () => {
     const capsule = createCapsule(["feature-a"], ROOT);
     
-    const step1Idx = capsule.indexOf("1. Load master (gsd) from ");
-    const step2Idx = capsule.indexOf("2. Delegate one complete ordinary Route 1 resume to that master's ordinary Route 1 algorithm.");
+    const step1Idx = capsule.indexOf("1. Use the already-loaded GSD bootstrap from ");
+    const step2Idx = capsule.indexOf("2. Load gsd-handoff from the injected catalog and perform exactly one validated resume.");
     
     assert.ok(step1Idx !== -1, "Step 1 missing");
     assert.ok(step2Idx !== -1, "Step 2 missing");
@@ -388,7 +396,9 @@ test("T3 Review Fixes detailed behavior", async (t) => {
     symlinkSync(realExtensionPath, symlinkPath);
     
     // Load extension via symlink
-    const symlinkExtensionFactory = require(symlinkPath);
+    const { default: symlinkExtensionFactory } = await import(
+      `${pathToFileURL(symlinkPath).href}?symlink-test=${Date.now()}`,
+    );
     
     // Setup mock pi
     const registeredEvents = {};
@@ -560,7 +570,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
     const handoff = readFileSync(join(ROOT, "skills/gsd-handoff/SKILL.md"), "utf8");
     const reference = readFileSync(join(ROOT, "skills/gsd/REFERENCE.md"), "utf8");
 
-    // Proves that master Route 1 resume directs directly without invoking capsule again
+    // Proves that recovery resumes through handoff without invoking the capsule again
     assert.match(master, /Do not invoke or execute the capsule again, avoiding circular re-entry/);
     
     // Proves handoff does not tell ordinary processing to reload the same bootstrap/capsule
@@ -817,8 +827,8 @@ test("T3 Review Fixes detailed behavior", async (t) => {
     const handWrittenExpected = `[GSD Recovery Capsule]
 Active GSD features: feat-a
 To resume execution, perform direct-root rehydration in this exact order:
-1. Load master (gsd) from ${expectedMasterPath} first.
-2. Delegate one complete ordinary Route 1 resume to that master's ordinary Route 1 algorithm.
+1. Use the already-loaded GSD bootstrap from ${expectedMasterPath}; do not load it again.
+2. Load gsd-handoff from the injected catalog and perform exactly one validated resume.
 Stop immediately on any malformed or ambiguous state, or if the intent is unrelated to the active features.`;
 
     assert.equal(capsule, handWrittenExpected, "Capsule must match hand-written expected bytes exactly with literal special characters");
@@ -839,35 +849,260 @@ Stop immediately on any malformed or ambiguous state, or if the intent is unrela
     const normalInstructionBytes = Buffer.byteLength(normalInstruction, "utf8");
     const ambiguityInstructionBytes = Buffer.byteLength(ambiguityInstruction, "utf8");
 
-    assert.equal(fixedTextBytes, 264, "Fixed static text must be exactly 264 UTF-8 bytes");
-    assert.equal(normalInstructionBytes, 90, "Normal instruction must be exactly 90 UTF-8 bytes");
+    assert.equal(fixedTextBytes, 299, "Fixed static text must be exactly 299 UTF-8 bytes");
+    assert.equal(normalInstructionBytes, 84, "Normal instruction must be exactly 84 UTF-8 bytes");
     assert.equal(ambiguityInstructionBytes, 65, "Bounded-Ambiguity instruction must be exactly 65 UTF-8 bytes");
 
     const masterPath = `${realRootPath}/skills/gsd/SKILL.md`;
     const masterPathBytes = Buffer.byteLength(masterPath, "utf8");
 
     // Worst case totals under maximum 1024-byte path limit:
-    const normalMaxTotal = 264 + 1024 + 90 + 1283;
-    const ambiguityMaxTotal = 264 + 1024 + 65 + 1311;
-    assert.equal(normalMaxTotal, 2661, "Normal mode worst-case total under current maxima must be exactly 2661 bytes");
-    assert.equal(ambiguityMaxTotal, 2664, "Bounded-Ambiguity mode worst-case total under current maxima must be exactly 2664 bytes");
+    const normalMaxTotal = 299 + 1024 + 84 + 1283;
+    const ambiguityMaxTotal = 299 + 1024 + 65 + 1311;
+    assert.equal(normalMaxTotal, 2690, "Normal mode worst-case total under current maxima must be exactly 2690 bytes");
+    assert.equal(ambiguityMaxTotal, 2699, "Bounded-Ambiguity mode worst-case total under current maxima must be exactly 2699 bytes");
 
     const maxSlugs5 = Array.from({ length: 5 }, (_, i) => "a".repeat(253) + "-" + i);
     const capsule5 = createCapsule(maxSlugs5, realRootPath);
     const actualBytes5 = Buffer.byteLength(capsule5, "utf8");
 
-    // Formula calculation for 5 max slugs: 264 (fixed) + masterPathBytes + 90 (normal instruction) + 1283 (max 5 features)
-    const expectedFormulaMax5 = 264 + masterPathBytes + 90 + 1283;
+    // Formula calculation for 5 max slugs: 299 (fixed) + masterPathBytes + 84 (normal instruction) + 1283 (max 5 features)
+    const expectedFormulaMax5 = 299 + masterPathBytes + 84 + 1283;
     assert.equal(actualBytes5, expectedFormulaMax5, "Actual Normal capsule size must equal byte formula calculation exactly");
-    assert.ok(actualBytes5 <= 2661, "Normal mode total must not exceed 2661 bytes");
+    assert.ok(actualBytes5 <= 2690, "Normal mode total must not exceed 2690 bytes");
     assert.ok(actualBytes5 <= 4000, "Normal capsule must be within the 4000-byte cap");
 
     // Formula calculation for 6 max slugs (ambiguity mode with 1-digit omitted count: 5*255 + 4*2 + " (and 1 more)" [13 bytes] = 1296 bytes)
     const maxSlugs6 = [...maxSlugs5, "a".repeat(253) + "-5"];
     const capsule6 = createCapsule(maxSlugs6, realRootPath);
     const actualBytes6 = Buffer.byteLength(capsule6, "utf8");
-    const expectedFormulaMax6 = 264 + masterPathBytes + 65 + 1296;
+    const expectedFormulaMax6 = 299 + masterPathBytes + 65 + 1296;
     assert.equal(actualBytes6, expectedFormulaMax6, "Actual Bounded-Ambiguity capsule size must equal byte formula calculation exactly");
     assert.ok(actualBytes6 <= 4000, "Bounded-Ambiguity capsule must be within the 4000-byte cap");
   });
+});
+
+test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
+  const makeRoot = () => {
+    const root = mkdtempSync(join(tmpdir(), "omp-gsd-bootstrap-"));
+    mkdirSync(join(root, "skills"), { recursive: true });
+    return root;
+  };
+  const writeSkill = (root, name, description, body, extra = "") => {
+    const directory = join(root, "skills", name);
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      join(directory, "SKILL.md"),
+      `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n${extra}triggers: test\nproduces: []\nconsumes: []\n---\n\n${body}\n`,
+    );
+  };
+
+  await t.test("parses strict single-line metadata", () => {
+    assert.deepEqual(
+      parseSkillMetadata(
+        '---\nname: gsd-example\ndescription: "Example activation"\nhide: true\ntriggers: test\n---\n\n# Example\n',
+        "/tmp/gsd-example/SKILL.md",
+      ),
+      { name: "gsd-example", description: "Example activation", hidden: true },
+    );
+    assert.throws(
+      () => parseSkillMetadata("---\nname: gsd-example\n---\n", "/tmp/missing.md"),
+      /description/,
+    );
+    assert.throws(
+      () => parseSkillMetadata("---\nname: gsd-example\ndescription: unquoted\n---\n", "/tmp/unquoted.md"),
+      /JSON-quoted/,
+    );
+    assert.throws(
+      () => parseSkillMetadata('---\nname: gsd-example\ndescription: "one"\ndescription: "two"\n---\n', "/tmp/duplicate.md"),
+      /duplicate description/,
+    );
+    assert.throws(
+      () => parseSkillMetadata('---\nname: gsd-example\ndescription: "line\\u0000break"\n---\n', "/tmp/control.md"),
+      /control character/,
+    );
+  });
+
+  await t.test("discovers a deterministic visible catalog and renders only the hidden master body", () => {
+    const root = makeRoot();
+    try {
+      writeSkill(root, "gsd", "Hidden bootstrap", "# Hidden Bootstrap\nAlready loaded.", "hide: true\n");
+      writeSkill(root, "gsd-tdd", "TDD helper", "# Test-Driven Development\nFull TDD body.");
+      writeSkill(root, "gsd-diagnosing-bugs", "Bug diagnosis", "# Diagnosing Bugs\nFull diagnosis body.");
+
+      const catalog = discoverSkillCatalog(root);
+      assert.deepEqual(catalog.map(({ name }) => name), ["gsd-diagnosing-bugs", "gsd-tdd"]);
+      assert.ok(catalog.every(({ skillPath }) => isAbsolute(skillPath)));
+      assert.ok(catalog.every(({ skillPath }) => realpathSync(skillPath).startsWith(realpathSync(join(root, "skills")))));
+
+      const bootstrap = createBootstrap(root);
+      assert.match(bootstrap, /^<GSD_BOOTSTRAP>\ngsd:session-bootstrap:v2\n/);
+      assert.match(bootstrap, /# Hidden Bootstrap\nAlready loaded\./);
+      assert.match(bootstrap, /"name":"gsd-diagnosing-bugs"/);
+      assert.ok(bootstrap.indexOf('"name":"gsd-diagnosing-bugs"') < bootstrap.indexOf('"name":"gsd-tdd"'));
+      assert.doesNotMatch(bootstrap, /# Diagnosing Bugs|# Test-Driven Development/);
+      assert.match(bootstrap, /<\/GSD_BOOTSTRAP>$/);
+      assert.equal(messageContainsBootstrap({ role: "user", content: bootstrap, timestamp: 1 }), true);
+      assert.equal(messageContainsBootstrap({ role: "user", content: "ordinary prompt", timestamp: 1 }), false);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await t.test("rejects incomplete, mismatched, and non-regular catalogs", () => {
+    const root = makeRoot();
+    try {
+      writeSkill(root, "gsd", "Hidden bootstrap", "# Bootstrap", "hide: true\n");
+      assert.throws(() => discoverSkillCatalog(root), /visible GSD skill catalog is empty/);
+
+      writeSkill(root, "gsd-alpha", "Alpha", "# Alpha");
+      writeSkill(root, "gsd-beta", "Beta", "# Beta");
+      writeFileSync(
+        join(root, "skills", "gsd-beta", "SKILL.md"),
+        '---\nname: gsd-wrong\ndescription: "Mismatch"\ntriggers: test\nproduces: []\nconsumes: []\n---\n\n# Mismatch\n',
+      );
+      assert.throws(() => discoverSkillCatalog(root), /must match directory/);
+
+      rmSync(join(root, "skills", "gsd-beta", "SKILL.md"));
+      const outside = join(root, "outside.md");
+      writeFileSync(outside, '---\nname: gsd-beta\ndescription: "Outside"\n---\n');
+      symlinkSync(outside, join(root, "skills", "gsd-beta", "SKILL.md"));
+      assert.throws(() => discoverSkillCatalog(root), /regular SKILL\.md|outside .*skills/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await t.test("finds the first non-compaction message", () => {
+    assert.equal(firstNonCompactionSummaryIndex([]), 0);
+    assert.equal(firstNonCompactionSummaryIndex([
+      { role: "compactionSummary", summary: "one" },
+      { role: "compactionSummary", summary: "two" },
+      { role: "user", content: "continue", timestamp: 1 },
+    ]), 2);
+  });
+});
+
+test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
+  const events = {};
+  const sentMessages = [];
+  const loggedErrors = [];
+  const piMock = {
+    on(event, handler) {
+      events[event] = handler;
+    },
+    async sendMessage(message, options) {
+      sentMessages.push({ message, options });
+    },
+    logger: {
+      error(message) {
+        loggedErrors.push(message);
+      },
+    },
+  };
+  gsdContextExtension(piMock);
+
+  for (const event of [
+    "session_start",
+    "session_switch",
+    "session_branch",
+    "session_tree",
+    "session.compacting",
+    "session_compact",
+    "before_agent_start",
+    "context",
+    "agent_end",
+    "session_shutdown",
+  ]) {
+    assert.equal(typeof events[event], "function", `${event} handler`);
+  }
+
+  const registrationContext = await events.context({
+    messages: [{ role: "user", content: "first prompt", timestamp: 0 }],
+  });
+  assert.equal(messageContainsBootstrap(registrationContext.messages[0]), true);
+  const baseSystemPrompt = ["base system prompt"];
+  const registrationPolicy = await events.before_agent_start({ systemPrompt: baseSystemPrompt });
+  assert.deepEqual(baseSystemPrompt, ["base system prompt"], "base system prompt must not be mutated");
+  assert.equal(registrationPolicy.systemPrompt[0], baseSystemPrompt[0]);
+  assert.match(registrationPolicy.systemPrompt[1], /gsd:system-policy:v1/);
+  assert.match(registrationPolicy.systemPrompt[1], /first action MUST be one read tool call/);
+  assert.equal(
+    await events.before_agent_start({ systemPrompt: registrationPolicy.systemPrompt }),
+    undefined,
+    "system policy must not duplicate",
+  );
+
+  const workspace = mkdtempSync(join(tmpdir(), "omp-gsd-lifecycle-"));
+  try {
+    await events.session_start({}, { cwd: workspace });
+    const original = [{ role: "user", content: "design a feature", timestamp: 1 }];
+    const first = await events.context({ messages: original }, { cwd: workspace });
+    assert.equal(first.messages.length, 2);
+    assert.equal(first.messages[0].role, "user");
+    assert.equal(messageContainsBootstrap(first.messages[0]), true);
+    assert.equal(first.messages[1], original[0]);
+
+    assert.equal(await events.context({ messages: first.messages }, { cwd: workspace }), undefined);
+    const nextProviderRequest = await events.context({ messages: original }, { cwd: workspace });
+    assert.equal(messageContainsBootstrap(nextProviderRequest.messages[0]), true);
+    await events.session_switch({}, { cwd: workspace });
+    assert.equal(await events.context({ messages: first.messages }, { cwd: workspace }), undefined);
+
+    const scratch = join(workspace, ".scratch", "feature-a");
+    mkdirSync(scratch, { recursive: true });
+    writeFileSync(join(scratch, "plan.md"), "plan");
+    writeFileSync(join(scratch, "handoff-1.toon"), "handoff");
+    await events["session.compacting"]({}, { cwd: workspace });
+    await events.session_compact({}, { cwd: workspace });
+    assert.equal(sentMessages.length, 1);
+    assert.deepEqual(sentMessages[0].options, { deliverAs: "nextTurn", triggerTurn: false });
+
+    const compacted = [
+      { role: "compactionSummary", summary: "summary" },
+      { role: "user", content: "continue", timestamp: 2 },
+    ];
+    const reinjected = await events.context({ messages: compacted }, { cwd: workspace });
+    assert.equal(reinjected.messages[0], compacted[0]);
+    assert.equal(messageContainsBootstrap(reinjected.messages[1]), true);
+    assert.equal(reinjected.messages[2], compacted[1]);
+
+    await events.agent_end({}, { cwd: workspace });
+    const nextTurn = await events.context({ messages: original }, { cwd: workspace });
+    assert.equal(messageContainsBootstrap(nextTurn.messages[0]), true);
+    assert.deepEqual(loggedErrors, []);
+
+    const nodeFs = require("node:fs");
+    const realReadFileSync = nodeFs.readFileSync;
+    const masterPath = join(realpathSync(ROOT), "skills", "gsd", "SKILL.md");
+    try {
+      nodeFs.readFileSync = function(filePath, ...args) {
+        if (filePath === masterPath) throw new Error("forced bootstrap read failure");
+        return realReadFileSync.call(this, filePath, ...args);
+      };
+      await events.session_switch({}, { cwd: workspace });
+      await events.session_switch({}, { cwd: workspace });
+      assert.equal(loggedErrors.length, 1, "same cached bootstrap error logs once");
+      const failed = await events.context({ messages: original }, { cwd: workspace });
+      assert.match(failed.messages[0].content, /^\[GSD bootstrap unavailable\]/);
+      const failedPolicy = await events.before_agent_start({ systemPrompt: baseSystemPrompt });
+      assert.match(failedPolicy.systemPrompt[1], /gsd:system-policy:v1/);
+      assert.match(failedPolicy.systemPrompt[1], /\[GSD bootstrap unavailable\]/);
+    } finally {
+      nodeFs.readFileSync = realReadFileSync;
+    }
+
+    await events.session_start({}, { cwd: workspace });
+    const recovered = await events.context({ messages: original }, { cwd: workspace });
+    assert.equal(messageContainsBootstrap(recovered.messages[0]), true);
+    await events.session_shutdown({}, { cwd: workspace });
+    assert.equal(await events.context({ messages: original }, { cwd: workspace }), undefined);
+    assert.equal(
+      await events.before_agent_start({ systemPrompt: baseSystemPrompt }),
+      undefined,
+      "shutdown must disable the per-turn system policy",
+    );
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
 });

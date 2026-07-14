@@ -30,7 +30,7 @@ Runtime-only attempts, handoffs, and result markers stay TOON under `.scratch/`.
 
 The sole pre-approval human/agent contract is the canonical UTF-8/LF `plan.md` in `.scratch/<feature>/`, written only by `gsd-to-plan`.
 
-The `plan.md` is the only authority for intent, acceptance, task order, seams, files, and focused checks. Any legacy `proposal.md`, `spec.md`, or `design.md` is rejected and stops normal routing with a Spec escalation. Root or scratch `proposal.toon`, `spec.toon`, `design.toon`, and `plan.toon` are stale non-authoritative files: never derive scope, recovery, acceptance, or task order from them. A detected legacy packet stops normal routing with a Spec escalation.
+The `plan.md` is the only authority for intent, acceptance, task order, seams, files, and focused checks. Any legacy `proposal.md`, `spec.md`, or `design.md` is rejected and stops automatic selection with a Spec escalation. Root or scratch `proposal.toon`, `spec.toon`, `design.toon`, and `plan.toon` are stale non-authoritative files: never derive scope, recovery, acceptance, or task order from them. A detected legacy packet stops automatic selection with a Spec escalation.
 
 TOON remains runtime-only: immutable task attempts, handoffs, and result markers. Runtime records report progress and bind source bytes; they cannot author, amend, or reinterpret Markdown contracts or durable documentation.
 
@@ -187,7 +187,7 @@ The Compaction Recovery Capsule is owned by GSD and is the canonical recovery in
 [GSD Recovery Capsule]
 Active GSD features: <features>
 To resume execution, perform direct-root rehydration in this exact order:
-1. Load master (gsd) from <GSD_ROOT>/skills/gsd/SKILL.md first.
+1. Use the already-loaded GSD bootstrap from <GSD_ROOT>/skills/gsd/SKILL.md; do not load it again.
 2. <resume_instruction>
 Stop immediately on any malformed or ambiguous state, or if the intent is unrelated to the active features.
 ```
@@ -227,11 +227,11 @@ The canonical renderer is a generic protocol with the following requirements:
    - In Bounded-Ambiguity mode, `<features>` is replaced by the first 5 sorted features joined by `", "`, followed by the exact omitted-count suffix: ` (and <omittedCount> more)` where `<omittedCount>` is `features.length - 5`.
 6. **Exact Instruction Values**:
    - For Normal mode (<= 5 active features), `<resume_instruction>` is:
-     `Delegate one complete ordinary Route 1 resume to that master's ordinary Route 1 algorithm.` (90 UTF-8 bytes)
+    `Load gsd-handoff from the injected catalog and perform exactly one validated resume.` (84 UTF-8 bytes)
    - For Bounded-Ambiguity mode (> 5 active features), `<resume_instruction>` is:
      `Stop immediately and select exactly one active feature to resume.` (65 UTF-8 bytes)
 7. **Byte-Budget Limits & Accounting**:
-   - Fixed template static text: exactly 264 UTF-8 bytes.
+   - Fixed template static text: exactly 299 UTF-8 bytes.
    - Emitted absolute master path (`<gsdRoot>/skills/gsd/SKILL.md`): maximum 1024 bytes.
    - Feature slug: maximum 255 bytes per slug.
    - Displayed candidate count: maximum 5 feature slugs displayed in `<features>`.
@@ -240,10 +240,10 @@ The canonical renderer is a generic protocol with the following requirements:
      - Normal mode (<=5): 5 * 255 + 4 * 2 = 1283 bytes max.
      - Bounded-Ambiguity mode (>5): 5 * 255 + 4 * 2 + 12 + 16 = 1311 bytes max.
    - Total capsule formula:
-     `totalBytes = fixedTemplateBytes (264) + masterPathBytes (<=1024) + instructionBytes (90 or 65) + featuresSerializationBytes (<=1283 or <=1311)`
+     `totalBytes = fixedTemplateBytes (299) + masterPathBytes (<=1024) + instructionBytes (84 or 65) + featuresSerializationBytes (<=1283 or <=1311)`
    - Maximum worst-case complete capsule size:
-     - Normal mode (<=5): 264 + 1024 + 90 + 1283 = 2661 bytes.
-     - Bounded-Ambiguity mode (>5): 264 + 1024 + 65 + 1311 = 2664 bytes.
+     - Normal mode (<=5): 299 + 1024 + 84 + 1283 = 2690 bytes.
+     - Bounded-Ambiguity mode (>5): 299 + 1024 + 65 + 1311 = 2699 bytes.
    - Complete UTF-8 capsule cap: maximum 4000 bytes.
    - Post-rendering rule: The rendered capsule must be fully formed. If the complete UTF-8 byte count of the rendered capsule exceeds 4000 bytes, the renderer must fail closed and throw an error. No post-render truncation or slicing of root, slug, instruction, or Unicode is permitted.
 ### Squash and cleanup result marker contract
@@ -264,23 +264,23 @@ scratch:<retained|pending>
 
 Validate schema, field order, enum values, non-empty identities, and status consistency fail-closed. A valid result marker blocks implementation resume for its completed feature. No result-marker state can reopen execution or author a second cleanup flow.
 
-#### Entry pre-route decision matrix
+#### Entry result-marker decision matrix
 
-Master entry validates every discovered result marker before deriving prompt relevance. Apply the first matching row:
+Master activation validates every discovered result marker before deriving prompt relevance. Apply the first matching row:
 
 | Order | Marker state and prompt relation | Decision | Consequence |
 | --- | --- | --- | --- |
-| 1 | Any discovered marker is malformed | `fail-closed` | Stop before ordinary routing. |
-| 2 | Any valid marker has `scratch:pending` | `cleanup-question` | Resume only that marker's existing delete-or-retain decision; never resume implementation or emit a numbered route. |
+| 1 | Any discovered marker is malformed | `fail-closed` | Stop before skill selection. |
+| 2 | Any valid marker has `scratch:pending` | `cleanup-question` | Resume only that marker's existing delete-or-retain decision; never resume implementation or select a primary skill. |
 | 3 | Explicit cleanup targets `status:merged` with `scratch:retained` | `cleanup-only` | Permit deletion of that named packet only. |
 | 4 | Explicit cleanup targets `status:merged_cleanup_residual` | `cleanup-only` | Permit residual cleanup for that named feature only. |
-| 5 | Resume, implementation, or new-work intent explicitly targets a retained or residual completed feature | `block-resume` | Stop and report that the feature is completed; do not emit a numbered route. |
-| 6 | A retained or residual marker is unrelated to the prompt, including generic `continue` | `ignore-terminal-record` | Exclude that marker from feature relevance and continue existing active-packet, ledger-recovery, and ordinary routing. |
-| 7 | No marker condition above applies | `ordinary-routing` | Apply ordinary Step 0 state selection and Routes 0–6/meta. |
+| 5 | Resume, implementation, or new-work intent explicitly targets a retained or residual completed feature | `block-resume` | Stop and report that the feature is completed; select no primary skill. |
+| 6 | A retained or residual marker is unrelated to the prompt, including generic `continue` | `ignore-terminal-record` | Exclude that marker from feature relevance and continue existing active-packet, ledger-recovery, and automatic skill selection. |
+| 7 | No marker condition above applies | `ordinary-routing` | Continue automatic active-state and skill selection. |
 
 `scratch:pending` is a global crash-recovery gate because its cleanup choice was not durably resolved. When several pending markers exist, prefer an explicitly named pending feature; otherwise select the most-recently-modified pending feature, breaking equal timestamps by feature slug, and resolve only that marker's single cleanup decision on this entry.
 
-After pending recovery, only explicit feature naming can make retained or residual terminal history related. Generic `continue` never selects terminal history; retained and residual marker mtimes never compete with active packets. The route-bearing decisions are `ordinary-routing` and `ignore-terminal-record`; all other decisions stop before numbered routing and carry no route or skill target.
+After pending recovery, only explicit feature naming can make retained or residual terminal history related. Generic `continue` never selects terminal history; retained and residual marker mtimes never compete with active packets. The activation-bearing decisions are `ordinary-routing` and `ignore-terminal-record`; every other decision stops with `primarySkill: null`.
 
 ## Post-approval pipeline contract
 
@@ -302,7 +302,7 @@ Lavish is an optional browser review surface, never an automatic launch. Offer i
 
 ## Contextual disclosure templates
 
-Master pre-approval end-session surface:
+Pre-approval human-action surface:
 
 ```text
 Next steps (reply with number or text):
@@ -311,11 +311,11 @@ Next steps (reply with number or text):
 3. Pause & save progress
 ```
 
-Directly invoked sub-skills use technical bullets:
+Directly selected skills use natural-language actions:
 
 ```text
 Next steps:
-- /gsd (to continue or save progress)
+- Continue the active work or save progress.
 ```
 
-Inline supporting-skill firing appends nothing. Post-approval pipeline output reports progress or blockers only; blocker stops never imply merge success.
+Inline helper loading appends nothing. Post-approval pipeline output reports progress or blockers only; blocker stops never imply merge success.

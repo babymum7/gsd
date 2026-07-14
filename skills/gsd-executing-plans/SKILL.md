@@ -1,14 +1,14 @@
 ---
 name: gsd-executing-plans
-description: Internal GSD sub-skill (routed via /gsd). Executes approved Markdown plan tasks with immutable source binding, JIT runtime attempts, review, repair, and terminal verification.
-triggers: approved Markdown plan exists, pending/in-progress (gsd Route 3)
+description: "Use when a valid approved GSD plan and execution handoff have pending work, including resuming active planned implementation. Do not use without the bound plan artifacts. Composes with gsd-tdd, gsd-diagnosing-bugs, gsd-handoff, and gsd-verify."
+triggers: validated approved plan and execution handoff with pending or in-progress work
 produces: [handoff-<n>.toon, docs/gsd/<feature>/milestones.md, .scratch/<feature>/tasks/<Tn>/a<N>.toon]
 consumes: [plan.md, handoff-<n>.toon, docs/gsd/<feature>/milestones.md]
 ---
 
 # Executing Plans
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Select the Invocation Mode before validating its Required artifacts; missing Optional state is normal. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
+> **Invocation guard** — load only for validated approved plan state selected automatically or by `gsd-handoff`. Select the Invocation Mode before validating its Required artifacts; missing Optional state is normal. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
 
 ## Invocation modes
 

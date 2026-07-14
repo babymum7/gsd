@@ -1,14 +1,14 @@
 ---
 name: gsd-ponytail
-description: Internal GSD sub-skill (routed via /gsd). Force the laziest solution that actually works — simplest, shortest, minimal. YAGNI, stdlib before custom, one line before fifty. Auto-fires on quick-fix entries; toggle via /gsd (e.g. /gsd ponytail ultra).
-triggers: quick-fix entry; toggle via /gsd ponytail <level>
+description: "Use for a real known-scope quick fix that should take the smallest behavioral path, or when the user explicitly sets ponytail lite, full, ultra, or normal mode. Do not select the primary lifecycle; its preference scope and handoff persistence remain explicit."
+triggers: real known-scope quick fix; explicit ponytail lite, full, ultra, or normal preference
 produces: []
 consumes: []
 ---
 
 # Ponytail
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
+> **Invocation guard** — load only for a real known-scope quick fix or an explicit Ponytail preference change. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
 
 ## Invocation modes
 
@@ -17,15 +17,15 @@ consumes: []
 | Quick-fix auto-fire | — | — | — | — |
 | Explicit session toggle | — | — | — | — |
 
-Select Quick-fix auto-fire only for a real Route 0 quick-fix. Select Explicit session toggle only for `/gsd ponytail [lite|full|ultra]` or the stop/normal-mode command. Both modes are runtime policy transitions with no artifact requirements or writes; Nano never loads this skill.
+Select Quick-fix auto-fire only for a real known-scope quick fix. Select Explicit session toggle only for an explicit ponytail lite/full/ultra request or the stop/normal-mode request. Both modes are runtime policy transitions with no artifact requirements or writes; Nano never loads this skill.
 
-Lazy senior dev: efficient, not careless. The best code is the code never written. The runtime keeps two distinct fields: `explicit_level` is exactly `none|lite|full|ultra`, and `auto_scope` is exactly `none|quick-fix`. **Auto-fire** is scoped to that fix only: it expires when the real quick-fix lands/merges, hits a hard-blocker or verify-fail stop, or stops being the active prompt, and never silently minimizes the next, unrelated prompt. **Explicit toggle** (`/gsd ponytail [lite|full|ultra]`, omitted level = **full**) is session state until "stop ponytail"/"normal mode" via `/gsd`. Nano work never loads this skill.
-Only an active **explicit** `lite|full|ultra` toggle survives a session reset, and only via a `gsd-handoff` `settings[]` row; auto-fire is never serialized. A hard reset without a handoff loses the explicit level like any unsaved scratch — re-toggle through `/gsd` to restore it.
+Lazy senior dev: efficient, not careless. The best code is the code never written. The runtime keeps two distinct fields: `explicit_level` is exactly `none|lite|full|ultra`, and `auto_scope` is exactly `none|quick-fix`. **Auto-fire** is scoped to that fix only: it expires when the real quick-fix lands/merges, hits a hard-blocker or verify-fail stop, or stops being the active prompt, and never silently minimizes the next, unrelated prompt. **Explicit toggle** (a ponytail lite/full/ultra request, omitted level = **full**) is session state until an explicit "stop ponytail" or "normal mode" request. Nano work never loads this skill.
+Only an active **explicit** `lite|full|ultra` toggle survives a session reset, and only via a `gsd-handoff` `settings[]` row; auto-fire is never serialized. A hard reset without a handoff loses the explicit level like any unsaved scratch — set it again explicitly to restore it.
 
 ## State transitions (normative)
 `<current>` is the current `explicit_level`, `<scope>` is the current `auto_scope`, `<level>` is an explicitly supplied accepted level, `<invalid>` is a supplied value outside that domain, and `<level-or-full>` resolves an omitted toggle level to `full`. Accepted explicit toggle levels (normative): `lite|full|ultra`. Apply this table exactly. Every Inputs cell names the event and the required pre-transition state/input; a row whose Inputs do not match must not apply. Outputs marked `none` produce no cue, `n/a` means the scenario performs no handoff operation, and `omit` means a handoff write has no `ponytail_level` row.
 
-| Scenario | Inputs | Next state | Route | Skill/load | Output | Handoff row |
+| Scenario | Inputs | Next state | Owner/action | Skill/load | Output | Handoff row |
 |---|---|---|---|---|---|---|
 | Nano | `event=nano;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `0` | `none` | `none` | `n/a` |
 | Quick-fix without explicit toggle | `event=quick-fix;explicit_level=none;auto_scope=none` | `explicit_level=none;auto_scope=quick-fix` | `0` | `gsd-ponytail` | `Ponytail: full — scoped to this quick-fix.` | `n/a` |

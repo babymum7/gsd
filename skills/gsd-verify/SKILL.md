@@ -1,20 +1,20 @@
 ---
 name: gsd-verify
-description: Internal GSD sub-skill (routed via /gsd). Verifies approved Markdown packets against the WIP diff, blocks on Critical/Important findings, and completes terminal squash/cleanup.
-triggers: diff/PR review (gsd Route 2); terminal after gsd-executing-plans; quick-fix gate
+description: "Use for an explicit diff or PR review, or as the terminal gate for planned and quick-fix GSD work. Standalone review is read-only; planned verification owns acceptance, squash merge, result markers, and cleanup."
+triggers: explicit diff or PR review; terminal planned gate; quick-fix gate
 produces: [docs/gsd/<feature>/milestones.md, .scratch/<feature>/result.toon]
 consumes: [plan.md, handoff-<n>.toon, docs/gsd/<feature>/milestones.md]
 ---
 
 # Verify
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Choose the Invocation Mode from intent and context, then validate only its Required state. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
+> **Invocation guard** — automatic selection loads standalone review; the active executor loads planned and quick-fix gates. Choose the Invocation Mode from intent and context, then validate only its Required state. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
 
 ## Invocation modes
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| Standalone review (Route 2) | — | Markdown packet context | — | — |
+| Standalone review | — | Markdown packet context | — | — |
 | Planned WIP gate | `plan.md`; bound `handoff-<n>.toon` | authorized ledger | `result.toon`; authorized ledger | Stop before review or merge as Spec escalation |
 | Milestone WIP gate | Planned state; authoritative ledger | — | `result.toon`; milestone ledger lifecycle state | Missing source/binding is Spec escalation; missing ledger evidence is a Blocker |
 | Quick-fix WIP gate | `plan.md` | Markdown packet absent by design | `result.toon` | Recover the real quick-fix plan; never fabricate it |
@@ -30,7 +30,7 @@ A planned pass uses the existing Git/base/WIP/scratch and result-marker contract
 For a `Milestone WIP gate`, first prove that the executor-selected row still matches the approved milestone and is the first `pending` row. Before final diff review, apply the exact lifecycle transition from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Milestone Ledger completion contract: non-final milestone → change only that row to `done`; final milestone → delete the ledger. Review that mutation with the complete WIP diff. A changed prefix, another changed row, an append, a reorder, or the wrong active row is a Blocker. The transition lands only with the same green squash commit; a red gate never changes base ledger state. Do not ask to merge or offer a visual review after approval.
 ## Standalone review
 
-Route 2 is read-only and has no branch, result, or merge authority. Review the supplied diff for stated-intent compliance and code quality. Optional Markdown context informs findings only; it is not an approval gate.
+Standalone review is read-only and has no branch, result, or merge authority. Review the supplied diff for stated-intent compliance and code quality. Optional Markdown context informs findings only; it is not an approval gate.
 
 ## Quick-fix WIP gate
 

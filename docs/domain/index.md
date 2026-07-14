@@ -4,4 +4,4 @@
 
 | Scope | File | Purpose |
 | --- | --- | --- |
-| gsd | `gsd.md` | GSD artifact, routing, context-harvest, and milestone vocabulary. |
+| gsd | `gsd.md` | GSD artifact, activation, context-harvest, and milestone vocabulary. |

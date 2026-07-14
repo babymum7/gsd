@@ -1,14 +1,14 @@
 ---
 name: gsd-handoff
-description: Internal GSD sub-skill (routed via /gsd). Writes and resumes immutable runtime handoffs bound to an approved canonical Markdown packet.
-triggers: resume/continue (read existing); pause/breakpoint/context-pressure/task completion (write new)
+description: "Use when pausing, saving, resuming, or recovering GSD work from a valid handoff or compaction capsule. Do not invent work when required state is missing or malformed. Loads the peer skill named by validated next_action state."
+triggers: pause, save, resume, continue, compaction recovery, context pressure, or task-completion handoff
 produces: [handoff-<n>.toon]
 consumes: [handoff-<n>.toon, plan.md, docs/gsd/<feature>/milestones.md]
 ---
 
 # Handoff
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. Select the Invocation Mode before validating its Required artifacts. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
+> **Invocation guard** — automatic selection loads this skill for pause, resume, or recovery intent. Select the Invocation Mode before validating its Required artifacts. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
 
 ## Invocation modes
 
@@ -18,7 +18,7 @@ consumes: [handoff-<n>.toon, plan.md, docs/gsd/<feature>/milestones.md]
 | Execution handoff write | `plan.md` | milestone ledger | `handoff-<n>.toon` | Missing or drifted plan is Spec escalation; never invent execution state or a binding |
 | Pre-plan resume | `handoff-<n>.toon` | Markdown packet | — | Return once to state detection; preserve explicit intent |
 | Execution resume | `handoff-<n>.toon`; `plan.md` | milestone ledger | — | Recover only from valid runtime state and the bound plan.md; plan drift is Spec escalation |
-| Milestone ledger recovery | authoritative ledger selected by `/gsd` state detection | — | — | Missing/malformed/base-mismatched ledger fails closed; never invent work |
+| Milestone ledger recovery | authoritative ledger selected by automatic active-state detection | — | — | Missing/malformed/base-mismatched ledger fails closed; never invent work |
 
 ## Write
 
@@ -55,7 +55,7 @@ Validate runtime settings before applying them. Unknown well-formed rows remain 
 
 For a valid execution resume, derive the last completed task and next task from immutable runtime handoff evidence, then continue the exact plan order. Do not mutate a prior attempt, change approved Markdown status, or re-dispatch completed work. Runtime terminal-repair counters retain their existing blocker semantics.
 
-For `Milestone ledger recovery`, use only the ledger selected under `/gsd` Route 1 rules. Report the first pending milestone slug and goal, then return to Discussion/reconstruction. Do not create scratch state, mutate ledger bytes, detail later rows, mark completion, start execution, or authorize a merge.
+For `Milestone ledger recovery`, use only the ledger selected by automatic active-state detection. Report the first pending milestone slug and goal, then load `gsd-brainstorming` for reconstruction. Do not create scratch state, mutate ledger bytes, detail later rows, mark completion, start execution, or authorize a merge.
 
 ## Contextual disclosure
 

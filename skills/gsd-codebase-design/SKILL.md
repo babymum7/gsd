@@ -1,14 +1,14 @@
 ---
 name: gsd-codebase-design
-description: Internal GSD sub-skill (routed via /gsd). Shared vocabulary for designing deep modules. Use when designing/improving a module's interface, deciding where a seam goes, making code testable or AI-navigable, or when another skill needs the deep-module vocabulary.
-triggers: module-interface/deepening decision (gsd Route 5); invokable
+description: "Use when designing or improving one named module interface, seam, or deep-module boundary, either directly or as a helper. Do not use for a system-wide architecture audit."
+triggers: explicit named module or interface design; bounded inline design support
 produces: []
 consumes: []
 ---
 
 # Codebase Design
 
-> **Direct invocation guard** — internal GSD sub-skill; `/gsd` routes here. This skill has no required artifacts (`consumes: []`), so a standalone interface-design invocation proceeds directly from the user-supplied area without fabricating workspace context. If no module, interface, or area is supplied, stop and ask one focused target question; never survey the repository or invent a target. A system-wide audit is not standalone interface design: return through `/gsd` Route 5 to `gsd-improve-codebase-architecture`.
+> **Invocation guard** — automatic selection loads this skill from the injected catalog. This skill has no required artifacts (`consumes: []`), so a standalone interface-design invocation proceeds directly from the user-supplied area without fabricating workspace context. If no module, interface, or area is supplied, stop and ask one focused target question; never survey the repository or invent a target. A system-wide audit is not standalone interface design: load `gsd-improve-codebase-architecture`.
 
 ## Invocation modes
 
@@ -17,7 +17,7 @@ consumes: []
 | Standalone interface design | — | — | — | — |
 | Inline design support | — | — | — | — |
 
-Select Standalone interface design when Route 5 targets a named module or interface directly. Select Inline design support when another loaded GSD skill needs the shared vocabulary or design-it-twice process for its already-scoped work. An inline caller may pass relevant domain vocabulary it already read, but this skill never opens domain artifacts itself; therefore they are not cataloged as `consumes:` here. Neither mode fabricates repository context or writes an artifact.
+Select Standalone interface design when explicit intent targets a named module or interface directly. Select Inline design support when another loaded GSD skill needs the shared vocabulary or design-it-twice process for its already-scoped work. An inline caller may pass relevant domain vocabulary it already read, but this skill never opens domain artifacts itself; therefore they are not cataloged as `consumes:` here. Neither mode fabricates repository context or writes an artifact.
 
 Design **deep modules**: a lot of behaviour behind a small interface, placed at a clean seam, testable through that interface. Use this language and these principles wherever code is being designed or restructured. The aim is leverage for callers, locality for maintainers, and testability for everyone.
 
