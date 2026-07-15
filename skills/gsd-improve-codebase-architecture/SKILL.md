@@ -45,8 +45,8 @@ In Standalone architecture-audit mode and pre-approval Post-diagnosis architectu
 ## 3. Grilling loop
 A Standalone or pre-approval Post-diagnosis user pick → load `gsd-brainstorming` to walk the design tree (constraints, dependencies, the deepened module's shape, what survives behind the seam, what tests survive). Post-diagnosis mode never enters this grilling loop inside post-approval auto-pilot. Keep the model current via `gsd-domain-modeling` inline only under Optional context signal: a certain durable term may update the mapped glossary; a decision may update/write a decision row only when all three gates and its rationale are evidenced, after checking related decisions for dedupe. Explore alternative interfaces via `gsd-codebase-design` design-it-twice.
 
- ## Contextual disclosure (see gsd Conventions). Example:
- ```
- Next steps:
- - Discuss the chosen candidate or save progress.
- ```
+## Contextual disclosure (see [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates). Example:
+```
+Next steps:
+- Discuss the chosen candidate or save progress.
+```

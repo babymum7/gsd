@@ -20,7 +20,7 @@ bash install.sh
 
 The installer creates one direct symlink, `~/.omp/agent/extensions/gsd-context.js`, to the tracked `extensions/gsd-context.js`. It uses no wrapper and fails closed on an extension collision. It does not install an OMP command or copy/link skills into a user skill directory. Supported legacy GSD registrations are removed conservatively only after the extension has published successfully; ambiguous user-owned objects are preserved with a warning.
 
-Skills are repository files read lazily by the extension and are never separately installed. Moving the checkout or changing the extension requires another install. Start a new OMP session after install so OMP loads the published extension. Editing a skill in place takes effect the next time that skill is selected.
+Skills are repository files read lazily by the extension and are never separately installed. Relocation of the checkout requires reinstall. Since the symlink points to the tracked extension file, editing the extension in place does not require reinstall, but it does require you to start a new OMP session so that OMP loads the updated extension. Editing a skill in place takes effect the next time that skill is selected.
 
 ## Use ordinary prompts
 

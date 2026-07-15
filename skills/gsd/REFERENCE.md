@@ -136,7 +136,7 @@ The status transition or deletion is part of the reviewed WIP diff and lands onl
 
 ### JIT task attempt
 
-Immediately before dispatch, `gsd-executing-plans` writes `.scratch/<feature>/tasks/<Tn>/a<N>.toon`, fsyncs, closes, and reads it back. It is immutable. The attempt contains task/attempt identity; approved `plan.md` path, SHA-256 hash, and source anchors; verbatim active criterion facts; lossless ordered Decisions; pinned seam/path/lower-seam reason; task-owned files; focused check; relevant invariant/non-goal; and safety facts. The implementer, TDD skill, reviewer, and fixer consume the validated immutable attempt and relevant pinned sections (including the lossless ordered Decisions) directly without independently parsing or validating the plan. `None.` is represented as an explicit empty decisions marker in the attempt.
+Immediately before dispatch, `gsd-executing-plans` writes `.scratch/<feature>/tasks/<Tn>/a<N>.toon`, fsyncs, closes, and reads it back. It is immutable. The attempt contains task/attempt identity; approved `plan.md` path, SHA-256 hash, and source anchors; verbatim active criterion facts; lossless ordered Decisions; pinned seam/path/lower-seam reason; task-owned files; focused check; relevant invariant/non-goal; and safety facts. The implementer, TDD skill, reviewer, and fixer consume the validated immutable attempt and relevant pinned sections (including the lossless ordered Decisions) directly without independently parsing or validating the plan. A `None.` decisions block in the plan is represented as an explicit empty decisions marker in the attempt.
 
 The attempt derives all acceptance and interface values from `plan.md` before dispatch. It never reads or embeds a legacy pre-approval TOON table. Missing, duplicate, unknown, superseded-only, conflicting, or mismatched criterion/interface/task facts block dispatch rather than being inferred or normalized.
 
@@ -223,8 +223,8 @@ The canonical renderer is a generic protocol with the following requirements:
    - If candidate count is > 5, the renderer selects the **Bounded-Ambiguity** mode.
 5. **Omitted-Count Formatting**:
    - The candidate list is serialized once only. Normal and ambiguity instructions refer to that list rather than repeating it.
-   - In Normal mode, the `<features>` placeholder is replaced by the list of all feature names joined by `", "`.
-   - In Bounded-Ambiguity mode, `<features>` is replaced by the first 5 sorted features joined by `", "`, followed by the exact omitted-count suffix: ` (and <omittedCount> more)` where `<omittedCount>` is `features.length - 5`.
+   - In Normal mode, the `<features>` template field is serialized as the list of all feature names joined by `", "`.
+   - In Bounded-Ambiguity mode, the `<features>` template field is serialized as the first 5 sorted features joined by `", "`, followed by the exact omitted-count suffix: ` (and <omittedCount> more)` where `<omittedCount>` is `features.length - 5`.
 6. **Exact Instruction Values**:
    - For Normal mode (<= 5 active features), `<resume_instruction>` is:
     `Load gsd-handoff from the injected catalog and perform exactly one validated resume.` (84 UTF-8 bytes)

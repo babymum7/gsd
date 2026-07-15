@@ -973,7 +973,7 @@ test("T1 execution contract lifecycle and roles", () => {
   assert.match(execution, /Task attempt creation performs only a lightweight bound-source digest comparison\./);
 
   // negative assertions for ambiguous terminal replay/fixer
-  assert.match(execution, /After any fresh task fixer or inline fallback, that fixer pass reruns only focused checks invalidated by its repair, records replacement green evidence, and re-enters fresh review\./);
+  assert.match(execution, /After any fresh task fixer or inline fallback, the fixer reruns only focused checks invalidated by its repair, records replacement green evidence for each invalidated check, and re-enters fresh review\./);
 
   // negative assertions for legacy normal sources
   assert.match(execution, /Any legacy `proposal\.md`, `spec\.md`, or `design\.md` is rejected\./);
@@ -2817,3 +2817,84 @@ test("compaction recovery capsule byte identity and drift protection", async () 
     rmSync(tempDir, { recursive: true, force: true });
   }
 });
+
+test("AC-1: Ponytail lifecycle escalation and no reduced-scope completion", () => {
+  const ponytail = read("skills/gsd-ponytail/SKILL.md");
+  const domain = read("docs/domain/gsd.md");
+
+  // Require normal GSD lifecycle escalation and forbid reduced-scope completion in ponytail skill
+  assert.match(ponytail, /return to the normal GSD lifecycle/i);
+  assert.match(ponytail, /never ship a reduced subset as complete/i);
+  assert.doesNotMatch(ponytail, /Ship the lazy version \+ question it/i);
+
+  // Assert scope-expands transition row as one exact anchored line
+  assert.match(ponytail, /^\| Scope expansion \| `event=scope-expands;explicit_level=<current>;auto_scope=<scope>` \| `explicit_level=<current>;auto_scope=none` \| `none` \| `gsd-brainstorming` \| `none` \| `n\/a` \|$/m);
+  assert.doesNotMatch(ponytail, /event=scope-expands.*auto_scope=<scope>.*explicit_level=none/i);
+  assert.doesNotMatch(ponytail, /event=scope-expands.*auto_scope=<scope>.*auto_scope=quick-fix/i);
+
+  // Require same in domain decision D-gsd-2
+  assert.match(domain, /### D-gsd-2: Escalate work that stops being a quick fix/i);
+  assert.match(domain, /Clear bounded quick-fix scope and return to the normal lifecycle when requested work becomes complex or expands beyond known scope/i);
+  assert.match(domain, /silently reducing requested scope bypasses/i);
+});
+
+test("AC-2: Installation documentation distinguishes relocation from in-place edits", () => {
+  const readme = read("README.md");
+
+  // Find the paragraph containing installation guidance
+  const paragraph = readme.split(/\n\s*\n/).find(p => p.includes("Relocation of the checkout") || p.includes("separately installed"));
+  assert.ok(paragraph, "Should find the installation-guidance paragraph");
+  const normalized = paragraph.replace(/\s+/g, " ").trim();
+
+  // Relocation requiring reinstall
+  assert.match(normalized, /Relocation of the checkout requires reinstall/);
+
+  // Combined in-place clause: editing the extension in place does not require reinstall but does require starting a new OMP session
+  assert.match(normalized, /editing the extension in place does not require reinstall, but it does require you to start a new OMP session/);
+
+  // Ensure opposite session guidance cannot pass
+  assert.doesNotMatch(normalized, /does not require starting a new OMP session/);
+  assert.doesNotMatch(normalized, /without starting a new OMP session/);
+  assert.doesNotMatch(normalized, /no new OMP session/);
+  assert.doesNotMatch(normalized, /does not require (?:you to )?(?:start|starting) a new OMP session/);
+  assert.doesNotMatch(normalized, /editing the extension in place requires reinstall/);
+  assert.doesNotMatch(normalized, /Relocation of the checkout does not require reinstall/);
+});
+
+test("AC-3: Milestone Ledger definition points to canonical plan and excludes legacy local spec", () => {
+  const domain = read("docs/domain/gsd.md");
+
+  // Definition points to canonical plan and excludes local spec wording
+  assert.match(domain, /detailed acceptance criteria stay in the canonical plan/i);
+  assert.doesNotMatch(domain, /local spec/i);
+});
+
+test("AC-4: Cross-references, None. explicit, repair evidence not duplicated, and renderer serialization", () => {
+  const bugDiagnosis = read("skills/gsd-diagnosing-bugs/SKILL.md");
+  const architecture = read("skills/gsd-improve-codebase-architecture/SKILL.md");
+  const executingPlans = read("skills/gsd-executing-plans/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+
+  // Disclosure headings point to canonical reference and are immediately followed by fence
+  const pairRegex = /^[ ]{0,3}## Contextual disclosure.*\[\.\.\/gsd\/REFERENCE\.md\]\(\.\.\/gsd\/REFERENCE\.md\).*§ Contextual disclosure templates.*\r?\n[ ]{0,3}```/m;
+  assert.match(bugDiagnosis, pairRegex);
+  assert.match(architecture, pairRegex);
+
+  // None. is explicit in executing plans and reference
+  assert.match(executingPlans, /A "None\." decisions block in the plan is represented as an explicit empty decisions marker/i);
+  assert.match(reference, /A `None\.` decisions block in the plan is represented as an explicit empty decisions marker/i);
+
+  // Repair evidence is not duplicated in executing plans
+  assert.match(executingPlans, /the fixer reruns only focused checks invalidated by its repair, records replacement green evidence for each invalidated check, and re-enters fresh review/i);
+  assert.doesNotMatch(executingPlans, /Rerun all invalidated evidence and review\./i);
+  assert.doesNotMatch(executingPlans, /focused checks and evidence/i);
+  assert.doesNotMatch(executingPlans, /that fixer pass/i);
+
+  // Renderer serialization without String.replace implication
+  assert.doesNotMatch(reference, /placeholder is replaced by/i);
+  assert.doesNotMatch(reference, /`<features>` is replaced by/i);
+  assert.match(reference, /`<features>` template field is serialized as/i);
+  assert.match(reference, /For Normal mode \(<= 5 active features\), `<resume_instruction>` is:/i);
+  assert.match(reference, /For Bounded-Ambiguity mode \(> 5 active features\), `<resume_instruction>` is:/i);
+});
+

@@ -54,8 +54,8 @@ Diagnosis harvest is optional and bounded to the minimized bug path. Reuse only 
 
 In standalone pre-approval work, domain modeling may ask its one focused question only for material meaning/ownership/trade-off ambiguity. In Execution-blocker diagnosis, approval has already happened: ask zero documentation questions; send load-bearing AC/interface/invariant ambiguity to `gsd-executing-plans`' Spec escalation, otherwise skip the documentation write and continue the diagnosis.
 
- ## Contextual disclosure (see gsd Conventions). Example:
- ```
- Next steps:
- - Resume the active execution or examine the architectural cause.
- ```
+## Contextual disclosure (see [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates). Example:
+```
+Next steps:
+- Resume the active execution or examine the architectural cause.
+```

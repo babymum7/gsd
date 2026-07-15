@@ -33,6 +33,7 @@ Only an active **explicit** `lite|full|ultra` toggle survives a session reset, a
 | Fix lands/merges | `event=fix-landed;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `none` | `none` | `none` | `n/a` |
 | Hard-blocker or verify-fail stop | `event=blocker-stop;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `none` | `none` | `none` | `n/a` |
 | Unrelated prompt | `event=unrelated-prompt;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `none` | `none` | `none` | `n/a` |
+| Scope expansion | `event=scope-expands;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `none` | `gsd-brainstorming` | `none` | `n/a` |
 | Explicit toggle | `event=toggle;explicit_level=<current>;auto_scope=<scope>;level=<level-or-full>` | `explicit_level=<level-or-full>;auto_scope=none` | `none` | `gsd-ponytail` | `Ponytail: <level-or-full> — explicit session scope.` | `n/a` |
 | Invalid explicit toggle | `event=toggle;explicit_level=<current>;auto_scope=<scope>;level=<invalid>` | `explicit_level=<current>;auto_scope=none` | `none` | `none` | `Ponytail level must be lite, full, or ultra.` | `n/a` |
 | Stop or normal mode | `event=stop;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=none;auto_scope=none` | `none` | `none` | `Ponytail: none — normal mode.` | `n/a` |
@@ -46,7 +47,7 @@ Only an active **explicit** `lite|full|ultra` toggle survives a session reset, a
 
 For a supplied toggle, only the accepted domain can enter `explicit_level`; omission means `full`. An invalid level preserves the prior `explicit_level`, clears `auto_scope`, emits exactly the table's concise allowed-level feedback, and never becomes state. Stop/normal sets both fields to `none`.
 On every valid handoff restore, initialize `explicit_level=none` and `auto_scope=none` before inspecting `settings[]`. A valid `ponytail_level,lite|full|ultra` row overrides only `explicit_level`; an absent row leaves both fields at `none`. `gsd-handoff` validation runs first: an invalid or duplicate row blocks the entire resume and never reaches this state transition. Auto scope is never restored.
-A hard-blocker or verify-fail stop preserves `explicit_level` and clears `auto_scope`. A later resume of the same fix reclassifies it and may auto-fire anew rather than inheriting stale state. Landing/merge and an unrelated prompt apply the same clearing rule.
+A hard-blocker or verify-fail stop preserves `explicit_level` and clears `auto_scope`. A later resume of the same fix reclassifies it and may auto-fire anew rather than inheriting stale state. Landing/merge and an unrelated prompt apply the same clearing rule. A `scope-expands` transition applies whether quick-fix scope is `quick-fix` or `none` due to an explicit toggle; it preserves the explicit level and clears only auto scope.
 Auto-fire never becomes explicit state, never reaches a fresh task brief, and never appears in `settings[]`. Every real quick-fix loads this skill and emits exactly one table cue; an explicit level takes precedence without setting `auto_scope`. Append no menu, question, or prompt.
 
 ## The ladder (stop at the first rung that holds — after you understand the problem, not instead of it)
@@ -65,7 +66,7 @@ Two rungs work → take the higher. Bug fix = root cause (grep every caller; fix
 - No boilerplate/scaffolding "for later".
 - Deletion over addition. Boring over clever.
 - Fewest files. Shortest working diff wins — once you understand the problem.
-- Complex request? Ship the lazy version + question it in the same response ("Did X; Y covers it. Need full X?"). Never stall on a defaultable answer.
+- Complex request? Escalate work that stops being a quick fix. Clear bounded quick-fix scope and return to the normal GSD lifecycle when requested work becomes complex or expands beyond known scope; never ship a reduced subset as complete.
 - Mark deliberate simplifications `// gsd-ponytail: <what + ceiling + upgrade path>`.
 
 ## Output
