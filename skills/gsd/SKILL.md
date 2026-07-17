@@ -3,7 +3,7 @@ name: gsd
 description: "Session bootstrap injected by the GSD OMP extension; establishes lazy skill selection, same-session continuity, and workflow ownership. Do not invoke directly."
 hide: true
 triggers: injected automatically by the GSD OMP extension
-produces: [plan.md, .scratch/<feature>/result.toon, docs/gsd/<feature>/milestones.md]
+produces: [plan.md, .scratch/<feature>/result.toon, docs/gsd/<feature>/milestones.md, docs/gsd/<feature>/archive/plan.md, docs/gsd/<feature>/archive/implementation.md]
 consumes: [handoff-<n>.toon, plan.md, .scratch/<feature>/result.toon, docs/domain/index.md, docs/domain/<scope>.md, docs/gsd/<feature>/milestones.md]
 ---
 
@@ -34,7 +34,7 @@ A selected skill owns the flow until its documented transition or a user change.
 
 Read `GSD_ROOT/skills/gsd/REFERENCE.md` only when the selected non-direct workflow needs the canonical artifact, Git, recovery, result-marker, or cleanup contract. The Markdown `plan.md` is pre-approval authority; immutable approval/runtime TOON records bind and report its bytes. Runtime records never become design authority.
 
-The core pipeline is `gsd-brainstorming` → `gsd-to-plan` (writes the plan) → approval → `gsd-executing-plans` → `gsd-verify` → squash merge and result cleanup. A load-bearing spec gap returns to `gsd-brainstorming`, then a revised plan and approval; it never patches stale authority in place.
+The core pipeline is `gsd-brainstorming` → `gsd-to-plan` (writes the plan) → approval → `gsd-executing-plans` → `gsd-verify` → squash merge and result cleanup. After implementation checks pass and before final terminal review/squash, the sole post-approval human prompt is the terminal scratch disposition (delete, retain, or archive-and-delete); archive materialization is reference-only and never reopens planning or any other menu. A load-bearing spec gap returns to `gsd-brainstorming`, then a revised plan and approval; it never patches stale authority in place.
 
 Reject legacy proposal/spec/design TOON and any stale non-authoritative state. The **Quick-fix plan exception** remains the bounded behavioral fast path defined in `REFERENCE.md`; Nano remains artifact-free and Git-free. For milestone publication, if a ledger says all-`done`, fail closed unless the canonical completion conditions in `REFERENCE.md` hold.
 
@@ -45,7 +45,7 @@ Apply this matrix only before non-direct lifecycle work. Strictly validate every
 | Condition | Decision | Action |
 |---|---|---|
 | Any marker is malformed | `fail-closed` | Stop before skill selection. |
-| Any valid marker has `scratch:pending` | `cleanup-question` | Resume only its existing delete-or-retain decision. |
+| Any valid marker has `scratch:pending` | `cleanup-question` | Resume only its existing delete-or-retain decision; the pre-squash archive opportunity is not reopened. |
 | Explicit cleanup targets merged retained or residual state | `cleanup-only` | Permit cleanup of that named completed packet only. |
 | Resume, implementation, or new-work intent explicitly targets a retained or residual completed feature | `block-resume` | Stop and report that the feature is completed. |
 | A retained or residual marker is unrelated to the prompt, including generic `continue` | `ignore-terminal-record` | Exclude terminal history and continue active-state selection. |

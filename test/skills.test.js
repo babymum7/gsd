@@ -5710,3 +5710,79 @@ test("AC-4: Cross-references, None. explicit, repair evidence not duplicated, an
   assert.match(reference, /For Bounded-Ambiguity mode \(> 5 active features\), `<resume_instruction>` is:/i);
 });
 
+
+test("archive terminal disposition contract", () => {
+  const reference = read("skills/gsd/REFERENCE.md");
+  const master = read("skills/gsd/SKILL.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const toPlan = read("skills/gsd-to-plan/SKILL.md");
+  const executing = read("skills/gsd-executing-plans/SKILL.md");
+
+
+  // Workflow approval-final carve-out: both to-plan and executing-plans must match
+  const terminalDispositionException = /except the sole terminal scratch disposition \(delete, retain, or archive-and-delete\) offered after implementation checks pass and before final terminal review\/squash; that disposition never reopens planning, visual review, or any other menu\./;
+  assert.match(toPlan, /This is the last normal prompt:/);
+  assert.match(toPlan, /no later planning menu, confirmation, or visual-review offer appears,/);
+  assert.match(toPlan, terminalDispositionException);
+  assert.doesNotMatch(toPlan, /no later menu, offer, or confirmation appears/);
+  assert.match(executing, /Approval is the last normal prompt\./);
+  assert.match(executing, /no planning menus, confirmations, visual-review offers, or manual merge,/);
+  assert.match(executing, terminalDispositionException);
+  assert.doesNotMatch(executing, /no later menu, offer, or confirmation appears/);
+  // REFERENCE keeps the sole post-approval human prompt phrasing as the canonical disposition contract
+  assert.match(reference, /The sole post-approval human prompt is the terminal scratch disposition \(delete, retain, or archive-and-delete\) offered after implementation checks pass and before final terminal review\/squash; it never reopens planning, visual review, or any other menu\./);
+
+  // AC-1: option, destinations, pre-review/pre-squash timing, same-squash inclusion, scratch deletion, no post-merge docs commit
+  assert.match(reference, /Terminal scratch disposition/i);
+  assert.match(reference, /delete, retain, or archive-and-delete/);
+  assert.match(reference, /After implementation checks pass and before the final terminal review\/squash/);
+  assert.match(reference, /docs\/gsd\/<feature>\/archive\/plan\.md/);
+  assert.match(reference, /docs\/gsd\/<feature>\/archive\/implementation\.md/);
+  assert.match(reference, /same green one-feature\/one-squash commit/);
+  assert.match(reference, /never create a post-squash or post-merge documentation-only commit/);
+  assert.match(reference, /then remove `\.scratch\/<feature>\/` after publication/);
+
+  assert.match(verify, /After implementation checks pass and before the final terminal review\/squash/);
+  assert.match(verify, /delete, retain, or archive-and-delete/);
+  assert.match(verify, /copy the exact approved `\.scratch\/<feature>\/plan\.md` to `docs\/gsd\/<feature>\/archive\/plan\.md`/);
+  assert.match(verify, /write `docs\/gsd\/<feature>\/archive\/implementation\.md`/);
+  assert.match(verify, /feature outcome, changed paths, acceptance outcomes, and verification evidence/);
+  assert.match(verify, /same green one-feature\/one-squash commit/);
+  assert.match(verify, /then delete `\.scratch\/<feature>\/` after publication/);
+  assert.match(verify, /never create a post-squash documentation-only commit/);
+
+  assert.match(master, /terminal scratch disposition/);
+  assert.match(master, /delete, retain, or archive-and-delete/);
+  assert.match(master, /docs\/gsd\/<feature>\/archive\/plan\.md/);
+  assert.match(master, /docs\/gsd\/<feature>\/archive\/implementation\.md/);
+
+  // AC-2: reference-only authority, no runtime TOON, fail-closed collision, preserve result/one-squash/cleanup
+  assert.match(reference, /non-authoritative historical reference/);
+  assert.match(reference, /sole execution\/design authority/);
+  assert.match(reference, /Do not copy handoffs, immutable attempts, `result\.toon`/);
+  assert.match(reference, /If either archive destination already exists, fail closed and preserve prior content; never overwrite/);
+  assert.match(reference, /Existing result-marker schema, one-squash branch cleanup, and scratch cleanup contracts remain intact/);
+  assert.match(reference, /The sole post-approval human prompt is the terminal scratch disposition/);
+  assert.match(reference, /it never reopens planning, visual review, or any other menu/);
+  assert.match(reference, /Post-merge `scratch:pending` recovery resumes only the existing delete-or-retain decision/);
+  assert.match(reference, /pre-squash archive opportunity is not reopened after merge/);
+
+  assert.match(verify, /non-authoritative historical reference only/);
+  assert.match(verify, /never copy handoffs, attempts, or result markers/);
+  assert.match(verify, /fail closed without overwrite on collision/);
+
+  assert.match(master, /never reopens planning or any other menu/);
+  assert.match(master, /pre-squash archive opportunity is not reopened/);
+
+  // Preserve existing result-marker schema and delete-or-retain recovery wording
+  assert.match(reference, /exact nine-line UTF-8\/LF scalar record/);
+  assert.match(reference, /scratch:<retained\|pending>/);
+  assert.match(reference, /Resume only that marker's existing delete-or-retain decision/);
+  assert.match(master, /Resume only its existing delete-or-retain decision/);
+
+  // Negative: no automatic archive, no archived-feature resume, no full scratch copy
+  assert.doesNotMatch(reference, /automatically archive every completed feature/i);
+  assert.doesNotMatch(reference, /archived plans as active authority/i);
+  assert.doesNotMatch(reference, /copy the full scratch packet/i);
+  assert.doesNotMatch(verify, /automatically archive every completed feature/i);
+});
