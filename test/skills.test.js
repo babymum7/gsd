@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import nodeFs from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { dirname, join, resolve, basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   bindApprovedSources, parseMarkdownPacket, rejectLegacyPreapprovalFiles, verifyApprovedSources,
@@ -954,31 +954,81 @@ test("README documents the Markdown contract without legacy plan authority", () 
 
 test("T1 execution contract lifecycle and roles", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  // positive lifecycle/role assertions
-  assert.match(execution, /Child roles \(implementer, reviewer, and fixer\) consume the immutable attempt/);
-  assert.match(execution, /dispatches one fresh task implementer/);
-  assert.match(execution, /dispatches a fresh read-only reviewer/);
-  assert.match(execution, /dispatches a fresh finding-scoped `task` fixer/);
+  const toPlan = read("skills/gsd-to-plan/SKILL.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const readme = read("README.md");
+  const domain = read("docs/domain/gsd.md");
 
-  // negative assertions for repeated child live-plan validation
+  // --- AC-1: Approval binds distinct OMP execution models ---
+  // Positive assertions
+  assert.match(toPlan, /Before approval, GSD validates that concrete, available, and distinct model selectors are configured for `modelRoles\.task` and `modelRoles\.advisor`/);
+  assert.match(toPlan, /At approval, GSD binds these validated persistent executor and reviewer models\./);
+  assert.match(reference, /At approval, GSD binds the persistent executor model from `modelRoles\.task` and the distinct persistent reviewer model from `modelRoles\.advisor`\./);
+  assert.match(domain, /### D-gsd-3: Bind persistent OMP executor and reviewer roles/);
+  // Negative assertions
+  assert.match(toPlan, /rejects missing, unresolved, alias-only, or same-model bindings/);
+  assert.match(toPlan, /keeps the current model active before execution, and never substitutes the current model for either role/);
+
+  // --- AC-2: One executor owns all implementation and self-verification ---
+  // Positive assertions
+  assert.match(execution, /The persistent executor, reviewer, or any launched OMP child agents consume the immutable attempt/);
+  assert.match(execution, /dispatches the persistent executor with the bound task model and direct-root TDD instructions/);
+  assert.match(execution, /GSD reuses its OMP agent identity through `hub` for task and repair turns\./);
+  assert.match(execution, /The executor may fan out task attempts concurrently through OMP child agents if and only if the complete safe fan-out gate is satisfied: \(1\) attempts are dependency-independent, \(2\) attempts target path-disjoint files, \(3\) attempts consume only parent-created immutable attempts, \(4\) safe isolation and model evidence are present, and \(5\) GSD performs deterministic integration of the results\./);
+  assert.match(execution, /If any proof of these conditions is absent, GSD must fall back to sequential task execution\./);
+  // Negative assertions
+  assert.doesNotMatch(execution, /Child roles \(implementer, reviewer, and fixer\)/);
+  assert.doesNotMatch(execution, /dispatches one fresh task implementer/);
+  assert.doesNotMatch(execution, /dispatches a fresh finding-scoped `task` fixer/);
+  assert.doesNotMatch(execution, /inline implementation pass by the parent/);
+  assert.doesNotMatch(execution, /inline repair pass/);
+
+  // --- AC-3: Independent reviewer gates merge through progress-guarded convergence ---
+  // Positive assertions
+  assert.match(execution, /dispatches the persistent reviewer \(reusing the same reviewer session with the bound advisor model\)/);
+  assert.match(verify, /The parent dispatches the persistent reviewer \(reusing the same reviewer session with the bound advisor model\)/);
+  assert.match(verify, /terminal repair continues without a fixed round count only while findings or the relevant diff demonstrably change; stop on a repeated blocking fingerprint or no relevant repair diff\./);
+  assert.match(domain, /### D-gsd-4: Replace the fixed repair cap with a progress guard/);
+  // Negative assertions
+  assert.doesNotMatch(verify, /terminal repair has at most two complete re-review\/retest rounds/);
+  assert.doesNotMatch(verify, /persists a bounded repair counter/);
+  assert.doesNotMatch(verify, /terminal self-review fallback/);
+  assert.doesNotMatch(reference, /terminal repair has at most two complete re-review\/retest rounds/);
+
+  // --- AC-4: Resume and documentation preserve the OMP-only contract ---
+  // Positive assertions
+  assert.match(handoff, /Every executable handoff explicitly requires and validates concrete, distinct executor and reviewer model selectors/);
+  assert.match(handoff, /actual agent identity\/model\/generation fields by phase/);
+  assert.match(handoff, /progress\/fingerprint evidence for repair rounds/);
+  assert.match(handoff, /never be left opaque or ignored/);
+  assert.match(readme, /## Dual-Agent Model Roles/);
+  assert.match(readme, /- `modelRoles\.task`: Binds the persistent primary executor/);
+  assert.match(readme, /- `modelRoles\.advisor`: Binds the independent persistent reviewer/);
+  assert.match(readme, /Other harnesses, custom agent definitions, or external model configuration files are explicitly deferred\./);
+  assert.match(domain, /### D-gsd-5: Allow same-model successor generations only after identity loss/);
+  // Negative assertions
+  assert.doesNotMatch(handoff, /Runtime terminal-repair counters retain/);
+  assert.doesNotMatch(reference, /missing task capability makes implementation and repair separate inline passes/);
+  assert.doesNotMatch(reference, /missing reviewer capability makes review a separate/);
+
+  // --- Task Self-Review Fallback and Banned Remnants ---
+  assert.match(execution, /If the independent reviewer capability or model configuration is unavailable, GSD must fail closed immediately\./);
+  assert.doesNotMatch(execution, /read-only self-review/);
+  assert.doesNotMatch(reference, /missing reviewer capability makes review a separate read-only self-review/);
+  assert.match(reference, /If the independent reviewer capability or model configuration is unavailable, GSD must fail closed immediately\./);
+  assert.match(verify, /If the independent reviewer capability or model configuration is unavailable, GSD must fail closed immediately\./);
+
+  // --- Other existing assertions ---
   assert.match(execution, /Instead of repeated full validation, follow the approved phase-boundary semantic-validation and digest-guard model\./);
   assert.match(execution, /without independently reparsing `plan\.md`/);
-
-  // negative assertions for implementer acceptance
-  assert.match(execution, /The implementer runs its focused check once after implementation; it never runs acceptance checks\./);
+  assert.match(execution, /The executor runs its focused check once after implementation; it never runs acceptance checks\./);
   assert.match(execution, /Task acceptance deferral is removed; the terminal verifier solely owns acceptance\/E2E\./);
-
-  // negative assertions for missing freshness
   assert.match(execution, /Repeat this full parse and binding check only at execution entry\/resume\./);
   assert.match(execution, /Task attempt creation performs only a lightweight bound-source digest comparison\./);
-
-  // negative assertions for ambiguous terminal replay/fixer
-  assert.match(execution, /After any fresh task fixer or inline fallback, the fixer reruns only focused checks invalidated by its repair, records replacement green evidence for each invalidated check, and re-enters fresh review\./);
-
-  // negative assertions for legacy normal sources
+  assert.match(execution, /After any repair, the executor reruns only focused checks invalidated by its repair, records replacement green evidence for each invalidated check, and re-enters review\./);
   assert.match(execution, /Any legacy `proposal\.md`, `spec\.md`, or `design\.md` is rejected\./);
-
-  // negative assertions for lost parent ownership
   assert.match(execution, /Missing, invalid, altered, or additional `plan\.md` is a Spec escalation\./);
   assert.match(execution, /never mutate the attempt or rewrite the approved Markdown plan\./);
   assert.match(execution, /The parent retains task order, Git commits, handoff generation, and terminal transition\./);
@@ -1152,11 +1202,811 @@ test("T2 reload manifest contract and rehydration validation", () => {
     return mode === "discussion" && phase === "pre-plan";
   }
 
-  function validateHandoff(parsed, installedSkills) {
+  function resolveAndValidatePriorHandoff(currentParsed, suppliedHandoffPath, targetFilename, expectedGen, installedSkills) {
+    if (!suppliedHandoffPath) {
+      throw new Error("Missing supplied handoff path for history resolution");
+    }
+
+    // IMP-28: Canonical history filename format (strictly handoff-<positive canonical integer>.toon)
+    const targetBase = basename(targetFilename);
+    const match = targetBase.match(/^handoff-([1-9][0-9]*)\.toon$/);
+    if (!match) {
+      throw new Error(`Invalid canonical handoff filename format: ${targetBase}`);
+    }
+    const histGen = parseInt(match[1], 10);
+
+    const curBase = basename(suppliedHandoffPath);
+    const curMatch = curBase.match(/^handoff-([1-9][0-9]*)\.toon$/);
+    if (!curMatch) {
+      throw new Error(`Invalid current handoff filename format: ${curBase}`);
+    }
+    const curGen = parseInt(curMatch[1], 10);
+
+    if (histGen >= curGen) {
+      throw new Error(`History handoff generation ${histGen} is not strictly earlier than current generation ${curGen}`);
+    }
+    if (expectedGen !== undefined && histGen !== expectedGen) {
+      throw new Error(`Expected generation ${expectedGen} but got ${histGen} in history file ${targetBase}`);
+    }
+
+    const targetPath = join(dirname(suppliedHandoffPath), targetBase);
+    let st;
+    try {
+      st = nodeFs.lstatSync(targetPath);
+    } catch (e) {
+      throw new Error(`History handoff file not found: ${targetPath}`);
+    }
+    if (st.isSymbolicLink()) {
+      throw new Error(`Symbolic link rejected for history handoff file: ${targetPath}`);
+    }
+    if (!st.isFile()) {
+      throw new Error(`History handoff path is not a regular file: ${targetPath}`);
+    }
+    let content;
+    try {
+      content = readFileSync(targetPath, "utf8");
+    } catch (e) {
+      throw new Error(`Failed to read history handoff file: ${targetPath}`);
+    }
+    let parsed;
+    try {
+      parsed = parseHandoff(content, installedSkills);
+    } catch (e) {
+      throw new Error(`Failed to parse history handoff file: ${targetPath} - ${e.message}`);
+    }
+
+    // IMP-31: Mandatory and matching feature binding across current and history handoffs
+    const curFeature = currentParsed.fields.feature;
+    const histFeature = parsed.fields.feature;
+    if (!curFeature || curFeature === "") {
+      throw new Error("Missing feature in current handoff");
+    }
+    if (!histFeature || histFeature === "") {
+      throw new Error(`Missing feature in history file: ${targetBase}`);
+    }
+    if (curFeature !== histFeature) {
+      throw new Error(`Feature mismatch in history file: current '${curFeature}' vs history '${histFeature}'`);
+    }
+
+    // Verify required plan_path (fail closed if missing or mismatched)
+    const curPlan = currentParsed.fields.plan_path;
+    const histPlan = parsed.fields.plan_path;
+    if (!histPlan || histPlan === "") {
+      throw new Error(`Missing plan_path in history file: ${targetBase}`);
+    }
+    if (curPlan && histPlan !== curPlan) {
+      throw new Error(`plan_path mismatch in history file: current '${curPlan}' vs history '${histPlan}'`);
+    }
+
+    // Verify required plan_sha256 (fail closed if missing or mismatched)
+    const curSha = currentParsed.fields.plan_sha256;
+    const histSha = parsed.fields.plan_sha256;
+    if (!histSha || histSha === "") {
+      throw new Error(`Missing plan_sha256 in history file: ${targetBase}`);
+    }
+    if (curSha && histSha !== curSha) {
+      throw new Error(`plan_sha256 mismatch in history file: current '${curSha}' vs history '${histSha}'`);
+    }
+
+    // Verify matching model bindings (settings key/value)
+    const curSettingsRows = currentParsed.tables.settings || [];
+    const histSettingsRows = parsed.tables.settings || [];
+    const curModels = {};
+    for (const r of curSettingsRows) {
+      if (r.key === "executor_model" || r.key === "reviewer_model") {
+        curModels[r.key] = r.value;
+      }
+    }
+    const histModels = {};
+    for (const r of histSettingsRows) {
+      if (r.key === "executor_model" || r.key === "reviewer_model") {
+        histModels[r.key] = r.value;
+      }
+    }
+    if (!histModels.executor_model || !histModels.reviewer_model) {
+      throw new Error(`Missing executor_model or reviewer_model in history file: ${targetBase}`);
+    }
+    if (curModels.executor_model !== histModels.executor_model || curModels.reviewer_model !== histModels.reviewer_model) {
+      throw new Error(`Model settings mismatch in history file: current '${curModels.executor_model}/${curModels.reviewer_model}' vs history '${histModels.executor_model}/${histModels.reviewer_model}'`);
+    }
+
+    return parsed;
+  }
+
+  const getGenFromFilename = (fn) => {
+    const m = basename(fn).match(/^handoff-([1-9][0-9]*)\.toon$/);
+    return m ? parseInt(m[1], 10) : null;
+  };
+
+  function validateCompletedReviewChain(startParsed, startFilename, suppliedHandoffPath, curModels, installedSkills) {
+    const visitedGens = new Set();
+    const chain = [];
+
+    let currentParsed = startParsed;
+    let currentFilename = startFilename;
+    let currentGen = getGenFromFilename(currentFilename);
+
+    if (currentGen === null) {
+      throw new Error(`Invalid handoff filename format: ${currentFilename}`);
+    }
+
+    // Pass 1: Traversal, file resolution, and collection only
+    while (true) {
+      if (visitedGens.has(currentGen)) {
+        throw new Error(`Cycle or revisited node detected at generation ${currentGen} in chain`);
+      }
+      visitedGens.add(currentGen);
+
+      const fields = currentParsed.fields;
+      const round = fields.review_round;
+      if (!round || round === "") {
+        if (currentFilename !== basename(suppliedHandoffPath)) {
+          validatePriorCompletedReviewSemantics(currentParsed, currentFilename, curModels, installedSkills, suppliedHandoffPath);
+        }
+        throw new Error(`Missing review_round in completed review: ${currentFilename}`);
+      }
+      const roundNum = parseInt(round, 10);
+      if (isNaN(roundNum) || roundNum < 1) {
+        if (currentFilename !== basename(suppliedHandoffPath)) {
+          validatePriorCompletedReviewSemantics(currentParsed, currentFilename, curModels, installedSkills, suppliedHandoffPath);
+        }
+        throw new Error(`review_round must be a positive integer: ${currentFilename}`);
+      }
+
+      chain.push({ parsed: currentParsed, filename: currentFilename, gen: currentGen, round: roundNum });
+
+      if (roundNum === 1) {
+        break;
+      }
+
+      const prevGen = currentGen - 2;
+      let prevFilename = `handoff-${prevGen}.toon`;
+      const priorField = currentParsed.fields.previous_completed_review_handoff;
+      if (priorField) {
+        prevFilename = basename(priorField);
+      }
+
+      const prevMatch = prevFilename.match(/^handoff-([1-9][0-9]*)\.toon$/);
+      if (!prevMatch) {
+        throw new Error(`Invalid canonical handoff filename format: ${prevFilename}`);
+      }
+      const resolvedPrevGen = parseInt(prevMatch[1], 10);
+      if (resolvedPrevGen !== prevGen && !priorField) {
+        throw new Error(`Filename/generation mismatch: expected ${prevFilename} but got mismatch`);
+      }
+
+      if (resolvedPrevGen === currentGen) {
+        throw new Error(`Predecessor generation ${resolvedPrevGen} must be less than current generation ${currentGen} in ${currentFilename}`);
+      }
+      if (visitedGens.has(resolvedPrevGen)) {
+        throw new Error(`Cycle or revisited node detected at generation ${resolvedPrevGen} in chain`);
+      }
+      if (resolvedPrevGen > currentGen) {
+        throw new Error(`Predecessor generation ${resolvedPrevGen} must be less than current generation ${currentGen} in ${currentFilename}`);
+      }
+
+      const currentPath = join(dirname(suppliedHandoffPath), currentFilename);
+      let parsed;
+      try {
+        parsed = resolveAndValidatePriorHandoff(currentParsed, currentPath, prevFilename, resolvedPrevGen, installedSkills);
+      } catch (e) {
+        const msg = e.message;
+        if (msg.includes("History handoff file not found")) {
+          throw new Error(`Predecessor history file not found: ${prevFilename} for ${currentFilename}`);
+        }
+        if (msg.includes("Symbolic link rejected")) {
+          throw new Error(`Symbolic link rejected for predecessor history file: ${prevFilename}`);
+        }
+        if (msg.includes("is not a regular file")) {
+          throw new Error(`Predecessor history path is not a regular file: ${prevFilename}`);
+        }
+        if (msg.includes("Failed to read history handoff file")) {
+          throw new Error(`Failed to read predecessor history file: ${prevFilename}`);
+        }
+        if (msg.includes("Failed to parse history handoff file")) {
+          throw new Error(`Failed to parse predecessor history file: ${prevFilename} - ${msg.substring(msg.indexOf(" - ") + 3)}`);
+        }
+        throw e;
+      }
+
+      currentParsed = parsed;
+      currentFilename = prevFilename;
+      currentGen = resolvedPrevGen;
+    }
+
+    // Pass 2: Validation of semantics and links
+    for (let i = 0; i < chain.length; i++) {
+      const node = chain[i];
+      const nextNode = chain[i + 1];
+
+      // Validate single node semantics if it is a prior completed review
+      if (node.filename !== basename(suppliedHandoffPath)) {
+        validatePriorCompletedReviewSemantics(node.parsed, node.filename, curModels, installedSkills, suppliedHandoffPath);
+      }
+
+      if (nextNode) {
+        if (node.round !== nextNode.round + 1) {
+          throw new Error(`Round mismatch: predecessor of ${node.filename} (round ${node.round}) has round ${nextNode.round} instead of ${node.round - 1}`);
+        }
+
+        const prevFingerprint = node.parsed.fields.previous_blocking_fingerprint;
+        if (!prevFingerprint || prevFingerprint === "") {
+          throw new Error(`Prior completed review round >= 2 requires previous_blocking_fingerprint in ${node.filename}`);
+        }
+        const priorFingerprint = nextNode.parsed.fields.blocking_fingerprint;
+        if (prevFingerprint !== priorFingerprint) {
+          throw new Error(`previous_blocking_fingerprint mismatch: self-reported '${prevFingerprint}' vs derived '${priorFingerprint}' in ${node.filename}`);
+        }
+        if (node.parsed.fields.blocking_fingerprint === priorFingerprint) {
+          throw new Error(`Unchanged repeated fingerprint fails closed in ${node.filename}`);
+        }
+
+        const prevReviewedCommit = node.parsed.fields.previous_reviewed_commit;
+        if (!prevReviewedCommit || prevReviewedCommit === "") {
+          throw new Error(`Prior completed review round >= 2 requires previous_reviewed_commit in ${node.filename}`);
+        }
+        const priorReviewedCommit = nextNode.parsed.fields.reviewed_commit || nextNode.parsed.fields.completed_commit;
+        if (prevReviewedCommit !== priorReviewedCommit) {
+          throw new Error(`previous_reviewed_commit mismatch: self-reported '${prevReviewedCommit}' vs derived '${priorReviewedCommit}' in ${node.filename}`);
+        }
+
+        const curReviewedCommit = node.parsed.fields.reviewed_commit || node.parsed.fields.completed_commit;
+        if (curReviewedCommit && priorReviewedCommit && curReviewedCommit === priorReviewedCommit) {
+          throw new Error(`Unchanged commit fails closed in ${node.filename}`);
+        }
+      }
+    }
+  }
+  function validatePriorCompletedReviewSemantics(parsed, targetFilename, curModels, installedSkills, suppliedHandoffPath) {
+    const fields = parsed.fields;
+    const sentinels = ["none", "unassigned", "pending"];
+
+    if (fields.mode !== "execution") {
+      throw new Error(`Prior completed review mode must be execution, got '${fields.mode}' in ${targetFilename}`);
+    }
+
+    if (fields.phase !== "terminal-repair") {
+      throw new Error(`Prior completed review history phase must be terminal-repair, got '${fields.phase}' in ${targetFilename}`);
+    }
+
+    if (fields.next_action !== "enter terminal verification/repair") {
+      throw new Error(`Prior completed review next_action must be 'enter terminal verification/repair', got '${fields.next_action}' in ${targetFilename}`);
+    }
+
+    // IMP-35 & IMP-36: Validate prior record settings concrete/distinct and matching bindings & enums
+    if (fields.settings !== undefined) {
+      throw new Error(`settings table must not be scalarized in prior completed review: ${targetFilename}`);
+    }
+    const settingsRows = parsed.tables.settings;
+    if (!settingsRows) {
+      throw new Error(`Missing settings table in prior completed review: ${targetFilename}`);
+    }
+    const settingsMap = {};
+    const seenSettingsKeys = new Set();
+    for (const row of settingsRows) {
+      const { key, value } = row;
+      if (key === undefined || key === "" || value === undefined || value === "") {
+        throw new Error(`Empty settings key or value not allowed in prior completed review: ${targetFilename}`);
+      }
+      if (seenSettingsKeys.has(key)) {
+        throw new Error(`Duplicate key in settings in prior completed review: ${key} in ${targetFilename}`);
+      }
+      seenSettingsKeys.add(key);
+      settingsMap[key] = value;
+
+      if (key === "autosync") {
+        if (value !== "on" && value !== "off") {
+          throw new Error(`Invalid autosync value: ${value} in prior completed review: ${targetFilename}`);
+        }
+      } else if (key === "ponytail_level") {
+        if (value !== "lite" && value !== "full" && value !== "ultra") {
+          throw new Error(`Invalid ponytail_level value: ${value} in prior completed review: ${targetFilename}`);
+        }
+      } else if (key === "design_state" || key === "domain_state") {
+        throw new Error(`Invalid key in settings: ${key} is deleted in prior completed review: ${targetFilename}`);
+      }
+    }
+    const execModel = settingsMap["executor_model"];
+    const revModel = settingsMap["reviewer_model"];
+    if (!execModel || !revModel) {
+      throw new Error(`Missing executor_model or reviewer_model selector in settings in prior completed review: ${targetFilename}`);
+    }
+    const aliases = ["default", "task", "advisor", "implementer", "reviewer", "fixer"];
+    if (aliases.includes(execModel) || aliases.includes(revModel)) {
+      throw new Error(`Alias-only model selectors are not allowed in prior completed review: ${targetFilename}`);
+    }
+    if (execModel === revModel) {
+      throw new Error(`Executor and reviewer model selectors must be distinct in prior completed review: ${targetFilename}`);
+    }
+    if (!execModel.includes("/") && !execModel.includes("-") && !execModel.includes(".")) {
+      throw new Error(`Invalid executor model selector in prior completed review: ${targetFilename}`);
+    }
+    if (!revModel.includes("/") && !revModel.includes("-") && !revModel.includes(".")) {
+      throw new Error(`Invalid reviewer model selector in prior completed review: ${targetFilename}`);
+    }
+    if (curModels.executor_model && execModel !== curModels.executor_model) {
+      throw new Error(`Model settings mismatch in history file: current executor '${curModels.executor_model}' vs history '${execModel}'`);
+    }
+    if (curModels.reviewer_model && revModel !== curModels.reviewer_model) {
+      throw new Error(`Model settings mismatch in history file: current reviewer '${curModels.reviewer_model}' vs history '${revModel}'`);
+    }
+
+    // IMP-35: Validate prior record reload table manifest
+    if (!parsed.tables.reload) {
+      throw new Error(`Missing reload table in prior completed review: ${targetFilename}`);
+    }
+    const reloadRows = parsed.tables.reload || [];
+    const seenSkills = new Set();
+    const seenPaths = new Set();
+    for (const row of reloadRows) {
+      const { skill, path } = row;
+      if (skill === "gsd") {
+        throw new Error(`Master skill (gsd) must not be in reload manifest in prior completed review: ${targetFilename}`);
+      }
+      if (seenSkills.has(skill)) {
+        throw new Error(`Duplicate skill in reload manifest in prior completed review: ${skill} in ${targetFilename}`);
+      }
+      seenSkills.add(skill);
+      if (seenPaths.has(path)) {
+        throw new Error(`Duplicate path in reload manifest in prior completed review: ${path} in ${targetFilename}`);
+      }
+      seenPaths.add(path);
+
+      if (!installedSkills.has(skill)) {
+        throw new Error(`Unknown/non-installed skill in prior completed review: ${skill} in ${targetFilename}`);
+      }
+
+      if (path.startsWith("/") || /^[a-zA-Z]:\\/.test(path)) {
+        throw new Error(`Absolute path in prior completed review: ${path} in ${targetFilename}`);
+      }
+      if (path.includes("\\")) {
+        throw new Error(`Backslash in path in prior completed review: ${path} in ${targetFilename}`);
+      }
+      const segments = path.split("/");
+      if (segments.includes(".") || segments.includes("..") || segments.some(s => s === "")) {
+        throw new Error(`Invalid traversal/dot segment in path in prior completed review: ${path} in ${targetFilename}`);
+      }
+      const expectedPath = `skills/${skill}/SKILL.md`;
+      if (path !== expectedPath) {
+        throw new Error(`Mismatched path for ${skill} in prior completed review: expected ${expectedPath}, got ${path} in ${targetFilename}`);
+      }
+    }
+
+    const unconditionalList = ["gsd-verify", "gsd-handoff"];
+    for (const skill of unconditionalList) {
+      if (!seenSkills.has(skill)) {
+        throw new Error(`Missing required skill in prior completed review: ${skill} in ${targetFilename}`);
+      }
+    }
+
+    const ponytail_level = settingsMap["ponytail_level"];
+    const ponytailActive = (ponytail_level !== undefined && ponytail_level !== null && ponytail_level !== "");
+    if (ponytailActive) {
+      if (!seenSkills.has("gsd-ponytail")) {
+        throw new Error(`Missing conditional skill in prior completed review: gsd-ponytail in ${targetFilename}`);
+      }
+    } else {
+      if (seenSkills.has("gsd-ponytail")) {
+        throw new Error(`Extraneous conditional skill in prior completed review: gsd-ponytail in ${targetFilename}`);
+      }
+    }
+
+    const allAllowedSkills = new Set([...unconditionalList]);
+    if (ponytailActive) allAllowedSkills.add("gsd-ponytail");
+    if (seenSkills.has("gsd-codebase-design")) allAllowedSkills.add("gsd-codebase-design");
+    if (seenSkills.has("gsd-domain-modeling")) allAllowedSkills.add("gsd-domain-modeling");
+
+    for (const skill of seenSkills) {
+      if (!allAllowedSkills.has(skill)) {
+        throw new Error(`Extra skill in prior completed review: ${skill} in ${targetFilename}`);
+      }
+    }
+
+    // IMP-30: Mandate non-sentinel executor identity, actual model matching bound executor setting, and positive generation
+    const execAgent = fields.executor_agent;
+    const execActModel = fields.executor_actual_model;
+    const execGen = fields.executor_generation;
+    if (!execAgent || !execActModel || execGen === undefined || execGen === "") {
+      throw new Error(`Missing executor identity/model/generation in prior completed review: ${targetFilename}`);
+    }
+    if (sentinels.includes(execAgent.toLowerCase()) || sentinels.includes(execActModel.toLowerCase())) {
+      throw new Error(`Invalid sentinel value in executor fields in prior completed review: ${execAgent} / ${execActModel}`);
+    }
+    const execGenNum = parseInt(execGen, 10);
+    if (isNaN(execGenNum) || execGenNum < 1) {
+      throw new Error(`executor_generation must be a positive integer in prior completed review: ${targetFilename}`);
+    }
+    if (curModels.executor_model && execActModel !== curModels.executor_model) {
+      throw new Error(`Actual executor model (${execActModel}) in prior completed review does not match bound executor_model (${curModels.executor_model})`);
+    }
+
+    // IMP-30: Mandate non-sentinel reviewer identity, actual model matching bound reviewer setting, and positive generation
+    const revAgent = fields.reviewer_agent;
+    const revActModel = fields.reviewer_actual_model;
+    const revGen = fields.reviewer_generation;
+    if (!revAgent || !revActModel || revGen === undefined || revGen === "") {
+      throw new Error(`Missing reviewer identity/model/generation in prior completed review: ${targetFilename}`);
+    }
+    if (sentinels.includes(revAgent.toLowerCase()) || sentinels.includes(revActModel.toLowerCase())) {
+      throw new Error(`Invalid sentinel value in reviewer fields in prior completed review: ${revAgent} / ${revActModel}`);
+    }
+    const revGenNum = parseInt(revGen, 10);
+    if (isNaN(revGenNum) || revGenNum < 1) {
+      throw new Error(`reviewer_generation must be a positive integer in prior completed review: ${targetFilename}`);
+    }
+    if (curModels.reviewer_model && revActModel !== curModels.reviewer_model) {
+      throw new Error(`Actual reviewer model (${revActModel}) in prior completed review does not match bound reviewer_model (${curModels.reviewer_model})`);
+    }
+
+    // IMP-30: Mandate positive review_round
+    const round = fields.review_round;
+    if (!round || round === "") {
+      throw new Error(`Missing review_round in prior completed review: ${targetFilename}`);
+    }
+    const roundNum = parseInt(round, 10);
+    if (isNaN(roundNum) || roundNum < 1) {
+      throw new Error(`review_round must be a positive integer in prior completed review: ${targetFilename}`);
+    }
+
+    // IMP-30: Mandate completed non-pending check and non-empty result
+    const check = fields.reviewer_terminal_check;
+    const res = fields.reviewer_terminal_result;
+    if (!check || check === "" || check === "pending") {
+      throw new Error(`Prior completed review requires non-pending reviewer_terminal_check in ${targetFilename}`);
+    }
+    if (!res || res === "") {
+      throw new Error(`Prior completed review requires non-empty reviewer_terminal_result in ${targetFilename}`);
+    }
+
+    // IMP-30: Mandate exact BLOCKED verdict and positive blocking count
+    const verdict = fields.reviewer_verdict;
+    if (verdict !== "BLOCKED") {
+      throw new Error(`Prior completed review reviewer_verdict must be BLOCKED, got '${verdict}' in ${targetFilename}`);
+    }
+    const count = fields.blocking_count;
+    if (count === undefined || count === "") {
+      throw new Error(`Missing blocking_count in prior completed review: ${targetFilename}`);
+    }
+    const countNum = parseInt(count, 10);
+    if (isNaN(countNum) || countNum < 1) {
+      throw new Error(`blocking_count must be a positive integer in prior completed review: ${targetFilename}`);
+    }
+
+    // IMP-30 & IMP-37: Mandate valid fingerprints and previous reviewed commits
+    const fingerprint = fields.blocking_fingerprint;
+    if (!fingerprint || fingerprint === "") {
+      throw new Error(`Missing blocking_fingerprint in prior completed review: ${targetFilename}`);
+    }
+    if (roundNum >= 2) {
+      const prevFingerprint = fields.previous_blocking_fingerprint;
+      if (!prevFingerprint || prevFingerprint === "") {
+        throw new Error(`Prior completed review round >= 2 requires previous_blocking_fingerprint in ${targetFilename}`);
+      }
+      if (fingerprint === prevFingerprint) {
+        throw new Error(`Unchanged repeated fingerprint in prior completed review: ${targetFilename}`);
+      }
+
+      const prevReviewedCommit = fields.previous_reviewed_commit;
+      if (!prevReviewedCommit || prevReviewedCommit === "") {
+        throw new Error(`Prior completed review round >= 2 requires previous_reviewed_commit in ${targetFilename}`);
+      }
+
+    }
+
+    // IMP-30: Mandate reviewed_commit / completed_commit
+    const revCommit = fields.reviewed_commit || fields.completed_commit;
+    if (!revCommit || revCommit === "") {
+      throw new Error(`Missing reviewed_commit in prior completed review: ${targetFilename}`);
+    }
+
+    // IMP-30: Mandate exact progress_status:advanced, non-empty progress_evidence and progress_guard
+    const progStatus = fields.progress_status;
+    if (progStatus !== "advanced") {
+      throw new Error(`Prior completed review progress_status must be 'advanced', got '${progStatus}' in ${targetFilename}`);
+    }
+    const progEvidence = fields.progress_evidence;
+    if (!progEvidence || progEvidence === "") {
+      throw new Error(`Missing progress_evidence in prior completed review: ${targetFilename}`);
+    }
+    const progGuard = fields.progress_guard;
+    if (!progGuard || progGuard === "") {
+      throw new Error(`Missing progress_guard in prior completed review: ${targetFilename}`);
+    }
+  }
+
+  function validatePendingTerminalReviewSemantics(parsed, targetFilename, curModels, installedSkills, suppliedHandoffPath, repairRound, repairCommit, repairExecutorGen, repairReviewerGen, repairExecutorAgent, repairReviewerAgent) {
+    const fields = parsed.fields;
+    const sentinels = ["none", "unassigned", "pending"];
+
+    if (fields.mode !== "execution") {
+      throw new Error(`Pending terminal-review mode must be execution, got '${fields.mode}' in ${targetFilename}`);
+    }
+    if (fields.phase !== "terminal-review") {
+      throw new Error(`Pending terminal-review phase must be terminal-review, got '${fields.phase}' in ${targetFilename}`);
+    }
+    if (fields.next_action !== "enter terminal verification/repair") {
+      throw new Error(`Pending terminal-review next_action must be 'enter terminal verification/repair', got '${fields.next_action}' in ${targetFilename}`);
+    }
+    if (fields.reviewer_terminal_check !== "pending") {
+      throw new Error(`Pending terminal-review reviewer_terminal_check must be pending, got '${fields.reviewer_terminal_check}' in ${targetFilename}`);
+    }
+
+    const forbidden = ["reviewer_terminal_result", "reviewer_verdict", "blocking_count", "blocking_fingerprint", "reviewed_commit"];
+    for (const f of forbidden) {
+      if (f in fields) {
+        throw new Error("Pending terminal-review must not specify completed terminal fields");
+      }
+    }
+
+    // Validate settings table (known-key semantics + opaque keys, concrete distinct models)
+    if (fields.settings !== undefined) {
+      throw new Error(`settings table must not be scalarized in pending terminal-review: ${targetFilename}`);
+    }
+    const settingsRows = parsed.tables.settings;
+    if (!settingsRows) {
+      throw new Error(`Missing settings table in pending terminal-review: ${targetFilename}`);
+    }
+    const settingsMap = {};
+    const seenSettingsKeys = new Set();
+    for (const row of settingsRows) {
+      const { key, value } = row;
+      if (key === undefined || key === "" || value === undefined || value === "") {
+        throw new Error(`Empty settings key or value not allowed in pending terminal-review: ${targetFilename}`);
+      }
+      if (seenSettingsKeys.has(key)) {
+        throw new Error(`Duplicate key in settings in pending terminal-review: ${key} in ${targetFilename}`);
+      }
+      seenSettingsKeys.add(key);
+      settingsMap[key] = value;
+
+      if (key === "autosync") {
+        if (value !== "on" && value !== "off") {
+          throw new Error(`Invalid autosync value: ${value} in pending terminal-review: ${targetFilename}`);
+        }
+      } else if (key === "ponytail_level") {
+        if (value !== "lite" && value !== "full" && value !== "ultra") {
+          throw new Error(`Invalid ponytail_level value: ${value} in pending terminal-review: ${targetFilename}`);
+        }
+      } else if (key === "design_state" || key === "domain_state") {
+        throw new Error(`Invalid key in settings: ${key} is deleted in pending terminal-review: ${targetFilename}`);
+      }
+    }
+
+    const execModel = settingsMap["executor_model"];
+    const revModel = settingsMap["reviewer_model"];
+    if (!execModel || !revModel) {
+      throw new Error(`Missing executor_model or reviewer_model selector in settings in pending terminal-review: ${targetFilename}`);
+    }
+    const aliases = ["default", "task", "advisor", "implementer", "reviewer", "fixer"];
+    if (aliases.includes(execModel) || aliases.includes(revModel)) {
+      throw new Error(`Alias-only model selectors are not allowed in pending terminal-review: ${targetFilename}`);
+    }
+    if (execModel === revModel) {
+      throw new Error(`Executor and reviewer model selectors must be distinct in pending terminal-review: ${targetFilename}`);
+    }
+    if (!execModel.includes("/") && !execModel.includes("-") && !execModel.includes(".")) {
+      throw new Error(`Invalid executor model selector in pending terminal-review: ${targetFilename}`);
+    }
+    if (!revModel.includes("/") && !revModel.includes("-") && !revModel.includes(".")) {
+      throw new Error(`Invalid reviewer model selector in pending terminal-review: ${targetFilename}`);
+    }
+    if (curModels.executor_model && execModel !== curModels.executor_model) {
+      throw new Error(`Model settings mismatch in history file: current executor '${curModels.executor_model}' vs history '${execModel}'`);
+    }
+    if (curModels.reviewer_model && revModel !== curModels.reviewer_model) {
+      throw new Error(`Model settings mismatch in history file: current reviewer '${curModels.reviewer_model}' vs history '${revModel}'`);
+    }
+
+    // Validate reload manifest
+    if (!parsed.tables.reload) {
+      throw new Error(`Missing reload table in pending terminal-review: ${targetFilename}`);
+    }
+    const reloadRows = parsed.tables.reload || [];
+    const seenSkills = new Set();
+    const seenPaths = new Set();
+    for (const row of reloadRows) {
+      const { skill, path } = row;
+      if (skill === "gsd") {
+        throw new Error(`Master skill (gsd) must not be in reload manifest in pending terminal-review: ${targetFilename}`);
+      }
+      if (seenSkills.has(skill)) {
+        throw new Error(`Duplicate skill in reload manifest in pending terminal-review: ${skill} in ${targetFilename}`);
+      }
+      seenSkills.add(skill);
+      if (seenPaths.has(path)) {
+        throw new Error(`Duplicate path in reload manifest in pending terminal-review: ${path} in ${targetFilename}`);
+      }
+      seenPaths.add(path);
+
+      if (!installedSkills.has(skill)) {
+        throw new Error(`Unknown/non-installed skill in pending terminal-review: ${skill} in ${targetFilename}`);
+      }
+
+      if (path.startsWith("/") || /^[a-zA-Z]:\\/.test(path)) {
+        throw new Error(`Absolute path in pending terminal-review: ${path} in ${targetFilename}`);
+      }
+      if (path.includes("\\")) {
+        throw new Error(`Backslash in path in pending terminal-review: ${path} in ${targetFilename}`);
+      }
+      const segments = path.split("/");
+      if (segments.includes(".") || segments.includes("..") || segments.some(s => s === "")) {
+        throw new Error(`Invalid traversal/dot segment in path in pending terminal-review: ${path} in ${targetFilename}`);
+      }
+      const expectedPath = `skills/${skill}/SKILL.md`;
+      if (path !== expectedPath) {
+        throw new Error(`Mismatched path for ${skill} in pending terminal-review: expected ${expectedPath}, got ${path} in ${targetFilename}`);
+      }
+    }
+
+    const unconditionalList = ["gsd-verify", "gsd-handoff"];
+    for (const skill of unconditionalList) {
+      if (!seenSkills.has(skill)) {
+        throw new Error(`Missing required skill in pending terminal-review: ${skill} in ${targetFilename}`);
+      }
+    }
+
+    const ponytail_level = settingsMap["ponytail_level"];
+    const ponytailActive = (ponytail_level !== undefined && ponytail_level !== null && ponytail_level !== "");
+    if (ponytailActive) {
+      if (!seenSkills.has("gsd-ponytail")) {
+        throw new Error(`Missing conditional skill in pending terminal-review: gsd-ponytail in ${targetFilename}`);
+      }
+    } else {
+      if (seenSkills.has("gsd-ponytail")) {
+        throw new Error(`Extraneous conditional skill in pending terminal-review: gsd-ponytail in ${targetFilename}`);
+      }
+    }
+
+    const allAllowedSkills = new Set([...unconditionalList]);
+    if (ponytailActive) allAllowedSkills.add("gsd-ponytail");
+    if (seenSkills.has("gsd-codebase-design")) allAllowedSkills.add("gsd-codebase-design");
+    if (seenSkills.has("gsd-domain-modeling")) allAllowedSkills.add("gsd-domain-modeling");
+
+    for (const skill of seenSkills) {
+      if (!allAllowedSkills.has(skill)) {
+        throw new Error(`Extra skill in pending terminal-review: ${skill} in ${targetFilename}`);
+      }
+    }
+
+    // Validate executor identity
+    const execAgent = fields.executor_agent;
+    const execActModel = fields.executor_actual_model;
+    const execGen = fields.executor_generation;
+    if (!execAgent || !execActModel || execGen === undefined || execGen === "") {
+      throw new Error(`Missing executor identity/model/generation fields in phase terminal-review`);
+    }
+    if (sentinels.includes(execAgent.toLowerCase()) || sentinels.includes(execActModel.toLowerCase())) {
+      throw new Error(`Invalid sentinel value in executor fields: ${execAgent} / ${execActModel}`);
+    }
+    const execGenNum = parseInt(execGen, 10);
+    if (isNaN(execGenNum) || execGenNum < 1) {
+      throw new Error(`executor_generation must be a positive integer`);
+    }
+    if (execActModel !== execModel) {
+      throw new Error(`Actual executor model (${execActModel}) does not match bound executor_model (${execModel})`);
+    }
+    if (repairExecutorAgent !== undefined && execAgent !== repairExecutorAgent) {
+      throw new Error(`executor_agent mismatch in pending terminal-review: expected ${repairExecutorAgent}, got ${execAgent} in ${targetFilename}`);
+    }
+
+    // Validate reviewer identity
+    const revAgent = fields.reviewer_agent;
+    const revActModel = fields.reviewer_actual_model;
+    const revGen = fields.reviewer_generation;
+    if (!revAgent || !revActModel || revGen === undefined || revGen === "") {
+      throw new Error(`Missing reviewer identity/model/generation/round fields in phase terminal-review`);
+    }
+    if (sentinels.includes(revAgent.toLowerCase()) || sentinels.includes(revActModel.toLowerCase())) {
+      throw new Error(`Invalid sentinel value in reviewer fields: ${revAgent} / ${revActModel}`);
+    }
+    const revGenNum = parseInt(revGen, 10);
+    if (isNaN(revGenNum) || revGenNum < 1) {
+      throw new Error(`reviewer_generation must be a positive integer`);
+    }
+    if (revActModel !== revModel) {
+      throw new Error(`Actual reviewer model (${revActModel}) does not match bound reviewer_model (${revModel})`);
+    }
+    if (repairReviewerAgent !== undefined && revAgent !== repairReviewerAgent) {
+      throw new Error(`reviewer_agent mismatch in pending terminal-review: expected ${repairReviewerAgent}, got ${revAgent} in ${targetFilename}`);
+    }
+
+    // Validate review round
+    const round = fields.review_round;
+    if (!round || round === "") {
+      throw new Error(`Missing reviewer identity/model/generation/round fields in phase terminal-review`);
+    }
+    const roundNum = parseInt(round, 10);
+    if (isNaN(roundNum) || roundNum < 1) {
+      throw new Error(`review_round must be a positive integer`);
+    }
+
+    if (repairRound !== undefined && roundNum !== repairRound) {
+      throw new Error(`review_round mismatch in pending terminal-review: expected ${repairRound}, got ${roundNum} in ${targetFilename}`);
+    }
+
+    let prevFingerprint;
+    let prevReviewedCommit;
+
+    // Validate previous fingerprint/commit continuity
+    if (roundNum === 1) {
+      if (fields.previous_blocking_fingerprint) {
+        throw new Error(`round-one terminal-review must not specify previous_blocking_fingerprint`);
+      }
+    } else if (roundNum >= 2) {
+      prevFingerprint = fields.previous_blocking_fingerprint;
+      prevReviewedCommit = fields.previous_reviewed_commit;
+
+      if (!prevFingerprint || prevFingerprint === "") {
+        throw new Error(`Missing previous_blocking_fingerprint for pending terminal-review`);
+      }
+      if (!prevReviewedCommit || prevReviewedCommit === "") {
+        throw new Error(`Missing previous_reviewed_commit for pending terminal-review`);
+      }
+    }
+
+    // Validate current_review_commit
+    const curReviewCommit = fields.current_review_commit;
+    if (!curReviewCommit || curReviewCommit === "") {
+      throw new Error(`Missing current_review_commit for pending terminal-review`);
+    }
+
+    if (fields.completed_commit && fields.completed_commit !== curReviewCommit) {
+      throw new Error(`completed_commit (${fields.completed_commit}) must equal current_review_commit (${curReviewCommit}) in ${targetFilename}`);
+    }
+    if (repairCommit !== undefined && curReviewCommit !== repairCommit) {
+      throw new Error(`reviewed_commit (${repairCommit}) must equal triggering pending review current_review_commit (${curReviewCommit})`);
+    }
+
+    if (repairExecutorGen !== undefined && execGenNum !== repairExecutorGen) {
+      throw new Error(`executor_generation mismatch in pending terminal-review: expected ${repairExecutorGen}, got ${execGenNum} in ${targetFilename}`);
+    }
+    if (repairReviewerGen !== undefined && revGenNum !== repairReviewerGen) {
+      throw new Error(`reviewer_generation mismatch in pending terminal-review: expected ${repairReviewerGen}, got ${revGenNum} in ${targetFilename}`);
+    }
+
+    if (roundNum >= 2) {
+      if (curReviewCommit === prevReviewedCommit) {
+        throw new Error(`Unchanged review commit for pending terminal-review`);
+      }
+      // Resolve and check prior completed review history
+      const currentHandoffGen = getGenFromFilename(targetFilename);
+      const expectedPriorGen = (currentHandoffGen !== null) ? currentHandoffGen - 1 : revGenNum - 1;
+      let priorFilename = `handoff-${expectedPriorGen}.toon`;
+      const priorField = fields.previous_completed_review_handoff;
+      if (priorField) {
+        priorFilename = basename(priorField);
+      }
+
+      const priorParsed = resolveAndValidatePriorHandoff(parsed, suppliedHandoffPath, priorFilename, expectedPriorGen, installedSkills);
+      const priorFields = priorParsed.fields;
+
+      validateCompletedReviewChain(priorParsed, priorFilename, suppliedHandoffPath, curModels, installedSkills);
+
+      const derivedFingerprint = priorFields.blocking_fingerprint;
+      const derivedReviewedCommit = priorFields.reviewed_commit || priorFields.completed_commit;
+
+      if (!derivedFingerprint || derivedFingerprint === "") {
+        throw new Error(`Derived blocking fingerprint from priorCompletedReview is empty`);
+      }
+      if (!derivedReviewedCommit || derivedReviewedCommit === "") {
+        throw new Error(`Derived reviewed commit from priorCompletedReview is empty`);
+      }
+
+      if (prevFingerprint !== derivedFingerprint) {
+        throw new Error(`previous_blocking_fingerprint mismatch: self-reported '${prevFingerprint}' vs derived '${derivedFingerprint}'`);
+      }
+      if (prevReviewedCommit !== derivedReviewedCommit) {
+        throw new Error(`previous_reviewed_commit mismatch: self-reported '${prevReviewedCommit}' vs derived '${derivedReviewedCommit}'`);
+      }
+    }
+  }
+  function validateHandoff(parsed, installedSkills, suppliedHandoffPath) {
+    const curMatch = suppliedHandoffPath ? suppliedHandoffPath.match(/handoff-(\d+)\.toon$/) : null;
+    const currentHandoffGen = curMatch ? parseInt(curMatch[1], 10) : null;
+
     const mode = parsed.fields.mode;
     const phase = parsed.fields.phase;
     const nextAction = parsed.fields.next_action;
-
     if (mode === undefined || mode === "") {
       throw new Error("Missing or empty mode");
     }
@@ -1212,6 +2062,11 @@ test("T2 reload manifest contract and rehydration validation", () => {
       throw new Error("Discussion mode not allowed for execution");
     }
 
+    const feature = parsed.fields.feature;
+    if (!feature || feature === "") {
+      throw new Error("Missing feature in execution handoff");
+    }
+
     if (!hasPathProp || !hasHashProp) {
       throw new Error("Missing approval binding for execution handoff");
     }
@@ -1228,6 +2083,7 @@ test("T2 reload manifest contract and rehydration validation", () => {
 
     const settingsRows = parsed.tables.settings || [];
     const seenSettingsKeys = new Set();
+    const settingsMap = {};
     let ponytail_level = null;
     for (const row of settingsRows) {
       const { key, value } = row;
@@ -1238,6 +2094,7 @@ test("T2 reload manifest contract and rehydration validation", () => {
         throw new Error(`Duplicate key in settings: ${key}`);
       }
       seenSettingsKeys.add(key);
+      settingsMap[key] = value;
 
       if (key === "autosync") {
         if (value !== "on" && value !== "off") {
@@ -1253,10 +2110,279 @@ test("T2 reload manifest contract and rehydration validation", () => {
       }
     }
 
-    if (!parsed.tables.reload) {
-      throw new Error("Missing reload table for execution handoff");
+    if (mode === "execution") {
+      const isTerminalRepair = phase === "terminal-repair";
+      const isTerminalReview = phase === "terminal-review";
+      const isTaskPhase = phase === "task-active" || phase === "task-repair";
+      const isGreenPhase = phase === "green-task";
+      const isTerminalEntry = phase === "terminal-entry";
+      const isExecutorTerminalGreen = phase === "executor-terminal-green";
+      const isApproved = phase === "approved";
+
+      const requiresModelSettings = isTerminalRepair || isTerminalReview || isTaskPhase || isGreenPhase || isTerminalEntry || isExecutorTerminalGreen || isApproved;
+      if (requiresModelSettings) {
+        const execModel = settingsMap["executor_model"];
+        const revModel = settingsMap["reviewer_model"];
+        if (!execModel || !revModel) {
+          throw new Error("Missing executor_model or reviewer_model selector in settings");
+        }
+        const aliases = ["default", "task", "advisor", "implementer", "reviewer", "fixer"];
+        if (aliases.includes(execModel) || aliases.includes(revModel)) {
+          throw new Error("Alias-only model selectors are not allowed");
+        }
+        if (execModel === revModel) {
+          throw new Error("Executor and reviewer model selectors must be distinct");
+        }
+        if (!execModel.includes("/") && !execModel.includes("-") && !execModel.includes(".")) {
+          throw new Error("Invalid executor model selector");
+        }
+        if (!revModel.includes("/") && !revModel.includes("-") && !revModel.includes(".")) {
+          throw new Error("Invalid reviewer model selector");
+        }
+      }
+
+      const execBoundModel = settingsMap["executor_model"];
+      const revBoundModel = settingsMap["reviewer_model"];
+
+      const actualExecutorModel = parsed.fields.executor_actual_model;
+      const actualReviewerModel = parsed.fields.reviewer_actual_model;
+
+      if (actualExecutorModel && actualExecutorModel !== execBoundModel) {
+        throw new Error(`Actual executor model (${actualExecutorModel}) does not match bound executor_model (${execBoundModel})`);
+      }
+      if (actualReviewerModel && actualReviewerModel !== revBoundModel) {
+        throw new Error(`Actual reviewer model (${actualReviewerModel}) does not match bound reviewer_model (${revBoundModel})`);
+      }
+
+      const requiresExecutorFields = isTaskPhase || isGreenPhase || isTerminalRepair || isTerminalEntry || isExecutorTerminalGreen;
+      if (requiresExecutorFields) {
+        const agent = parsed.fields.executor_agent;
+        const actModel = parsed.fields.executor_actual_model;
+        const gen = parsed.fields.executor_generation;
+        if (!agent || !actModel || gen === undefined || gen === "") {
+          throw new Error(`Missing executor identity/model/generation fields in phase ${phase}`);
+        }
+        const sentinels = ["none", "unassigned", "pending"];
+        if (sentinels.includes(agent.toLowerCase()) || sentinels.includes(actModel.toLowerCase())) {
+          throw new Error(`Invalid sentinel value in executor fields: ${agent} / ${actModel}`);
+        }
+        const genNum = parseInt(gen, 10);
+        if (isNaN(genNum) || genNum < 1) {
+          throw new Error("executor_generation must be a positive integer");
+        }
+        if (actModel !== execBoundModel) {
+          throw new Error(`Actual executor model (${actModel}) does not match bound executor_model (${execBoundModel})`);
+        }
+
+        if (isExecutorTerminalGreen) {
+          const termVerdict = parsed.fields.executor_terminal_verdict;
+          const termCheck = parsed.fields.executor_terminal_check;
+          const termResult = parsed.fields.executor_terminal_result;
+          if (termVerdict !== "PASS") {
+            throw new Error("executor-terminal-green phase requires executor_terminal_verdict to be PASS");
+          }
+          if (!termCheck || termCheck === "" || termCheck === "pending") {
+            throw new Error("executor-terminal-green phase requires a valid completed executor_terminal_check");
+          }
+          if (!termResult || termResult === "") {
+            throw new Error("executor-terminal-green phase requires non-empty executor_terminal_result");
+          }
+        }
+      }
+
+      if (isTerminalReview) {
+        const terminalCheck = parsed.fields.reviewer_terminal_check;
+        if (!terminalCheck || terminalCheck === "") {
+          throw new Error("Missing reviewer_terminal_check in terminal-review");
+        }
+        if (terminalCheck === "pending") {
+          const curSettingsRows = parsed.tables.settings || [];
+          const curModels = {};
+          for (const r of curSettingsRows) {
+            if (r.key === "executor_model" || r.key === "reviewer_model") {
+              curModels[r.key] = r.value;
+            }
+          }
+          validatePendingTerminalReviewSemantics(parsed, basename(suppliedHandoffPath), curModels, installedSkills, suppliedHandoffPath);
+        } else {
+          const agent = parsed.fields.reviewer_agent;
+          const actModel = parsed.fields.reviewer_actual_model;
+          const gen = parsed.fields.reviewer_generation;
+          const round = parsed.fields.review_round;
+          if (!agent || !actModel || gen === undefined || gen === "" || round === undefined || round === "") {
+            throw new Error("Missing reviewer identity/model/generation/round fields in phase terminal-review");
+          }
+          const sentinels = ["none", "unassigned", "pending"];
+          if (sentinels.includes(agent.toLowerCase()) || sentinels.includes(actModel.toLowerCase())) {
+            throw new Error(`Invalid sentinel value in reviewer fields: ${agent} / ${actModel}`);
+          }
+          const genNum = parseInt(gen, 10);
+          const roundNum = parseInt(round, 10);
+          if (isNaN(genNum) || genNum < 1) {
+            throw new Error("reviewer_generation must be a positive integer");
+          }
+          if (isNaN(roundNum) || roundNum < 1) {
+            throw new Error("review_round must be a positive integer");
+          }
+          if (actModel !== revBoundModel) {
+            throw new Error(`Actual reviewer model (${actModel}) does not match bound reviewer_model (${revBoundModel})`);
+          }
+
+          validateCompletedReviewerFields(parsed, suppliedHandoffPath, installedSkills);
+        }
+      }
+
+      if (isTerminalRepair) {
+        const agent = parsed.fields.reviewer_agent;
+        const actModel = parsed.fields.reviewer_actual_model;
+        const gen = parsed.fields.reviewer_generation;
+        const round = parsed.fields.review_round;
+        if (!agent || !actModel || gen === undefined || gen === "" || round === undefined || round === "") {
+          throw new Error("Missing reviewer identity/model/generation/round fields in phase terminal-repair");
+        }
+        const sentinels = ["none", "unassigned", "pending"];
+        if (sentinels.includes(agent.toLowerCase()) || sentinels.includes(actModel.toLowerCase())) {
+          throw new Error(`Invalid sentinel value in reviewer fields: ${agent} / ${actModel}`);
+        }
+        const genNum = parseInt(gen, 10);
+        const roundNum = parseInt(round, 10);
+        if (isNaN(genNum) || genNum < 1) {
+          throw new Error("reviewer_generation must be a positive integer");
+        }
+        if (isNaN(roundNum) || roundNum < 1) {
+          throw new Error("review_round must be a positive integer");
+        }
+        if (actModel !== revBoundModel) {
+          throw new Error(`Actual reviewer model (${actModel}) does not match bound reviewer_model (${revBoundModel})`);
+        }
+        const terminalCheck = parsed.fields.reviewer_terminal_check;
+        if (!terminalCheck || terminalCheck === "") {
+          throw new Error("Missing reviewer_terminal_check in terminal-repair");
+        }
+        if (terminalCheck === "pending") {
+          throw new Error("terminal-repair requires a completed reviewer_terminal_check, not pending");
+        }
+
+        // 1. Resolve and validate trigger pending-review handoff at gen - 1
+        const expectedTriggerGen = (currentHandoffGen !== null) ? currentHandoffGen - 1 : genNum - 1;
+        let triggerFilename = `handoff-${expectedTriggerGen}.toon`;
+        const triggerField = parsed.fields.trigger_review_handoff;
+        if (triggerField) {
+          triggerFilename = basename(triggerField);
+        }
+
+        const triggerPath = join(dirname(suppliedHandoffPath), triggerFilename);
+        const triggerParsed = resolveAndValidatePriorHandoff(parsed, suppliedHandoffPath, triggerFilename, expectedTriggerGen, installedSkills);
+
+        const curSettingsRows = parsed.tables.settings || [];
+        const curModels = {};
+        for (const r of curSettingsRows) {
+          if (r.key === "executor_model" || r.key === "reviewer_model") {
+            curModels[r.key] = r.value;
+          }
+        }
+
+        const repairRound = parseInt(parsed.fields.review_round, 10);
+        const repairCommit = parsed.fields.reviewed_commit || parsed.fields.completed_commit;
+        const repairExecutorGen = parseInt(parsed.fields.executor_generation, 10);
+        const repairReviewerGen = parseInt(parsed.fields.reviewer_generation, 10);
+        const repairExecutorAgent = parsed.fields.executor_agent;
+        const repairReviewerAgent = parsed.fields.reviewer_agent;
+
+        validateCompletedReviewerFields(parsed, suppliedHandoffPath, installedSkills);
+
+        validatePendingTerminalReviewSemantics(
+          triggerParsed,
+          triggerFilename,
+          curModels,
+          installedSkills,
+          triggerPath,
+          repairRound,
+          repairCommit,
+          repairExecutorGen,
+          repairReviewerGen,
+          repairExecutorAgent,
+          repairReviewerAgent
+        );
+      }
     }
 
+    function validateCompletedReviewerFields(parsed, suppliedHandoffPath, installedSkills) {
+      const check = parsed.fields.reviewer_terminal_check;
+      const res = parsed.fields.reviewer_terminal_result;
+      const verdict = parsed.fields.reviewer_verdict;
+      const count = parsed.fields.blocking_count;
+      const fingerprint = parsed.fields.blocking_fingerprint;
+      const round = parsed.fields.review_round;
+
+      if (!check || check === "pending") {
+        throw new Error("reviewer_terminal_check must be a valid completed check, not pending");
+      }
+      if (!res || res === "") {
+        throw new Error("Missing reviewer_terminal_result");
+      }
+      if (parsed.fields.phase === "terminal-repair" && verdict !== "BLOCKED") {
+        throw new Error("terminal-repair requires reviewer_verdict to be BLOCKED exactly");
+      }
+      if (verdict !== "BLOCKED" && verdict !== "PASS") {
+        throw new Error(`Invalid reviewer_verdict: ${verdict}`);
+      }
+      if (verdict === "BLOCKED") {
+        if (count === undefined || count === "") {
+          throw new Error("Missing blocking_count for BLOCKED verdict");
+        }
+        const countNum = parseInt(count, 10);
+        if (isNaN(countNum) || countNum < 1) {
+          throw new Error("blocking_count must be a positive integer for BLOCKED verdict");
+        }
+        if (!fingerprint || fingerprint === "") {
+          throw new Error("Missing blocking_fingerprint for BLOCKED verdict");
+        }
+
+        const guard = parsed.fields.progress_guard;
+        if (!guard || guard === "") {
+          throw new Error("Missing progress_guard");
+        }
+        const evidence = parsed.fields.progress_evidence;
+        if (!evidence || evidence === "") {
+          throw new Error("Missing progress_evidence");
+        }
+        if (parsed.fields.progress_status !== "advanced") {
+          throw new Error("BLOCKED verdict requires progress_status to be advanced");
+        }
+
+        const roundNum = parseInt(round, 10);
+        if (!isNaN(roundNum) && roundNum >= 2) {
+          const prevFingerprint = parsed.fields.previous_blocking_fingerprint;
+          if (!prevFingerprint || prevFingerprint === "") {
+            throw new Error("terminal-repair rounds >=2 require previous_blocking_fingerprint");
+          }
+          if (fingerprint === prevFingerprint) {
+            throw new Error("Unchanged repeated fingerprint fails closed");
+          }
+
+          const prevReviewedCommit = parsed.fields.previous_reviewed_commit;
+          if (!prevReviewedCommit || prevReviewedCommit === "") {
+            throw new Error("terminal-repair rounds >=2 require previous_reviewed_commit");
+          }
+
+          // Extract curModels for setting cross-checks
+          const curSettingsRows = parsed.tables.settings || [];
+          const curModels = {};
+          for (const r of curSettingsRows) {
+            if (r.key === "executor_model" || r.key === "reviewer_model") {
+              curModels[r.key] = r.value;
+            }
+          }
+
+          validateCompletedReviewChain(parsed, basename(suppliedHandoffPath), suppliedHandoffPath, curModels, installedSkills);
+        }
+      }
+    }
+
+    if (!parsed.tables.reload) {
+      throw new Error("Missing reload table");
+    }
     const reloadRows = parsed.tables.reload || [];
     const seenSkills = new Set();
     const seenPaths = new Set();
@@ -1354,7 +2480,17 @@ test("T2 reload manifest contract and rehydration validation", () => {
 
   function rehydrate(content, installedSkills, suppliedHandoffPath, highestHandoffPath, liveBinding) {
     const logs = [];
-    const parsed = parseHandoff(content, installedSkills);
+    let parsed;
+    try {
+      parsed = parseHandoff(content, installedSkills);
+    } catch (e) {
+      if (e.message.includes("blank line")) {
+        console.log("REHYDRATE FAIL PATH:", suppliedHandoffPath);
+        console.log("REHYDRATE FAIL CONTENT:");
+        content.split("\n").forEach((l, idx) => console.log(`${idx+1}: ${JSON.stringify(l)}`));
+      }
+      throw e;
+    }
 
     // Stage 1: Common/classification validation
     const mode = parsed.fields.mode;
@@ -1585,16 +2721,17 @@ test("T2 reload manifest contract and rehydration validation", () => {
       throw new Error(`Invalid next_action: ${nextAction}`);
     }
 
+    validateHandoff(parsed, installedSkills, suppliedHandoffPath);
     logs.push(`validate handoff: ${highestHandoffPath}`);
     logs.push(`execute next_action: ${nextAction}`);
     return logs;
   }
-
-
   const execStr = (s) => s
-    .replace("schema:v1", "schema:v1\nmode:execution\nphase:approved")
+    .replace("schema:v1", "schema:v1\nmode:execution\nphase:approved\nfeature:canonical-fixture")
     .replace("plan_path:.scratch/canonical-fixture/plan.md", "plan_path:plan.md")
-    .replace("plan_hash:", "plan_sha256:");
+    .replace("plan_hash:", "plan_sha256:")
+    .replace("settings[0]{key,value}:", "settings[2]{key,value}:\n  executor_model,google-antigravity/gemini-3.5-flash:high\n  reviewer_model,openai-codex/gpt-5.5:high")
+    .replace("settings[1]{key,value}:", "settings[3]{key,value}:\n  executor_model,google-antigravity/gemini-3.5-flash:high\n  reviewer_model,openai-codex/gpt-5.5:high");
 
   // Test highest generation enforcement
   const minimalExecutionHandoffForGen = execStr(`schema:v1
@@ -2321,10 +3458,13 @@ reload:some_value`;
   const positiveHandoffString = `schema:v1
 mode:execution
 phase:approved
+feature:canonical-fixture
 next_action:start/continue task
 plan_path:.scratch/canonical-fixture/plan.md
 plan_sha256:773439b156176e571582546b8552fc8c4a03da6ec147586988e6af632d100b1d
-settings[0]{key,value}:
+settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
 reload[3]{skill,path}:
   gsd-executing-plans,skills/gsd-executing-plans/SKILL.md
   gsd-handoff,skills/gsd-handoff/SKILL.md
@@ -2360,6 +3500,7 @@ reload[3]{skill,path}:
   const staleAndMismatchedAndMalformed = `schema:v1
 mode:execution
 phase:approved
+feature:canonical-fixture
 next_action:start/continue task
 plan_path:wrong.md
 plan_sha256:wrong
@@ -2375,6 +3516,7 @@ reload[3]{skill,path}:
   const staleAndMissingBinding = `schema:v1
 mode:execution
 phase:approved
+feature:canonical-fixture
 next_action:start/continue task
 settings[0]{key,value}:
 reload[3]{skill,path}:
@@ -2389,6 +3531,7 @@ reload[3]{skill,path}:
   const staleAndEmptyBinding = `schema:v1
 mode:execution
 phase:approved
+feature:canonical-fixture
 next_action:start/continue task
 plan_path:
 plan_sha256:
@@ -2420,6 +3563,7 @@ reload[3]{skill,path}:
   const correctBindingMalformedManifestInvalidAction = `schema:v1
 mode:execution
 phase:approved
+feature:canonical-fixture
 next_action:invalid_action
 plan_path:correct.md
 plan_sha256:correct
@@ -2434,9 +3578,12 @@ reload[3]{skill,path}:
   const staleAndMissingAction = `schema:v1
 mode:execution
 phase:approved
+feature:canonical-fixture
 plan_path:correct.md
 plan_sha256:correct
-settings[0]{key,value}:
+settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
 reload[3]{skill,path}:
   gsd-executing-plans,skills/gsd-executing-plans/SKILL.md
   gsd-handoff,skills/gsd-handoff/SKILL.md
@@ -2449,10 +3596,13 @@ reload[3]{skill,path}:
   const staleAndEmptyAction = `schema:v1
 mode:execution
 phase:approved
+feature:canonical-fixture
 next_action:
 plan_path:correct.md
 plan_sha256:correct
-settings[0]{key,value}:
+settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
 reload[3]{skill,path}:
   gsd-executing-plans,skills/gsd-executing-plans/SKILL.md
   gsd-handoff,skills/gsd-handoff/SKILL.md
@@ -2475,10 +3625,13 @@ reload[3]{skill,path}:
   const correctHandoffInvalidAction = `schema:v1
 mode:execution
 phase:approved
+feature:canonical-fixture
 next_action:invalid_action
 plan_path:correct.md
 plan_sha256:correct
-settings[0]{key,value}:
+settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
 reload[3]{skill,path}:
   gsd-executing-plans,skills/gsd-executing-plans/SKILL.md
   gsd-handoff,skills/gsd-handoff/SKILL.md
@@ -2613,8 +3766,1570 @@ reload[3]{skill,path}:
   assert.match(executingPlans, /pause.*preserves the exact interrupted executable `next_action`/);
   assert.match(executingPlans, /Discussion\/Spec-escalation/);
   assert.match(verify, /terminal repair.*next_action.*set to.*enter terminal verification\/repair/);
-});
 
+  // --- T2-IMP-11 and IMP-08 handoff phase validation ---
+  const liveBindingLocal = { path: "plan.md", sha256: "773439b156176e571582546b8552fc8c4a03da6ec147586988e6af632d100b1d" };
+
+  const validHandoffBase = (phase, settingsStr = "", fieldsStr = "") => `schema:v1
+mode:execution
+phase:${phase}
+feature:omp-persistent-execution-review
+next_action:start/continue task
+plan_path:plan.md
+plan_sha256:773439b156176e571582546b8552fc8c4a03da6ec147586988e6af632d100b1d
+${fieldsStr}
+
+settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
+${settingsStr}
+reload[3]{skill,path}:
+  gsd-executing-plans,skills/gsd-executing-plans/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md
+  gsd-tdd,skills/gsd-tdd/SKILL.md`.split('\n').filter(line => line.trim() !== '').join('\n');
+
+  const t2TempDir = nodeFs.mkdtempSync(join(ROOT, "test/tmp_gsd_T2_"));
+  const writeT2TempFile = (filename, content) => {
+    nodeFs.writeFileSync(join(t2TempDir, filename), content, "utf8");
+  };
+
+  try {
+    // 1. Write the history files for positive & negative tests
+    // handoff-1.toon: completed review round 1
+    const handoff1Content = validHandoffBase(
+      "terminal-repair",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+progress_guard:continue
+progress_evidence:evidence_text
+progress_status:advanced
+reviewed_commit:abcdef1234567890abcdef1234567890abcdef12`
+    ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+     .replace("settings[2]{key,value}:", "settings[3]{key,value}:\n  my_opaque_key,my_opaque_value")
+     .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+    writeT2TempFile("handoff-1.toon", handoff1Content);
+
+    // handoff-2.toon: completed review round 2
+    const handoff2Content = validHandoffBase(
+      "terminal-repair",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+progress_guard:continue
+progress_evidence:evidence_text
+progress_status:advanced
+reviewed_commit:commit_round2`
+    ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+     .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+    writeT2TempFile("handoff-2.toon", handoff2Content);
+
+    // handoff-3.toon: pending review round 3
+    const handoff3Content = validHandoffBase(
+      "terminal-review",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:pending
+previous_blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+previous_reviewed_commit:commit_round2
+current_review_commit:commit_round3`
+    ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+     .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+    writeT2TempFile("handoff-3.toon", handoff3Content);
+
+    // --- POSITIVE FIXTURES ---
+
+    // 1. Approved phase (no executor/reviewer agent fields, no model settings required)
+    const approvedHandoff = `schema:v1
+mode:execution
+phase:approved
+feature:canonical-fixture
+next_action:start/continue task
+plan_path:plan.md
+plan_sha256:773439b156176e571582546b8552fc8c4a03da6ec147586988e6af632d100b1d
+settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
+reload[3]{skill,path}:
+  gsd-executing-plans,skills/gsd-executing-plans/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md
+  gsd-tdd,skills/gsd-tdd/SKILL.md`;
+    assert.doesNotThrow(() => rehydrate(approvedHandoff, installed, join(t2TempDir, "handoff-1.toon"), join(t2TempDir, "handoff-1.toon"), liveBindingLocal));
+
+    // 2. Task-active phase (requires model settings and executor agent identity fields, no terminal progress fields)
+    const taskActiveHandoff = validHandoffBase(
+      "task-active",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2`
+    );
+    assert.doesNotThrow(() => rehydrate(taskActiveHandoff, installed, join(t2TempDir, "handoff-1.toon"), join(t2TempDir, "handoff-1.toon"), liveBindingLocal));
+
+    // 3. Green-task phase (requires completed executor fields but no terminal progress fields)
+    const greenTaskHandoff = validHandoffBase(
+      "green-task",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:3`
+    );
+    assert.doesNotThrow(() => rehydrate(greenTaskHandoff, installed, join(t2TempDir, "handoff-1.toon"), join(t2TempDir, "handoff-1.toon"), liveBindingLocal));
+
+    // 4. Terminal-review phase with reviewer_terminal_check:pending (requires prior progress fields, no completed terminal fields)
+    const terminalReviewPendingHandoff = validHandoffBase(
+      "terminal-review",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:pending
+previous_blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+previous_reviewed_commit:abcdef1234567890abcdef1234567890abcdef12
+current_review_commit:1234567890abcdef1234567890abcdef12345678`
+    ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+     .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+    assert.doesNotThrow(() => rehydrate(terminalReviewPendingHandoff, installed, join(t2TempDir, "handoff-2.toon"), join(t2TempDir, "handoff-2.toon"), liveBindingLocal));
+
+    // 5. Terminal-repair phase (requires executor fields and completed reviewer fields)
+    const terminalRepairHandoff = validHandoffBase(
+      "terminal-repair",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:d2059d1868399b5543092ff008335d8e03ac72b2f90009ff1b0cab7ee52a1447
+previous_blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+previous_reviewed_commit:commit_round2
+progress_guard:continue because fingerprint changed
+progress_evidence:evidence_text
+progress_status:advanced
+reviewed_commit:commit_round3`
+    ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+     .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+    assert.doesNotThrow(() => rehydrate(terminalRepairHandoff, installed, join(t2TempDir, "handoff-4.toon"), join(t2TempDir, "handoff-4.toon"), liveBindingLocal));
+
+
+    // 1. Missing settings model selectors in task-active
+    const missingModelHandoff = `schema:v1
+mode:execution
+phase:task-active
+feature:canonical-fixture
+next_action:start/continue task
+plan_path:plan.md
+plan_sha256:773439b156176e571582546b8552fc8c4a03da6ec147586988e6af632d100b1d
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+settings[0]{key,value}:
+reload[3]{skill,path}:
+  gsd-executing-plans,skills/gsd-executing-plans/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md
+  gsd-tdd,skills/gsd-tdd/SKILL.md`;
+    assert.throws(() => rehydrate(missingModelHandoff, installed, join(t2TempDir, "handoff-1.toon"), join(t2TempDir, "handoff-1.toon"), liveBindingLocal), /Missing executor_model or reviewer_model/);
+
+    // 2. Alias-only model selector
+    const aliasModelHandoff = validHandoffBase("task-active", "").replace("google-antigravity/gemini-3.5-flash:high", "task")
+      .replace("executor_agent:gsd-executor-2", "executor_agent:gsd-executor-2\nexecutor_actual_model:google-antigravity/gemini-3.5-flash:high\nexecutor_generation:2");
+    assert.throws(() => rehydrate(aliasModelHandoff, installed, join(t2TempDir, "handoff-1.toon"), join(t2TempDir, "handoff-1.toon"), liveBindingLocal), /Alias-only model selector/);
+
+    // 3. Same executor-reviewer selectors
+    const sameModelHandoff = validHandoffBase("task-active", "").replace("openai-codex/gpt-5.5:high", "google-antigravity/gemini-3.5-flash:high")
+      .replace("executor_agent:gsd-executor-2", "executor_agent:gsd-executor-2\nexecutor_actual_model:google-antigravity/gemini-3.5-flash:high\nexecutor_generation:2");
+    assert.throws(() => rehydrate(sameModelHandoff, installed, join(t2TempDir, "handoff-1.toon"), join(t2TempDir, "handoff-1.toon"), liveBindingLocal), /must be distinct/);
+
+    // 4. Invalid model selector format (no provider path slash/dash)
+    const invalidFormatHandoff = validHandoffBase("task-active", "").replace("google-antigravity/gemini-3.5-flash:high", "invalidmodel")
+      .replace("executor_agent:gsd-executor-2", "executor_agent:gsd-executor-2\nexecutor_actual_model:google-antigravity/gemini-3.5-flash:high\nexecutor_generation:2");
+    assert.throws(() => rehydrate(invalidFormatHandoff, installed, join(t2TempDir, "handoff-1.toon"), join(t2TempDir, "handoff-1.toon"), liveBindingLocal), /Invalid executor model selector/);
+
+    // 5. Missing phase-required identities (executor_agent in task-active)
+    const missingExecutorAgentHandoff = validHandoffBase("task-active", "", "executor_actual_model:google-antigravity/gemini-3.5-flash:high\nexecutor_generation:2");
+    assert.throws(() => rehydrate(missingExecutorAgentHandoff, installed, join(t2TempDir, "handoff-1.toon"), join(t2TempDir, "handoff-1.toon"), liveBindingLocal), /Missing executor identity/);
+
+    // 6. Missing phase-required generations (executor_generation in task-active)
+    const missingExecutorGenHandoff = validHandoffBase("task-active", "", "executor_agent:gsd-executor-2\nexecutor_actual_model:google-antigravity/gemini-3.5-flash:high");
+    assert.throws(() => rehydrate(missingExecutorGenHandoff, installed, join(t2TempDir, "handoff-1.toon"), join(t2TempDir, "handoff-1.toon"), liveBindingLocal), /Missing executor identity/);
+
+    // 7. Invalid phase-required generations (executor_generation is 0 or negative)
+    const invalidExecutorGenHandoff = validHandoffBase("task-active", "", "executor_agent:gsd-executor-2\nexecutor_actual_model:google-antigravity/gemini-3.5-flash:high\nexecutor_generation:-1");
+    assert.throws(() => rehydrate(invalidExecutorGenHandoff, installed, join(t2TempDir, "handoff-1.toon"), join(t2TempDir, "handoff-1.toon"), liveBindingLocal), /positive integer/);
+
+    // 8. Missing phase-required identities (reviewer_agent in terminal-review)
+    const missingReviewerAgentHandoff = validHandoffBase(
+      "terminal-review",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:pending
+previous_blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+previous_reviewed_commit:abcdef1234567890abcdef1234567890abcdef12`
+    ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+     .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+    assert.throws(() => rehydrate(missingReviewerAgentHandoff, installed, join(t2TempDir, "handoff-2.toon"), join(t2TempDir, "handoff-2.toon"), liveBindingLocal), /Missing reviewer identity/);
+
+    // 9. Pending terminal-review missing previous_blocking_fingerprint
+    const missingPrevFingerprintHandoff = validHandoffBase(
+      "terminal-review",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:pending
+previous_reviewed_commit:abcdef1234567890abcdef1234567890abcdef12`
+    ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+     .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+    assert.throws(() => rehydrate(missingPrevFingerprintHandoff, installed, join(t2TempDir, "handoff-2.toon"), join(t2TempDir, "handoff-2.toon"), liveBindingLocal), /Missing previous_blocking_fingerprint/);
+
+    // 10. Completed terminal-repair missing reviewer_terminal_result
+    const missingTermResultHandoff = validHandoffBase(
+      "terminal-repair",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:d2059d1868399b5543092ff008335d8e03ac72b2f90009ff1b0cab7ee52a1447
+previous_blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+previous_reviewed_commit:commit_round2
+progress_guard:continue because fingerprint changed
+progress_evidence:evidence_text
+progress_status:advanced
+reviewed_commit:commit_round3`
+    ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+     .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+    assert.throws(() => rehydrate(missingTermResultHandoff, installed, join(t2TempDir, "handoff-4.toon"), join(t2TempDir, "handoff-4.toon"), liveBindingLocal), /Missing reviewer_terminal_result/);
+
+    // 11. Completed terminal-repair missing progress_guard
+    const missingProgressGuardHandoff = validHandoffBase(
+      "terminal-repair",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:d2059d1868399b5543092ff008335d8e03ac72b2f90009ff1b0cab7ee52a1447
+previous_blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+previous_reviewed_commit:commit_round2
+progress_evidence:evidence_text
+progress_status:advanced
+reviewed_commit:commit_round3`
+    ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+     .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+    assert.throws(() => rehydrate(missingProgressGuardHandoff, installed, join(t2TempDir, "handoff-4.toon"), join(t2TempDir, "handoff-4.toon"), liveBindingLocal), /Missing progress_guard/);
+
+    // 11b. Completed terminal-repair missing progress_evidence
+    const missingProgressEvidenceHandoff = validHandoffBase(
+      "terminal-repair",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:d2059d1868399b5543092ff008335d8e03ac72b2f90009ff1b0cab7ee52a1447
+previous_blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+previous_reviewed_commit:commit_round2
+progress_guard:continue because fingerprint changed
+progress_status:advanced
+reviewed_commit:commit_round3`
+    ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+     .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+    assert.throws(() => rehydrate(missingProgressEvidenceHandoff, installed, join(t2TempDir, "handoff-4.toon"), join(t2TempDir, "handoff-4.toon"), liveBindingLocal), /Missing progress_evidence/);
+
+    // 11c. Completed terminal-repair missing previous_reviewed_commit
+    const missingPrevCommitHandoff = validHandoffBase(
+      "terminal-repair",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:d2059d1868399b5543092ff008335d8e03ac72b2f90009ff1b0cab7ee52a1447
+previous_blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+progress_guard:continue because fingerprint changed
+progress_evidence:evidence_text
+progress_status:advanced
+reviewed_commit:commit_round3`
+    ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+     .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+    assert.throws(() => rehydrate(missingPrevCommitHandoff, installed, join(t2TempDir, "handoff-4.toon"), join(t2TempDir, "handoff-4.toon"), liveBindingLocal), /require previous_reviewed_commit/);
+
+    // 11d. Completed terminal-repair mismatched previous_reviewed_commit
+    const mismatchedPrevCommitHandoff = validHandoffBase(
+      "terminal-repair",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:d2059d1868399b5543092ff008335d8e03ac72b2f90009ff1b0cab7ee52a1447
+previous_blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+previous_reviewed_commit:commit_mismatch
+progress_guard:continue because fingerprint changed
+progress_evidence:evidence_text
+progress_status:advanced
+reviewed_commit:commit_round3`
+    ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+     .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+    assert.throws(() => rehydrate(mismatchedPrevCommitHandoff, installed, join(t2TempDir, "handoff-4.toon"), join(t2TempDir, "handoff-4.toon"), liveBindingLocal), /previous_reviewed_commit mismatch/);
+
+    // 11e. Completed terminal-repair unchanged reviewed commit
+    const unchangedTempDir = nodeFs.mkdtempSync(join(ROOT, "test/tmp_gsd_unchanged_"));
+    try {
+      const h2Content = validHandoffBase(
+        "terminal-repair",
+        "",
+        `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+progress_guard:continue
+progress_evidence:evidence_text
+progress_status:advanced
+reviewed_commit:commit_round2`
+      ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+       .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+      nodeFs.writeFileSync(join(unchangedTempDir, "handoff-2.toon"), h2Content, "utf8");
+
+      const h3Content = validHandoffBase(
+        "terminal-review",
+        "",
+        `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:pending
+previous_blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+previous_reviewed_commit:commit_round2
+current_review_commit:commit_round2`
+      ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+       .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+      nodeFs.writeFileSync(join(unchangedTempDir, "handoff-3.toon"), h3Content, "utf8");
+
+      const h4Content = validHandoffBase(
+        "terminal-repair",
+        "",
+        `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:d2059d1868399b5543092ff008335d8e03ac72b2f90009ff1b0cab7ee52a1447
+previous_blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+previous_reviewed_commit:commit_round2
+progress_guard:continue because fingerprint changed
+progress_evidence:evidence_text
+progress_status:advanced
+reviewed_commit:commit_round2`
+      ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+       .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+
+      assert.throws(() => rehydrate(h4Content, installed, join(unchangedTempDir, "handoff-4.toon"), join(unchangedTempDir, "handoff-4.toon"), liveBindingLocal), /Unchanged commit fails closed/);
+    } finally {
+      nodeFs.rmSync(unchangedTempDir, { recursive: true, force: true });
+    }
+    // 12. Unchanged repeated fingerprint/no-progress rejection
+    const unchangedFingerprintNoProgressHandoff = validHandoffBase(
+      "terminal-repair",
+      "",
+      `executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+previous_blocking_fingerprint:4d223c66e49589a6a166162871488707222286df1383384b5b72e99f8c0f90a5
+previous_reviewed_commit:commit_round2
+progress_guard:continue terminal repair
+progress_evidence:evidence_text
+progress_status:advanced
+reviewed_commit:commit_round3`
+    ).replace("next_action:start/continue task", "next_action:enter terminal verification/repair")
+     .replace(/reload\[3\]\{skill,path\}:[\s\S]*/, `reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`);
+    assert.throws(() => rehydrate(unchangedFingerprintNoProgressHandoff, installed, join(t2TempDir, "handoff-4.toon"), join(t2TempDir, "handoff-4.toon"), liveBindingLocal), /Unchanged repeated fingerprint fails closed/);
+
+    // --- Round 5 unit tests ---
+    const mockDir = t2TempDir;
+    const activeBinding = {
+      path: ".scratch/omp-persistent-execution-review/plan.md",
+      sha256: "b1f939f1463ddb66c1241e24261fb61778938aa19a7c8810b3205cf14f1de26c"
+    };
+
+    const writeMockHandoff = (filename, phase, nextAction, fieldsStr) => {
+      const content = `schema:v1
+mode:execution
+phase:${phase}
+feature:omp-persistent-execution-review
+next_action:${nextAction}
+plan_path:.scratch/omp-persistent-execution-review/plan.md
+plan_sha256:b1f939f1463ddb66c1241e24261fb61778938aa19a7c8810b3205cf14f1de26c
+${fieldsStr}
+settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
+reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`.split('\n').filter(line => line.trim() !== '').join('\n');
+      nodeFs.writeFileSync(join(mockDir, filename), content, "utf8");
+    };
+
+    const deleteMockHandoff = (filename) => {
+      try {
+        nodeFs.unlinkSync(join(mockDir, filename));
+      } catch (e) {}
+    };
+
+    // Set up mock handoff-997 (completed review, round 1)
+    writeMockHandoff("handoff-997.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:3
+blocking_fingerprint:fingerprint_A
+previous_blocking_fingerprint:fingerprint_prev
+reviewed_commit:commit_A
+progress_status:advanced
+progress_guard:continue
+progress_evidence:evidence_text
+`);
+
+    // Set up mock handoff-998 (pending review, round 2)
+    writeMockHandoff("handoff-998.toon", "terminal-review", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:pending
+previous_blocking_fingerprint:fingerprint_A
+previous_reviewed_commit:commit_A
+current_review_commit:commit_B
+`);
+
+    // Set up mock handoff-999 (completed review, round 2)
+    writeMockHandoff("handoff-999.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:fingerprint_B
+previous_blocking_fingerprint:fingerprint_A
+trigger_review_handoff:.scratch/omp-persistent-execution-review/handoff-998.toon
+reviewed_commit:commit_B
+previous_reviewed_commit:commit_A
+progress_status:advanced
+progress_guard:continue
+progress_evidence:evidence_text
+`);
+
+    // Assert both 998 and 999 are valid
+    const p998 = join(mockDir, "handoff-998.toon");
+    const p999 = join(mockDir, "handoff-999.toon");
+    const content998 = readFileSync(p998, "utf8");
+    const content999 = readFileSync(p999, "utf8");
+    assert.doesNotThrow(() => rehydrate(content998, installed, p998, p998, activeBinding));
+    assert.doesNotThrow(() => rehydrate(content999, installed, p999, p999, activeBinding));
+
+    // 1. Sentinel agent check for executor
+    const sentinelExecContent = content999.replace("executor_agent:gsd-executor-2", "executor_agent:none");
+    assert.throws(() => rehydrate(sentinelExecContent, installed, p999, p999, activeBinding), /Invalid sentinel value/);
+
+    // 2. Sentinel agent check for reviewer
+    const sentinelRevContent = content999.replace("reviewer_agent:gsd-reviewer", "reviewer_agent:unassigned");
+    assert.throws(() => rehydrate(sentinelRevContent, installed, p999, p999, activeBinding), /Invalid sentinel value/);
+
+    // 3. Verdict not BLOCKED for terminal-repair
+    const passVerdictContent = content999.replace("reviewer_verdict:BLOCKED", "reviewer_verdict:PASS");
+    assert.throws(() => rehydrate(passVerdictContent, installed, p999, p999, activeBinding), /terminal-repair requires reviewer_verdict to be BLOCKED/);
+
+    // 4. Pending terminal-review specifying completed fields
+    const completedFieldPendingContent = content998 + "\nreviewer_verdict:BLOCKED";
+    assert.throws(() => rehydrate(completedFieldPendingContent, installed, p998, p998, activeBinding), /Pending terminal-review must not specify completed terminal fields/);
+
+    // 4b. Pending terminal-review specifying valid completed_commit + progress transition fields
+    const pendingWithProgressContent = content998 + "\ncompleted_commit:commit_B\nprogress_status:advanced\nprogress_evidence:evidence_text\nprogress_guard:continue because fingerprint changed";
+    assert.doesNotThrow(() => rehydrate(pendingWithProgressContent, installed, p998, p998, activeBinding));
+
+    // 4c. Pending terminal-review with completed_commit mismatching current_review_commit
+    const pendingCommitMismatchContent = content998 + "\ncompleted_commit:commit_mismatch";
+    assert.throws(() => rehydrate(pendingCommitMismatchContent, installed, p998, p998, activeBinding), /completed_commit.*must equal current_review_commit/);
+    // 5. Completed terminal-repair specifying pending check
+    const pendingCheckCompletedContent = content999.replace("reviewer_terminal_check:node --test test/*.test.js", "reviewer_terminal_check:pending");
+    assert.throws(() => rehydrate(pendingCheckCompletedContent, installed, p999, p999, activeBinding), /terminal-repair requires a completed reviewer_terminal_check/);
+
+    // 6. Reviewed commit mismatch in terminal-repair (current reviewed_commit != triggering pending current_review_commit)
+    const commitMismatchContent = content999.replace("reviewed_commit:commit_B", "reviewed_commit:commit_mismatch");
+    assert.throws(() => rehydrate(commitMismatchContent, installed, p999, p999, activeBinding), /reviewed_commit.*must equal triggering pending review/);
+
+    // 6a. Executor agent mismatch between repair and triggering pending review
+    const execAgentMismatchContent = content999.replace("executor_agent:gsd-executor-2", "executor_agent:gsd-executor-other");
+    assert.throws(() => rehydrate(execAgentMismatchContent, installed, p999, p999, activeBinding), /executor_agent mismatch in pending terminal-review/);
+
+    // 6b. Reviewer agent mismatch between repair and triggering pending review
+    const revAgentMismatchContent = content999.replace("reviewer_agent:gsd-reviewer", "reviewer_agent:gsd-reviewer-other");
+    assert.throws(() => rehydrate(revAgentMismatchContent, installed, p999, p999, activeBinding), /reviewer_agent mismatch in pending terminal-review/);
+
+    // 6c. Triggering terminal-review round >= 2 with previous_completed_review_handoff pointing to a mismatched completed review
+    writeMockHandoff("handoff-997.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:fingerprint_OTHER
+reviewed_commit:commit_OTHER
+progress_guard:continue
+progress_evidence:evidence_text
+progress_status:advanced
+`);
+
+    writeMockHandoff("handoff-998.toon", "terminal-review", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:pending
+previous_completed_review_handoff:.scratch/omp-persistent-execution-review/handoff-997.toon
+previous_blocking_fingerprint:fingerprint_A
+previous_reviewed_commit:commit_A
+current_review_commit:commit_B
+`);
+
+    assert.throws(() => rehydrate(content999, installed, p999, p999, activeBinding), /previous_blocking_fingerprint mismatch/);
+
+    // Restore handoff-997.toon and handoff-998.toon back to default valid state for subsequent tests
+    writeMockHandoff("handoff-997.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests 82 pass 82 fail 0
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:fingerprint_A
+reviewed_commit:commit_A
+progress_guard:continue
+progress_evidence:evidence_text
+progress_status:advanced
+`);
+
+    writeMockHandoff("handoff-998.toon", "terminal-review", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:pending
+previous_blocking_fingerprint:fingerprint_A
+previous_reviewed_commit:commit_A
+current_review_commit:commit_B
+`);
+    // 7. Unchanged fingerprint from prior completed review
+    const unchangedFingerprintContent = content999.replace("blocking_fingerprint:fingerprint_B", "blocking_fingerprint:fingerprint_A");
+    assert.throws(() => rehydrate(unchangedFingerprintContent, installed, p999, p999, activeBinding), /Unchanged repeated fingerprint fails closed/);
+
+    // 8. Unchanged commit from prior completed review
+    // First make triggering pending current_review_commit commit_A too (mocking no commit change)
+    writeMockHandoff("handoff-998.toon", "terminal-review", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:pending
+previous_blocking_fingerprint:fingerprint_A
+previous_reviewed_commit:commit_A
+current_review_commit:commit_A
+`);
+    // Unchanged review commit in pending review itself should fail:
+    const unchangedPendingContent = readFileSync(p998, "utf8");
+    assert.throws(() => rehydrate(unchangedPendingContent, installed, p998, p998, activeBinding), /Unchanged review commit/);
+
+    // --- IMP-27..29 unit tests ---
+    // --- IMP-27..29 unit tests ---
+    // A. Malformed history filenames
+    // 1. History filename with 0 (handoff-0.toon)
+    writeMockHandoff("handoff-995.toon", "terminal-review", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:pending
+previous_blocking_fingerprint:fingerprint_A
+previous_reviewed_commit:commit_A
+current_review_commit:commit_B
+previous_completed_review_handoff:.scratch/omp-persistent-execution-review/handoff-0.toon
+`);
+    const p995 = join(mockDir, "handoff-995.toon");
+    const content995 = readFileSync(p995, "utf8");
+    assert.throws(() => rehydrate(content995, installed, p995, p995, activeBinding), /Invalid canonical handoff filename format/);
+
+    // 2. History filename with leading zero (handoff-01.toon)
+    const leadingZeroContent = content995.replace("handoff-0.toon", "handoff-01.toon");
+    assert.throws(() => rehydrate(leadingZeroContent, installed, p995, p995, activeBinding), /Invalid canonical handoff filename format/);
+
+    // 3. History filename with letters (handoff-2a.toon)
+    const nonNumericContent = content995.replace("handoff-0.toon", "handoff-2a.toon");
+    assert.throws(() => rehydrate(nonNumericContent, installed, p995, p995, activeBinding), /Invalid canonical handoff filename format/);
+
+    // 4. History filename with prefix (prefix-handoff-1.toon)
+    const prefixContent = content995.replace("handoff-0.toon", "prefix-handoff-1.toon");
+    assert.throws(() => rehydrate(prefixContent, installed, p995, p995, activeBinding), /Invalid canonical handoff filename format/);
+
+    // B. Semantic completeness of prior completed review (IMP-27)
+    // 1. Prior completed review has non-terminal-repair phase (e.g. task-active)
+    writeMockHandoff("handoff-994.toon", "task-active", "start/continue task", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+`);
+    const validRefHandoff995Content = content995.replace("handoff-0.toon", "handoff-994.toon");
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Prior completed review history phase must be terminal-repair/);
+
+    // 2. Prior completed review has PASS verdict
+    writeMockHandoff("handoff-994.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests pass
+reviewer_verdict:PASS
+progress_status:advanced
+progress_guard:continue
+reviewed_commit:commit_A
+`);
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Prior completed review reviewer_verdict must be BLOCKED/);
+
+    // 3. Prior completed review has pending check
+    writeMockHandoff("handoff-994.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:pending
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+reviewed_commit:commit_A
+`);
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Prior completed review requires non-pending reviewer_terminal_check/);
+
+    // C. Missing plan_path or plan_sha256 in history (IMP-28)
+    writeMockHandoff("handoff-994.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+reviewed_commit:commit_A
+`);
+    const noPlanPathContent = readFileSync(join(mockDir, "handoff-994.toon"), "utf8").replace(/plan_path:.*\n/, "");
+    nodeFs.writeFileSync(join(mockDir, "handoff-994.toon"), noPlanPathContent, "utf8");
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Missing plan_path in history file/);
+
+    // D. Binding mismatches (IMP-28)
+    writeMockHandoff("handoff-994.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+reviewed_commit:commit_A
+`);
+    const modelMismatchContent = readFileSync(join(mockDir, "handoff-994.toon"), "utf8").replace("openai-codex/gpt-5.5:high", "openai-codex/gpt-4o:high");
+    nodeFs.writeFileSync(join(mockDir, "handoff-994.toon"), modelMismatchContent, "utf8");
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /does not match bound reviewer_model/);
+
+    // E. IMP-30 & IMP-31 Deep field mandates & Symlink rejection
+    // 1. Missing executor_agent in prior completed review
+    writeMockHandoff("handoff-994.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+reviewed_commit:commit_A
+`);
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Missing executor identity/);
+
+    // 2. Sentinel executor_agent in prior completed review
+    writeMockHandoff("handoff-994.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:none
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+reviewed_commit:commit_A
+`);
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Invalid sentinel value/);
+    // 3. Missing progress_status in prior completed review
+    writeMockHandoff("handoff-994.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_guard:continue
+progress_evidence:tests failed
+reviewed_commit:commit_A
+`);
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Prior completed review progress_status must be 'advanced'/);
+
+    // 4. Missing reviewed_commit in prior completed review
+    writeMockHandoff("handoff-994.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+`);
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Missing reviewed_commit in prior completed review/);
+
+    // 5. Missing feature in prior history file
+    writeMockHandoff("handoff-994.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+reviewed_commit:commit_A
+`);
+    const noFeatureHistContent = readFileSync(join(mockDir, "handoff-994.toon"), "utf8").replace(/feature:.*\n/, "");
+    nodeFs.writeFileSync(join(mockDir, "handoff-994.toon"), noFeatureHistContent, "utf8");
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Missing feature in history file/);
+
+    // 6. Symlinked history file rejection before read
+    nodeFs.rmSync(join(mockDir, "handoff-994.toon"), { force: true });
+    nodeFs.symlinkSync(join(mockDir, "handoff-995.toon"), join(mockDir, "handoff-994.toon"));
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Symbolic link rejected for history handoff file/);
+
+    // 7. Prior completed review mode must be execution
+    nodeFs.rmSync(join(mockDir, "handoff-994.toon"), { force: true });
+    nodeFs.writeFileSync(join(mockDir, "handoff-994.toon"), `schema:v1
+mode:discussion
+phase:terminal-repair
+feature:omp-persistent-execution-review
+next_action:enter terminal verification/repair
+plan_path:.scratch/omp-persistent-execution-review/plan.md
+plan_sha256:b1f939f1463ddb66c1241e24261fb61778938aa19a7c8810b3205cf14f1de26c
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+reviewed_commit:commit_A
+settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
+reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`, "utf8");
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Prior completed review mode must be execution/);
+
+    // 8. Prior completed review next_action must be enter terminal verification/repair
+    nodeFs.rmSync(join(mockDir, "handoff-994.toon"), { force: true });
+    nodeFs.writeFileSync(join(mockDir, "handoff-994.toon"), `schema:v1
+mode:execution
+phase:terminal-repair
+feature:omp-persistent-execution-review
+next_action:start/continue task
+plan_path:.scratch/omp-persistent-execution-review/plan.md
+plan_sha256:b1f939f1463ddb66c1241e24261fb61778938aa19a7c8810b3205cf14f1de26c
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+reviewed_commit:commit_A
+settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
+reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`, "utf8");
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Prior completed review next_action must be 'enter terminal verification\/repair'/);
+
+    // 9. Prior completed review missing progress_evidence
+    nodeFs.rmSync(join(mockDir, "handoff-994.toon"), { force: true });
+    nodeFs.writeFileSync(join(mockDir, "handoff-994.toon"), `schema:v1
+mode:execution
+phase:terminal-repair
+feature:omp-persistent-execution-review
+next_action:enter terminal verification/repair
+plan_path:.scratch/omp-persistent-execution-review/plan.md
+plan_sha256:b1f939f1463ddb66c1241e24261fb61778938aa19a7c8810b3205cf14f1de26c
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+reviewed_commit:commit_A
+settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
+reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`, "utf8");
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Missing progress_evidence/);
+
+    // 10. Prior completed review round >= 2 unchanged repeated fingerprint
+    writeMockHandoff("handoff-992.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+reviewed_commit:commit_A
+`);
+
+    writeMockHandoff("handoff-994.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+previous_blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+reviewed_commit:commit_A
+previous_reviewed_commit:commit_A
+`);
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Unchanged repeated fingerprint/);
+
+    // 11. Prior completed review duplicate reload skill
+    nodeFs.rmSync(join(mockDir, "handoff-994.toon"), { force: true });
+    nodeFs.writeFileSync(join(mockDir, "handoff-994.toon"), `schema:v1
+mode:execution
+phase:terminal-repair
+feature:omp-persistent-execution-review
+next_action:enter terminal verification/repair
+plan_path:.scratch/omp-persistent-execution-review/plan.md
+plan_sha256:b1f939f1463ddb66c1241e24261fb61778938aa19a7c8810b3205cf14f1de26c
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+reviewed_commit:commit_A
+settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
+reload[3]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-verify,skills/gsd-handoff/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md`, "utf8");
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Duplicate skill in reload manifest/);
+
+    // 12. Prior completed review settings key duplicate
+    nodeFs.rmSync(join(mockDir, "handoff-994.toon"), { force: true });
+    nodeFs.writeFileSync(join(mockDir, "handoff-994.toon"), `schema:v1
+mode:execution
+phase:terminal-repair
+feature:omp-persistent-execution-review
+next_action:enter terminal verification/repair
+plan_path:.scratch/omp-persistent-execution-review/plan.md
+plan_sha256:b1f939f1463ddb66c1241e24261fb61778938aa19a7c8810b3205cf14f1de26c
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fingerprint_A
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+reviewed_commit:commit_A
+settings[4]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
+  ponytail_level,lite
+  ponytail_level,full
+reload[3]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md
+  gsd-ponytail,skills/gsd-ponytail/SKILL.md`, "utf8");
+    assert.throws(() => rehydrate(validRefHandoff995Content, installed, p995, p995, activeBinding), /Duplicate key in settings/);
+
+    // --- IMP-38 predecessor chain validator tests ---
+    const testDir = join(mockDir, "t2_1");
+    nodeFs.mkdirSync(testDir, { recursive: true });
+
+    const writeHandoff = (filename, phase, action, fieldsStr) => {
+      const trimmed = fieldsStr.trim();
+      nodeFs.writeFileSync(join(testDir, filename), `schema:v1
+mode:execution
+phase:${phase}
+feature:omp-persistent-execution-review
+next_action:${action}
+plan_path:.scratch/omp-persistent-execution-review/plan.md
+plan_sha256:b1f939f1463ddb66c1241e24261fb61778938aa19a7c8810b3205cf14f1de26c
+${trimmed}
+settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
+reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md
+`, "utf8");
+    };
+
+    try {
+      // 1. Valid handoff-3 round 2 -> h1 passes
+      writeHandoff("handoff-1.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fp_1
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+completed_commit:commit_1
+`);
+
+      writeHandoff("handoff-3.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:fp_3
+previous_blocking_fingerprint:fp_1
+completed_commit:commit_3
+previous_reviewed_commit:commit_1
+trigger_review_handoff:.scratch/omp-persistent-execution-review/handoff-2.toon
+progress_status:advanced
+progress_guard:continue
+progress_evidence:evidence_3
+`);
+
+      writeHandoff("handoff-4.toon", "terminal-review", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:3
+reviewer_terminal_check:pending
+previous_blocking_fingerprint:fp_3
+previous_reviewed_commit:commit_3
+current_review_commit:commit_4
+previous_completed_review_handoff:.scratch/omp-persistent-execution-review/handoff-3.toon
+`);
+
+      const p4 = join(testDir, "handoff-4.toon");
+      const content4 = readFileSync(p4, "utf8");
+      assert.doesNotThrow(() => rehydrate(content4, installed, p4, p4, activeBinding));
+
+      // 2. handoff-1 round 2 fails
+      writeHandoff("handoff-1.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fp_1
+previous_blocking_fingerprint:fp_0
+completed_commit:commit_1
+previous_reviewed_commit:commit_0
+`);
+
+      writeHandoff("handoff-2.toon", "terminal-review", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:3
+reviewer_terminal_check:pending
+previous_blocking_fingerprint:fp_1
+previous_reviewed_commit:commit_1
+current_review_commit:commit_2
+previous_completed_review_handoff:.scratch/omp-persistent-execution-review/handoff-1.toon
+`);
+
+      const p2 = join(testDir, "handoff-2.toon");
+      const content2 = readFileSync(p2, "utf8");
+      assert.throws(() => rehydrate(content2, installed, p2, p2, activeBinding), /Invalid canonical handoff filename format/);
+
+      // Restore handoff-1.toon to round 1
+      writeHandoff("handoff-1.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fp_1
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+completed_commit:commit_1
+`);
+
+      // 3. missing predecessor fails
+      // Remove handoff-1.toon
+      nodeFs.unlinkSync(join(testDir, "handoff-1.toon"));
+      assert.throws(() => rehydrate(content4, installed, p4, p4, activeBinding), /Predecessor history file not found/);
+
+      // Restore handoff-1.toon
+      writeHandoff("handoff-1.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fp_1
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+completed_commit:commit_1
+`);
+
+      // 4. Cycle/revisited node fails
+      // Self-cycle on handoff-3 (predecessor points to handoff-3.toon)
+      writeHandoff("handoff-3.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:fp_3
+previous_blocking_fingerprint:fp_1
+completed_commit:commit_3
+previous_reviewed_commit:commit_1
+trigger_review_handoff:.scratch/omp-persistent-execution-review/handoff-2.toon
+previous_completed_review_handoff:.scratch/omp-persistent-execution-review/handoff-3.toon
+progress_status:advanced
+progress_guard:continue
+progress_evidence:evidence_3
+`);
+      assert.throws(() => rehydrate(content4, installed, p4, p4, activeBinding), /Predecessor generation 3 must be less than current generation 3/);
+
+      // Two-node cycle (handoff-3 points to handoff-1; handoff-1 has round 2 and points to handoff-3)
+      writeHandoff("handoff-3.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:fp_3
+previous_blocking_fingerprint:fp_1
+completed_commit:commit_3
+previous_reviewed_commit:commit_1
+trigger_review_handoff:.scratch/omp-persistent-execution-review/handoff-2.toon
+previous_completed_review_handoff:.scratch/omp-persistent-execution-review/handoff-1.toon
+progress_status:advanced
+progress_guard:continue
+progress_evidence:evidence_3
+`);
+
+      writeHandoff("handoff-1.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fp_1
+previous_blocking_fingerprint:fp_3
+completed_commit:commit_1
+previous_reviewed_commit:commit_3
+previous_completed_review_handoff:.scratch/omp-persistent-execution-review/handoff-3.toon
+`);
+      assert.throws(() => rehydrate(content4, installed, p4, p4, activeBinding), /Cycle or revisited node detected/);
+
+      // 5. Deep >=1500 completed rounds passes without RangeError or round cap
+      for (let r = 1; r <= 1500; r++) {
+        const g = 2 * r - 1;
+        const prevG = g - 2;
+        const roundContent = `schema:v1
+mode:execution
+phase:terminal-repair
+feature:omp-persistent-execution-review
+next_action:enter terminal verification/repair
+plan_path:.scratch/omp-persistent-execution-review/plan.md
+plan_sha256:b1f939f1463ddb66c1241e24261fb61778938aa19a7c8810b3205cf14f1de26c
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:${r}
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fp_${g}
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+completed_commit:commit_${g}
+${r >= 2 ? `previous_blocking_fingerprint:fp_${prevG}
+previous_reviewed_commit:commit_${prevG}
+previous_completed_review_handoff:.scratch/omp-persistent-execution-review/handoff-${prevG}.toon
+` : ""}settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
+reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md
+`;
+        nodeFs.writeFileSync(join(testDir, `handoff-${g}.toon`), roundContent, "utf8");
+      }
+
+      const pending3000 = `schema:v1
+mode:execution
+phase:terminal-review
+feature:omp-persistent-execution-review
+next_action:enter terminal verification/repair
+plan_path:.scratch/omp-persistent-execution-review/plan.md
+plan_sha256:b1f939f1463ddb66c1241e24261fb61778938aa19a7c8810b3205cf14f1de26c
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1501
+reviewer_terminal_check:pending
+previous_blocking_fingerprint:fp_2999
+previous_reviewed_commit:commit_2999
+current_review_commit:commit_3000
+previous_completed_review_handoff:.scratch/omp-persistent-execution-review/handoff-2999.toon
+settings[2]{key,value}:
+  executor_model,google-antigravity/gemini-3.5-flash:high
+  reviewer_model,openai-codex/gpt-5.5:high
+reload[2]{skill,path}:
+  gsd-verify,skills/gsd-verify/SKILL.md
+  gsd-handoff,skills/gsd-handoff/SKILL.md
+`;
+      const p3000 = join(testDir, "handoff-3000.toon");
+      assert.doesNotThrow(() => rehydrate(pending3000, installed, p3000, p3000, activeBinding));
+      // 6. Predecessor binding mismatch (middle/deep predecessor feature or plan_sha256 mismatch)
+      // First, restore handoff-3.toon to its valid form (which references handoff-1.toon)
+      writeHandoff("handoff-3.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:2
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:2
+blocking_fingerprint:fp_3
+previous_blocking_fingerprint:fp_1
+completed_commit:commit_3
+previous_reviewed_commit:commit_1
+trigger_review_handoff:.scratch/omp-persistent-execution-review/handoff-2.toon
+previous_completed_review_handoff:.scratch/omp-persistent-execution-review/handoff-1.toon
+progress_status:advanced
+progress_guard:continue
+progress_evidence:evidence_3
+`);
+
+      // Write handoff-1.toon with valid fields
+      writeHandoff("handoff-1.toon", "terminal-repair", "enter terminal verification/repair", `
+executor_agent:gsd-executor-2
+executor_actual_model:google-antigravity/gemini-3.5-flash:high
+executor_generation:2
+reviewer_agent:gsd-reviewer
+reviewer_actual_model:openai-codex/gpt-5.5:high
+reviewer_generation:1
+review_round:1
+reviewer_terminal_check:node --test test/*.test.js
+reviewer_terminal_result:tests fail
+reviewer_verdict:BLOCKED
+blocking_count:1
+blocking_fingerprint:fp_1
+progress_status:advanced
+progress_guard:continue
+progress_evidence:tests failed
+completed_commit:commit_1
+`);
+
+      const h1Path = join(testDir, "handoff-1.toon");
+      const h1Content = nodeFs.readFileSync(h1Path, "utf8");
+
+      // Mutate handoff-1.toon to have a different feature
+      nodeFs.writeFileSync(h1Path, h1Content.replace("feature:omp-persistent-execution-review", "feature:omp-mismatched-feature"), "utf8");
+      assert.throws(() => rehydrate(content4, installed, p4, p4, activeBinding), /Feature mismatch in history file/);
+
+      // Restore handoff-1.toon feature but mismatch plan_sha256
+      nodeFs.writeFileSync(h1Path, h1Content.replace("plan_sha256:b1f939f1463ddb66c1241e24261fb61778938aa19a7c8810b3205cf14f1de26c", "plan_sha256:mismatched-sha"), "utf8");
+      assert.throws(() => rehydrate(content4, installed, p4, p4, activeBinding), /plan_sha256 mismatch in history file/);
+
+      // Restore handoff-1.toon to its valid state
+      nodeFs.writeFileSync(h1Path, h1Content, "utf8");
+
+    } finally {
+      nodeFs.rmSync(testDir, { recursive: true, force: true });
+    }
+  } finally {
+    nodeFs.rmSync(t2TempDir, { recursive: true, force: true });
+  }
+});
 test("activation fixtures and response parser enforce lazy primary-skill selection", () => {
   const fixtureText = read("test/eval/fixtures.json");
   const fixtures = JSON.parse(fixtureText);
@@ -2885,10 +5600,10 @@ test("AC-4: Cross-references, None. explicit, repair evidence not duplicated, an
   assert.match(reference, /A `None\.` decisions block in the plan is represented as an explicit empty decisions marker/i);
 
   // Repair evidence is not duplicated in executing plans
-  assert.match(executingPlans, /the fixer reruns only focused checks invalidated by its repair, records replacement green evidence for each invalidated check, and re-enters fresh review/i);
+  assert.match(executingPlans, /the executor reruns only focused checks invalidated by its repair, records replacement green evidence for each invalidated check, and re-enters review/i);
   assert.doesNotMatch(executingPlans, /Rerun all invalidated evidence and review\./i);
   assert.doesNotMatch(executingPlans, /focused checks and evidence/i);
-  assert.doesNotMatch(executingPlans, /that fixer pass/i);
+  assert.doesNotMatch(executingPlans, /that repair pass/i);
 
   // Renderer serialization without String.replace implication
   assert.doesNotMatch(reference, /placeholder is replaced by/i);

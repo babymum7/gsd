@@ -75,6 +75,14 @@ A pause writes `.scratch/<feature>/handoff-<n>.toon`. A later “Continue the ac
 
 Missing consumed artifacts do not trigger improvisation. The selected skill returns control to automatic selection or the recorded active owner with an actionable stop or transition.
 
+## Dual-Agent Model Roles
+
+GSD relies on two persistent role bindings sourced from the OMP configuration:
+- `modelRoles.task`: Binds the persistent primary executor that performs all task implementation, runs focused checks, and carries out self-verification.
+- `modelRoles.advisor`: Binds the independent persistent reviewer that performs whole-diff terminal review and re-verification.
+
+Other harnesses, custom agent definitions, or external model configuration files are explicitly deferred.
+
 ## State and repository layout
 
 - `.scratch/` is ignored and machine-local by default.
