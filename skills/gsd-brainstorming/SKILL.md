@@ -6,6 +6,12 @@ produces: []
 consumes: []
 ---
 
+## Dispatch contract
+Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
+- Role: owner
+- Do-not-load: read-only questions, pure mechanical edits, known single-spot quick fix
+- Transition: on convergence load `gsd-to-plan`
+
 # GSD Brainstorming
 
 > **Invocation guard** — this skill owns pre-approval discovery and convergence only. It creates no artifact. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract after selecting an invocation mode. Read-only questions, Nano edits, known single-spot fixes, bounded delegated tasks, and already-converged approved work do not enter this skill.
@@ -21,9 +27,8 @@ consumes: []
 
 ## Scope discipline
 
-Match exploration breadth to the prompt. Read the named area and direct dependencies first. Walk broadly only for explicit whole-codebase architecture intent, and then stay within the Git-tracked project; skip nested repositories, vendored tools, submodules, dependencies, build/output directories, and ignored paths. Locate with search/glob and read bounded sections. Pass the same boundaries to any exploration subagent.
+Match exploration breadth to the prompt. Read the named area and direct dependencies first; walk broadly only for explicit whole-codebase architecture intent. Stay within the Git-tracked project; skip nested repos, vendored tools, submodules, dependencies, build/output, and ignored paths. Reuse already-read evidence; do not run a repository-wide glossary/architecture sweep merely because brainstorming is active.
 
-Reuse already-read code, docs, task context, and relevant domain shards. Do not perform a repository-wide glossary, architecture, or decision sweep merely because brainstorming is active.
 
 ## Discovery and stress-test
 
@@ -38,9 +43,7 @@ Reuse already-read code, docs, task context, and relevant domain shards. Do not 
 
 Convergence fixes behavior before planning. Every active acceptance criterion must have a concrete observable **Outcome**, executable **Action**, and deterministic **Expected** result, plus the invariants and non-goals that constrain it. Unresolved or future ideas remain one concise discussion note; they never become vague criteria or speculative tasks.
 
-Pin exactly one existing public test seam per active criterion before convergence. Prefer the highest deterministic existing boundary that observes production behavior: browser, CLI, or HTTP first; otherwise the highest existing public module API. At the same tier, prefer the production entrypoint named by the criterion, then the repository's existing canonical harness, then greater production-path coverage without a test-only bypass. A remaining tie is material ambiguity and requires one focused question.
-
-If no public seam exists, the contract must explicitly add the smallest real public seam as product work. Never approve a source-text assertion, private helper probe, duplicated implementation, or test-only backdoor as the acceptance boundary.
+Pin exactly one existing public test seam per active criterion before convergence. Prefer the highest deterministic existing **fast** boundary that observes production behavior: local public module, contract, or in-process CLI/API harness first. A Fast TDD Check is required for observable criteria: no browser or GUI, external network, long-lived server, large fixture, or material machine cost during implementation. If no fast public seam exists, the contract must explicitly add the smallest real fast public seam as product work. Never approve a source-text assertion, private helper probe, duplicated implementation, test-only backdoor, or resource-heavy browser/E2E seam as the implementation-task acceptance boundary.
 
 ## Conservative context harvest
 

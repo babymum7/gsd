@@ -10,7 +10,9 @@
 | --- | --- | --- |
 | Artifact Contract | The canonical rule that classifies repository artifacts per Invocation Mode as Required, Optional, Produced, or Fallback. Flat frontmatter `consumes:`/`produces:` arrays are catalog unions of what any mode may read or write, not runtime preconditions; missing Optional state is normal, while missing Required state follows the mode's recovery, reconstruction, or blocker path. | dependency list, mandatory consumes |
 | Context Harvest | Scope-bounded inspection of code and docs already relevant to the currently selected workflow to identify durable project terms or architectural decisions. It updates the relevant `docs/domain/<scope>.md` shard only when evidence clears the domain thresholds; absence or uncertainty never triggers a broad repository scan. | documentation bootstrap, full-repo glossary scan |
+| Deferred Slow E2E | A browser, GUI, external-service, long-lived-server, large-fixture, or otherwise resource-heavy feature journey run only after every implementation task and fast check is green. Failures enter focused repair and affected-test reruns; the complete feature-affected slow suite reruns only after focused failures clear. | task focused check, per-task browser test |
 | Execution Model Binding | The approval-time OMP binding of one executor model and one distinct reviewer model to an execution generation. The bound selectors and persistent agent identities survive task boundaries and repair rounds; they never silently fall back to the active planning model. | model switch, preferred model |
+| Fast TDD Check | A deterministic local test command suitable for repeated RED→GREEN use: no browser or GUI, external network, long-lived server, large fixture, or material machine cost. It may be unit, contract, local integration, CLI, HTTP, or lightweight E2E. | final acceptance suite, slow E2E |
 | Invocation Mode | A named execution path through one skill with its own artifact requirements, fallback behavior, output authority, and prompt policy—for example standalone review versus the post-approval WIP gate. It is selected from explicit intent and entry context before Required-artifact validation; artifact presence alone never determines it, and handoff mode/phase values remain open and opaque. | dispatch label |
 | Milestone Ledger | The minimal Git-tracked `docs/gsd/<feature>/milestones.md` contract that carries precise, user-approved milestone goals and durable pending/done state across otherwise independent GSD cycles. Sequential ID/position, not potentially duplicate goal text, is identity. The ledger records state but does not itself select, recover, or complete milestones or authorize merges. It is not a task tracker or speculative roadmap: detailed acceptance criteria stay in the canonical plan. | roadmap, cross-milestone plan, task ledger |
 
@@ -40,3 +42,18 @@
 
 - **Decision:** If an OMP process or session boundary makes a bound agent unreachable, create exactly one active successor at a time on the same bound model from validated handoff and attempt evidence, record the generation change, and invalidate the old identity.
 - **Rationale:** OMP agent revival is process-scoped, while GSD handoffs support restart and portable resume; strict identity reuse across a dead process is impossible, but silent model substitution is avoidable.
+
+### D-gsd-6: Require fast TDD and defer resource-heavy E2E
+
+- **Decision:** Every task with observable behavior must load `gsd-tdd` and use a Fast TDD Check for RED→GREEN→refactor. Planning adds the smallest real fast public seam when none exists. Do not dispatch `gsdReviewer` per task. Deferred Slow E2E / the complete feature-affected slow suite runs only after all implementation tasks and fast checks are green; begin whole-diff review only after the complete feature-affected slow suite is green. Failures are fixed at their source and rerun through the smallest affected subset until clear, then the complete feature-affected slow suite reruns, then whole-diff re-review. Repeat that progress-guarded loop until green.
+- **Rationale:** Fast feedback preserves test-first correctness during implementation, while deferred focused browser/E2E repair avoids repeatedly paying the highest machine and latency cost.
+
+### D-gsd-7: Keep visible skill contracts concise and deterministic
+
+- **Decision:** Every visible skill must state exact load, do-not-load, owner/helper, prerequisite, and transition conditions. Shared semantics live once in `REFERENCE.md`; skill files keep only mode-specific rules. Shortening may remove duplication but must not change behavior.
+- **Rationale:** One canonical vocabulary reduces injected tokens and gives different models the same mandatory dispatch interpretation.
+
+### D-gsd-8: Independent review is terminal-only
+
+- **Decision:** Do not dispatch `gsdReviewer` per task. After all tasks and fast checks pass, make the complete feature-affected slow suite green, then review the whole WIP diff; any review repair reruns affected fast checks and slow acceptance before whole-diff re-review. Terminal completion requires both the complete feature-affected slow suite and `gsdReviewer` whole-diff verdict to be green on the final reviewed bytes.
+- **Rationale:** This matches E2E-like cadence while retaining a fail-closed independent terminal gate over the final bytes.

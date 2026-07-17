@@ -6,6 +6,13 @@ produces: []
 consumes: []
 ---
 
+## Dispatch contract
+Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
+- Role: helper
+- Helper-when: must load when a known-scope quick fix is active or an explicit lite/full/ultra/normal preference is set (including normal/stop clearing state); cannot be skipped while that condition holds
+- Do-not-load: non-trivial new behavior that needs brainstorming; Nano work
+- Transition: return to the normal GSD lifecycle or escalate to `gsd-brainstorming` when scope expands
+
 # Ponytail
 
 > **Invocation guard** — load only for a real known-scope quick fix or an explicit Ponytail preference change. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
@@ -45,32 +52,29 @@ Only an active **explicit** `lite|full|ultra` toggle survives a session reset, a
 | Handoff restore with invalid explicit toggle | `event=handoff-restore;row=ponytail_level,<invalid>` | no transition | `1` | `gsd-handoff` | `Blocker: invalid handoff settings.` | preserve invalid handoff |
 | Handoff restore with duplicate explicit toggle | `event=handoff-restore;row=duplicate` | no transition | `1` | `gsd-handoff` | `Blocker: invalid handoff settings.` | preserve invalid handoff |
 
-For a supplied toggle, only the accepted domain can enter `explicit_level`; omission means `full`. An invalid level preserves the prior `explicit_level`, clears `auto_scope`, emits exactly the table's concise allowed-level feedback, and never becomes state. Stop/normal sets both fields to `none`.
-On every valid handoff restore, initialize `explicit_level=none` and `auto_scope=none` before inspecting `settings[]`. A valid `ponytail_level,lite|full|ultra` row overrides only `explicit_level`; an absent row leaves both fields at `none`. `gsd-handoff` validation runs first: an invalid or duplicate row blocks the entire resume and never reaches this state transition. Auto scope is never restored.
-A hard-blocker or verify-fail stop preserves `explicit_level` and clears `auto_scope`. A later resume of the same fix reclassifies it and may auto-fire anew rather than inheriting stale state. Landing/merge and an unrelated prompt apply the same clearing rule. A `scope-expands` transition applies whether quick-fix scope is `quick-fix` or `none` due to an explicit toggle; it preserves the explicit level and clears only auto scope.
-Auto-fire never becomes explicit state, never reaches a fresh task brief, and never appears in `settings[]`. Every real quick-fix loads this skill and emits exactly one table cue; an explicit level takes precedence without setting `auto_scope`. Append no menu, question, or prompt.
+For a supplied toggle, only the accepted domain enters `explicit_level`; omission means `full`. Invalid level preserves prior `explicit_level`, clears `auto_scope`, emits the table's allowed-level feedback, and never becomes state. Stop/normal sets both fields to `none`.
+On every valid handoff restore, initialize `explicit_level=none` and `auto_scope=none` before inspecting `settings[]`. A valid `ponytail_level,lite|full|ultra` row overrides only `explicit_level`. Invalid/duplicate rows block resume via `gsd-handoff` and never reach this transition. Auto scope is never restored.
+A hard-blocker or verify-fail stop preserves `explicit_level` and clears `auto_scope`. `scope-expands` preserves explicit level and clears auto scope. Auto-fire never becomes explicit state, never reaches a fresh task brief, and never appears in `settings[]`. Every real quick-fix loads this skill and emits exactly one table cue.
+
 
 ## The ladder (stop at the first rung that holds — after you understand the problem, not instead of it)
-1. **Does this need to exist?** Speculative → skip, say so. (YAGNI)
-2. **Already in this codebase?** Reuse the helper/pattern a few files over.
+1. **Does this need to exist?** Speculative → skip (YAGNI).
+2. **Already in this codebase?** Reuse it.
 3. **Stdlib does it?** Use it.
-4. **Native platform feature?** `<input type="date">` over a picker lib, CSS over JS, DB constraint over app code.
-5. **Already-installed dependency?** Use it. Never add one for what a few lines do.
+4. **Native platform feature?** Prefer native over libraries.
+5. **Already-installed dependency?** Use it; never add one for a few lines.
 6. **Can it be one line?** One line.
 7. **Only then:** the minimum code that works.
-
-Two rungs work → take the higher. Bug fix = root cause (grep every caller; fix once at the shared function, not a guard per caller).
+Two rungs work → take the higher. Bug fix = root cause once at the shared function.
 
 ## Rules
-- No unrequested abstractions (one-impl interface, one-product factory, never-changing config).
-- No boilerplate/scaffolding "for later".
-- Deletion over addition. Boring over clever.
-- Fewest files. Shortest working diff wins — once you understand the problem.
-- Complex request? Escalate work that stops being a quick fix. Clear bounded quick-fix scope and return to the normal GSD lifecycle when requested work becomes complex or expands beyond known scope; never ship a reduced subset as complete.
+- No unrequested abstractions or scaffolding "for later".
+- Deletion over addition. Fewest files; shortest working diff after understanding the problem.
+- Complex request? Escalate when work stops being a quick fix. Clear bounded quick-fix scope and return to the normal GSD lifecycle when scope expands; never ship a reduced subset as complete.
 - Mark deliberate simplifications `// gsd-ponytail: <what + ceiling + upgrade path>`.
 
 ## Output
-`[code] → skipped: [X], add when [Y].` No essays unless the user asked for a report/walkthrough.
+`[code] → skipped: [X], add when [Y].` No essays unless requested.
 
 ## Intensity
 | Level | Behavior |
@@ -80,4 +84,4 @@ Two rungs work → take the higher. Bug fix = root cause (grep every caller; fix
 | **ultra** | YAGNI extremist. Deletion before addition. Ship the one-liner, challenge the rest. |
 
 ## Never simplify away
-Input validation at trust boundaries, data-loss-preventing error handling, security, accessibility basics, anything explicitly requested. Never lazy about *understanding* — trace the whole flow before picking a rung. Non-trivial logic leaves one runnable self-check behind (an `assert` `demo()`/`__main__`, or one small `test_*`).
+Trust-boundary validation, data-loss prevention, security, accessibility basics, and anything explicitly requested. Trace the whole flow before picking a rung. Non-trivial logic leaves one runnable self-check.

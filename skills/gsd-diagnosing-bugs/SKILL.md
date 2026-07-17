@@ -6,6 +6,12 @@ produces: []
 consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 ---
 
+## Dispatch contract
+Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
+- Role: owner
+- Do-not-load: known single-spot quick fix
+- Transition: return evidence to executor, or hand architectural cause to `gsd-improve-codebase-architecture`
+
 # Diagnosing Bugs
 
 > **Invocation guard** — automatic selection loads this skill from the injected catalog. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
@@ -20,13 +26,11 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 A discipline for hard bugs. After selecting the diagnosis mode, read `docs/domain/index.md` only when the bug evidence contains a durable domain signal, then load only the relevant indexed shard(s). Missing domain documentation is normal. Skip phases only when explicitly justified.
 
 ## Phase 1 — Build a feedback loop (THIS is the skill)
-Everything else is mechanical. A **tight** pass/fail signal that goes red on *this* bug → you'll find the cause. No loop → no amount of staring saves you. Be aggressive, creative, refuse to give up.
+Build a **tight** red-capable pass/fail signal for *this* bug before hypothesizing. Prefer, in order: failing test at the right seam → curl/HTTP script → CLI+fixture snapshot → headless browser only when no cheaper seam exists → replay/trace → throwaway harness → property/fuzz → bisection (`git bisect run`) → differential loop → HITL last resort.
 
-Ways to construct one (try roughly in order): failing test at the right seam → curl/HTTP script → CLI+fixture snapshot diff → headless browser script → replay a captured trace → throwaway harness → property/fuzz loop → bisection harness (`git bisect run`) → differential loop (old vs new) → HITL bash script (last resort — scaffold: [scripts/hitl-loop.template.sh](scripts/hitl-loop.template.sh)).
+**Tighten** the loop: faster, sharper symptom assertion, deterministic (pin time/seed/FS/network). Non-deterministic → raise reproduction rate until debuggable.
 
-**Tighten** the loop: faster, sharper signal (assert the exact symptom, not "didn't crash"), more deterministic (pin time, seed RNG, isolate FS, freeze network). Non-deterministic → raise the reproduction rate (loop 100×, parallelize, inject stress) until debuggable.
-
-**Done when** you can name ONE command (script/test/curl), already run once, that is red-capable (drives the bug path, asserts the user's exact symptom), deterministic, fast, agent-runnable. No red-capable command → no Phase 2, and do not hypothesize without a loop. In standalone diagnosis, STOP and ask one focused question for the missing environment access, captured artifact, or permission for temporary instrumentation. In Execution-blocker diagnosis, ask no question: emit the canonical post-approval Blocker stop naming the exact unavailable access or artifact, and return the blocker evidence to `gsd-executing-plans` as its caller; this stops the current pipeline and does not resume execution. A later validated resume, after the external prerequisite is available, uses state detection to return to `gsd-executing-plans`. Preserve `explicit_level` and set `auto_scope=none`.
+**Done when** you can name ONE command (script/test/curl), already run once, that is red-capable (drives the bug path, asserts the user's exact symptom), deterministic, fast, agent-runnable. No red-capable command → no Phase 2, and do not hypothesize without a loop. In standalone diagnosis, STOP and ask one focused question for the missing environment access, captured artifact, or permission for temporary instrumentation. In Execution-blocker diagnosis, ask no question: emit the canonical post-approval Blocker stop naming the exact unavailable access or artifact, and return the blocker evidence to `gsd-executing-plans` as its caller; this stops the current pipeline and does not resume execution. A later validated resume, after the external prerequisite is available, may re-enter diagnosis.
 
 ## Phase 2 — Reproduce + minimize
 Run it, watch red. Confirm it's the *user's* failure (not a nearby one) and reproducible. Then shrink to the smallest scenario that still goes red — cut inputs/callers/config one at a time, re-running after each. Done when every remaining element is load-bearing.

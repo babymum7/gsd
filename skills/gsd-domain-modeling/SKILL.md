@@ -6,6 +6,13 @@ produces: [docs/domain/index.md, docs/domain/<scope>.md]
 consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 ---
 
+## Dispatch contract
+Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
+- Role: helper
+- Helper-when: must load when a durable domain candidate is certain; cannot be skipped while that condition holds
+- Do-not-load: proactive repository scans; uncertain candidates
+- Transition: return exact changed domain paths to the parent owner
+
 # Domain Modeling
 
 > **Invocation guard** — automatic selection or an active owner loads this skill from the injected catalog. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action.
@@ -23,23 +30,21 @@ This skill is the **sole writer** of `docs/domain/index.md` and `docs/domain/<sc
 
 ## Scaling boundary
 
-Shard by a stable **bounded context**, never by feature, ticket, package path, or individual term. Many features reuse one context shard; a feature gets no file merely because it exists. Create a new scope only when evidence establishes durable vocabulary or decisions with an owner meaningfully distinct from every indexed scope. Use lowercase kebab-case scope slugs. A genuinely cross-cutting concept may use a `shared` scope, but `shared` is not a dumping ground.
+Shard by a stable **bounded context**, never by feature, ticket, package path, or individual term. Create a new scope only when evidence establishes durable vocabulary/decisions with ownership distinct from every indexed scope. Use lowercase kebab-case scope slugs; `shared` is only for genuinely cross-cutting concepts, not a dump.
 
-The index stays small—one row per bounded context. A caller reads `docs/domain/index.md` only after a domain signal exists, then reads the minimum relevant shard set. Never open all shards by default, and never merge unrelated scopes back into one growing file.
+The index stays small—one row per bounded context. After a domain signal, read the index then the minimum relevant shards. Never open all shards by default or merge unrelated scopes into one growing file.
 
 ## Conservative context harvest
 
-Run this flow only **after the caller selects its owner and Invocation Mode**:
+Run only **after the caller selects its owner and Invocation Mode**:
 
-0. **Confirm write authority first.** Explicit domain work and write-authorized non-trivial caller modes remain eligible. Standalone advisory/read-only work, Standalone review, and Nano are report-only no-op modes even with strong evidence.
-1. **Start with selected-owner evidence.** Reuse the prompt, spec/task brief, and code/docs already needed for that owner. Raw occurrence counts are not evidence.
-2. **Require a durable signal before domain reads.** A candidate is a recurring project-specific concept whose meaning matters across features, or an explicit architectural decision with evidenced rationale.
-3. **Resolve ownership.** Map the candidate to exactly one indexed bounded context. If no scope exists, create one only when the evidence proves a durable ownership boundary; otherwise the outcome is `candidate` or `none`.
-4. **Reject weak signals.** Generic vocabulary, one-off identifiers, implementation details, feature-local wording, reversible preferences, and code shape without rationale are `none`.
-5. **Choose exactly one outcome:**
-   - **none** — no authority, durable signal, sufficient evidence, or stable scope; write nothing.
-   - **candidate** — before approval only, material ambiguity about meaning, ownership, or trade-off; ask one focused question and write nothing.
-   - **write** — evidence establishes the term/decision and owning scope; update exactly one shard, plus the index only when creating that scope.
+0. Confirm write authority (explicit domain work / write-authorized non-trivial modes). Standalone advisory/read-only, Standalone review, and Nano are report-only no-ops.
+1. Start with selected-owner evidence already in hand. Raw occurrence counts are not evidence.
+2. Require a durable signal: recurring project-specific concept across features, or an explicit architectural decision with evidenced rationale.
+3. Map to exactly one indexed bounded context; create a scope only when evidence proves distinct durable ownership.
+4. Reject weak signals (generic vocabulary, one-offs, implementation details, feature-local wording, reversible preferences, code shape without rationale) as `none`.
+5. Choose exactly one outcome: **none** (write nothing), **candidate** (pre-approval only: one focused question, write nothing), or **write** (update exactly one shard; index only when creating that scope).
+
 
 ### Glossary scenario matrix
 
@@ -110,4 +115,4 @@ Evidence must state what was chosen, the meaningful alternative or constraint, a
 
 ## Tracked-document lifecycle
 
-The domain directory is Git-tracked durable documentation, never scratch or runtime state. After a certain write, return every exact changed path to the master. Creating a scope returns both `docs/domain/index.md` and its shard; updating a scope returns only that shard. Pre-approval writes remain intentional working-tree changes until one plan task owns every returned path. Post-approval in-scope writes commit with the task whose evidence owns them. Never create a generic documentation commit or silently exclude a valid domain write.
+Domain docs are Git-tracked durable documentation, never scratch/runtime state. After a certain write, return every exact changed path. Creating a scope returns `docs/domain/index.md` and its shard; updating returns only that shard. Pre-approval writes stay intentional until one plan task owns them; post-approval writes commit with the owning task. Never invent a generic documentation commit or drop a valid domain write.

@@ -6,6 +6,12 @@ produces: [handoff-<n>.toon]
 consumes: [handoff-<n>.toon, plan.md, docs/gsd/<feature>/milestones.md]
 ---
 
+## Dispatch contract
+Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
+- Role: owner
+- Do-not-load: invent work from missing/malformed state
+- Transition: load the peer skill named by validated `next_action`
+
 # Handoff
 
 > **Invocation guard** — automatic selection loads this skill for pause, resume, or recovery intent. Select the Invocation Mode before validating its Required artifacts. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.

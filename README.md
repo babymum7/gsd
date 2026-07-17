@@ -55,8 +55,8 @@ flowchart LR
 
 1. **Discovery.** `gsd-brainstorming` explores only the relevant code, exposes risks and missing decisions, and converges on the smallest sufficient contract. Large work is split into independently deliverable milestones.
 2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with observable acceptance criteria, exact task ownership, interfaces, focused checks, and a SHA-256 binding. Approval writes the first immutable execution handoff.
-3. **Execution.** `gsd-executing-plans` creates `wip/<feature>`, dispatches bounded task attempts, applies TDD where behavior changes, reviews each task, records evidence, commits green work, and writes the next immutable handoff.
-4. **Verification.** `gsd-verify` reviews the whole branch diff against every active acceptance criterion, runs the project build and test suite, and exercises runtime-observable acceptance paths. A red gate blocks merging. A green gate squashes to one base-branch commit and performs result cleanup.
+3. **Execution.** `gsd-executing-plans` creates `wip/<feature>`, dispatches bounded task attempts, loads `gsd-tdd` for observable work, enforces Fast TDD Checks (RED→GREEN→refactor; no browser/resource-heavy task loops), uses executor fast-green evidence for task boundaries without per-task `gsdReviewer`, records reporting-only evidence, commits green work, and writes the next immutable handoff.
+4. **Verification.** `gsd-verify` runs the complete feature-affected slow suite only after all tasks and fast checks pass, then dispatches `gsdReviewer` for whole-diff terminal review only after that suite is green; repair is source-first with smallest-affected and progress-guarded slow-suite/re-review loops. A red gate blocks merging.
 
 A pause writes `.scratch/<feature>/handoff-<n>.toon`. A later “Continue the active feature” validates the packet, its Markdown bindings, and Git state before resuming exactly one next action. Malformed, ambiguous, or hash-mismatched state stops instead of reconstructing requirements from memory.
 
@@ -117,7 +117,7 @@ skills/
 ├── gsd-executing-plans/              # task execution and bounded delegation
 ├── gsd-verify/                       # terminal review and acceptance gate
 ├── gsd-handoff/                      # pause, recovery, and portable resume
-├── gsd-tdd/                          # behavior-first red/green/refactor
+├── gsd-tdd/                          # mandatory Fast TDD RED→GREEN→refactor for observable tasks
 ├── gsd-ponytail/                     # YAGNI ladder
 ├── gsd-diagnosing-bugs/              # hard-bug diagnosis loop
 ├── gsd-domain-modeling/              # bounded-context documentation

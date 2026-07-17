@@ -6,6 +6,12 @@ produces: [plan.md, handoff-<n>.toon]
 consumes: [plan.md, handoff-<n>.toon, docs/gsd/<feature>/milestones.md]
 ---
 
+## Dispatch contract
+Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
+- Role: owner
+- Do-not-load: open design decisions; Nano edits
+- Transition: on approval write handoff and load `gsd-executing-plans`
+
 # To Plan
 
 > **Invocation guard** — load after `gsd-brainstorming` converges or when validated unapproved plan state requires finalization. Select an Invocation Mode from explicit intent and entry context before validating only that row’s Required artifacts. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
@@ -74,7 +80,7 @@ Decisions is exact `None.` or sequential D blocks with Decision and Rationale:
 
 Tasks are sequential `T1`…`TN`; their order encodes dependencies. Every active AC occurs exactly once across non-superseded tasks. Each task owns exact paths, has a concrete focused check, and pins the highest deterministic public seam specified for its AC. A task spanning ACs requires identical seam, test path, and lower-seam reason. Keep rows as pointers; the immutable dispatch attempt carries the detailed task facts.
 
-Plan complete observable behavior, not layers. Use Expand → Migrate → Contract only when all callers cannot migrate atomically; Contract requires a completed caller/reference inventory. `none` is only for mechanically verified non-behavioral work. A vague check, duplicate/unowned AC, missing file owner, or an unresolved design choice returns to Discussion rather than creating a plan.
+Plan complete observable behavior, not layers. Use Expand → Migrate → Contract only when all callers cannot migrate atomically; Contract requires a completed caller/reference inventory. Observable behavior always receives a fast public seam; if none exists, add the smallest real fast public seam instead of using `none`. Never use `none` for observable behavior. `none` is only for mechanically verified non-behavioral work. Classify each task's focused check as a Fast TDD Check: deterministic, local, and free of browser/GUI, external network, long-lived server, large fixture, or material cost. A vague check, behavior task without a fast seam, duplicate/unowned AC, missing file owner, or an unresolved design choice returns to Discussion rather than creating a plan.
 
 ## Approval binding
 
