@@ -16,6 +16,56 @@ import gsdContextExtension, { CAPSULE_TEMPLATE } from "../extensions/gsd-context
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SKILLS = join(ROOT, "skills");
 const read = (path) => readFileSync(join(ROOT, path), "utf8");
+function parseAgentFrontmatter(content, label) {
+  const normalized = content.replace(/\r\n/g, "\n");
+  if (!normalized.startsWith("---\n")) throw new Error(`${label}: missing frontmatter`);
+  const end = normalized.indexOf("\n---\n", 4);
+  if (end === -1) throw new Error(`${label}: unterminated frontmatter`);
+  const sourceLines = normalized.slice(4, end).split("\n")
+    .filter((line) => line.trim() !== "")
+    .map((line) => ({ indent: line.length - line.trimStart().length, text: line.trim() }));
+  const scalar = (value) => {
+    if (value === "") return {};
+    if (value === "true") return true;
+    if (value === "false") return false;
+    if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
+    if (value.startsWith('"') && value.endsWith('"')) return JSON.parse(value);
+    return value;
+  };
+  const parseBlock = (start, indent) => {
+    const isList = sourceLines[start]?.indent === indent && sourceLines[start].text.startsWith("- ");
+    const result = isList ? [] : {};
+    let index = start;
+    while (index < sourceLines.length && sourceLines[index].indent === indent) {
+      const { text } = sourceLines[index];
+      if (isList) {
+        if (!text.startsWith("- ")) break;
+        result.push(scalar(text.slice(2).trim()));
+        index++;
+        continue;
+      }
+      const match = text.match(/^([A-Za-z][A-Za-z0-9_-]*):(?:\s+(.*))?$/);
+      if (!match) throw new Error(`${label}: malformed frontmatter line "${text}"`);
+      const [, key, rawValue = ""] = match;
+      if (Object.prototype.hasOwnProperty.call(result, key)) throw new Error(`${label}: duplicate ${key}`);
+      if (rawValue !== "") {
+        result[key] = scalar(rawValue);
+        index++;
+        continue;
+      }
+      if (sourceLines[index + 1]?.indent > indent) {
+        [result[key], index] = parseBlock(index + 1, sourceLines[index + 1].indent);
+      } else {
+        result[key] = {};
+        index++;
+      }
+    }
+    return [result, index];
+  };
+  const [frontmatter, next] = parseBlock(0, sourceLines[0]?.indent ?? 0);
+  assert.equal(next, sourceLines.length, `${label}: unparsed frontmatter`);
+  return frontmatter;
+}
 const skillNames = () => readdirSync(SKILLS, { withFileTypes: true })
   .filter((entry) => entry.isDirectory() && entry.name.startsWith("gsd"))
   .map((entry) => entry.name);
@@ -963,9 +1013,9 @@ test("T1 execution contract lifecycle and roles", () => {
 
   // --- AC-1: Approval binds distinct OMP execution models ---
   // Positive assertions
-  assert.match(toPlan, /Before approval, GSD validates that concrete, available, and distinct model selectors are configured for `modelRoles\.task` and `modelRoles\.advisor`/);
+  assert.match(toPlan, /Before approval, GSD validates that concrete, available, and distinct model selectors are configured for `modelRoles\.gsdExecutor` and `modelRoles\.gsdReviewer`/);
   assert.match(toPlan, /At approval, GSD binds these validated persistent executor and reviewer models\./);
-  assert.match(reference, /At approval, GSD binds the persistent executor model from `modelRoles\.task` and the distinct persistent reviewer model from `modelRoles\.advisor`\./);
+  assert.match(reference, /At approval, GSD binds the persistent executor model from `modelRoles\.gsdExecutor` and the distinct persistent reviewer model from `modelRoles\.gsdReviewer`\./);
   assert.match(domain, /### D-gsd-3: Bind persistent OMP executor and reviewer roles/);
   // Negative assertions
   assert.match(toPlan, /rejects missing, unresolved, alias-only, or same-model bindings/);
@@ -974,10 +1024,11 @@ test("T1 execution contract lifecycle and roles", () => {
   // --- AC-2: One executor owns all implementation and self-verification ---
   // Positive assertions
   assert.match(execution, /The persistent executor, reviewer, or any launched OMP child agents consume the immutable attempt/);
-  assert.match(execution, /dispatches the persistent executor with the bound task model and direct-root TDD instructions/);
-  assert.match(execution, /GSD reuses its OMP agent identity through `hub` for task and repair turns\./);
+  assert.match(execution, /dispatches the persistent gsd-executor agent with the bound executor model and direct-root TDD instructions/);
+  assert.match(execution, /GSD reuses its OMP agent identity \(gsd-executor/);
   assert.match(execution, /The executor may fan out task attempts concurrently through OMP child agents if and only if the complete safe fan-out gate is satisfied: \(1\) attempts are dependency-independent, \(2\) attempts target path-disjoint files, \(3\) attempts consume only parent-created immutable attempts, \(4\) safe isolation and model evidence are present, and \(5\) GSD performs deterministic integration of the results\./);
   assert.match(execution, /If any proof of these conditions is absent, GSD must fall back to sequential task execution\./);
+  assert.match(reference, /explicitly dispatch the persistent gsd-executor agent \(with the bound executor model from `modelRoles\.gsdExecutor`\)/);
   // Negative assertions
   assert.doesNotMatch(execution, /Child roles \(implementer, reviewer, and fixer\)/);
   assert.doesNotMatch(execution, /dispatches one fresh task implementer/);
@@ -987,8 +1038,8 @@ test("T1 execution contract lifecycle and roles", () => {
 
   // --- AC-3: Independent reviewer gates merge through progress-guarded convergence ---
   // Positive assertions
-  assert.match(execution, /dispatches the persistent reviewer \(reusing the same reviewer session with the bound advisor model\)/);
-  assert.match(verify, /The parent dispatches the persistent reviewer \(reusing the same reviewer session with the bound advisor model\)/);
+  assert.match(execution, /dispatches the persistent gsd-reviewer agent \(reusing the same gsd-reviewer session with the bound reviewer model/);
+  assert.match(verify, /The parent dispatches the persistent gsd-reviewer agent \(reusing the same gsd-reviewer session with the bound reviewer model/);
   assert.match(verify, /terminal repair continues without a fixed round count only while findings or the relevant diff demonstrably change; stop on a repeated blocking fingerprint or no relevant repair diff\./);
   assert.match(domain, /### D-gsd-4: Replace the fixed repair cap with a progress guard/);
   // Negative assertions
@@ -1004,15 +1055,61 @@ test("T1 execution contract lifecycle and roles", () => {
   assert.match(handoff, /progress\/fingerprint evidence for repair rounds/);
   assert.match(handoff, /never be left opaque or ignored/);
   assert.match(readme, /## Dual-Agent Model Roles/);
-  assert.match(readme, /- `modelRoles\.task`: Binds the persistent primary executor/);
-  assert.match(readme, /- `modelRoles\.advisor`: Binds the independent persistent reviewer/);
-  assert.match(readme, /Other harnesses, custom agent definitions, or external model configuration files are explicitly deferred\./);
+  assert.match(readme, /- `modelRoles\.gsdExecutor`: Binds the persistent primary executor/);
+  assert.match(readme, /- `modelRoles\.gsdReviewer`: Binds the independent persistent reviewer/);
+  assert.match(readme, /~\/\.omp\/agent\/config\.yml/);
+  assert.match(readme, /\.omp\/config\.yml/);
+  assert.match(readme, /never falls back to built-in `modelRoles\.task` or `modelRoles\.advisor`/);
   assert.match(domain, /### D-gsd-5: Allow same-model successor generations only after identity loss/);
+
+  // --- Dedicated agent definition frontmatter assertions ---
+  const executorFrontmatter = parseAgentFrontmatter(read("agents/gsd-executor.md"), "gsd-executor");
+  const reviewerFrontmatter = parseAgentFrontmatter(read("agents/gsd-reviewer.md"), "gsd-reviewer");
+  assert.deepEqual(
+    {
+      name: executorFrontmatter.name,
+      model: executorFrontmatter.model,
+      spawns: executorFrontmatter.spawns,
+    },
+    { name: "gsd-executor", model: "@gsdExecutor", spawns: "*" },
+  );
+  assert.equal(executorFrontmatter.spawn_policy, undefined);
+  assert.equal(executorFrontmatter.subagents, undefined);
+  assert.deepEqual(
+    {
+      name: reviewerFrontmatter.name,
+      model: reviewerFrontmatter.model,
+      tools: reviewerFrontmatter.tools,
+    },
+    {
+      name: "gsd-reviewer",
+      model: "@gsdReviewer",
+      tools: ["read", "grep", "glob", "bash"],
+    },
+  );
+  assert.equal(reviewerFrontmatter.output_schema, undefined);
+  assert.deepEqual(reviewerFrontmatter.output.properties.verdict.enum, ["PASS", "BLOCKED"]);
+  assert.equal(reviewerFrontmatter.output.properties.findings, undefined);
+  assert.deepEqual(
+    Object.keys(reviewerFrontmatter.output.optionalProperties),
+    ["findings"],
+  );
+  assert.deepEqual(
+    Object.keys(reviewerFrontmatter.output.optionalProperties.findings.elements.properties),
+    ["severity", "file", "description"],
+  );
+  assert.match(execution, /dispatches the persistent gsd-executor agent/);
+  assert.match(execution, /dispatches the persistent gsd-reviewer agent/);
+  assert.match(verify, /dispatches the persistent gsd-reviewer agent/);
+  assert.match(readme, /Global configuration \(`~\/\.omp\/agent\/config\.yml`\):[\s\S]*modelRoles:\n\s+gsdExecutor:\s+"[^"]+"\n\s+gsdReviewer:\s+"[^"]+"/);
+  assert.match(readme, /Project-local override \(`\.omp\/config\.yml`\):[\s\S]*modelRoles:\n\s+gsdExecutor:\s+"[^"]+"\n\s+gsdReviewer:\s+"[^"]+"/);
   // Negative assertions
   assert.doesNotMatch(handoff, /Runtime terminal-repair counters retain/);
   assert.doesNotMatch(reference, /missing task capability makes implementation and repair separate inline passes/);
   assert.doesNotMatch(reference, /missing reviewer capability makes review a separate/);
-
+  assert.doesNotMatch(reference, /bound advisor model/);
+  assert.doesNotMatch(execution, /bound advisor model/);
+  assert.doesNotMatch(verify, /bound advisor model/);
   // --- Task Self-Review Fallback and Banned Remnants ---
   assert.match(execution, /If the independent reviewer capability or model configuration is unavailable, GSD must fail closed immediately\./);
   assert.doesNotMatch(execution, /read-only self-review/);
@@ -1027,7 +1124,7 @@ test("T1 execution contract lifecycle and roles", () => {
   assert.match(execution, /Task acceptance deferral is removed; the terminal verifier solely owns acceptance\/E2E\./);
   assert.match(execution, /Repeat this full parse and binding check only at execution entry\/resume\./);
   assert.match(execution, /Task attempt creation performs only a lightweight bound-source digest comparison\./);
-  assert.match(execution, /After any repair, the executor reruns only focused checks invalidated by its repair, records replacement green evidence for each invalidated check, and re-enters review\./);
+  assert.match(execution, /After any repair, the gsd-executor agent reruns only focused checks invalidated by its repair, records replacement green evidence for each invalidated check, and re-enters review\./);
   assert.match(execution, /Any legacy `proposal\.md`, `spec\.md`, or `design\.md` is rejected\./);
   assert.match(execution, /Missing, invalid, altered, or additional `plan\.md` is a Spec escalation\./);
   assert.match(execution, /never mutate the attempt or rewrite the approved Markdown plan\./);
@@ -5600,7 +5697,7 @@ test("AC-4: Cross-references, None. explicit, repair evidence not duplicated, an
   assert.match(reference, /A `None\.` decisions block in the plan is represented as an explicit empty decisions marker/i);
 
   // Repair evidence is not duplicated in executing plans
-  assert.match(executingPlans, /the executor reruns only focused checks invalidated by its repair, records replacement green evidence for each invalidated check, and re-enters review/i);
+  assert.match(executingPlans, /the gsd-executor agent reruns only focused checks invalidated by its repair, records replacement green evidence for each invalidated check, and re-enters review/i);
   assert.doesNotMatch(executingPlans, /Rerun all invalidated evidence and review\./i);
   assert.doesNotMatch(executingPlans, /focused checks and evidence/i);
   assert.doesNotMatch(executingPlans, /that repair pass/i);

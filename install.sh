@@ -16,11 +16,17 @@ OMP_EXTENSIONS_DIR="${OMP_AGENT_DIR}/extensions"
 EXT_TARGET="${OMP_EXTENSIONS_DIR}/gsd-context.js"
 EXT_SOURCE="${REPO}/extensions/gsd-context.js"
 
+OMP_AGENTS_DIR="${OMP_AGENT_DIR}/agents"
+EXEC_TARGET="${OMP_AGENTS_DIR}/gsd-executor.md"
+EXEC_SOURCE="${REPO}/agents/gsd-executor.md"
+REV_TARGET="${OMP_AGENTS_DIR}/gsd-reviewer.md"
+REV_SOURCE="${REPO}/agents/gsd-reviewer.md"
 # Global variables for cleanup and restoration
 CLEANUP_TMP_SYMLINK=""
 CLEANUP_BACKUP_TARGET=""
 CLEANUP_QUARANTINE_TARGET=""
 RESTORE_TARGET=""
+RESTORE_EXPECTED_SOURCE=""
 RESTORE_BACKUP_TARGET=""
 APPROVED_BACKUP_LINK_TARGET=""
 APPROVED_BACKUP_INODE=""
@@ -68,12 +74,11 @@ process_owned_backup() {
   # Make EXIT/signal cleanup publication-aware:
   if [ "$action" = "restore" ] && [ -n "$restore_target" ]; then
     local is_committed=0
-    if [ -L "$restore_target" ]; then
-      local current_tgt=""
-      if read_link_exact "$restore_target" current_tgt; then
-        if [ "$current_tgt" = "${EXT_SOURCE:-}" ]; then
-          is_committed=1
-        fi
+    local current_tgt=""
+    local expected_source="${4:-${RESTORE_EXPECTED_SOURCE:-}}"
+    if read_link_exact "$restore_target" current_tgt; then
+      if [ -n "$expected_source" ] && [ "$current_tgt" = "$expected_source" ]; then
+        is_committed=1
       fi
     fi
 
@@ -272,6 +277,7 @@ cleanup_trap() {
     if [ -n "${APPROVED_BACKUP_LINK_TARGET:-}" ] && [ -n "${APPROVED_BACKUP_INODE:-}" ]; then
       if process_owned_backup "${RESTORE_BACKUP_TARGET}" "restore" "${RESTORE_TARGET}"; then
         RESTORE_TARGET=""
+        RESTORE_EXPECTED_SOURCE=""
         RESTORE_BACKUP_TARGET=""
         APPROVED_BACKUP_LINK_TARGET=""
         APPROVED_BACKUP_INODE=""
@@ -436,9 +442,11 @@ remove_legacy_managed_command() {
   return 1
 }
 
-preflight_managed_extension() {
+preflight_managed_target() {
   local target="$1"
   local ext_source="$2"
+  local suffix="$3"
+  local shape_pattern="$4"
 
   if [[ "$ext_source" == *$'\n'* || "$ext_source" == *$'\r'* ]]; then
     echo "error: repository root cannot contain carriage return or newline characters." >&2
@@ -450,11 +458,11 @@ preflight_managed_extension() {
   fi
 
   if [ -e "$target" ] || [ -L "$target" ]; then
-    PREFLIGHT_EXT_EXISTS=1
+    eval "PREFLIGHT_${suffix}_EXISTS=1"
     if [ -L "$target" ]; then
       local link_target=""
       if read_link_exact "$target" link_target; then
-        PREFLIGHT_EXT_LINK_TARGET="$link_target"
+        eval "PREFLIGHT_${suffix}_LINK_TARGET=\"\$link_target\""
         if [ "$link_target" = "$ext_source" ]; then
           # Same exact source is okay
           return 0
@@ -462,9 +470,9 @@ preflight_managed_extension() {
 
         # Determine if it's relocatable:
         # - Must be absolute: [[ "$link_target" == /* ]]
-        # - Must match shape: [[ "$link_target" == */extensions/gsd-context.js ]]
+        # - Must match shape: [[ "$link_target" == $shape_pattern ]]
         # - Must be dangling: [ ! -e "$target" ]
-        if [[ "$link_target" == /* ]] && [[ "$link_target" == */extensions/gsd-context.js ]] && [ ! -e "$target" ]; then
+        if [[ "$link_target" == /* ]] && [[ "$link_target" == $shape_pattern ]] && [ ! -e "$target" ]; then
           return 0
         else
           printf "error: unmanaged collision: %s already exists and points to another source %s; move or remove it.\n" "$target" "$link_target" >&2
@@ -480,15 +488,25 @@ preflight_managed_extension() {
       return 1
     fi
   else
-    PREFLIGHT_EXT_EXISTS=0
-    PREFLIGHT_EXT_LINK_TARGET=""
+    eval "PREFLIGHT_${suffix}_EXISTS=0"
+    eval "PREFLIGHT_${suffix}_LINK_TARGET=\"\""
   fi
   return 0
 }
 
-sync_managed_extension() {
+
+sync_managed_target() {
   local target="$1"
   local ext_source="$2"
+  local suffix="$3"
+  local shape_pattern="$4"
+  local is_stale=0
+  local backup_target=""
+
+  local preflight_exists=0
+  eval "preflight_exists=\${PREFLIGHT_${suffix}_EXISTS:-0}"
+  local preflight_link_target=""
+  eval "preflight_link_target=\${PREFLIGHT_${suffix}_LINK_TARGET:-}"
 
   # Test seam to simulate a race condition where the destination is created
   # concurrently after preflight but before relocation.
@@ -520,8 +538,7 @@ sync_managed_extension() {
     dir_to_create="./$dir_to_create"
   fi
   mkdir -p "$dir_to_create"
-
-  local template="${extensions_dir}/gsd-context.js.XXXXXX"
+  local template="${extensions_dir}/${target##*/}.XXXXXX"
   if [[ "$template" == -* ]]; then
     template="./$template"
   fi
@@ -546,12 +563,9 @@ sync_managed_extension() {
   ln -s "$src_arg" "$dest_arg"
 
   # Relocation state machine
-  local is_stale=0
-  local backup_target=""
-
   if [ -e "$target" ] || [ -L "$target" ]; then
     # Something exists at the target. Re-read and reclassify.
-    if [ "$PREFLIGHT_EXT_EXISTS" -ne 1 ]; then
+    if [ "$preflight_exists" -ne 1 ]; then
       # A new object appeared since preflight!
       printf "error: unmanaged collision: %s already exists; move or remove it.\n" "$target" >&2
       rm -f "$tmp_symlink"
@@ -575,7 +589,7 @@ sync_managed_extension() {
       return 1
     fi
 
-    if [ "$curr_link_target" != "$PREFLIGHT_EXT_LINK_TARGET" ]; then
+    if [ "$curr_link_target" != "$preflight_link_target" ]; then
       printf "error: unmanaged collision: %s already exists and points to another source %s; move or remove it.\n" "$target" "$curr_link_target" >&2
       rm -f "$tmp_symlink"
       CLEANUP_TMP_SYMLINK=""
@@ -590,7 +604,7 @@ sync_managed_extension() {
       return 1
     fi
 
-    if [[ "$curr_link_target" != /* ]] || [[ "$curr_link_target" != */extensions/gsd-context.js ]]; then
+    if [[ "$curr_link_target" != /* ]] || [[ "$curr_link_target" != $shape_pattern ]]; then
       printf "error: unmanaged collision: %s already exists and is not recognizable; move or remove it.\n" "$target" >&2
       rm -f "$tmp_symlink"
       CLEANUP_TMP_SYMLINK=""
@@ -604,6 +618,7 @@ sync_managed_extension() {
     CLEANUP_BACKUP_TARGET="$backup_target"
     RESTORE_TARGET="$target"
     RESTORE_BACKUP_TARGET="$backup_target"
+    RESTORE_EXPECTED_SOURCE="$ext_source"
 
     local approved_target="$curr_link_target"
     local approved_inode=""
@@ -661,6 +676,7 @@ sync_managed_extension() {
       CLEANUP_BACKUP_TARGET=""
       CLEANUP_QUARANTINE_TARGET=""
       RESTORE_TARGET=""
+      RESTORE_EXPECTED_SOURCE=""
       RESTORE_BACKUP_TARGET=""
       APPROVED_BACKUP_LINK_TARGET=""
       APPROVED_BACKUP_INODE=""
@@ -766,8 +782,8 @@ sync_managed_extension() {
         # Preserve both canonical target and backup pathname, remove only installer temp,
         # clear only safe invocation state, and fail. Never call rm_owned_backup or restoration/deletion helpers.
         CLEANUP_BACKUP_TARGET=""
-        CLEANUP_QUARANTINE_TARGET=""
         RESTORE_TARGET=""
+        RESTORE_EXPECTED_SOURCE=""
         RESTORE_BACKUP_TARGET=""
         APPROVED_BACKUP_LINK_TARGET=""
         APPROVED_BACKUP_INODE=""
@@ -803,8 +819,8 @@ sync_managed_extension() {
         # then clear fields and fail. Keep cleanup armed until success, or fail keeping them armed if identity changes.
         if rm_owned_backup "$backup_target"; then
           CLEANUP_BACKUP_TARGET=""
-          CLEANUP_QUARANTINE_TARGET=""
           RESTORE_TARGET=""
+          RESTORE_EXPECTED_SOURCE=""
           RESTORE_BACKUP_TARGET=""
           APPROVED_BACKUP_LINK_TARGET=""
           APPROVED_BACKUP_INODE=""
@@ -821,8 +837,8 @@ sync_managed_extension() {
         # If backup ownership does not match, preserve it in place and fail without restoring or deleting it.
         # Clear fields so trap doesn't touch it.
         CLEANUP_BACKUP_TARGET=""
-        CLEANUP_QUARANTINE_TARGET=""
         RESTORE_TARGET=""
+        RESTORE_EXPECTED_SOURCE=""
         RESTORE_BACKUP_TARGET=""
         APPROVED_BACKUP_LINK_TARGET=""
         APPROVED_BACKUP_INODE=""
@@ -920,6 +936,7 @@ sync_managed_extension() {
           CLEANUP_BACKUP_TARGET=""
           CLEANUP_QUARANTINE_TARGET=""
           RESTORE_TARGET=""
+          RESTORE_EXPECTED_SOURCE=""
           RESTORE_BACKUP_TARGET=""
           APPROVED_BACKUP_LINK_TARGET=""
           APPROVED_BACKUP_INODE=""
@@ -932,6 +949,7 @@ sync_managed_extension() {
       CLEANUP_BACKUP_TARGET=""
       CLEANUP_QUARANTINE_TARGET=""
       RESTORE_TARGET=""
+      RESTORE_EXPECTED_SOURCE=""
       RESTORE_BACKUP_TARGET=""
       APPROVED_BACKUP_LINK_TARGET=""
       APPROVED_BACKUP_INODE=""
@@ -987,6 +1005,7 @@ sync_managed_extension() {
           CLEANUP_TMP_SYMLINK=""
           if [ -n "$backup_target" ]; then
             if rm_owned_backup "$backup_target"; then
+              RESTORE_EXPECTED_SOURCE=""
               RESTORE_TARGET=""
               RESTORE_BACKUP_TARGET=""
               APPROVED_BACKUP_LINK_TARGET=""
@@ -999,6 +1018,7 @@ sync_managed_extension() {
             fi
           fi
           RESTORE_TARGET=""
+          RESTORE_EXPECTED_SOURCE=""
           RESTORE_BACKUP_TARGET=""
           APPROVED_BACKUP_LINK_TARGET=""
           APPROVED_BACKUP_INODE=""
@@ -1015,6 +1035,7 @@ sync_managed_extension() {
     if [ "$is_stale" -eq 1 ]; then
       if rm_owned_backup "$backup_target"; then
         RESTORE_TARGET=""
+        RESTORE_EXPECTED_SOURCE=""
         RESTORE_BACKUP_TARGET=""
         APPROVED_BACKUP_LINK_TARGET=""
         APPROVED_BACKUP_INODE=""
@@ -1050,6 +1071,7 @@ sync_managed_extension() {
 
     CLEANUP_TMP_SYMLINK=""
     RESTORE_TARGET=""
+    RESTORE_EXPECTED_SOURCE=""
     RESTORE_BACKUP_TARGET=""
     if [ -n "$backup_target" ]; then
       if rm_owned_backup "$backup_target"; then
@@ -1069,10 +1091,8 @@ sync_managed_extension() {
   fi
 }
 
-# --- Complete Preflight ---
-
-# Extension parents are load-bearing and must be real directories.
-for p in "$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR"; do
+# Extension and agent parents are load-bearing and must be real directories.
+for p in "$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR" "$OMP_AGENTS_DIR"; do
   check_p="$p"
   if [[ "$check_p" == -* ]]; then
     check_p="./$check_p"
@@ -1087,11 +1107,13 @@ for p in "$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR"; do
   fi
 done
 
-preflight_managed_extension "$EXT_TARGET" "$EXT_SOURCE"
-sync_managed_extension "$EXT_TARGET" "$EXT_SOURCE"
+preflight_managed_target "$EXT_TARGET" "$EXT_SOURCE" "EXT" "*/extensions/gsd-context.js"
+preflight_managed_target "$EXEC_TARGET" "$EXEC_SOURCE" "EXEC" "*/agents/gsd-executor.md"
+preflight_managed_target "$REV_TARGET" "$REV_SOURCE" "REV" "*/agents/gsd-reviewer.md"
+sync_managed_target "$EXT_TARGET" "$EXT_SOURCE" "EXT" "*/extensions/gsd-context.js"
+sync_managed_target "$EXEC_TARGET" "$EXEC_SOURCE" "EXEC" "*/agents/gsd-executor.md"
+sync_managed_target "$REV_TARGET" "$REV_SOURCE" "REV" "*/agents/gsd-reviewer.md"
 
-# The commands directory is migration-only. Unsafe or ambiguous objects are
-# preserved without rolling back the independently published extension.
 if [ -L "$OMP_COMMANDS_DIR" ]; then
   printf "  warn: preserving legacy command: commands path %s is a symlink.\n" "$OMP_COMMANDS_DIR" >&2
 elif [ -e "$OMP_COMMANDS_DIR" ] && [ ! -d "$OMP_COMMANDS_DIR" ]; then
@@ -1141,9 +1163,10 @@ fi
 
 LAVISH_STATE="lavish visual path ready (dist/cli.mjs present)"
 [ -f "$LAVISH/dist/cli.mjs" ] || LAVISH_STATE="lavish not built — install pnpm and re-run, or: cd tools/lavish-axi && pnpm i && pnpm build"
-
 printf "\nGSD installation complete\n"
 printf "  Source checkout: %s\n" "$REPO"
 printf "  OMP extension symlink: %s -> %s\n" "$EXT_TARGET" "$EXT_SOURCE"
+printf "  OMP executor agent symlink: %s -> %s\n" "$EXEC_TARGET" "$EXEC_SOURCE"
+printf "  OMP reviewer agent symlink: %s -> %s\n" "$REV_TARGET" "$REV_SOURCE"
 printf "  Lavish: %s\n" "$LAVISH_STATE"
 printf "  Next: start a new OMP session to load the extension.\n"

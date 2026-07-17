@@ -28,8 +28,8 @@
 
 ### D-gsd-3: Bind persistent OMP executor and reviewer roles
 
-- **Decision:** At approval, bind OMP `modelRoles.task` to one persistent primary executor and the distinct `modelRoles.advisor` to one persistent terminal reviewer. Reuse the primary executor for every task and repair, allow it to fan out validated dependency-independent and path-disjoint attempts to bounded OMP child agents when isolation/model evidence is safe, reuse the reviewer for every terminal re-review, and keep orchestration, Git, handoff, merge, and cleanup authority in the parent.
-- **Rationale:** OMP supports per-spawn model overrides, idle-agent revival, and bounded parallel task execution. Binding those native roles preserves the active model for discovery and planning, retains primary execution context across tasks, permits safe concurrency without overlapping writes, gives the merge gate an independent model, and avoids both mandatory serial execution and a second non-OMP configuration mechanism.
+- **Decision:** At approval, bind custom OMP `modelRoles.gsdExecutor` through the installer-managed `gsd-executor` agent to one persistent primary executor and bind the distinct custom `modelRoles.gsdReviewer` through the installer-managed `gsd-reviewer` agent to one persistent terminal reviewer. Never read, override, or fall back to built-in `modelRoles.task` or `modelRoles.advisor`. Reuse the primary executor for every task and repair, allow it to fan out validated dependency-independent and path-disjoint attempts to bounded OMP child agents when isolation/model evidence is safe, reuse the reviewer for every terminal re-review, and keep orchestration, Git, handoff, merge, and cleanup authority in the parent.
+- **Rationale:** Dedicated custom roles isolate GSD model selection from generic OMP task and advisor behavior. Installer-managed global agent definitions make those roles available across repositories while preserving project-local model overrides, hub revival, and bounded parallel execution without requiring every project to duplicate agent files.
 
 ### D-gsd-4: Replace the fixed repair cap with a progress guard
 

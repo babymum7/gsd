@@ -18,7 +18,7 @@ From this checkout:
 bash install.sh
 ```
 
-The installer creates one direct symlink, `~/.omp/agent/extensions/gsd-context.js`, to the tracked `extensions/gsd-context.js`. It uses no wrapper and fails closed on an extension collision. It does not install an OMP command or copy/link skills into a user skill directory. Supported legacy GSD registrations are removed conservatively only after the extension has published successfully; ambiguous user-owned objects are preserved with a warning.
+The installer creates three direct symlinks: `~/.omp/agent/extensions/gsd-context.js`, `~/.omp/agent/agents/gsd-executor.md`, and `~/.omp/agent/agents/gsd-reviewer.md`, pointing to their tracked checkout sources. It uses no wrapper, preflights all three targets before publishing, relocates only recognizable stale managed links, and fails closed on extension or dedicated-agent collisions. It does not install an OMP command or copy/link skills into a user skill directory. Supported legacy GSD registrations are removed conservatively only after the extension and dedicated agents have published successfully; ambiguous user-owned objects are preserved with a warning.
 
 Skills are repository files read lazily by the extension and are never separately installed. Relocation of the checkout requires reinstall. Since the symlink points to the tracked extension file, editing the extension in place does not require reinstall, but it does require you to start a new OMP session so that OMP loads the updated extension. Editing a skill in place takes effect the next time that skill is selected.
 
@@ -77,12 +77,28 @@ Missing consumed artifacts do not trigger improvisation. The selected skill retu
 
 ## Dual-Agent Model Roles
 
-GSD relies on two persistent role bindings sourced from the OMP configuration:
-- `modelRoles.task`: Binds the persistent primary executor that performs all task implementation, runs focused checks, and carries out self-verification.
-- `modelRoles.advisor`: Binds the independent persistent reviewer that performs whole-diff terminal review and re-verification.
+GSD relies on two dedicated custom role bindings configured in global `~/.omp/agent/config.yml` or overridden locally in project `.omp/config.yml`:
+- `modelRoles.gsdExecutor`: Binds the persistent primary executor (`gsd-executor` agent via `@gsdExecutor`) that performs task implementation, runs focused checks, and carries out self-verification.
+- `modelRoles.gsdReviewer`: Binds the independent persistent reviewer (`gsd-reviewer` agent via `@gsdReviewer`) that performs whole-diff terminal review and re-verification.
 
-Other harnesses, custom agent definitions, or external model configuration files are explicitly deferred.
+### Configuration Examples
 
+**Global configuration (`~/.omp/agent/config.yml`):**
+```yaml
+modelRoles:
+  gsdExecutor: "google-antigravity/gemini-3.5-flash:high"
+  gsdReviewer: "openai-codex/gpt-5.5:high"
+```
+
+**Project-local override (`.omp/config.yml`):**
+```yaml
+modelRoles:
+  gsdExecutor: "anthropic-direct/claude-3-7-sonnet"
+  gsdReviewer: "openai-direct/o3-mini"
+```
+
+### Precedence & Recovery
+Project `.omp/config.yml` settings take precedence over global `~/.omp/agent/config.yml`. If either `modelRoles.gsdExecutor` or `modelRoles.gsdReviewer` is missing, unresolved, alias-only, or identical to the other role, GSD fails closed prior to plan approval with an actionable error. GSD never mutates `config.yml` and never falls back to built-in `modelRoles.task` or `modelRoles.advisor`.
 ## State and repository layout
 
 - `.scratch/` is ignored and machine-local by default.

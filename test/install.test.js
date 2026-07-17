@@ -31,6 +31,9 @@ function populateInstallRepo(repo, { withDist = false } = {}) {
   copyFileSync(join(ROOT, "install.sh"), join(repo, "install.sh"));
   mkdirSync(join(repo, "extensions"), { recursive: true });
   copyFileSync(join(ROOT, "extensions", "gsd-context.js"), join(repo, "extensions", "gsd-context.js"));
+  mkdirSync(join(repo, "agents"), { recursive: true });
+  copyFileSync(join(ROOT, "agents", "gsd-executor.md"), join(repo, "agents", "gsd-executor.md"));
+  copyFileSync(join(ROOT, "agents", "gsd-reviewer.md"), join(repo, "agents", "gsd-reviewer.md"));
   copyFileSync(join(ROOT, "VERSION"), join(repo, "VERSION"));
   copyFileSync(join(ROOT, ".gitmodules"), join(repo, ".gitmodules"));
   writeFileSync(join(lavish, "package.json"), '{"name":"lavish-axi-fixture"}\n');
@@ -136,7 +139,7 @@ GSD_ROOT="${escaped}"
 `;
 }
 
-test("installer publishes only the extension and is idempotent", () => {
+test("installer publishes extension and dedicated agents and is idempotent", () => {
   const { temporary, home, fakeBin } = makeHomeSandbox();
   for (const command of ["git", "pnpm"]) {
     writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
@@ -146,22 +149,35 @@ test("installer publishes only the extension and is idempotent", () => {
     const first = runInstaller(home, fakeBin);
     assert.equal(first.status, 0, first.stderr);
     const extTarget = join(home, ".omp", "agent", "extensions", "gsd-context.js");
+    const execTarget = join(home, ".omp", "agent", "agents", "gsd-executor.md");
+    const revTarget = join(home, ".omp", "agent", "agents", "gsd-reviewer.md");
     const commandTarget = join(home, ".omp", "agent", "commands", "gsd.md");
+
     assert.ok(lstatSync(extTarget).isSymbolicLink());
     assert.equal(readlinkSync(extTarget), join(ROOT, "extensions", "gsd-context.js"));
+    assert.ok(lstatSync(execTarget).isSymbolicLink());
+    assert.equal(readlinkSync(execTarget), join(ROOT, "agents", "gsd-executor.md"));
+    assert.ok(lstatSync(revTarget).isSymbolicLink());
+    assert.equal(readlinkSync(revTarget), join(ROOT, "agents", "gsd-reviewer.md"));
+
     assert.equal(existsSync(commandTarget), false);
     assert.equal(existsSync(join(home, ".agents", "skills")), false);
     assert.doesNotMatch(first.stdout, /OMP command file|Version:|Managed paths/);
     assert.match(first.stdout, /Source checkout:/);
     assert.match(first.stdout, /OMP extension symlink:/);
+    assert.match(first.stdout, /OMP executor agent symlink:/);
+    assert.match(first.stdout, /OMP reviewer agent symlink:/);
     assert.match(first.stdout, /Lavish:/);
     assert.match(first.stdout, /start a new OMP session/);
 
     const second = runInstaller(home, fakeBin);
     assert.equal(second.status, 0, second.stderr);
     assert.equal(readlinkSync(extTarget), join(ROOT, "extensions", "gsd-context.js"));
+    assert.equal(readlinkSync(execTarget), join(ROOT, "agents", "gsd-executor.md"));
+    assert.equal(readlinkSync(revTarget), join(ROOT, "agents", "gsd-reviewer.md"));
     assert.equal(existsSync(commandTarget), false);
     assert.deepEqual(readdirSync(dirname(extTarget)), ["gsd-context.js"]);
+    assert.deepEqual(readdirSync(dirname(execTarget)).sort(), ["gsd-executor.md", "gsd-reviewer.md"]);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
@@ -443,52 +459,73 @@ test("T4: fresh install, same-root repeat (idempotency), stale relocation, and e
     writeFileSync(join(repo, "extensions", "gsd-context.js"), "const foo = 1;");
 
     const extTarget = join(home, ".omp", "agent", "extensions", "gsd-context.js");
+    const execTarget = join(home, ".omp", "agent", "agents", "gsd-executor.md");
+    const revTarget = join(home, ".omp", "agent", "agents", "gsd-reviewer.md");
 
     // 1. Fresh install
     const first = runInstallerAt(repo, home, fakeBin);
     assert.equal(first.status, 0, first.stderr + first.stdout);
 
-    // Check that parent was created and target is a symlink
-    const stats = lstatSync(extTarget);
-    assert.ok(stats.isSymbolicLink(), "should be a symbolic link");
+    // Check that parent was created and targets are symlinks
+    assert.ok(lstatSync(extTarget).isSymbolicLink(), "ext should be a symbolic link");
+    assert.equal(readlinkSync(extTarget), join(repo, "extensions", "gsd-context.js"), "ext should point to file");
+    assert.ok(lstatSync(execTarget).isSymbolicLink(), "exec should be a symbolic link");
+    assert.equal(readlinkSync(execTarget), join(repo, "agents", "gsd-executor.md"), "exec should point to file");
+    assert.ok(lstatSync(revTarget).isSymbolicLink(), "rev should be a symbolic link");
+    assert.equal(readlinkSync(revTarget), join(repo, "agents", "gsd-reviewer.md"), "rev should point to file");
 
-    // Check target path
-    const linkTarget = readlinkSync(extTarget);
-    assert.equal(linkTarget, join(repo, "extensions", "gsd-context.js"), "should point to the correct file");
-
-    // Check absence of wrapper or other files
     const extDir = join(home, ".omp", "agent", "extensions");
+    const agentsDir = join(home, ".omp", "agent", "agents");
     assert.deepEqual(readdirSync(extDir), ["gsd-context.js"]);
+    assert.deepEqual(readdirSync(agentsDir).sort(), ["gsd-executor.md", "gsd-reviewer.md"]);
 
     // 2. Same-root repeat (idempotency)
     const second = runInstallerAt(repo, home, fakeBin);
     assert.equal(second.status, 0, second.stderr + second.stdout);
     assert.equal(readlinkSync(extTarget), join(repo, "extensions", "gsd-context.js"));
+    assert.equal(readlinkSync(execTarget), join(repo, "agents", "gsd-executor.md"));
+    assert.equal(readlinkSync(revTarget), join(repo, "agents", "gsd-reviewer.md"));
 
     // 3. Stale relocation (dangling)
     const oldRepo = join(temporary, "old-repo");
     mkdirSync(join(oldRepo, "extensions"), { recursive: true });
+    mkdirSync(join(oldRepo, "agents"), { recursive: true });
     const oldExtSource = join(oldRepo, "extensions", "gsd-context.js");
+    const oldExecSource = join(oldRepo, "agents", "gsd-executor.md");
+    const oldRevSource = join(oldRepo, "agents", "gsd-reviewer.md");
     rmSync(extTarget);
+    rmSync(execTarget);
+    rmSync(revTarget);
     symlinkSync(oldExtSource, extTarget);
-    
+    symlinkSync(oldExecSource, execTarget);
+    symlinkSync(oldRevSource, revTarget);
+
     const relocateDangling = runInstallerAt(repo, home, fakeBin);
     assert.equal(relocateDangling.status, 0, relocateDangling.stderr + relocateDangling.stdout);
     assert.equal(readlinkSync(extTarget), join(repo, "extensions", "gsd-context.js"));
+    assert.equal(readlinkSync(execTarget), join(repo, "agents", "gsd-executor.md"));
+    assert.equal(readlinkSync(revTarget), join(repo, "agents", "gsd-reviewer.md"));
 
     const extFiles = readdirSync(extDir);
     assert.deepEqual(extFiles, ["gsd-context.js"], "extensions directory must contain exactly gsd-context.js");
     assert.ok(!extFiles.some(f => f.includes(".tmp") || f.includes(".backup")), "should contain no temp or backup entries");
+    const agentFiles = readdirSync(agentsDir);
+    assert.deepEqual(agentFiles.sort(), ["gsd-executor.md", "gsd-reviewer.md"], "agents directory must contain exactly 2 agents");
+    assert.ok(!agentFiles.some(f => f.includes(".tmp") || f.includes(".backup")), "should contain no temp or backup entries");
 
-    // 4. Stale relocation (live prior checkout) -> MUST FAIL and preserve original link
+    // 4. Live prior-checkout links -> MUST FAIL and preserve original links
     writeFileSync(oldExtSource, "console.log('old');");
+    writeFileSync(oldRevSource, "reviewer old\n");
     rmSync(extTarget);
+    rmSync(revTarget);
     symlinkSync(oldExtSource, extTarget);
+    symlinkSync(oldRevSource, revTarget);
 
     const relocateLive = runInstallerAt(repo, home, fakeBin);
-    assert.equal(relocateLive.status, 1, "should fail because of live prior-checkout symlink");
+    assert.equal(relocateLive.status, 1, "should fail because of live prior-checkout symlinks");
     assert.match(relocateLive.stderr, /unmanaged collision/);
-    assert.equal(readlinkSync(extTarget), oldExtSource, "link should be preserved");
+    assert.equal(readlinkSync(extTarget), oldExtSource, "extension link should be preserved");
+    assert.equal(readlinkSync(revTarget), oldRevSource, "reviewer link should be preserved");
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
@@ -657,6 +694,98 @@ test("T4: live symlink to another source fails closed, regular-file collision fa
     assert.ok(existsSync(join(extTarget, "somefile.js")));
   } finally {
     rmSync(temporary, { recursive: true, force: true });
+  }
+});
+test("T4: agent targets live/dangling symlink, regular file, and directory collisions fail closed and transactional", () => {
+  for (const targetName of ["gsd-executor.md", "gsd-reviewer.md"]) {
+    const { temporary, home, fakeBin, repo } = makeInstallFixture();
+    writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
+    writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+
+    try {
+      mkdirSync(join(repo, "extensions"), { recursive: true });
+      writeFileSync(join(repo, "extensions", "gsd-context.js"), "const foo = 1;");
+
+      const agentsDir = join(home, ".omp", "agent", "agents");
+      mkdirSync(agentsDir, { recursive: true });
+      const target = join(agentsDir, targetName);
+      const extTarget = join(home, ".omp", "agent", "extensions", "gsd-context.js");
+
+      // 1. Live foreign symlink
+      const otherFile = join(temporary, "other-agent.md");
+      writeFileSync(otherFile, "foreign agent content");
+      symlinkSync(otherFile, target);
+
+      const resLive = runInstallerAt(repo, home, fakeBin);
+      assert.equal(resLive.status, 1, `should fail because of live symlink on ${targetName}`);
+      assert.match(resLive.stderr, /unmanaged collision/);
+      assert.equal(readlinkSync(target), otherFile);
+      assert.equal(existsSync(extTarget), false, "extTarget must not be published when agent preflight fails");
+
+      rmSync(target);
+
+      // 2. Dangling foreign symlink
+      const nonExistent = join(temporary, "nonexistent-agent.md");
+      symlinkSync(nonExistent, target);
+
+      const resDangling = runInstallerAt(repo, home, fakeBin);
+      assert.equal(resDangling.status, 1, `should fail because of dangling symlink on ${targetName}`);
+      assert.match(resDangling.stderr, /unmanaged collision/);
+      assert.equal(readlinkSync(target), nonExistent);
+      assert.equal(existsSync(extTarget), false);
+
+      rmSync(target);
+
+      // 3. Regular file collision
+      writeFileSync(target, "custom user agent file");
+
+      const resFile = runInstallerAt(repo, home, fakeBin);
+      assert.equal(resFile.status, 1, `should fail because of file collision on ${targetName}`);
+      assert.match(resFile.stderr, /unmanaged collision/);
+      assert.equal(readFileSync(target, "utf8"), "custom user agent file");
+      assert.equal(existsSync(extTarget), false);
+
+      // 4. Directory collision
+      rmSync(target);
+      mkdirSync(target);
+      writeFileSync(join(target, "subfile.txt"), "inside dir");
+
+      const resDir = runInstallerAt(repo, home, fakeBin);
+      assert.equal(resDir.status, 1, `should fail because of directory collision on ${targetName}`);
+      assert.match(resDir.stderr, /unmanaged collision/);
+      assert.ok(existsSync(join(target, "subfile.txt")));
+      assert.equal(existsSync(extTarget), false);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
+  }
+});
+
+test("T4: OMP_AGENTS_DIR parent as symlink or file fails closed with exit 1", () => {
+  for (const kind of ["symlink", "file"]) {
+    const { temporary, home, fakeBin, repo } = makeInstallFixture();
+    writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
+    writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+
+    try {
+      const ompAgentDir = join(home, ".omp", "agent");
+      mkdirSync(ompAgentDir, { recursive: true });
+      const agentsParent = join(ompAgentDir, "agents");
+
+      if (kind === "symlink") {
+        const extDir = join(temporary, "ext-agents-dir");
+        mkdirSync(extDir);
+        symlinkSync(extDir, agentsParent);
+      } else {
+        writeFileSync(agentsParent, "file blocking agents dir");
+      }
+
+      const res = runInstallerAt(repo, home, fakeBin);
+      assert.equal(res.status, 1, `should fail when agents parent is ${kind}`);
+      assert.match(res.stderr, /error: registration parent/);
+    } finally {
+      rmSync(temporary, { recursive: true, force: true });
+    }
   }
 });
 
