@@ -1600,6 +1600,10 @@ test("T2 reload manifest contract and rehydration validation", () => {
         if (value !== "lite" && value !== "full" && value !== "ultra") {
           throw new Error(`Invalid ponytail_level value: ${value} in prior completed review: ${targetFilename}`);
         }
+      } else if (key === "manual_ui_review") {
+        if (value !== "on" && value !== "off") {
+          throw new Error(`Invalid manual_ui_review value: ${value} in prior completed review: ${targetFilename}`);
+        }
       } else if (key === "design_state" || key === "domain_state") {
         throw new Error(`Invalid key in settings: ${key} is deleted in prior completed review: ${targetFilename}`);
       }
@@ -1864,6 +1868,10 @@ test("T2 reload manifest contract and rehydration validation", () => {
       } else if (key === "ponytail_level") {
         if (value !== "lite" && value !== "full" && value !== "ultra") {
           throw new Error(`Invalid ponytail_level value: ${value} in pending terminal-review: ${targetFilename}`);
+        }
+      } else if (key === "manual_ui_review") {
+        if (value !== "on" && value !== "off") {
+          throw new Error(`Invalid manual_ui_review value: ${value} in pending terminal-review: ${targetFilename}`);
         }
       } else if (key === "design_state" || key === "domain_state") {
         throw new Error(`Invalid key in settings: ${key} is deleted in pending terminal-review: ${targetFilename}`);
@@ -2148,6 +2156,10 @@ test("T2 reload manifest contract and rehydration validation", () => {
             if (value !== "lite" && value !== "full" && value !== "ultra") {
               throw new Error("Invalid ponytail_level value");
             }
+          } else if (key === "manual_ui_review") {
+            if (value !== "on" && value !== "off") {
+              throw new Error("Invalid manual_ui_review value");
+            }
           } else if (key === "design_state" || key === "domain_state") {
             throw new Error(`Invalid key in settings: ${key} is deleted`);
           }
@@ -2203,6 +2215,10 @@ test("T2 reload manifest contract and rehydration validation", () => {
           throw new Error(`Invalid ponytail_level value: ${value}`);
         }
         ponytail_level = value;
+      } else if (key === "manual_ui_review") {
+        if (value !== "on" && value !== "off") {
+          throw new Error(`Invalid manual_ui_review value: ${value}`);
+        }
       } else if (key === "design_state" || key === "domain_state") {
         throw new Error(`Invalid key in settings: ${key} is deleted`);
       }
@@ -2636,6 +2652,10 @@ test("T2 reload manifest contract and rehydration validation", () => {
             if (value !== "lite" && value !== "full" && value !== "ultra") {
               throw new Error("Invalid ponytail_level value");
             }
+          } else if (key === "manual_ui_review") {
+            if (value !== "on" && value !== "off") {
+              throw new Error("Invalid manual_ui_review value");
+            }
           } else if (key === "design_state" || key === "domain_state") {
             throw new Error(`Invalid key in settings: ${key} is deleted`);
           }
@@ -2709,6 +2729,10 @@ test("T2 reload manifest contract and rehydration validation", () => {
           throw new Error(`Invalid ponytail_level value: ${value}`);
         }
         ponytail_level = value;
+      } else if (key === "manual_ui_review") {
+        if (value !== "on" && value !== "off") {
+          throw new Error(`Invalid manual_ui_review value: ${value}`);
+        }
       } else if (key === "design_state" || key === "domain_state") {
         throw new Error(`Invalid key in settings: ${key} is deleted`);
       }
@@ -3567,6 +3591,20 @@ reload[3]{skill,path}:
   assert.doesNotThrow(() => {
     rehydrate(positiveHandoffString, installed, "handoff-1.toon", "handoff-1.toon", liveBindingPositive);
   });
+  const manualReviewOn = positiveHandoffString
+    .replace("settings[2]{key,value}:", "settings[3]{key,value}:\n  manual_ui_review,on");
+  const parsedManualReviewOn = parseHandoff(manualReviewOn, installed);
+  assert.equal(
+    parsedManualReviewOn.tables.settings.find(({ key }) => key === "manual_ui_review")?.value,
+    "on",
+  );
+  assert.doesNotThrow(() => {
+    rehydrate(manualReviewOn, installed, "handoff-1.toon", "handoff-1.toon", liveBindingPositive);
+  });
+  const invalidManualReview = manualReviewOn.replace("manual_ui_review,on", "manual_ui_review,sometimes");
+  assert.throws(() => {
+    validateHandoff(parseHandoff(invalidManualReview, installed), installed, "handoff-1.toon");
+  }, /Invalid manual_ui_review value/);
 
   // Mismatch negative 1: path mismatch
   assert.throws(() => {
@@ -5711,19 +5749,20 @@ test("archive terminal disposition contract", () => {
   const executing = read("skills/gsd-executing-plans/SKILL.md");
 
 
-  // Workflow approval-final carve-out: both to-plan and executing-plans must match
-  const terminalDispositionException = /except the sole terminal scratch disposition \(delete, retain, or archive-and-delete\) offered after implementation checks pass and before final terminal review\/squash; that disposition never reopens planning, visual review, or any other menu\./;
-  assert.match(toPlan, /This is the last normal prompt:/);
-  assert.match(toPlan, /no later planning menu, confirmation, or visual-review offer appears,/);
+  // Workflow approval-final carve-out: planning approval plus the optional terminal gate remain bounded.
+  const terminalDispositionException = /The terminal scratch disposition \(delete, retain, or archive-and-delete\) remains the one required terminal disposition offered after implementation checks pass and before final terminal review\/squash; it never reopens planning, manual review, or any other menu\./;
+  assert.match(toPlan, /This is the last planning prompt:/);
+  assert.match(toPlan, /Manual UI Review Gate/);
+  assert.match(toPlan, /no later planning menu, approval confirmation, or generic Lavish visual-review offer appears/);
   assert.match(toPlan, terminalDispositionException);
   assert.doesNotMatch(toPlan, /no later menu, offer, or confirmation appears/);
-  assert.match(executing, /Approval is the last normal prompt\./);
-  assert.match(executing, /no planning menus, confirmations, visual-review offers, or manual merge,/);
+  assert.match(executing, /Approval is the last normal planning prompt\./);
+  assert.match(executing, /Manual UI Review Gate/);
+  assert.doesNotMatch(executing, /no planning menus, confirmations, visual-review offers, or manual merge,/);
   assert.match(executing, terminalDispositionException);
-  assert.doesNotMatch(executing, /no later menu, offer, or confirmation appears/);
-  // REFERENCE keeps the sole post-approval human prompt phrasing as the canonical disposition contract
-  assert.match(reference, /The sole post-approval human prompt is the terminal scratch disposition \(delete, retain, or archive-and-delete\) offered after implementation checks pass and before final terminal review\/squash; it never reopens planning, visual review, or any other menu\./);
-
+  // REFERENCE keeps both the optional gate and the required terminal disposition canonical.
+  assert.match(reference, /Manual UI Review Gate/);
+  assert.match(reference, terminalDispositionException);
   // AC-1: option, destinations, pre-review/pre-squash timing, same-squash inclusion, scratch deletion, no post-merge docs commit
   assert.match(reference, /Terminal scratch disposition/i);
   assert.match(reference, /delete, retain, or archive-and-delete/);
@@ -5754,8 +5793,8 @@ test("archive terminal disposition contract", () => {
   assert.match(reference, /Do not copy handoffs, immutable attempts, `result\.toon`/);
   assert.match(reference, /If either archive destination already exists, fail closed and preserve prior content; never overwrite/);
   assert.match(reference, /Existing result-marker schema, one-squash branch cleanup, and scratch cleanup contracts remain intact/);
-  assert.match(reference, /The sole post-approval human prompt is the terminal scratch disposition/);
-  assert.match(reference, /it never reopens planning, visual review, or any other menu/);
+  assert.match(reference, /The terminal scratch disposition \(delete, retain, or archive-and-delete\) remains the one required terminal disposition/);
+  assert.match(reference, /it never reopens planning, manual review, or any other menu/);
   assert.match(reference, /Post-merge `scratch:pending` recovery resumes only the existing delete-or-retain decision/);
   assert.match(reference, /pre-squash archive opportunity is not reopened after merge/);
 
@@ -5897,6 +5936,85 @@ test("AC-2: Terminal slow E2E and whole-diff review are progress-guarded", () =>
   assert.match(readme, /whole-diff terminal review/i);
   assert.match(readme, /complete feature-affected slow suite|Deferred Slow E2E/i);
   assert.doesNotMatch(readme, /reviews each task, records reporting-only evidence/);
+});
+test("AC-optional: manual UI review is an optional pre-E2E gate", () => {
+  const brainstorm = read("skills/gsd-brainstorming/SKILL.md");
+  const toPlan = read("skills/gsd-to-plan/SKILL.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const executor = read("agents/gsd-executor.md");
+  const domain = read("docs/domain/gsd.md");
+  const readme = read("README.md");
+
+  // Planning asks only when visual judgment is materially subjective, and honors explicit choice.
+  assert.match(brainstorm, /manual UI review/i);
+  assert.match(brainstorm, /subjective (?:visual )?(?:judgment|judgement)/i);
+  assert.match(brainstorm, /explicit(?:ly)? (?:enable|decline|request)/i);
+  assert.match(brainstorm, /uncertain|useful/i);
+  assert.match(toPlan, /ask exactly once/i);
+  assert.match(toPlan, /purely technical UI|non-UI/i);
+  assert.match(toPlan, /Manual UI Review Gate/i);
+
+  // The gate is one terminal pause after all fast-green work, before slow E2E and reviewer.
+  const cadenceStart = verify.indexOf("Terminal cadence");
+  assert.ok(cadenceStart >= 0, "verify must define terminal cadence");
+  const cadence = verify.slice(cadenceStart);
+  const gateIndex = cadence.indexOf("Manual UI Review Gate");
+  const slowIndex = cadence.indexOf("complete feature-affected slow suite");
+  const reviewerIndex = cadence.indexOf("whole-diff review");
+  assert.ok(gateIndex >= 0, "manual gate must be in terminal cadence");
+  assert.ok(slowIndex > gateIndex, "slow suite must follow manual gate");
+  assert.ok(reviewerIndex > slowIndex, "reviewer must follow slow suite");
+  assert.match(verify, /exact (?:run )?command or URL/i);
+  assert.match(verify, /visual checklist/i);
+  assert.match(execution, /terminal pre-E2E boundary/i);
+  assert.doesNotMatch(execution, /manual UI review[\s\S]{0,160}per task/i);
+
+  // Runtime opt-in and feedback repair stay bound to immutable approval authority.
+  assert.match(reference, /manual_ui_review,on/);
+  assert.match(handoff, /manual_ui_review.*on/);
+  assert.match(handoff, /runtime settings/i);
+  assert.match(reference, /without plan reapproval/i);
+  assert.match(executor, /approved-scope|within approved/i);
+  assert.match(executor, /manual UI review/i);
+  assert.match(reference, /scope-changing[\s\S]{0,160}Spec escalation/i);
+  assert.match(verify, /source change[\s\S]{0,220}(?:fast|manual|slow)/i);
+
+  // Human prompts stay bounded; Manual UI Review does not replace terminal gates or Lavish.
+  assert.match(execution, /Manual UI Review Gate[\s\S]{0,220}scratch disposition/i);
+  assert.doesNotMatch(execution, /no planning menus, confirmations, visual-review offers/i);
+  assert.match(reference, /Manual UI Review[\s\S]{0,180}Lavish/i);
+  assert.match(domain, /### D-gsd-9: .*Manual UI Review/i);
+  assert.match(readme, /Manual UI Review Gate[\s\S]{0,180}Deferred Slow E2E/i);
+});
+
+test("AC-4: hidden bootstrap permits optional Manual UI Review Gate", () => {
+  const master = read("skills/gsd/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+
+  // Hidden owner text must name the optional gate before Deferred Slow E2E.
+  assert.match(master, /Manual UI Review Gate/i);
+  assert.match(master, /Deferred Slow E2E/i);
+  const gateIndex = master.search(/Manual UI Review Gate/i);
+  const slowIndex = master.search(/Deferred Slow E2E/i);
+  assert.ok(gateIndex >= 0 && slowIndex > gateIndex, "optional Manual UI Review Gate must precede Deferred Slow E2E in bootstrap");
+
+  // When enabled, the gate is mandatory once — not a permissive "may run".
+  assert.match(master, /enabled optional Manual UI Review Gate runs once before Deferred Slow E2E/i);
+  assert.doesNotMatch(master, /\bmay run once\b/i);
+
+  // Terminal scratch remains the one required disposition; cleanup/reviewer gates stay mandatory.
+  assert.match(master, /one required terminal disposition|sole required terminal disposition/i);
+  assert.match(master, /terminal scratch disposition/i);
+  assert.match(master, /delete, retain, or archive-and-delete/);
+  assert.match(master, /gsdReviewer|whole-diff/i);
+  assert.doesNotMatch(master, /the sole post-approval human prompt is the terminal scratch disposition/);
+
+  // Visible reference and hidden bootstrap agree on dual post-approval human surfaces.
+  assert.match(reference, /enabled Manual UI Review Gate/i);
+  assert.match(reference, /one terminal scratch disposition/i);
 });
 
 test("AC-2 repair: task repair is executor-only without gsd-verify or gsdReviewer", () => {

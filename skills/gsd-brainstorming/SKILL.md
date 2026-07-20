@@ -38,6 +38,7 @@ Match exploration breadth to the prompt. Read the named area and direct dependen
 - Ask only when the answer changes behavior, scope, an interface, a destructive action, or a load-bearing tradeoff. Otherwise choose the conservative default and state it.
 - Right-size the result. Recommend the smallest design that satisfies the ask. Do not invent retries, telemetry, configuration, extensibility, or abstractions.
 - Preserve same-session continuity: settled decisions stay settled unless new evidence conflicts or the user reopens them.
+- Subjective visual judgment (layout, hierarchy, copy, interaction, responsive) → choose Manual UI Review Gate during planning; honor explicit enable/decline/request; ask if uncertain; technical UI/non-UI defaults off.
 
 ## Acceptance and interface convergence
 

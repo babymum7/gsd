@@ -14,6 +14,7 @@
 | Execution Model Binding | The approval-time OMP binding of one executor model and one distinct reviewer model to an execution generation. The bound selectors and persistent agent identities survive task boundaries and repair rounds; they never silently fall back to the active planning model. | model switch, preferred model |
 | Fast TDD Check | A deterministic local test command suitable for repeated RED→GREEN use: no browser or GUI, external network, long-lived server, large fixture, or material machine cost. It may be unit, contract, local integration, CLI, HTTP, or lightweight E2E. | final acceptance suite, slow E2E |
 | Invocation Mode | A named execution path through one skill with its own artifact requirements, fallback behavior, output authority, and prompt policy—for example standalone review versus the post-approval WIP gate. It is selected from explicit intent and entry context before Required-artifact validation; artifact presence alone never determines it, and handoff mode/phase values remain open and opaque. | dispatch label |
+| Manual UI Review Gate | An optional running-feature inspection at the terminal pre-E2E boundary for subjective layout, hierarchy, copy, interaction-feel, or responsive judgment; it supplements Fast TDD, Deferred Slow E2E, and terminal whole-diff review. | visual artifact review |
 | Milestone Ledger | The minimal Git-tracked `docs/gsd/<feature>/milestones.md` contract that carries precise, user-approved milestone goals and durable pending/done state across otherwise independent GSD cycles. Sequential ID/position, not potentially duplicate goal text, is identity. The ledger records state but does not itself select, recover, or complete milestones or authorize merges. It is not a task tracker or speculative roadmap: detailed acceptance criteria stay in the canonical plan. | roadmap, cross-milestone plan, task ledger |
 
 ## Decisions
@@ -57,3 +58,7 @@
 
 - **Decision:** Do not dispatch `gsdReviewer` per task. After all tasks and fast checks pass, make the complete feature-affected slow suite green, then review the whole WIP diff; any review repair reruns affected fast checks and slow acceptance before whole-diff re-review. Terminal completion requires both the complete feature-affected slow suite and `gsdReviewer` whole-diff verdict to be green on the final reviewed bytes.
 - **Rationale:** This matches E2E-like cadence while retaining a fail-closed independent terminal gate over the final bytes.
+### D-gsd-9: Keep Manual UI Review optional and additive
+
+- **Decision:** Manual UI Review is enabled only by explicit choice or a planning question triggered by materially subjective visual acceptance; it runs once after all tasks and Fast TDD Checks are green and before Deferred Slow E2E and terminal whole-diff review, and runtime opt-in adds `manual_ui_review,on` without plan reapproval.
+- **Rationale:** Subjective running-feature judgment is valuable for UI/UX but cannot replace deterministic tests, slow journeys, independent review, or immutable plan authority; keeping the gate optional preserves auto-pilot for technical work.
