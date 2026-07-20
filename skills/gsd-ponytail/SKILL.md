@@ -1,6 +1,6 @@
 ---
 name: gsd-ponytail
-description: "Use for a real known-scope quick fix that should take the smallest behavioral path, or when the user explicitly sets ponytail lite, full, ultra, or normal mode. Do not select the primary lifecycle; its preference scope and handoff persistence remain explicit."
+description: "Use for a real known-scope quick fix that should take the smallest behavioral path, or when the user explicitly sets ponytail lite, full, ultra, or normal mode. Do not select the primary lifecycle; its preference scope and state.toon persistence remain explicit."
 triggers: real known-scope quick fix; explicit ponytail lite, full, ultra, or normal preference
 produces: []
 consumes: []
@@ -27,12 +27,12 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 Select Quick-fix auto-fire only for a real known-scope quick fix. Select Explicit session toggle only for an explicit ponytail lite/full/ultra request or the stop/normal-mode request. Both modes are runtime policy transitions with no artifact requirements or writes; Nano never loads this skill.
 
 Lazy senior dev: efficient, not careless. The best code is the code never written. The runtime keeps two distinct fields: `explicit_level` is exactly `none|lite|full|ultra`, and `auto_scope` is exactly `none|quick-fix`. **Auto-fire** is scoped to that fix only: it expires when the real quick-fix lands/merges, hits a hard-blocker or verify-fail stop, or stops being the active prompt, and never silently minimizes the next, unrelated prompt. **Explicit toggle** (a ponytail lite/full/ultra request, omitted level = **full**) is session state until an explicit "stop ponytail" or "normal mode" request. Nano work never loads this skill.
-Only an active **explicit** `lite|full|ultra` toggle survives a session reset, and only via a `gsd-handoff` `settings[]` row; auto-fire is never serialized. A hard reset without a handoff loses the explicit level like any unsaved scratch — set it again explicitly to restore it.
+Only an active **explicit** `lite|full|ultra` toggle survives a session reset, and only via the `ponytail_level` field on atomic `state.toon`; auto-fire is never serialized. A hard reset without `state.toon` loses the explicit level like any unsaved scratch — set it again explicitly to restore it.
 
 ## State transitions (normative)
-`<current>` is the current `explicit_level`, `<scope>` is the current `auto_scope`, `<level>` is an explicitly supplied accepted level, `<invalid>` is a supplied value outside that domain, and `<level-or-full>` resolves an omitted toggle level to `full`. Accepted explicit toggle levels (normative): `lite|full|ultra`. Apply this table exactly. Every Inputs cell names the event and the required pre-transition state/input; a row whose Inputs do not match must not apply. Outputs marked `none` produce no cue, `n/a` means the scenario performs no handoff operation, and `omit` means a handoff write has no `ponytail_level` row.
+`<current>` is the current `explicit_level`, `<scope>` is the current `auto_scope`, `<level>` is an explicitly supplied accepted level, `<invalid>` is a supplied value outside that domain, and `<level-or-full>` resolves an omitted toggle level to `full`. Accepted explicit toggle levels (normative): `lite|full|ultra`. Apply this table exactly. Every Inputs cell names the event and the required pre-transition state/input; a row whose Inputs do not match must not apply. Outputs marked `none` produce no cue, `n/a` means the scenario performs no state operation, and `omit` means a state write keeps `ponytail_level=none`.
 
-| Scenario | Inputs | Next state | Owner/action | Skill/load | Output | Handoff row |
+| Scenario | Inputs | Next state | Owner/action | Skill/load | Output | State field |
 |---|---|---|---|---|---|---|
 | Nano | `event=nano;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `0` | `none` | `none` | `n/a` |
 | Quick-fix without explicit toggle | `event=quick-fix;explicit_level=none;auto_scope=none` | `explicit_level=none;auto_scope=quick-fix` | `0` | `gsd-ponytail` | `Ponytail: full — scoped to this quick-fix.` | `n/a` |
@@ -45,12 +45,12 @@ Only an active **explicit** `lite|full|ultra` toggle survives a session reset, a
 | Invalid explicit toggle | `event=toggle;explicit_level=<current>;auto_scope=<scope>;level=<invalid>` | `explicit_level=<current>;auto_scope=none` | `none` | `none` | `Ponytail level must be lite, full, or ultra.` | `n/a` |
 | Stop or normal mode | `event=stop;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=none;auto_scope=none` | `none` | `none` | `Ponytail: none — normal mode.` | `n/a` |
 | Fresh task dispatch | `event=dispatch;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `none` | `none` | `Ponytail Level: <current>` | `n/a` |
-| Handoff write with explicit toggle | `event=handoff-write;explicit_level=<level>;auto_scope=<scope>` | `explicit_level=<level>;auto_scope=none` | `none` | `none` | `none` | `ponytail_level,<level>` |
-| Handoff write without explicit toggle | `event=handoff-write;explicit_level=none;auto_scope=<scope>` | `explicit_level=none;auto_scope=none` | `none` | `none` | `none` | `omit` |
-| Handoff restore with explicit toggle | `event=handoff-restore;explicit_level=<current>;auto_scope=<scope>;row=ponytail_level,<level>` | `explicit_level=<level>;auto_scope=none` | `none` | `none` | `none` | `ponytail_level,<level>` |
-| Handoff restore without explicit toggle | `event=handoff-restore;explicit_level=<current>;auto_scope=<scope>;row=missing` | `explicit_level=none;auto_scope=none` | `none` | `none` | `none` | `omit` |
-| Handoff restore with invalid explicit toggle | `event=handoff-restore;row=ponytail_level,<invalid>` | no transition | `1` | `gsd-handoff` | `Blocker: invalid handoff settings.` | preserve invalid handoff |
-| Handoff restore with duplicate explicit toggle | `event=handoff-restore;row=duplicate` | no transition | `1` | `gsd-handoff` | `Blocker: invalid handoff settings.` | preserve invalid handoff |
+| Handoff write with explicit toggle | `event=state-write;explicit_level=<level>;auto_scope=<scope>` | `explicit_level=<level>;auto_scope=none` | `none` | `none` | `none` | `ponytail_level,<level>` |
+| Handoff write without explicit toggle | `event=state-write;explicit_level=none;auto_scope=<scope>` | `explicit_level=none;auto_scope=none` | `none` | `none` | `none` | `omit` |
+| Handoff restore with explicit toggle | `event=state-restore;explicit_level=<current>;auto_scope=<scope>;row=ponytail_level,<level>` | `explicit_level=<level>;auto_scope=none` | `none` | `none` | `none` | `ponytail_level,<level>` |
+| Handoff restore without explicit toggle | `event=state-restore;explicit_level=<current>;auto_scope=<scope>;row=missing` | `explicit_level=none;auto_scope=none` | `none` | `none` | `none` | `omit` |
+| Handoff restore with invalid explicit toggle | `event=state-restore;row=ponytail_level,<invalid>` | no transition | `1` | `gsd-handoff` | `Blocker: invalid state.toon preferences.` | preserve invalid state |
+| Handoff restore with duplicate explicit toggle | `event=state-restore;row=duplicate` | no transition | `1` | `gsd-handoff` | `Blocker: invalid state.toon preferences.` | preserve invalid state |
 
 For a supplied toggle, only the accepted domain enters `explicit_level`; omission means `full`. Invalid level preserves prior `explicit_level`, clears `auto_scope`, emits the table's allowed-level feedback, and never becomes state. Stop/normal sets both fields to `none`.
 On every valid handoff restore, initialize `explicit_level=none` and `auto_scope=none` before inspecting `settings[]`. A valid `ponytail_level,lite|full|ultra` row overrides only `explicit_level`. Invalid/duplicate rows block resume via `gsd-handoff` and never reach this transition. Auto scope is never restored.

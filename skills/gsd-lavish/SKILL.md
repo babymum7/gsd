@@ -1,7 +1,7 @@
 ---
 name: gsd-lavish
-description: "Use only after the user opts into a visual review of a substantial completed plan, comparison, audit, or verification report. Do not use for inline questions and answers or automatically launch a browser."
-triggers: explicit visual-review opt-in for an eligible completed deliverable
+description: "Use after the user opts into a visual review of a substantial completed deliverable, or when planning chooses Build prototype with Lavish on the post-plan surface. Do not use for inline questions and answers or automatically launch a browser."
+triggers: explicit visual-review opt-in for an eligible completed deliverable; post-plan Build prototype with Lavish
 produces: []
 consumes: []
 ---
@@ -9,19 +9,20 @@ consumes: []
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: helper
-- Helper-when: must load when the user opts into visual review of an eligible deliverable; cannot be skipped while that condition holds
-- Do-not-load: automatic launch; inline Q&A
+- Helper-when: must load when the user opts into visual review of an eligible deliverable or chooses Build prototype with Lavish; cannot be skipped while that condition holds
+- Do-not-load: automatic launch; inline Q&A; post-approval terminal visual gate
 - Transition: return annotations to the parent owner
 
 # Lavish
 
-> **Invocation guard** — load only after explicit opt-in for an eligible completed deliverable. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation. This mode has no repository artifacts; the completed deliverable is interaction input. If the caller-supplied completed deliverable is absent, stop with a concise terminal prerequisite message and the natural-language next action to produce or select one; do not reload the hidden master or start another owner from this invocation, and do not invent content.
+> **Invocation guard** — load after explicit opt-in for an eligible completed deliverable, or after the post-plan `Build prototype with Lavish` choice (launch consent). Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation. Planning-prototype mode treats the draft plan as interaction input and returns annotations to `gsd-to-plan`; it never becomes execution or terminal acceptance authority. If the caller-supplied deliverable is absent, stop with a concise terminal prerequisite message and the natural-language next action to produce or select one; do not reload the hidden master or start another owner from this invocation, and do not invent content.
 
 ## Invocation modes
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
 | Opt-in visual review | User acceptance; eligible completed deliverable | Browser capability | — | Missing opt-in or ineligible deliverable: stay in terminal prose |
+| Planning prototype | Draft `plan.md`; Build prototype consent | Browser capability; promoted prototype refs | optional `.scratch/<feature>/prototype/` refs | Unavailable Lavish degrades to terminal without blocking planning |
 
 Render a substantial deliverable as a reviewable HTML artifact the user annotates and feeds back on. Heavyweight (HTML artifact + local express server + browser surface + long-poll loop) — fire only under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish opt-in gate taxonomy.
 

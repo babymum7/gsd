@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, mkdtempSync, writeFileSync, mkdirSync, rmSync, symlinkSync, realpathSync } from "node:fs";
+import { readFileSync, readdirSync, mkdtempSync, writeFileSync, mkdirSync, rmSync, symlinkSync, realpathSync } from "node:fs";
 import { join, dirname, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -17,7 +17,38 @@ import gsdContextExtension, {
   createBootstrap,
   messageContainsBootstrap,
   firstNonCompactionSummaryIndex,
+  writeStateAtomic,
+  parseState,
+  validateState,
+  serializeState,
 } from "../extensions/gsd-context.js";
+
+const FIXTURE_PLAN_SHA = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
+function writeActiveStateFixture(featureDir, feature, overrides = {}) {
+  writeStateAtomic(featureDir, {
+    schema: "v1",
+    feature,
+    phase: "executing",
+    next_action: "start/continue task",
+    plan_path: `.scratch/${feature}/plan.md`,
+    plan_sha256: FIXTURE_PLAN_SHA,
+    base_ref: "main",
+    wip_branch: `wip/${feature}`,
+    last_green_task: "none",
+    last_green_commit: "none",
+    executor_model: "xai-oauth/grok-4.5",
+    reviewer_model: "openai-codex/gpt-5.5:high",
+    review_round: "none",
+    blocking_fingerprint: "none",
+    reviewed_commit: "none",
+    progress_status: "none",
+    autosync: "none",
+    ponytail_level: "none",
+    cleanup_preference: "none",
+    checkpoint_revision: "1",
+    ...overrides,
+  });
+}
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
@@ -249,7 +280,7 @@ test("capsule extension production API contract", (t) => {
       const feat1Dir = join(scratchDir, feat1);
       mkdirSync(feat1Dir);
       writeFileSync(join(feat1Dir, "plan.md"), "plan");
-      writeFileSync(join(feat1Dir, "handoff-1.toon"), "handoff");
+      writeActiveStateFixture(feat1Dir, feat1);
 
       // Candidate 2: invalid candidate (no plan.md)
       const feat2 = "feat-two";
@@ -283,7 +314,7 @@ test("capsule extension production API contract", (t) => {
       const feat6Dir = join(scratchDir, feat6);
       mkdirSync(feat6Dir);
       writeFileSync(join(feat6Dir, "plan.md"), "plan");
-      writeFileSync(join(feat6Dir, "handoff-5.toon"), "handoff");
+      writeActiveStateFixture(feat6Dir, feat6);
 
       // Candidate 7: overlong otherwise-active candidate (>255 UTF-8 bytes, has plan.md and handoff-1.toon)
       // On POSIX filesystems, component length cap is 255 bytes so mkdirSync of >255 bytes fails at OS layer.
@@ -418,7 +449,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
     const featDir = join(scratchDir, "symlink-feat");
     mkdirSync(featDir);
     writeFileSync(join(featDir, "plan.md"), "plan");
-    writeFileSync(join(featDir, "handoff-1.toon"), "handoff");
+    writeActiveStateFixture(featDir, "symlink-feat");
     
     try {
       const compactResult = await registeredEvents["session.compacting"]({}, { cwd: tempDir });
@@ -444,7 +475,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
     const featDir = join(scratchDir, "identity-feat");
     mkdirSync(featDir);
     writeFileSync(join(featDir, "plan.md"), "plan");
-    writeFileSync(join(featDir, "handoff-1.toon"), "handoff");
+    writeActiveStateFixture(featDir, "identity-feat");
 
     try {
       const registeredEvents = {};
@@ -488,7 +519,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
       const featDir = join(scratchDir, feat);
       mkdirSync(featDir);
       writeFileSync(join(featDir, "plan.md"), "plan");
-      writeFileSync(join(featDir, "handoff-1.toon"), "handoff");
+      writeActiveStateFixture(featDir, feat);
     }
 
     try {
@@ -591,7 +622,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
       const featDir = join(scratchDir, feat);
       mkdirSync(featDir);
       writeFileSync(join(featDir, "plan.md"), "plan");
-      writeFileSync(join(featDir, "handoff-1.toon"), "handoff");
+      writeActiveStateFixture(featDir, feat);
     }
 
     try {
@@ -660,7 +691,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
       const featDir = join(scratchDir, feat);
       mkdirSync(featDir);
       writeFileSync(join(featDir, "plan.md"), "plan");
-      writeFileSync(join(featDir, "handoff-1.toon"), "handoff");
+      writeActiveStateFixture(featDir, feat);
     }
 
     try {
@@ -757,7 +788,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
       const featDir = join(scratchDir, featName);
       mkdirSync(featDir);
       writeFileSync(join(featDir, "plan.md"), "plan");
-      writeFileSync(join(featDir, "handoff-1.toon"), "handoff");
+      writeActiveStateFixture(featDir, featName);
     }
 
     try {
@@ -1052,7 +1083,7 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
     const scratch = join(workspace, ".scratch", "feature-a");
     mkdirSync(scratch, { recursive: true });
     writeFileSync(join(scratch, "plan.md"), "plan");
-    writeFileSync(join(scratch, "handoff-1.toon"), "handoff");
+    writeActiveStateFixture(scratch, "feature-a");
     await events["session.compacting"]({}, { cwd: workspace });
     await events.session_compact({}, { cwd: workspace });
     assert.equal(sentMessages.length, 1);
@@ -1105,4 +1136,406 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }
+});
+
+test("state.toon lifecycle checkpoint contract", async () => {
+  const {
+    parseState,
+    validateState,
+    serializeState,
+    writeStateAtomic,
+    readStateFile,
+    detectCandidates,
+    ACTIVE_STATE_PHASES,
+    COMPLETED_STATE_PHASES,
+  } = await import("../extensions/gsd-context.js");
+
+  const PLAN_SHA = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
+  const baseFields = {
+    schema: "v1",
+    feature: "demo-feature",
+    phase: "executing",
+    next_action: "start/continue task",
+    plan_path: ".scratch/demo-feature/plan.md",
+    plan_sha256: PLAN_SHA,
+    base_ref: "main",
+    wip_branch: "wip/demo-feature",
+    last_green_task: "T1",
+    last_green_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    executor_model: "xai-oauth/grok-4.5",
+    reviewer_model: "openai-codex/gpt-5.5:high",
+    review_round: "none",
+    blocking_fingerprint: "none",
+    reviewed_commit: "none",
+    progress_status: "none",
+    autosync: "none",
+    ponytail_level: "none",
+    cleanup_preference: "none",
+    checkpoint_revision: "1",
+  };
+
+  const serialize = (fields) =>
+    Object.entries(fields)
+      .map(([k, v]) => `${k}:${v}`)
+      .join("\n") + "\n";
+
+  // Fixed schema + phase-aware validation
+  const parsed = parseState(serialize(baseFields));
+  assert.equal(parsed.feature, "demo-feature");
+  assert.equal(parsed.phase, "executing");
+  assert.equal(parsed.plan_sha256, PLAN_SHA);
+  assert.deepEqual(validateState(parsed), parsed);
+  assert.ok(ACTIVE_STATE_PHASES.includes("executing"));
+  assert.ok(COMPLETED_STATE_PHASES.includes("completed-retained"));
+
+  for (const phase of [
+    "draft",
+    "approved",
+    "executing",
+    "paused",
+    "verifying",
+    "repair",
+    "merged-cleanup-pending",
+    "completed-retained",
+  ]) {
+    const draft = phase === "draft";
+    const completed = phase === "completed-retained";
+    const terminal = ["verifying", "repair", "merged-cleanup-pending", "completed-retained"].includes(phase);
+    const state = {
+      ...baseFields,
+      phase,
+      next_action: completed ? "none" : phase === "merged-cleanup-pending" ? "cleanup scratch" : baseFields.next_action,
+      plan_path: draft ? "none" : baseFields.plan_path,
+      plan_sha256: draft ? "none" : baseFields.plan_sha256,
+      base_ref: draft ? "none" : baseFields.base_ref,
+      wip_branch: draft ? "none" : baseFields.wip_branch,
+      last_green_task: draft ? "none" : baseFields.last_green_task,
+      last_green_commit: draft ? "none" : baseFields.last_green_commit,
+      executor_model: draft ? "none" : baseFields.executor_model,
+      reviewer_model: draft ? "none" : baseFields.reviewer_model,
+      review_round: terminal && phase !== "merged-cleanup-pending" ? "1" : "none",
+      blocking_fingerprint: phase === "repair" ? PLAN_SHA : "none",
+      reviewed_commit: phase === "repair" ? baseFields.last_green_commit : "none",
+      progress_status: phase === "repair" ? "advanced" : "none",
+      cleanup_preference: completed || phase === "merged-cleanup-pending" ? "retain" : "none",
+    };
+    if (phase === "verifying") {
+      state.review_round = "none";
+      state.blocking_fingerprint = "none";
+      state.reviewed_commit = "none";
+      state.progress_status = "none";
+    }
+    if (phase === "merged-cleanup-pending") {
+      state.review_round = "1";
+      state.blocking_fingerprint = "none";
+      state.reviewed_commit = baseFields.last_green_commit;
+      state.progress_status = "advanced";
+    }
+    if (completed) {
+      state.review_round = "1";
+      state.blocking_fingerprint = "none";
+      state.reviewed_commit = baseFields.last_green_commit;
+      state.progress_status = "advanced";
+    }
+    assert.equal(validateState(parseState(serialize(state))).phase, phase);
+  }
+
+  // Phase-inapplicable fields must be canonical none (e.g. draft has no model bindings)
+  assert.throws(
+    () =>
+      validateState(
+        parseState(
+          serialize({
+            ...baseFields,
+            phase: "draft",
+            plan_path: "none",
+            plan_sha256: "none",
+            base_ref: "none",
+            wip_branch: "none",
+            last_green_task: "none",
+            last_green_commit: "none",
+            executor_model: "xai-oauth/grok-4.5",
+            reviewer_model: "none",
+          }),
+        ),
+      ),
+    /phase|none|executor_model/i,
+  );
+
+  // Malformed schema / unknown keys / partial rows fail closed
+  assert.throws(() => parseState("schema:v2\nfeature:demo-feature\n"), /schema|missing required field/i);
+  assert.throws(() => parseState(serialize({ ...baseFields, extra_key: "nope" })), /unknown|extra|key/i);
+  assert.throws(() => parseState("schema:v1\nfeature:\n"), /empty|malformed|feature/i);
+  assert.throws(() => parseState(serialize({ ...baseFields, phase: "task-active" })), /phase/i);
+  assert.throws(
+    () => parseState(serialize({ ...baseFields, plan_sha256: "not-a-hash" })),
+    /plan_sha256|hash/i,
+  );
+
+  // Legacy runtime artifacts never parse as state authority
+  assert.throws(() => parseState("schema:v1\nmode:execution\nphase:task-active\n"), /legacy|unsupported|phase|unknown/i);
+  assert.throws(() => parseState("schema:v1\nmanual_ui_review:on\n"), /legacy|unknown|manual_ui_review/i);
+
+  // Atomic write + read-back validation
+  const tempDir = mkdtempSync(join(tmpdir(), "gsd-state-"));
+  try {
+    const featureDir = join(tempDir, ".scratch", "demo-feature");
+    mkdirSync(featureDir, { recursive: true });
+    writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
+    const statePath = join(featureDir, "state.toon");
+    const written = writeStateAtomic(featureDir, baseFields);
+    assert.equal(written.feature, "demo-feature");
+    assert.equal(readFileSync(statePath, "utf8"), serializeState(baseFields));
+    assert.deepEqual(readStateFile(statePath), validateState(baseFields));
+
+    // Symlink state is rejected
+    const symDir = join(tempDir, ".scratch", "sym-feature");
+    mkdirSync(symDir, { recursive: true });
+    writeFileSync(join(symDir, "plan.md"), "# Plan\n");
+    const target = join(tempDir, "state-target.toon");
+    writeFileSync(target, serializeState({ ...baseFields, feature: "sym-feature", plan_path: ".scratch/sym-feature/plan.md", wip_branch: "wip/sym-feature" }));
+    symlinkSync(target, join(symDir, "state.toon"));
+    assert.throws(() => readStateFile(join(symDir, "state.toon")), /symlink/i);
+    // Authoritative plan+symlink-state packets fail closed at discovery; remove after the unit probe.
+    rmSync(symDir, { recursive: true, force: true });
+
+    // Partial / truncated body fails closed
+    writeFileSync(join(featureDir, "state.toon"), "schema:v1\nfeature:demo-feature\nphase:execut");
+    assert.throws(() => readStateFile(statePath), /malformed|incomplete|phase|required/i);
+    // Restore a valid checkpoint after the partial-write probe.
+    writeStateAtomic(featureDir, baseFields);
+
+    // Discovery: valid active state selects feature; completed is inert; legacy handoff-only is not authority
+    const scratch = join(tempDir, ".scratch");
+    const activeDir = join(scratch, "active-one");
+    mkdirSync(activeDir);
+    writeFileSync(join(activeDir, "plan.md"), "plan");
+    writeStateAtomic(activeDir, {
+      ...baseFields,
+      feature: "active-one",
+      plan_path: ".scratch/active-one/plan.md",
+      wip_branch: "wip/active-one",
+    });
+
+    const completedDir = join(scratch, "done-one");
+    mkdirSync(completedDir);
+    writeFileSync(join(completedDir, "plan.md"), "plan");
+    writeStateAtomic(completedDir, {
+      ...baseFields,
+      feature: "done-one",
+      plan_path: ".scratch/done-one/plan.md",
+      wip_branch: "wip/done-one",
+      phase: "completed-retained",
+      next_action: "none",
+      cleanup_preference: "retain",
+      checkpoint_revision: "2",
+    });
+
+    const legacyDir = join(scratch, "legacy-one");
+    mkdirSync(legacyDir);
+    writeFileSync(join(legacyDir, "plan.md"), "plan");
+    writeFileSync(join(legacyDir, "handoff-1.toon"), "schema:v1\nmode:execution\n");
+
+    const cleanupDir = join(scratch, "cleanup-one");
+    mkdirSync(cleanupDir);
+    writeFileSync(join(cleanupDir, "plan.md"), "plan");
+    writeStateAtomic(cleanupDir, {
+      ...baseFields,
+      feature: "cleanup-one",
+      plan_path: ".scratch/cleanup-one/plan.md",
+      wip_branch: "wip/cleanup-one",
+      phase: "merged-cleanup-pending",
+      next_action: "cleanup scratch",
+      cleanup_preference: "delete",
+      checkpoint_revision: "3",
+    });
+
+    // Feature-mismatched authoritative packet fails closed (throw), not silent skip.
+    const mismatchDir = join(scratch, "mismatch-one");
+    mkdirSync(mismatchDir);
+    writeFileSync(join(mismatchDir, "plan.md"), "plan");
+    writeFileSync(
+      join(mismatchDir, "state.toon"),
+      serializeState({
+        ...baseFields,
+        feature: "other-feature",
+        plan_path: ".scratch/other-feature/plan.md",
+        wip_branch: "wip/other-feature",
+      }),
+    );
+    assert.throws(() => detectCandidates(tempDir), /feature|mismatch|state\.toon/i);
+
+    // Remove mismatch so remaining discovery can be observed.
+    rmSync(mismatchDir, { recursive: true, force: true });
+
+    const malformedDir = join(scratch, "bad-one");
+    mkdirSync(malformedDir);
+    writeFileSync(join(malformedDir, "plan.md"), "plan");
+    writeFileSync(join(malformedDir, "state.toon"), "schema:v1\nphase:executing\n");
+    assert.throws(() => detectCandidates(tempDir), /state\.toon|malformed|missing required field/i);
+    rmSync(malformedDir, { recursive: true, force: true });
+
+    const candidates = detectCandidates(tempDir);
+    assert.deepEqual(candidates, ["active-one", "cleanup-one", "demo-feature"]);
+    assert.ok(!candidates.includes("done-one"), "completed-retained must be inert for ordinary discovery");
+    assert.ok(!candidates.includes("legacy-one"), "legacy handoff-only packets must not be active authority");
+    assert.ok(candidates.includes("demo-feature"));
+
+    // writeStateAtomic rejects symlink/non-directory/basename mismatch and cleans temp.
+    const realFeature = join(scratch, "safe-feature");
+    mkdirSync(realFeature);
+    writeFileSync(join(realFeature, "plan.md"), "plan");
+    const escapeTarget = join(tempDir, "escape-target");
+    mkdirSync(escapeTarget);
+    const linkedFeature = join(scratch, "linked-feature");
+    symlinkSync(escapeTarget, linkedFeature);
+    assert.throws(
+      () => writeStateAtomic(linkedFeature, { ...baseFields, feature: "linked-feature", plan_path: ".scratch/linked-feature/plan.md", wip_branch: "wip/linked-feature" }),
+      /symlink|featureDir|directory/i,
+    );
+    assert.equal(readdirSync(escapeTarget).some((n) => n.includes("state.toon") || n.endsWith(".tmp")), false);
+
+    const filePath = join(scratch, "not-a-dir");
+    writeFileSync(filePath, "nope");
+    assert.throws(
+      () => writeStateAtomic(filePath, { ...baseFields, feature: "not-a-dir", plan_path: ".scratch/not-a-dir/plan.md", wip_branch: "wip/not-a-dir" }),
+      /directory|featureDir/i,
+    );
+
+    assert.throws(
+      () => writeStateAtomic(realFeature, { ...baseFields, feature: "other-name", plan_path: ".scratch/other-name/plan.md", wip_branch: "wip/other-name" }),
+      /feature|basename|mismatch/i,
+    );
+    assert.equal(readdirSync(realFeature).some((n) => n.endsWith(".tmp")), false, "failed writes must not leave temp files");
+  } finally {
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
+test("plan_path and wip_branch must match state.feature on read/validate", () => {
+  const base = {
+    schema: "v1",
+    feature: "demo-feature",
+    phase: "executing",
+    next_action: "start/continue task",
+    plan_path: ".scratch/demo-feature/plan.md",
+    plan_sha256: "a".repeat(64),
+    base_ref: "main",
+    wip_branch: "wip/demo-feature",
+    last_green_task: "none",
+    last_green_commit: "none",
+    executor_model: "xai-oauth/grok-4.5",
+    reviewer_model: "openai-codex/gpt-5.5:high",
+    review_round: "none",
+    blocking_fingerprint: "none",
+    reviewed_commit: "none",
+    progress_status: "none",
+    autosync: "none",
+    ponytail_level: "none",
+    cleanup_preference: "none",
+    checkpoint_revision: "1",
+  };
+
+  assert.deepEqual(validateState(base).feature, "demo-feature");
+  assert.equal(parseState(serializeState(base)).plan_path, ".scratch/demo-feature/plan.md");
+
+  assert.throws(
+    () =>
+      validateState({
+        ...base,
+        plan_path: ".scratch/other-feature/plan.md",
+      }),
+    /plan_path feature mismatch|feature mismatch|plan_path/i,
+  );
+  assert.throws(
+    () =>
+      validateState({
+        ...base,
+        wip_branch: "wip/other-feature",
+      }),
+    /wip_branch feature mismatch|feature mismatch|wip_branch/i,
+  );
+
+  // Read/resume path: parseState must reject mismatched feature components in durable bytes.
+  const mismatchedPlan = serializeState(base).replace(
+    "plan_path:.scratch/demo-feature/plan.md",
+    "plan_path:.scratch/other-feature/plan.md",
+  );
+  assert.throws(() => parseState(mismatchedPlan), /plan_path feature mismatch|feature mismatch|plan_path/i);
+
+  const mismatchedWip = serializeState(base).replace(
+    "wip_branch:wip/demo-feature",
+    "wip_branch:wip/other-feature",
+  );
+  assert.throws(() => parseState(mismatchedWip), /wip_branch feature mismatch|feature mismatch|wip_branch/i);
+});
+
+test("approved model selectors must be concrete and non-alias", () => {
+  const base = {
+    schema: "v1",
+    feature: "demo-feature",
+    phase: "approved",
+    next_action: "start/continue task",
+    plan_path: ".scratch/demo-feature/plan.md",
+    plan_sha256: "b".repeat(64),
+    base_ref: "main",
+    wip_branch: "wip/demo-feature",
+    last_green_task: "none",
+    last_green_commit: "none",
+    executor_model: "xai-oauth/grok-4.5",
+    reviewer_model: "openai-codex/gpt-5.5:high",
+    review_round: "none",
+    blocking_fingerprint: "none",
+    reviewed_commit: "none",
+    progress_status: "none",
+    autosync: "none",
+    ponytail_level: "none",
+    cleanup_preference: "none",
+    checkpoint_revision: "1",
+  };
+
+  assert.equal(validateState(base).executor_model, "xai-oauth/grok-4.5");
+  assert.equal(parseState(serializeState(base)).reviewer_model, "openai-codex/gpt-5.5:high");
+
+  for (const bad of ["task", "advisor", "gsdExecutor", "@gsdExecutor", "modelRoles.gsdReviewer", "pending", "unassigned"]) {
+    assert.throws(
+      () => validateState({ ...base, executor_model: bad }),
+      /executor_model|concrete|alias|selector/i,
+      `executor:${bad}`,
+    );
+    assert.throws(
+      () => validateState({ ...base, reviewer_model: bad }),
+      /reviewer_model|concrete|alias|selector/i,
+      `reviewer:${bad}`,
+    );
+  }
+
+  // Empty provider/model segments and malformed slash forms must fail closed (not merely "contains /").
+  for (const bad of ["/", "/model", "provider/", "//", "xai-oauth/", "/grok-4.5", "a//b", "a/b/c", " /x", "x/ ", "xai-oauth//grok-4.5"]) {
+    assert.throws(
+      () => validateState({ ...base, executor_model: bad }),
+      /executor_model|concrete|alias|selector/i,
+      `executor-malformed:${bad}`,
+    );
+    assert.throws(
+      () => validateState({ ...base, reviewer_model: bad }),
+      /reviewer_model|concrete|alias|selector/i,
+      `reviewer-malformed:${bad}`,
+    );
+  }
+
+  // Bound production selectors remain accepted.
+  assert.equal(validateState({ ...base, executor_model: "xai-oauth/grok-4.5", reviewer_model: "openai-codex/gpt-5.5:high" }).reviewer_model, "openai-codex/gpt-5.5:high");
+
+  assert.throws(
+    () => validateState({ ...base, executor_model: "same/model", reviewer_model: "same/model" }),
+    /distinct/i,
+  );
+
+  // Durable resume bytes with alias selectors fail closed.
+  const aliasBytes = serializeState(base).replace(
+    "executor_model:xai-oauth/grok-4.5",
+    "executor_model:task",
+  );
+  assert.throws(() => parseState(aliasBytes), /executor_model|concrete|alias|selector/i);
 });

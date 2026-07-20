@@ -38,7 +38,7 @@ Match exploration breadth to the prompt. Read the named area and direct dependen
 - Ask only when the answer changes behavior, scope, an interface, a destructive action, or a load-bearing tradeoff. Otherwise choose the conservative default and state it.
 - Right-size the result. Recommend the smallest design that satisfies the ask. Do not invent retries, telemetry, configuration, extensibility, or abstractions.
 - Preserve same-session continuity: settled decisions stay settled unless new evidence conflicts or the user reopens them.
-- Subjective visual judgment (layout, hierarchy, copy, interaction, responsive) → choose Manual UI Review Gate during planning; honor explicit enable/decline/request; ask if uncertain; technical UI/non-UI defaults off.
+- For any feature type, planning may use the post-plan `Build prototype with Lavish` action to clarify UI, API, CLI, workflow, data, or architecture intent before approval; prototype feedback revises the draft only.
 
 ## Acceptance and interface convergence
 
@@ -68,4 +68,4 @@ Do not create the ledger here. `gsd-to-plan` owns the canonical plan and binds a
 
 When requirements, tradeoffs, criteria, invariants, non-goals, and test seams are converged, load `gsd-to-plan` in its initial converged-creation or spec-gap-revision mode. Pass the conversational contract; write no Markdown yourself. `gsd-to-plan` remains the sole `plan.md` writer and the sole owner of the approval question.
 
-Before that transition, summarize the current recommendation and expose only the next human decision. Offer `gsd-lavish` only for a substantial reviewable deliverable when browser annotation adds value, and launch it only after explicit opt-in. Do not add a command menu or technical skill names as user choices.
+Before that transition, summarize the current recommendation and expose only the next human decision. After the plan is written, the post-plan surface owns `Build prototype with Lavish` for every feature type; do not add a separate command menu or technical skill names as user choices here.

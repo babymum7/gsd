@@ -93,11 +93,462 @@ Stop immediately on any malformed or ambiguous state, or if the intent is unrela
   return capsule;
 }
 
+
+const STATE_SCHEMA = 'v1';
+const STATE_FILE = 'state.toon';
+const ACTIVE_STATE_PHASES = Object.freeze([
+  'draft',
+  'approved',
+  'executing',
+  'paused',
+  'verifying',
+  'repair',
+  'merged-cleanup-pending',
+]);
+const COMPLETED_STATE_PHASES = Object.freeze(['completed-retained']);
+const ALL_STATE_PHASES = Object.freeze([...ACTIVE_STATE_PHASES, ...COMPLETED_STATE_PHASES]);
+
+const STATE_FIELD_ORDER = Object.freeze([
+  'schema',
+  'feature',
+  'phase',
+  'next_action',
+  'plan_path',
+  'plan_sha256',
+  'base_ref',
+  'wip_branch',
+  'last_green_task',
+  'last_green_commit',
+  'executor_model',
+  'reviewer_model',
+  'review_round',
+  'blocking_fingerprint',
+  'reviewed_commit',
+  'progress_status',
+  'autosync',
+  'ponytail_level',
+  'cleanup_preference',
+  'checkpoint_revision',
+]);
+
+const STATE_FIELD_SET = new Set(STATE_FIELD_ORDER);
+const LEGACY_STATE_KEYS = new Set([
+  'mode',
+  'manual_ui_review',
+  'executor_agent',
+  'reviewer_agent',
+  'executor_generation',
+  'reviewer_generation',
+  'reload',
+  'task_attempt',
+  'settings',
+]);
+
+const NONE = 'none';
+const FEATURE_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+const SHA256_RE = /^[a-f0-9]{64}$/;
+const COMMIT_RE = /^[a-f0-9]{40}$/;
+const TASK_RE = /^T[1-9]\d*$/;
+const AUTOSYNC_RE = /^(none|on|off)$/;
+const PONYTAIL_RE = /^(none|lite|full|ultra)$/;
+const CLEANUP_RE = /^(none|delete|retain|archive-and-delete)$/;
+const PROGRESS_RE = /^(none|advanced|blocked|pending)$/;
+
+function isNone(value) {
+  return value === NONE;
+}
+
+function requireScalar(value, field) {
+  if (typeof value !== 'string') {
+    throw new Error(`state.toon malformed: ${field} must be a string`);
+  }
+  if (value === '') {
+    throw new Error(`state.toon malformed: ${field} must not be empty`);
+  }
+  if (/[\r\n]/.test(value) || /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) {
+    throw new Error(`state.toon malformed: ${field} contains invalid characters`);
+  }
+  return value;
+}
+
+function parseState(content, label = 'state.toon') {
+  if (typeof content !== 'string') {
+    throw new Error(`${label}: content must be text`);
+  }
+  const normalized = content.replace(/\r\n/g, '\n');
+  if (normalized === '' || normalized.includes('\0')) {
+    throw new Error(`${label}: malformed empty or binary content`);
+  }
+  const lines = normalized.endsWith('\n')
+    ? normalized.slice(0, -1).split('\n')
+    : normalized.split('\n');
+  if (lines.length === 0 || (lines.length === 1 && lines[0] === '')) {
+    throw new Error(`${label}: malformed empty content`);
+  }
+
+  const fields = Object.create(null);
+  for (const line of lines) {
+    if (line === '') {
+      throw new Error(`${label}: blank lines are not allowed`);
+    }
+    const idx = line.indexOf(':');
+    if (idx <= 0) {
+      throw new Error(`${label}: malformed row: ${line}`);
+    }
+    const key = line.slice(0, idx);
+    const value = line.slice(idx + 1);
+    if (!STATE_FIELD_SET.has(key) && LEGACY_STATE_KEYS.has(key)) {
+      throw new Error(`${label}: legacy key rejected: ${key}`);
+    }
+    if (!STATE_FIELD_SET.has(key)) {
+      throw new Error(`${label}: unknown key: ${key}`);
+    }
+    if (Object.prototype.hasOwnProperty.call(fields, key)) {
+      throw new Error(`${label}: duplicate key: ${key}`);
+    }
+    if (value === '') {
+      throw new Error(`${label}: empty value for ${key}`);
+    }
+    fields[key] = value;
+  }
+
+  for (const key of STATE_FIELD_ORDER) {
+    if (!Object.prototype.hasOwnProperty.call(fields, key)) {
+      throw new Error(`${label}: missing required field: ${key}`);
+    }
+  }
+
+  // Enforce canonical order for durable snapshots.
+  const keys = Object.keys(fields);
+  for (let i = 0; i < STATE_FIELD_ORDER.length; i++) {
+    if (keys[i] !== STATE_FIELD_ORDER[i]) {
+      throw new Error(`${label}: fields must appear in canonical order`);
+    }
+  }
+
+  return validateState(fields, label);
+}
+
+
+function isConcreteModelSelector(value) {
+  if (typeof value !== 'string' || value === '' || value === NONE) return false;
+  if (value !== value.trim()) return false;
+  if (/[\r\n\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/.test(value)) return false;
+
+  const lowered = value.toLowerCase();
+  // Reject bare role aliases and built-in OMP generic roles; require a concrete provider/model selector.
+  if (
+    lowered === 'task' ||
+    lowered === 'advisor' ||
+    lowered === 'gsdexecutor' ||
+    lowered === 'gsdreviewer' ||
+    lowered === '@gsdexecutor' ||
+    lowered === '@gsdreviewer' ||
+    lowered === 'modelroles.gsdexecutor' ||
+    lowered === 'modelroles.gsdreviewer' ||
+    lowered === 'unassigned' ||
+    lowered === 'pending' ||
+    lowered === 'none'
+  ) {
+    return false;
+  }
+
+  // Concrete bound selectors: <provider>/<model> with optional :variant on the model.
+  // Both provider and model must be non-empty valid segments; reject bare "/", empty sides, and multi-slash forms.
+  // Examples accepted: xai-oauth/grok-4.5 , openai-codex/gpt-5.5:high
+  const CONCRETE_MODEL_SELECTOR_RE =
+    /^[A-Za-z0-9][A-Za-z0-9._-]*\/[A-Za-z0-9][A-Za-z0-9._-]*(?::[A-Za-z0-9][A-Za-z0-9._-]*)?$/;
+  return CONCRETE_MODEL_SELECTOR_RE.test(value);
+}
+
+function isValidWipBranch(wipBranch, feature) {
+  if (typeof wipBranch !== 'string' || typeof feature !== 'string') return false;
+  return wipBranch === `wip/${feature}`;
+}
+
+function validateState(input, label = 'state.toon') {
+  if (!input || typeof input !== 'object') {
+    throw new Error(`${label}: state must be an object`);
+  }
+  const state = Object.create(null);
+  for (const key of STATE_FIELD_ORDER) {
+    if (!Object.prototype.hasOwnProperty.call(input, key)) {
+      throw new Error(`${label}: missing required field: ${key}`);
+    }
+    state[key] = requireScalar(input[key], key);
+  }
+  for (const key of Object.keys(input)) {
+    if (!STATE_FIELD_SET.has(key)) {
+      if (LEGACY_STATE_KEYS.has(key)) {
+        throw new Error(`${label}: legacy key rejected: ${key}`);
+      }
+      throw new Error(`${label}: unknown key: ${key}`);
+    }
+  }
+
+  if (state.schema !== STATE_SCHEMA) {
+    throw new Error(`${label}: unsupported schema: ${state.schema}`);
+  }
+  if (!FEATURE_RE.test(state.feature) || Buffer.byteLength(state.feature, 'utf8') > 255) {
+    throw new Error(`${label}: invalid feature slug`);
+  }
+  if (!ALL_STATE_PHASES.includes(state.phase)) {
+    throw new Error(`${label}: unsupported phase: ${state.phase}`);
+  }
+  if (state.next_action !== NONE && state.next_action.trim() !== state.next_action) {
+    throw new Error(`${label}: invalid next_action`);
+  }
+
+  if (state.phase === 'draft') {
+    if (state.plan_path !== NONE || state.plan_sha256 !== NONE) {
+      throw new Error(`${label}: draft plan binding must be none`);
+    }
+    if (state.executor_model !== NONE || state.reviewer_model !== NONE) {
+      throw new Error(`${label}: draft model selectors must be none`);
+    }
+    if (state.base_ref !== NONE || state.wip_branch !== NONE) {
+      throw new Error(`${label}: draft git identity must be none`);
+    }
+    if (state.last_green_task !== NONE || state.last_green_commit !== NONE) {
+      throw new Error(`${label}: draft last-green fields must be none`);
+    }
+  } else {
+    if (state.plan_path === NONE || state.plan_sha256 === NONE) {
+      throw new Error(`${label}: approved phases require plan binding`);
+    }
+    if (!/^\.scratch\/[a-z0-9]+(?:-[a-z0-9]+)*\/plan\.md$/.test(state.plan_path)) {
+      throw new Error(`${label}: invalid plan_path`);
+    }
+    const planFeatureMatch = state.plan_path.match(/^\.scratch\/([a-z0-9]+(?:-[a-z0-9]+)*)\/plan\.md$/);
+    if (!planFeatureMatch || planFeatureMatch[1] !== state.feature) {
+      throw new Error(`${label}: plan_path feature mismatch`);
+    }
+    if (!SHA256_RE.test(state.plan_sha256)) {
+      throw new Error(`${label}: invalid plan_sha256`);
+    }
+    if (state.executor_model === NONE || state.reviewer_model === NONE) {
+      throw new Error(`${label}: model selectors required after approval`);
+    }
+    if (!isConcreteModelSelector(state.executor_model)) {
+      throw new Error(`${label}: executor_model must be a concrete bound model selector`);
+    }
+    if (!isConcreteModelSelector(state.reviewer_model)) {
+      throw new Error(`${label}: reviewer_model must be a concrete bound model selector`);
+    }
+    if (state.executor_model === state.reviewer_model) {
+      throw new Error(`${label}: executor and reviewer models must be distinct`);
+    }
+    if (state.base_ref === NONE || state.wip_branch === NONE) {
+      throw new Error(`${label}: git identity required after approval`);
+    }
+    if (!isValidWipBranch(state.wip_branch, state.feature)) {
+      throw new Error(`${label}: wip_branch feature mismatch`);
+    }
+  }
+
+  if (state.phase === 'completed-retained') {
+    if (state.next_action !== NONE) {
+      throw new Error(`${label}: completed-retained next_action must be none`);
+    }
+  } else if (isNone(state.next_action)) {
+    throw new Error(`${label}: next_action is required for phase ${state.phase}`);
+  }
+
+  if (state.last_green_task !== NONE && !TASK_RE.test(state.last_green_task)) {
+    throw new Error(`${label}: invalid last_green_task`);
+  }
+  if (state.last_green_commit !== NONE && !COMMIT_RE.test(state.last_green_commit)) {
+    throw new Error(`${label}: invalid last_green_commit`);
+  }
+  if ((state.last_green_task === NONE) !== (state.last_green_commit === NONE)) {
+    throw new Error(`${label}: last_green_task and last_green_commit must both be set or none`);
+  }
+
+  if (state.review_round !== NONE && !/^[1-9]\d*$/.test(state.review_round)) {
+    throw new Error(`${label}: invalid review_round`);
+  }
+  if (state.blocking_fingerprint !== NONE && !SHA256_RE.test(state.blocking_fingerprint)) {
+    throw new Error(`${label}: invalid blocking_fingerprint`);
+  }
+  if (state.reviewed_commit !== NONE && !COMMIT_RE.test(state.reviewed_commit)) {
+    throw new Error(`${label}: invalid reviewed_commit`);
+  }
+  if (!PROGRESS_RE.test(state.progress_status)) {
+    throw new Error(`${label}: invalid progress_status`);
+  }
+  if (!AUTOSYNC_RE.test(state.autosync)) {
+    throw new Error(`${label}: invalid autosync`);
+  }
+  if (!PONYTAIL_RE.test(state.ponytail_level)) {
+    throw new Error(`${label}: invalid ponytail_level`);
+  }
+  if (!CLEANUP_RE.test(state.cleanup_preference)) {
+    throw new Error(`${label}: invalid cleanup_preference`);
+  }
+  if (!/^[1-9]\d*$/.test(state.checkpoint_revision)) {
+    throw new Error(`${label}: invalid checkpoint_revision`);
+  }
+
+  // Repair/verifying may carry review progress; other phases keep none unless completed comparison retained.
+  if (['draft', 'approved', 'executing', 'paused'].includes(state.phase)) {
+    if (
+      state.review_round !== NONE ||
+      state.blocking_fingerprint !== NONE ||
+      state.reviewed_commit !== NONE ||
+      state.progress_status !== NONE
+    ) {
+      throw new Error(`${label}: review progress must be none before terminal phases`);
+    }
+  }
+
+  return state;
+}
+
+function serializeState(input) {
+  const state = validateState(input);
+  return STATE_FIELD_ORDER.map((key) => `${key}:${state[key]}`).join('\n') + '\n';
+}
+
+function readStateFile(statePath) {
+  let lst;
+  try {
+    lst = fs.lstatSync(statePath);
+  } catch {
+    throw new Error(`${statePath}: missing state.toon`);
+  }
+  if (lst.isSymbolicLink()) {
+    throw new Error(`${statePath}: symlink state.toon rejected`);
+  }
+  if (!lst.isFile()) {
+    throw new Error(`${statePath}: state.toon must be a regular file`);
+  }
+  const content = fs.readFileSync(statePath, 'utf8');
+  return parseState(content, statePath);
+}
+
+function sanitizeStateError(error, label = 'state.toon') {
+  const message = error && typeof error.message === 'string' ? error.message : 'invalid state';
+  const cleaned = message
+    .replace(/\r?\n/g, ' ')
+    .replace(/\/{2,}/g, '/')
+    .slice(0, 300);
+  if (
+    cleaned.startsWith(label) ||
+    cleaned.includes('state.toon') ||
+    cleaned.includes('featureDir')
+  ) {
+    return new Error(cleaned);
+  }
+  return new Error(`${label}: ${cleaned}`);
+}
+
+function resolveFeatureDirectory(featureDir, expectedFeature = null) {
+  if (typeof featureDir !== 'string' || featureDir === '') {
+    throw new Error('featureDir is required');
+  }
+  let lst;
+  try {
+    lst = fs.lstatSync(featureDir);
+  } catch {
+    throw new Error(`featureDir does not exist: ${featureDir}`);
+  }
+  if (lst.isSymbolicLink()) {
+    throw new Error(`featureDir symlink rejected: ${featureDir}`);
+  }
+  if (!lst.isDirectory()) {
+    throw new Error(`featureDir must be a directory: ${featureDir}`);
+  }
+
+  const absolute = path.resolve(featureDir);
+  const base = path.basename(absolute);
+  if (!FEATURE_RE.test(base) || Buffer.byteLength(base, 'utf8') > 255) {
+    throw new Error(`featureDir basename is not a safe feature slug: ${base}`);
+  }
+  if (expectedFeature != null && base !== expectedFeature) {
+    throw new Error(`featureDir basename/state.feature mismatch: ${base} != ${expectedFeature}`);
+  }
+
+  const parent = path.dirname(absolute);
+  let parentLst;
+  try {
+    parentLst = fs.lstatSync(parent);
+  } catch {
+    throw new Error(`featureDir parent is not accessible: ${parent}`);
+  }
+  if (parentLst.isSymbolicLink()) {
+    throw new Error(`featureDir parent symlink rejected: ${parent}`);
+  }
+  if (!parentLst.isDirectory() || path.basename(parent) !== '.scratch') {
+    throw new Error(`featureDir must be a real directory under .scratch: ${featureDir}`);
+  }
+  if (path.basename(path.resolve(parent)) !== '.scratch') {
+    throw new Error(`featureDir escapes .scratch: ${featureDir}`);
+  }
+
+  return { absolute, feature: base, scratchDir: path.resolve(parent) };
+}
+
+function writeStateAtomic(featureDir, input) {
+  const state = validateState(input);
+  const { absolute } = resolveFeatureDirectory(featureDir, state.feature);
+  if (state.plan_path !== NONE) {
+    const expectedPlan = `.scratch/${state.feature}/plan.md`;
+    if (state.plan_path !== expectedPlan) {
+      throw new Error(`state.toon plan_path must be ${expectedPlan}`);
+    }
+  }
+  const body = serializeState(state);
+  const target = path.join(absolute, STATE_FILE);
+  const temp = path.join(absolute, `.${STATE_FILE}.${process.pid}.${Date.now()}.tmp`);
+
+  let fd;
+  try {
+    try {
+      fd = fs.openSync(temp, 'w', 0o644);
+      fs.writeSync(fd, body, 0, 'utf8');
+      fs.fsyncSync(fd);
+    } finally {
+      if (fd !== undefined) {
+        try { fs.closeSync(fd); } catch { /* ignore */ }
+      }
+    }
+
+    fs.renameSync(temp, target);
+
+    try {
+      const dirFd = fs.openSync(absolute, 'r');
+      try {
+        fs.fsyncSync(dirFd);
+      } catch {
+        // Directory fsync is best-effort where unsupported.
+      } finally {
+        fs.closeSync(dirFd);
+      }
+    } catch {
+      // ignore directory open failures on exotic FS
+    }
+
+    const readBack = readStateFile(target);
+    if (serializeState(readBack) !== body) {
+      throw new Error(`${target}: read-back validation failed`);
+    }
+    return readBack;
+  } catch (error) {
+    try {
+      if (fs.existsSync(temp)) fs.unlinkSync(temp);
+    } catch {
+      // best-effort temp cleanup only inside the feature directory
+    }
+    throw sanitizeStateError(error, 'state.toon');
+  }
+}
+
 function detectCandidates(cwd) {
   const scratchDir = path.join(cwd, '.scratch');
   if (!fs.existsSync(scratchDir)) return [];
   try {
-    if (!fs.statSync(scratchDir).isDirectory()) return [];
+    const scratchLst = fs.lstatSync(scratchDir);
+    if (scratchLst.isSymbolicLink() || !scratchLst.isDirectory()) return [];
   } catch {
     return [];
   }
@@ -113,24 +564,60 @@ function detectCandidates(cwd) {
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const name = entry.name;
-    if (Buffer.byteLength(name, 'utf8') > 255 || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) continue;
+    if (Buffer.byteLength(name, 'utf8') > 255 || !FEATURE_RE.test(name)) continue;
+
+    const featureDir = path.join(scratchDir, name);
+    let featureMeta;
+    try {
+      featureMeta = resolveFeatureDirectory(featureDir, name);
+    } catch {
+      // Symlinked/unsafe dirs are ignored (not ordinary authority packets).
+      continue;
+    }
 
     let subEntries;
     try {
-      subEntries = fs.readdirSync(path.join(scratchDir, name), { withFileTypes: true });
+      subEntries = fs.readdirSync(featureMeta.absolute, { withFileTypes: true });
     } catch {
       continue;
     }
 
     let hasPlan = false;
-    let hasResult = false;
-    let hasHandoff = false;
+    let hasState = false;
     for (const subEntry of subEntries) {
       if (subEntry.name === 'plan.md' && subEntry.isFile()) hasPlan = true;
-      else if (subEntry.name === 'result.toon') hasResult = true;
-      else if (/^handoff-[1-9]\d*\.toon$/.test(subEntry.name) && subEntry.isFile()) hasHandoff = true;
+      else if (subEntry.name === STATE_FILE) {
+        if (typeof subEntry.isSymbolicLink === 'function' && subEntry.isSymbolicLink()) {
+          throw sanitizeStateError(new Error(`${name}: symlink state.toon rejected`), 'state.toon');
+        }
+        if (subEntry.isFile()) hasState = true;
+        else throw sanitizeStateError(new Error(`${name}: state.toon must be a regular file`), 'state.toon');
+      }
     }
-    if (hasPlan && !hasResult && hasHandoff) candidates.push(name);
+
+    // No state authority => ignore (legacy handoff-only, plan-only, etc.).
+    if (!hasPlan || !hasState) continue;
+
+    let state;
+    try {
+      state = readStateFile(path.join(featureMeta.absolute, STATE_FILE));
+    } catch (error) {
+      throw sanitizeStateError(error, `state.toon (${name})`);
+    }
+    if (state.feature !== name) {
+      throw sanitizeStateError(
+        new Error(`${name}: state.feature mismatch: ${state.feature}`),
+        'state.toon',
+      );
+    }
+    if (COMPLETED_STATE_PHASES.includes(state.phase)) continue;
+    if (!ACTIVE_STATE_PHASES.includes(state.phase)) {
+      throw sanitizeStateError(
+        new Error(`${name}: unsupported active phase ${state.phase}`),
+        'state.toon',
+      );
+    }
+    candidates.push(name);
   }
   return candidates.sort();
 }
@@ -407,7 +894,9 @@ function gsdContextExtension(pi) {
 }
 
 export {
+  ACTIVE_STATE_PHASES,
   CAPSULE_TEMPLATE,
+  COMPLETED_STATE_PHASES,
   createBootstrap,
   createCapsule,
   detectCandidates,
@@ -415,6 +904,11 @@ export {
   firstNonCompactionSummaryIndex,
   messageContainsBootstrap,
   parseSkillMetadata,
+  parseState,
+  readStateFile,
+  serializeState,
+  validateState,
+  writeStateAtomic,
 };
 
 export default gsdContextExtension;

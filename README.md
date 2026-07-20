@@ -54,12 +54,13 @@ flowchart LR
 ```
 
 1. **Discovery.** `gsd-brainstorming` explores only the relevant code, exposes risks and missing decisions, and converges on the smallest sufficient contract. Large work is split into independently deliverable milestones.
-2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with observable acceptance criteria, exact task ownership, interfaces, focused checks, and a SHA-256 binding. Approval writes the first immutable execution handoff.
-3. **Execution.** `gsd-executing-plans` creates `wip/<feature>`, dispatches bounded task attempts, loads `gsd-tdd` for observable work, enforces Fast TDD Checks (RED→GREEN→refactor; no browser/resource-heavy task loops), uses executor fast-green evidence for task boundaries without per-task `gsdReviewer`, records reporting-only evidence, commits green work, and writes the next immutable handoff.
-4. **Verification.** `gsd-verify` runs the complete feature-affected slow suite only after all tasks and fast checks pass, then dispatches `gsdReviewer` for whole-diff terminal review only after that suite is green; repair is source-first with smallest-affected and progress-guarded slow-suite/re-review loops. A red gate blocks merging.
-Manual UI Review is optional: planning asks only when visual judgment is material, while an explicit request may enable `manual_ui_review,on` during execution. When enabled, the Manual UI Review Gate pauses once after all task Fast TDD Checks are green and before Deferred Slow E2E; confirmation leads to the existing slow suite and whole-diff terminal review, never replaces either, and in-scope feedback follows source-first repair.
+2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with observable acceptance criteria, exact task ownership, interfaces, focused checks, and a SHA-256 binding. The single post-plan action surface offers approve and execute, Build prototype with Lavish, revise, and pause/save. Approval writes atomic `.scratch/<feature>/state.toon`.
+3. **Execution.** `gsd-executing-plans` creates `wip/<feature>`, dispatches validated task slices from the plan, loads `gsd-tdd` for observable work, enforces Fast TDD Checks (RED→GREEN→refactor; no browser/resource-heavy task loops), uses executor fast-green evidence for task boundaries without per-task `gsdReviewer`, records reporting-only evidence, commits green work, and checkpoints `state.toon`.
+4. **Verification.** `gsd-verify` runs the complete feature-affected slow suite only after all tasks and fast checks pass, then dispatches `gsdReviewer` for whole-diff terminal review only after that suite is green; repair is source-first with smallest-affected and progress-guarded slow-suite/re-review loops. A red gate blocks merging. Scratch auto-deletes after a green merge unless retain or archive-and-delete was explicitly selected before final review.
 
-A pause writes `.scratch/<feature>/handoff-<n>.toon`. A later “Continue the active feature” validates the packet, its Markdown bindings, and Git state before resuming exactly one next action. Malformed, ambiguous, or hash-mismatched state stops instead of reconstructing requirements from memory.
+Planning may Build prototype with Lavish for any feature type before approval; annotations return to `gsd-to-plan` and may revise the draft. Prototype sessions never become implementation evidence or terminal acceptance. There is no terminal pre-E2E visual pause.
+
+A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active feature” validates the packet, its Markdown bindings, and Git state before resuming exactly one next action. Malformed, ambiguous, or hash-mismatched state stops instead of reconstructing requirements from memory.
 
 ## Other intent-driven behavior
 
@@ -71,7 +72,7 @@ A pause writes `.scratch/<feature>/handoff-<n>.toon`. A later “Continue the ac
 | “Why does X crash?” | Feedback-loop-first diagnosis with `gsd-diagnosing-bugs`. |
 | “Design the public interface for X” | Interface and module design with `gsd-codebase-design`. |
 | “Audit the architecture” | Deepening scan with `gsd-improve-codebase-architecture`. |
-| “Pause and save progress” | Validated handoff through `gsd-handoff`. |
+| “Pause and save progress” | Validated `state.toon` checkpoint through `gsd-handoff`. |
 | “Continue the active feature” | Validated resume through `gsd-handoff`. |
 
 Missing consumed artifacts do not trigger improvisation. The selected skill returns control to automatic selection or the recorded active owner with an actionable stop or transition.
@@ -79,8 +80,8 @@ Missing consumed artifacts do not trigger improvisation. The selected skill retu
 ## Dual-Agent Model Roles
 
 GSD relies on two dedicated custom role bindings configured in global `~/.omp/agent/config.yml` or overridden locally in project `.omp/config.yml`:
-- `modelRoles.gsdExecutor`: Binds the persistent primary executor (`gsd-executor` agent via `@gsdExecutor`) that performs task implementation, runs focused checks, and carries out self-verification.
-- `modelRoles.gsdReviewer`: Binds the independent persistent reviewer (`gsd-reviewer` agent via `@gsdReviewer`) that performs whole-diff terminal review and re-verification.
+- `modelRoles.gsdExecutor`: Binds the executor model selector (`gsd-executor` agent via `@gsdExecutor`) that performs task implementation, runs focused checks, and carries out self-verification. Live agent identity is process-local and recreated from the selector after a session boundary.
+- `modelRoles.gsdReviewer`: Binds the independent reviewer model selector (`gsd-reviewer` agent via `@gsdReviewer`) that performs whole-diff terminal review and re-verification. Live agent identity is process-local.
 
 ### Configuration Examples
 
@@ -103,10 +104,10 @@ Project `.omp/config.yml` settings take precedence over global `~/.omp/agent/con
 ## State and repository layout
 
 - `.scratch/` is ignored and machine-local by default.
-- `plan.md` remains the human-readable pre-approval authority. Immutable TOON records bind its bytes and carry runtime progress; they do not replace its design authority.
+- `plan.md` remains the human-readable pre-approval authority. The atomic `state.toon` snapshot binds its bytes and carries runtime progress; it does not replace design authority.
 - Each feature executes on `wip/<feature>` and reaches the base branch as one squash commit.
 - Durable multi-milestone publication uses `docs/gsd/<feature>/milestones.md`; final completion removes the ledger in the same green squash.
-- A portable pause can explicitly synchronize committed WIP state and scratch data. Dirty-path snapshots require explicit consent; automatic context-pressure handoffs stay local.
+- A portable pause can explicitly synchronize committed WIP state and the exact feature scratch packet (`plan.md`, `state.toon`, promoted prototype refs). Dirty-path snapshots require explicit consent; automatic context-pressure checkpoints stay local.
 
 ```text
 extensions/
