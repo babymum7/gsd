@@ -35,7 +35,7 @@ When a durable domain signal already appears, read `docs/domain/index.md` and on
 
 
 ## 2. Present candidates — terminal default, lavish offer when eligible
-Do NOT write manual HTML. Present candidates in the terminal by default. Before plan approval, when the audit/comparison is offer-eligible and both Fire gate checks in [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish opt-in gate taxonomy hold (and post-approval pipeline no-offer mode is not active), MUST surface the lavish option folded into the presentation—never a second prompt. Offer ≠ launch: launch `gsd-lavish` only after explicit opt-in; otherwise keep terminal prose.
+Do NOT write manual HTML. Present candidates in the terminal by default. Before plan approval, when the audit/comparison is offer-eligible and both Fire gate checks in [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish opt-in gate taxonomy hold, MUST surface the lavish option folded into the presentation—never a second prompt. Ordinary post-approval task-loop progress has no architecture Lavish offer; Terminal Visual Review is owned by `gsd-verify` after reviewer PASS. Offer ≠ launch: launch `gsd-lavish` only after explicit opt-in; otherwise keep terminal prose.
 
 Each candidate carries: recommendation strength (`Strong`/`Worth exploring`/`Speculative`) + dependency category (`in-process`/`local-substitutable`/`remote but owned`/`true external`), the files, a before/after sketch, the friction (one sentence), the deepen plan (one sentence), wins in exact glossary terms (locality, leverage, testability), and a decision callout if reopening one. Terminal renders this as prose/Mermaid.
 

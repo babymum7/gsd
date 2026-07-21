@@ -1141,7 +1141,7 @@ test("T2 state.toon contract and skill derivation", () => {
   assert.match(execution, /validated task slice/);
   assert.match(execution, /Do not write task-attempt TOON files/);
   assert.match(verify, /phase=merged-cleanup-pending|merged-cleanup-pending/);
-  assert.match(verify, /There is no terminal pre-E2E visual pause/);
+  assert.match(verify, /Terminal Visual Review|Visualize completed work with Lavish/);
   assert.match(master, /state\.toon/);
   assert.match(master, /Build prototype with Lavish/);
   assert.doesNotMatch(master, /result\.toon/);
@@ -1742,8 +1742,9 @@ test("AC-optional: planning prototype replaces Manual UI Review", () => {
   assert.match(toPlan, /launch consent/);
   assert.doesNotMatch(toPlan, /Manual UI Review Gate/i);
 
-  assert.match(verify, /There is no terminal pre-E2E visual pause/);
-  assert.match(execution, /There is no terminal pre-E2E visual pause/);
+  assert.doesNotMatch(verify, /There is no terminal pre-E2E visual pause/);
+  assert.doesNotMatch(execution, /There is no terminal pre-E2E visual pause/);
+  assert.doesNotMatch(readme, /There is no terminal pre-E2E visual pause/);
   assert.doesNotMatch(execution, /manual_ui_review,on/);
   assert.doesNotMatch(handoff, /manual_ui_review,on/);
   assert.doesNotMatch(reference, /manual_ui_review,on/);
@@ -1751,10 +1752,11 @@ test("AC-optional: planning prototype replaces Manual UI Review", () => {
 
   assert.match(reference, /Planning Prototype Session/);
   assert.match(reference, /Build prototype with Lavish/);
-  assert.match(domain, /### D-gsd-9: Keep Lavish prototypes pre-approval and reference-only/);
+  assert.match(domain, /### D-gsd-9: Separate planning prototypes from terminal implementation review/);
   assert.match(readme, /Build prototype with Lavish/);
   assert.match(lavish, /Planning prototype|Build prototype with Lavish/);
   assert.match(execution, /post-approval prototype request is Spec escalation/i);
+  assert.match(toPlan, /1\. Approve and execute[\s\S]*2\. Build prototype with Lavish[\s\S]*3\. Revise the plan[\s\S]*4\. Pause/);
 });
 
 test("AC-4: hidden bootstrap uses state.toon and prototype surface", () => {
@@ -2252,4 +2254,256 @@ test("AC-4 repair: executing task-repair reports grammar", () => {
   );
   assert.doesNotMatch(execution, /re-enters review/i);
   assert.doesNotMatch(execution, /re-enter review/i);
+});
+
+test("terminal-review-flow AC-1: enter terminal review only after all tasks", () => {
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
+  const master = read("skills/gsd/SKILL.md");
+
+  // Intermediate green task checkpoints stay on start/continue task
+  assert.match(
+    execution,
+    /Record completion by atomically updating `state\.toon` with the completed task \(`last_green_task` \/ `last_green_commit`\) and `next_action` set to `start\/continue task`/,
+  );
+  assert.match(
+    execution,
+    /(?:Only after|only after) (?:every|all) non-superseded tasks?(?: and (?:their |its )?Fast TDD Checks)? are green[\s\S]{0,200}`next_action` set to `enter terminal verification\/repair`/i,
+  );
+  assert.match(
+    reference,
+    /After green Fast TDD Checks, update `state\.toon` with the completed task and keep `next_action` set to `start\/continue task`/,
+  );
+  assert.match(
+    reference,
+    /(?:Only after|When) every non-superseded task is complete[\s\S]{0,160}`enter terminal verification\/repair`/i,
+  );
+
+  // Negative: reject root per-task gsd-verify invocation after every task
+  assert.doesNotMatch(
+    execution,
+    /After every non-superseded task and green Fast TDD Checks[\s\S]{0,160}invoke `gsd-verify`/,
+  );
+  assert.doesNotMatch(
+    execution,
+    /After every non-superseded task[\s\S]{0,80}invoke `gsd-verify`/,
+  );
+  assert.doesNotMatch(execution, /Do not dispatch `gsdReviewer` per task[\s\S]{0,400}After every non-superseded task and green Fast TDD Checks, update `state\.toon` for terminal entry/);
+
+  // One cumulative terminal review only after all tasks
+  assert.match(execution, /one cumulative|cumulative (?:whole-diff |terminal )?review/i);
+  assert.match(verify, /after all tasks and [Ff]ast (?:TDD )?[Cc]hecks are green/i);
+  assert.match(domain, /Do not dispatch `gsdReviewer` per task/);
+  assert.match(master, /terminal whole-diff `gsdReviewer`|whole-diff review/i);
+  assert.match(reference, /Do not load `gsd-verify` and do not dispatch `gsdReviewer` for task repair/);
+});
+
+test("terminal-review-flow AC-2: cumulative coverage manifest and quality", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reviewer = read("agents/gsd-reviewer.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
+  const readme = read("README.md");
+
+  assert.match(verify, /reporting-only coverage manifest/i);
+  assert.match(reviewer, /reporting-only coverage manifest/i);
+  assert.match(domain, /reporting-only coverage manifest/i);
+  assert.match(
+    verify,
+    /ordered task-to-commit mapping|task-to-commit mapping[\s\S]{0,80}owned paths[\s\S]{0,80}(?:active )?(?:ACs|criteria)/i,
+  );
+  assert.match(reviewer, /every changed human-written line/i);
+  assert.match(domain, /every changed human-written line/i);
+  assert.match(
+    reviewer,
+    /(?:cross-boundary|public or cross-boundary)[\s\S]{0,80}(?:consumers|dispatch points)/i,
+  );
+  assert.match(domain, /consumers and dispatch points/i);
+  assert.match(reviewer, /navigation context|never separate verdicts|no per-commit verdicts/i);
+  assert.match(domain, /never separate verdicts|navigation context/i);
+  assert.match(reviewer, /one (?:structured )?batch|all (?:structured )?findings in one/i);
+  assert.match(domain, /one batch/i);
+  assert.match(verify, /cumulative (?:whole(?:-|\s)?diff|WIP) diff|base\.\.\.HEAD|whole WIP diff/i);
+  assert.match(reference, /coverage manifest|every changed human-written line/i);
+  assert.match(readme, /coverage manifest|cumulative whole-diff|whole-diff terminal review/i);
+  assert.doesNotMatch(reviewer, /per-commit verdict/i);
+  assert.doesNotMatch(verify, /per-task verdict|verdict per task/i);
+});
+
+test("terminal-review-flow AC-3: opt-in terminal visual surface after PASS", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
+  const lavish = read("skills/gsd-lavish/SKILL.md");
+  const readme = read("README.md");
+  const master = read("skills/gsd/SKILL.md");
+  const toPlan = read("skills/gsd-to-plan/SKILL.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+
+  assert.match(verify, /Terminal Visual Review|Visualize completed work with Lavish/);
+  assert.match(verify, /Continue to Deferred Slow E2E/);
+  assert.match(verify, /Visualize completed work with Lavish/);
+  assert.match(
+    verify,
+    /UI\/UX[\s\S]{0,160}(?:always|mandatory)[\s\S]{0,120}(?:offer|surface|Visualize)/i,
+  );
+  assert.match(
+    verify,
+    /eligible (?:substantial )?(?:non-UI |completed )?deliverable|substantial completed deliverable/i,
+  );
+  assert.match(
+    verify,
+    /ineligible[\s\S]{0,120}(?:without a visual|no visual|proceeds without)/i,
+  );
+  assert.match(
+    verify,
+    /Continue to Deferred Slow E2E[\s\S]{0,200}(?:does not launch|without launching) Lavish/i,
+  );
+  assert.match(domain, /### D-gsd-9: Separate planning prototypes from terminal implementation review/);
+  assert.match(domain, /Terminal Visual Review/);
+  assert.match(reference, /Terminal Visual Review/);
+  // Canonical dispatch authority: gsd-lavish matrix requires Terminal Visual Review after reviewer PASS
+  {
+    const matrixSection = reference.match(
+      /## Visible skill mandatory-use matrix\n+([\s\S]*?)(?:\n## |\n### |\n*$)/,
+    );
+    assert.ok(matrixSection, "REFERENCE must define ## Visible skill mandatory-use matrix");
+    const lavishRow = [...matrixSection[1].matchAll(
+      /^\| `(gsd-[a-z0-9-]+)` \| (owner|helper) \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$/gm,
+    )].map((m) => ({
+      skill: m[1],
+      intent: m[3].trim(),
+      prerequisites: m[4].trim(),
+      doNotLoad: m[5].trim(),
+      helperWhen: m[7].trim(),
+    })).find((r) => r.skill === "gsd-lavish");
+    assert.ok(lavishRow, "matrix must include gsd-lavish");
+    assert.match(lavishRow.intent, /Terminal Visual Review/i);
+    assert.match(
+      lavishRow.prerequisites,
+      /Terminal Visual Review[\s\S]{0,120}after reviewer PASS|after reviewer PASS[\s\S]{0,120}Terminal Visual Review/i,
+    );
+    assert.match(
+      lavishRow.helperWhen,
+      /selects Terminal Visual Review after reviewer PASS|Terminal Visual Review[\s\S]{0,80}after reviewer PASS/i,
+    );
+    assert.match(lavishRow.doNotLoad, /Automatic launch/i);
+    assert.match(lavishRow.doNotLoad, /inline Q&A/i);
+    assert.match(lavishRow.doNotLoad, /post-approval prototype gate/i);
+  }
+  assert.match(lavish, /Terminal Visual Review/);
+  assert.match(readme, /Terminal Visual Review|Visualize completed work with Lavish/);
+  // README must not weaken UI/UX offer to permissive "may offer"
+  assert.match(
+    readme,
+    /UI\/UX[\s\S]{0,120}always (?:receives|receive)[\s\S]{0,80}(?:offer|surface)|always (?:receives|receive)[\s\S]{0,80}UI\/UX/i,
+  );
+  assert.match(
+    readme,
+    /eligible (?:substantial )?(?:non-UI |completed )?deliverable[\s\S]{0,100}(?:same surface|receives the same)|substantial[\s\S]{0,40}non-UI[\s\S]{0,80}(?:same surface|offer)/i,
+  );
+  assert.match(
+    readme,
+    /ineligible[\s\S]{0,100}(?:without a visual|no visual|proceeds without)/i,
+  );
+  assert.doesNotMatch(
+    readme,
+    /eligible work may offer|gsd-verify may offer Terminal Visual Review[\s\S]{0,80}for UI\/UX/i,
+  );
+  assert.match(master, /Terminal Visual Review|optional Terminal Visual|opt-in.*Lavish/i);
+  // Planning surface stays the exact four options; prototypes remain separate
+  assert.match(toPlan, /1\. Approve and execute/);
+  assert.match(toPlan, /2\. Build prototype with Lavish/);
+  assert.match(toPlan, /3\. Revise the plan/);
+  assert.match(toPlan, /4\. Pause/);
+  assert.match(execution, /post-approval prototype request is Spec escalation/i);
+  assert.doesNotMatch(verify, /There is no terminal pre-E2E visual pause/);
+  assert.doesNotMatch(execution, /There is no terminal pre-E2E visual pause/);
+  assert.doesNotMatch(readme, /There is no terminal pre-E2E visual pause/);
+  assert.doesNotMatch(reference, /no terminal visual gate/);
+});
+
+test("terminal-review-flow AC-4: actual implementation visual feedback loop", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const lavish = read("skills/gsd-lavish/SKILL.md");
+  const domain = read("docs/domain/gsd.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+
+  assert.match(
+    lavish,
+    /actual completed implementation|real implementation evidence|completed implementation evidence/i,
+  );
+  assert.match(
+    verify,
+    /actual completed implementation|real implementation evidence|completed implementation evidence/i,
+  );
+  assert.match(
+    lavish,
+    /loading[\s\S]{0,40}empty[\s\S]{0,40}error|routes?[\s\S]{0,80}responsive/i,
+  );
+  assert.match(
+    verify,
+    /in-scope (?:feedback|annotations)[\s\S]{0,160}(?:executor|persistent gsd-executor)/i,
+  );
+  assert.match(
+    verify,
+    /(?:Spec escalation|Discussion\/Spec-escalation)[\s\S]{0,80}(?:scope|acceptance|interface|invariant)|(?:scope|acceptance|interface|invariant)[\s\S]{0,120}Spec escalation/i,
+  );
+  assert.match(
+    verify,
+    /Deferred Slow E2E[\s\S]{0,160}(?:explicit visual acceptance|visual acceptance)|(?:explicit visual acceptance|visual acceptance)[\s\S]{0,160}Deferred Slow E2E/i,
+  );
+  assert.match(
+    verify,
+    /Unavailable Lavish|Lavish (?:is )?unavailable|degrades? to (?:equivalent )?terminal/i,
+  );
+  assert.match(domain, /actual completed implementation|render the actual completed implementation/i);
+  assert.match(domain, /Spec escalation/);
+  assert.match(reference, /actual completed implementation|Terminal Visual Review/i);
+  assert.match(lavish, /never become(?:s)? execution authority|Planning prototype[\s\S]{0,120}never/i);
+  assert.doesNotMatch(lavish, /Do-not-load:[\s\S]{0,80}post-approval terminal visual gate/);
+  assert.match(execution, /Planning Prototype|prototype request is Spec escalation/i);
+});
+
+test("terminal-review-flow AC-5: same-commit resume invalidation and merge gates", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
+  const readme = read("README.md");
+
+  assert.match(
+    verify,
+    /(?:canonical|opaque) `next_action`|opaque `next_action` values|phase` and opaque `next_action`/i,
+  );
+  assert.match(
+    reference,
+    /`enter terminal verification\/repair`[\s\S]{0,200}(?:visual|Deferred Slow E2E|gsd-lavish)/i,
+  );
+  assert.match(
+    verify,
+    /(?:changed bytes|Any changed bytes)[\s\S]{0,200}(?:invalidate|invalidates)[\s\S]{0,120}(?:visual acceptance|reviewer PASS)/i,
+  );
+  assert.match(
+    domain,
+    /changed bytes[\s\S]{0,160}(?:invalidate|invalidates|require)[\s\S]{0,120}(?:visual acceptance|reviewer PASS)/i,
+  );
+  assert.match(
+    verify,
+    /[Mm]erge requires reviewer PASS and (?:the )?complete (?:feature-affected )?(?:slow(?:\/E2E)? suite|slow\/E2E) GREEN on the same (?:unchanged )?commit/i,
+  );
+  assert.match(
+    verify,
+    /(?:selected )?visual acceptance[\s\S]{0,120}same (?:unchanged )?commit|same (?:unchanged )?commit[\s\S]{0,120}(?:selected )?visual acceptance/i,
+  );
+  assert.match(
+    domain,
+    /Merge requires reviewer PASS, selected visual acceptance when applicable, and complete slow\/E2E GREEN on the same unchanged commit/,
+  );
+  assert.match(readme, /visual acceptance|Terminal Visual Review/i);
+  assert.match(reference, /same unchanged commit/i);
+  assert.doesNotMatch(reference, /visual_review_|terminal_visual_/);
+  assert.doesNotMatch(verify, /add(?:s|ing)? (?:a )?new `state\.toon` field|visual-result artifact/i);
 });

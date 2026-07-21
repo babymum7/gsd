@@ -1,7 +1,7 @@
 ---
 name: gsd-lavish
-description: "Use after the user opts into a visual review of a substantial completed deliverable, or when planning chooses Build prototype with Lavish on the post-plan surface. Do not use for inline questions and answers or automatically launch a browser."
-triggers: explicit visual-review opt-in for an eligible completed deliverable; post-plan Build prototype with Lavish
+description: "Use after the user opts into a visual review of a substantial completed deliverable, when planning chooses Build prototype with Lavish on the post-plan surface, or when Terminal Visual Review selects Visualize completed work with Lavish after reviewer PASS. Do not use for inline questions and answers or automatically launch a browser."
+triggers: explicit visual-review opt-in for an eligible completed deliverable; post-plan Build prototype with Lavish; Terminal Visual Review after reviewer PASS
 produces: []
 consumes: []
 ---
@@ -9,13 +9,13 @@ consumes: []
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: helper
-- Helper-when: must load when the user opts into visual review of an eligible deliverable or chooses Build prototype with Lavish; cannot be skipped while that condition holds
-- Do-not-load: automatic launch; inline Q&A; post-approval terminal visual gate
+- Helper-when: must load when the user opts into visual review of an eligible deliverable, chooses Build prototype with Lavish, or selects Terminal Visual Review (`Visualize completed work with Lavish`) after reviewer PASS; cannot be skipped while that condition holds
+- Do-not-load: automatic launch; inline Q&A; forcing visual acceptance for ineligible non-UI work
 - Transition: return annotations to the parent owner
 
 # Lavish
 
-> **Invocation guard** — load after explicit opt-in for an eligible completed deliverable, or after the post-plan `Build prototype with Lavish` choice (launch consent). Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation. Planning-prototype mode treats the draft plan as interaction input and returns annotations to `gsd-to-plan`; it never becomes execution or terminal acceptance authority. If the caller-supplied deliverable is absent, stop with a concise terminal prerequisite message and the natural-language next action to produce or select one; do not reload the hidden master or start another owner from this invocation, and do not invent content.
+> **Invocation guard** — load after explicit opt-in for an eligible completed deliverable, after the post-plan `Build prototype with Lavish` choice (launch consent), or after Terminal Visual Review selection (`Visualize completed work with Lavish`) following cumulative reviewer PASS. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation. Planning-prototype mode treats the draft plan as interaction input and returns annotations to `gsd-to-plan`; it never becomes execution or terminal acceptance authority. Terminal Visual Review mode consumes actual completed implementation evidence for the reviewed bytes and returns annotations to `gsd-verify`; planning prototypes, mocks, and stale screenshots never satisfy terminal acceptance. If the caller-supplied deliverable is absent, stop with a concise terminal prerequisite message and the natural-language next action to produce or select one; do not reload the hidden master or start another owner from this invocation, and do not invent content.
 
 ## Invocation modes
 
@@ -23,8 +23,10 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 |---|---|---|---|---|
 | Opt-in visual review | User acceptance; eligible completed deliverable | Browser capability | — | Missing opt-in or ineligible deliverable: stay in terminal prose |
 | Planning prototype | Draft `plan.md`; Build prototype consent | Browser capability; promoted prototype refs | optional `.scratch/<feature>/prototype/` refs | Unavailable Lavish degrades to terminal without blocking planning |
+| Terminal Visual Review | Reviewer PASS; user selects `Visualize completed work with Lavish`; actual completed implementation evidence | Browser capability | — | Unavailable Lavish degrades to equivalent terminal review without blocking the deliverable; planning prototypes/mocks never satisfy this mode |
 
 Render a substantial deliverable as a reviewable HTML artifact the user annotates and feeds back on. Heavyweight (HTML artifact + local express server + browser surface + long-poll loop) — fire only under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Lavish opt-in gate taxonomy.
+For Terminal Visual Review, present real implementation evidence for relevant routes, loading, empty, error, disabled, focus, interaction, and responsive states where applicable. Never substitute a planning prototype, generated mockup, or stale screenshot for actual completed implementation evidence.
 
 The input is a caller-supplied completed deliverable; its source remains read-only and producer-owned. Lavish writes only a git-ignored `.gsd-lavish/` session artifact for browser review after verifying the target project's local ignore boundary, and never edits, replaces, or claims ownership of the source. The frontmatter catalogs stay empty because interaction input and session artifacts are not repository artifacts: keep `produces: []` and `consumes: []`.
 
