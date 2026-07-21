@@ -39,7 +39,7 @@ Read `plan.md` task headings in order. Use only valid bound `state.toon` plus Gi
 
 In `Milestone plan execution`, keep the authoritative ledger byte-for-byte read-only throughout the per-task loop. Revalidate that the selected milestone is still the matching first-pending row before every dispatch and pass that identity to `gsd-verify`; execution never marks a row `done` or deletes the ledger.
 
-After every non-superseded task and green Fast TDD Checks, update `state.toon` for terminal entry with `next_action` set to `enter terminal verification/repair`; invoke `gsd-verify`. There is no terminal pre-E2E visual pause. Execution stays automatic through Fast TDD, Deferred Slow E2E, and whole-diff review. Explicit retain or archive-and-delete may be recorded in `cleanup_preference` before final review; otherwise scratch auto-deletes after green merge. Scope/AC/interface/invariant changes escalate to `Discussion/Spec-escalation`.
+After every non-superseded task and green Fast TDD Checks, update `state.toon` for terminal entry with `next_action` set to `enter terminal verification/repair`; invoke `gsd-verify`. There is no terminal pre-E2E visual pause. Execution stays automatic through Fast TDD, whole-diff review, and Deferred Slow E2E. Explicit retain or archive-and-delete may be recorded in `cleanup_preference` before final review; otherwise scratch auto-deletes after green merge. Scope/AC/interface/invariant changes escalate to `Discussion/Spec-escalation`.
 
 ## Auto-pilot
 

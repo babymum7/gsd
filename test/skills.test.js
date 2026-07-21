@@ -1596,10 +1596,12 @@ test("AC-1: Fast TDD is mandatory for observable tasks", () => {
   assert.match(reviewer, /terminal/i);
 });
 
-test("AC-2: Terminal slow E2E and whole-diff review are progress-guarded", () => {
+test("AC-2: Terminal whole-diff review precedes slow E2E with same-commit gates", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
   const verify = read("skills/gsd-verify/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
+  const master = read("skills/gsd/SKILL.md");
+  const executor = read("agents/gsd-executor.md");
   const reviewer = read("agents/gsd-reviewer.md");
   const readme = read("README.md");
   const domain = read("docs/domain/gsd.md");
@@ -1608,40 +1610,118 @@ test("AC-2: Terminal slow E2E and whole-diff review are progress-guarded", () =>
   assert.match(execution, /Do not dispatch `gsdReviewer` per task/i);
   assert.match(execution, /task boundary (?:is )?based on executor fast-green evidence/i);
   assert.doesNotMatch(execution, /dispatches the persistent gsd-reviewer agent \(reusing the same gsd-reviewer session with the bound reviewer model from `modelRoles\.gsdReviewer`\) against the task diff/);
-  assert.doesNotMatch(execution, /Never run browser\/resource-heavy\/slow suites in the task loop[\s\S]*dispatches the persistent gsd-reviewer agent against the task diff/);
   assert.match(reference, /No browser, GUI, external network, long-lived server, large fixture, or material cost may run in an implementation task loop/);
   assert.match(reference, /Do not dispatch `gsdReviewer` per task/i);
-
-  // Terminal order: all tasks/fast green → complete feature-affected slow suite → whole-diff review
-  assert.match(verify, /complete feature-affected slow suite/i);
-  assert.match(verify, /only after (?:all )?(?:tasks and )?fast checks? (?:pass|are green)/i);
-  assert.match(verify, /whole(?:-|\s)?diff review only after the complete feature-affected slow suite is green/i);
-  assert.match(reference, /complete feature-affected slow suite/i);
-  assert.match(reference, /whole(?:-|\s)?diff review only after/i);
   assert.match(domain, /Do not dispatch `gsdReviewer` per task/i);
-  assert.match(domain, /complete feature-affected slow suite/i);
 
-  // Reviewer agent is terminal whole-diff only
+  // Executor stays on deterministic local fast checks, including fast acceptance/contract
+  assert.match(executor, /deterministic local (?:unit|integration|CLI|contract|fast)/i);
+  assert.match(executor, /never run (?:browser|resource-heavy|slow|whole-acceptance|E2E)/i);
+  assert.match(executor, /fast acceptance|contract/i);
+  assert.doesNotMatch(executor, /it never runs acceptance checks/i);
+  assert.doesNotMatch(execution, /it never runs acceptance checks/i);
+
+  // Exact terminal order: all tasks/fast green → whole-diff review/parent-mediated repair → reviewer PASS on C → full slow/E2E on C → merge only if both green and commit unchanged
+  assert.match(verify, /all tasks and [Ff]ast (?:TDD )?[Cc]hecks are green/i);
+  assert.match(
+    verify,
+    /whole(?:-|\s)?diff review[\s\S]{0,220}(?:before|prior to)[\s\S]{0,80}(?:complete feature-affected slow|Deferred Slow E2E|slow\/E2E)/i,
+  );
+  assert.match(
+    verify,
+    /(?:complete feature-affected slow(?:\/E2E)? suite|Deferred Slow E2E).{0,160}only after reviewer PASS/i,
+  );
+  assert.match(verify, /same (?:unchanged )?commit/i);
+  assert.match(
+    verify,
+    /[Mm]erge requires reviewer PASS and (?:the )?complete (?:feature-affected )?(?:slow(?:\/E2E)? suite|slow\/E2E) GREEN on the same (?:unchanged )?commit/i,
+  );
+  assert.match(reference, /whole(?:-|\s)?diff review[\s\S]{0,220}(?:before|prior to)[\s\S]{0,80}(?:complete feature-affected slow|Deferred Slow E2E|slow\/E2E)/i);
+  assert.match(reference, /(?:complete feature-affected slow(?:\/E2E)? suite|Deferred Slow E2E).{0,160}only after reviewer PASS/i);
+  assert.match(reference, /same (?:unchanged )?commit/i);
+  assert.match(domain, /whole(?:-|\s)?diff review first|before E2E|reviewer-first/i);
+  assert.match(domain, /only after reviewer PASS/i);
+  assert.match(domain, /same unchanged commit/i);
+  assert.match(readme, /whole(?:-|\s)?diff[\s\S]{0,160}(?:before|prior to)[\s\S]{0,80}(?:slow|E2E)/i);
+  assert.match(readme, /only after reviewer PASS|reviewer PASS[\s\S]{0,120}(?:slow|E2E)/i);
+  assert.match(readme, /same (?:unchanged )?commit/i);
+  assert.match(master, /Fast TDD[\s\S]{0,80}whole-diff[\s\S]{0,80}Deferred Slow E2E|Fast TDD[\s\S]{0,80}terminal whole-diff[\s\S]{0,80}Deferred Slow E2E/i);
+  assert.match(execution, /Fast TDD[\s\S]{0,80}whole-diff[\s\S]{0,80}Deferred Slow E2E|whole-diff review[\s\S]{0,40}Deferred Slow E2E/i);
+
+  // Parent-mediated reviewer findings / executor repair loop
+  assert.match(verify, /parent[\s\S]{0,120}(?:structured )?findings/i);
+  assert.match(verify, /parent-mediated|directing the persistent gsd-executor/i);
+  assert.match(reviewer, /returns structured findings to the parent|structured findings to the parent/i);
+  assert.match(reviewer, /never edits|must never edit|read-only/i);
+  assert.match(domain, /returns structured findings to the parent/i);
+  assert.match(domain, /parent sends blocking findings to the persistent executor/i);
+
+  // Reviewer is terminal whole-diff only; begins after fast green and does not require prior slow-suite evidence
   assert.match(reviewer, /terminal whole(?:-|\s)?diff/i);
+  assert.match(reviewer, /after all tasks and fast checks|after all tasks\/fast/i);
+  assert.doesNotMatch(reviewer, /Begin only after the complete feature-affected slow suite is green/);
+  assert.doesNotMatch(reviewer, /complete feature-affected slow-suite evidence/);
   assert.doesNotMatch(reviewer, /backing task and terminal review/);
   assert.doesNotMatch(reviewer, /Review task diffs and terminal WIP diffs/);
+  assert.doesNotMatch(executor, /only after the complete feature-affected slow suite is green/);
 
-  // Progress-guarded repair sequence for slow/review failures
+  // E2E-failure repair: parent forwards evidence → executor repairs + fast checks → changed bytes re-review → full E2E only after reviewer PASS; no review/E2E parallelism
+  assert.match(verify, /E2E failure[\s\S]{0,200}(?:executor|parent)/i);
+  assert.match(verify, /(?:changed bytes|any (?:source )?change|source-byte change)[\s\S]{0,160}re-?review|re-?review[\s\S]{0,120}(?:changed bytes|before.{0,40}E2E)/i);
+  assert.match(verify, /(?:full |complete )?(?:slow\/)?E2E[\s\S]{0,100}only after reviewer PASS|reviewer PASS[\s\S]{0,100}(?:full |complete )?(?:slow\/)?E2E rerun/i);
+  assert.match(verify, /never run (?:concurrently|in parallel)|Reviewer and E2E never|do not run reviewer and E2E/i);
+  assert.match(reference, /E2E failure|changed bytes|same (?:unchanged )?commit/i);
+  assert.match(domain, /E2E failure returns evidence to the executor/i);
+  assert.match(domain, /pass reviewer again before slow\/E2E reruns/i);
+
+  // Progress-guarded repair remains
   assert.match(verify, /source(?:-first)? repair/i);
-  assert.match(verify, /smallest affected (?:fast\/slow )?subset/i);
-  assert.match(verify, /complete feature-affected slow suite/i);
+  assert.match(verify, /smallest affected/i);
   assert.match(verify, /whole(?:-|\s)?diff re-review/i);
   assert.match(verify, /progress guard/i);
   assert.match(reference, /smallest affected/i);
   assert.match(reference, /progress guard/i);
-  assert.match(domain, /progress-guarded/i);
+  assert.match(domain, /progress guard/i);
 
-  // Completion requires both complete slow suite green and whole-diff review green
-  assert.match(verify, /Terminal completion requires both the complete feature-affected slow suite and `gsdReviewer` whole-diff verdict/i);
-  assert.match(reference, /Terminal completion requires both the complete feature-affected slow suite and `gsdReviewer` whole-diff verdict/i);
-  assert.match(readme, /whole-diff terminal review/i);
+  // Completion requires both gates green on the same commit
+  assert.match(verify, /Terminal completion requires both the complete feature-affected slow(?:\/E2E)? suite and `gsdReviewer` whole-diff verdict/i);
+  assert.match(reference, /Terminal completion requires both the complete feature-affected slow(?:\/E2E)? suite and `gsdReviewer` whole-diff verdict/i);
+  assert.match(readme, /whole-diff terminal review|whole-diff review/i);
   assert.match(readme, /complete feature-affected slow suite|Deferred Slow E2E/i);
   assert.doesNotMatch(readme, /reviews each task, records reporting-only evidence/);
+
+  // Canonical mandatory-use matrix gsd-verify intent must be reviewer-first
+  const matrixSection = reference.match(
+    /## Visible skill mandatory-use matrix\n+([\s\S]*?)(?:\n## |\n### |\n*$)/,
+  );
+  assert.ok(matrixSection, "REFERENCE must define ## Visible skill mandatory-use matrix");
+  const verifyMatrixRow = [...matrixSection[1].matchAll(
+    /^\| `(gsd-verify)` \| [^|]+ \| ([^|]+) \|/gm,
+  )].map((m) => m[2].trim())[0];
+  assert.ok(verifyMatrixRow, "matrix must include gsd-verify intent");
+  assert.match(
+    verifyMatrixRow,
+    /whole(?:-|\s)?diff review then (?:slow\/E2E|slow suite|Deferred Slow E2E)/i,
+  );
+  assert.doesNotMatch(
+    verifyMatrixRow,
+    /slow suite then whole(?:-|\s)?diff review/i,
+  );
+
+  // Negative: reject E2E-before-review, reviewer self-edit, per-task review, and review/E2E parallelism
+  assert.doesNotMatch(verify, /whole(?:-|\s)?diff review only after the complete feature-affected slow suite is green/i);
+  assert.doesNotMatch(reference, /begin whole-diff review only after that suite is green/i);
+  assert.doesNotMatch(reference, /whole(?:-|\s)?diff review only after the complete feature-affected slow suite is green/i);
+  assert.doesNotMatch(readme, /whole-diff terminal review only after that suite is green/i);
+  assert.doesNotMatch(executor, /terminal whole-diff review remains in `gsd-verify` only after the complete feature-affected slow suite is green/i);
+  assert.doesNotMatch(reviewer, /Begin only after the complete feature-affected slow suite is green/);
+  assert.doesNotMatch(reviewer, /(?:may|can|should|will) edit (?:source|files|code)|self-edit|repairs? (?:its|their) own findings|apply fixes directly/i);
+  assert.doesNotMatch(reviewer, /dispatch(?:es)? the persistent gsd-executor|(?<!never )owns repair|perform the repair/i);
+  assert.doesNotMatch(execution, /(?<!Do not )(?<!do not )dispatch `gsdReviewer` per task/);
+  assert.doesNotMatch(verify, /(?:allow|permits?|may|can|should)(?:\s+\w+){0,4}\s+reviewer and (?:the )?(?:slow|E2E).{0,40}(?:in parallel|concurrently)/i);
+  assert.doesNotMatch(verify, /parallelize (?:review|reviewer|E2E|slow)|run review(?:er)? and E2E together/i);
+  assert.doesNotMatch(reference, /(?:allow|permits?|may|can|should)(?:\s+\w+){0,4}\s+reviewer and (?:the )?(?:slow|E2E).{0,40}(?:in parallel|concurrently)/i);
+  assert.doesNotMatch(reference, /parallelize (?:review|reviewer|E2E|slow)|run review(?:er)? and E2E together/i);
 });
 test("AC-optional: planning prototype replaces Manual UI Review", () => {
   const brainstorm = read("skills/gsd-brainstorming/SKILL.md");
@@ -1829,7 +1909,7 @@ test("AC-4: Concision preserves semantic parity", () => {
   assert.match(tdd, /Fast TDD Check/);
   assert.match(tdd, /RED before implementation/);
   assert.match(tdd, /GREEN after implementation/);
-  assert.match(verify, /whole-diff review only after the complete feature-affected slow suite is green/i);
+  assert.match(verify, /(?:complete feature-affected slow(?:\/E2E)? suite|Deferred Slow E2E).{0,160}only after reviewer PASS/i);
   assert.match(verify, /progress guard/i);
 
   // No vague permissive replacement for exact guards
@@ -1849,7 +1929,7 @@ test("AC-4 repair: executor agent forbids per-task re-review", () => {
   assert.match(execution, /Do not dispatch `gsdReviewer` per task/);
   assert.match(execution, /task repair[\s\S]{0,200}next_action` set to `start\/continue task`/);
 
-  assert.match(verify, /whole-diff review only after the complete feature-affected slow suite is green/i);
+  assert.match(verify, /(?:complete feature-affected slow(?:\/E2E)? suite|Deferred Slow E2E).{0,160}only after reviewer PASS/i);
   assert.match(reviewer, /terminal whole-diff/i);
   assert.match(reviewer, /Do not dispatch `gsdReviewer` per task/);
 
