@@ -1486,6 +1486,10 @@ test("archive terminal disposition contract", () => {
   assert.match(verify, /same green one-feature\/one-squash commit/);
   assert.match(verify, /never create a post-squash documentation-only commit/);
   assert.match(verify, /default to delete after green merge|automatically remove scratch/i);
+  assert.match(reference, /removes? the project-root `\.gsd-lavish\/` when it exists as a real directory/i);
+  assert.match(reference, /symlink or non-directory.*fail closed.*untouched/i);
+  assert.match(verify, /removes? the project-root `\.gsd-lavish\/` when it exists as a real directory/i);
+  assert.match(verify, /symlink or non-directory.*fail closed.*untouched/i);
 
   assert.match(master, /retain or archive-and-delete/);
   assert.match(master, /docs\/gsd\/<feature>\/archive\/plan\.md/);
