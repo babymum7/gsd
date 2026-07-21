@@ -1064,14 +1064,13 @@ test("T1 execution contract lifecycle and roles", () => {
     {
       name: reviewerFrontmatter.name,
       model: reviewerFrontmatter.model,
-      tools: reviewerFrontmatter.tools,
     },
     {
       name: "gsd-reviewer",
       model: "@gsdReviewer",
-      tools: ["read", "grep", "glob", "bash"],
     },
   );
+  assert.equal(reviewerFrontmatter.tools, undefined);
   assert.equal(reviewerFrontmatter.output_schema, undefined);
   assert.deepEqual(reviewerFrontmatter.output.properties.verdict.enum, ["PASS", "BLOCKED"]);
   assert.equal(reviewerFrontmatter.output.properties.findings, undefined);
