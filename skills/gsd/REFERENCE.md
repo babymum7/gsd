@@ -322,7 +322,7 @@ Before final terminal review/squash, the user may explicitly select retain or ar
 - **delete (default):** after the green squash, remove `.scratch/<feature>/`.
 - **retain:** keep `.scratch/<feature>/` and set `phase=completed-retained` with `next_action=none`.
 - **archive-and-delete:** materialize the feature archive under `docs/gsd/<feature>/archive/` before final terminal review/squash, include those files in the same reviewed squash, then remove `.scratch/<feature>/` after publication; never create a post-squash or post-merge documentation-only commit. Archive promoted prototype references needed by relative links when selected.
-Final green cleanup also removes the project-root `.gsd-lavish/` when it exists as a real directory, regardless of scratch disposition. Inspect it with `lstat` and resolve it exactly under the project root without following symlinks; absence is a no-op. A symlink or non-directory is unsafe: fail closed and leave it untouched. Never sweep similarly named paths.
+Final green cleanup keeps `.gsd-lavish/` and removes only direct-child regular files whose basenames start with the exact feature-derived `${feature}.` prefix. Missing `.gsd-lavish/` or no matching files is a no-op. Inspect the root and each match with `lstat`, require the root to resolve exactly under the project and every match to remain a regular direct child, and never follow symlinks; a matching symlink or non-regular entry fails closed and remains untouched. Never delete `.gsd-lavish/` itself, another feature's prefix, or unrelated feature or non-feature artifacts.
 
 ### Feature archive contract
 

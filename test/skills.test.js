@@ -1461,6 +1461,7 @@ test("archive terminal disposition contract", () => {
   const verify = read("skills/gsd-verify/SKILL.md");
   const toPlan = read("skills/gsd-to-plan/SKILL.md");
   const executing = read("skills/gsd-executing-plans/SKILL.md");
+  const lavish = read("skills/gsd-lavish/SKILL.md");
 
   assert.match(toPlan, /This is the last planning prompt:/);
   assert.match(toPlan, /Build prototype with Lavish/);
@@ -1486,10 +1487,16 @@ test("archive terminal disposition contract", () => {
   assert.match(verify, /same green one-feature\/one-squash commit/);
   assert.match(verify, /never create a post-squash documentation-only commit/);
   assert.match(verify, /default to delete after green merge|automatically remove scratch/i);
-  assert.match(reference, /removes? the project-root `\.gsd-lavish\/` when it exists as a real directory/i);
-  assert.match(reference, /symlink or non-directory.*fail closed.*untouched/i);
-  assert.match(verify, /removes? the project-root `\.gsd-lavish\/` when it exists as a real directory/i);
-  assert.match(verify, /symlink or non-directory.*fail closed.*untouched/i);
+  assert.match(reference, /keeps `\.gsd-lavish\/` and removes only direct-child regular files.*exact feature-derived `\$\{feature\}\.` prefix/i);
+  assert.match(reference, /never delete `\.gsd-lavish\/` itself.*unrelated feature or non-feature artifacts/i);
+  assert.match(verify, /keeps `\.gsd-lavish\/` and removes only direct-child regular files.*exact feature-derived `\$\{feature\}\.` prefix/i);
+  assert.match(verify, /never delete `\.gsd-lavish\/` itself.*unrelated feature or non-feature artifacts/i);
+  assert.match(reference, /matching symlink or non-regular entry fails closed and remains untouched/i);
+  assert.match(verify, /matching symlink or non-regular entry fails closed and remains untouched/i);
+  assert.match(lavish, /Planning prototype[\s\S]*sets `STEM="\$feature"`/i);
+  assert.match(lavish, /session-owned sidecar asset.*same `\$\{STEM\}\.` prefix/i);
+  assert.doesNotMatch(reference, /removes? the project-root `\.gsd-lavish\/`/i);
+  assert.doesNotMatch(verify, /removes? the project-root `\.gsd-lavish\/`/i);
 
   assert.match(master, /retain or archive-and-delete/);
   assert.match(master, /docs\/gsd\/<feature>\/archive\/plan\.md/);
