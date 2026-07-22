@@ -1803,6 +1803,33 @@ test("lavish refreshes only relevant stale artifacts and serializes feedback", (
   assert.match(domain, /D-gsd-13: Keep Lavish polling non-blocking and revision-aware/);
 });
 
+test("lavish rolling watcher re-arms one settled poll and heals timeouts", () => {
+  const lavish = read("skills/gsd-lavish/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+  const readme = read("README.md");
+  const domain = read("docs/domain/gsd.md");
+
+  assert.match(lavish, /finite one-shot[\s\S]{0,180}does not end the Lavish session/i);
+  assert.match(lavish, /at most one[\s\S]{0,120}per canonical `HTML_FILE`/i);
+  assert.match(lavish, /`async:true`[\s\S]{0,100}`timeout:3600`/);
+  assert.match(lavish, /user feedback[\s\S]{0,180}(?:queue|ledger)[\s\S]{0,180}re-arm/i);
+  assert.match(lavish, /`layout_warnings`[\s\S]{0,180}repair[\s\S]{0,180}before re-arm/i);
+  assert.match(lavish, /`user-ended`[\s\S]{0,140}stop[\s\S]{0,100}no stale URL/i);
+  assert.match(lavish, /clearly pre-delivery timeout[\s\S]{0,180}exact-target status[\s\S]{0,180}(?:drain|re-arm)/i);
+  assert.match(lavish, /nonzero[\s\S]{0,100}malformed[\s\S]{0,180}post-capture[\s\S]{0,180}fail closed[\s\S]{0,120}no re-arm/i);
+  assert.match(lavish, /older artifact\/source revision[\s\S]{0,180}latest direct instruction[\s\S]{0,120}current code/i);
+  assert.match(execution, /open Lavish session[\s\S]{0,180}direct main-session turn[\s\S]{0,180}active tracked poll[\s\S]{0,120}unchanged/i);
+  assert.match(reference, /finite one-shot[\s\S]{0,180}replacement poll[\s\S]{0,180}settlement/i);
+  assert.match(handoff, /missing handle[\s\S]{0,180}exact-target status[\s\S]{0,180}before re-arm/i);
+  assert.match(verify, /record\/read back[\s\S]{0,180}clear the marker[\s\S]{0,180}before[\s\S]{0,120}replacement poll/i);
+  assert.match(readme, /repeated Lavish feedback[\s\S]{0,180}session remains open/i);
+  assert.match(domain, /at most one same-session tracked poll armed per canonical `HTML_FILE`/i);
+  assert.doesNotMatch(lavish, /re-arm (?:on|after) (?:any|every) (?:error|failure)/i);
+});
+
 test("AC-4 repair: ponytail is helper with no lifecycle ownership", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const ponytail = read("skills/gsd-ponytail/SKILL.md");

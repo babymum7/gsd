@@ -84,5 +84,5 @@
 
 ### D-gsd-13: Keep Lavish polling non-blocking and revision-aware
 
-- **Decision:** Never occupy the main agent session with an indefinite Lavish poll. Use the non-blocking pending-feedback status/drain path by default; a long poll may run only through a verified harness-native tracked job that guarantees completion delivery to the same session. Direct user work remains sequentially available, and relevant source changes refresh the associated artifact while irrelevant changes leave it untouched.
-- **Rationale:** Two live feedback channels require responsiveness without fire-and-forget process loss or blind application of stale visual feedback; source changes still invalidate terminal conformance and visual acceptance.
+- **Decision:** Never occupy the main agent session with an indefinite Lavish poll. In a verified harness, keep at most one same-session tracked poll armed per canonical `HTML_FILE`; re-arm only after its completion is delivered or a clearly pre-delivery timeout is observed and required marker/ledger reconciliation succeeds. While that Lavish session remains open, each direct main-session turn also reconciles exact-target status non-blockingly; harnesses without tracked delivery use status/drain only. Relevant source changes refresh the associated artifact while irrelevant changes leave it untouched.
+- **Rationale:** Alternating direct chat and browser review requires continuous timeout healing without duplicate polls, unmanaged processes, busy polling, concurrent source mutations, or blind application of stale visual feedback.
