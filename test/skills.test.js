@@ -1031,7 +1031,10 @@ test("T1 execution contract lifecycle and roles", () => {
   assert.doesNotMatch(execution, /dispatches one fresh task implementer/);
   assert.doesNotMatch(execution, /dispatches a fresh finding-scoped `task` fixer/);
 
-  assert.match(verify, /dispatches the persistent gsd-reviewer agent \(reusing the same gsd-reviewer session with the bound reviewer model/);
+  // Persistent reviewer reuse is only for the small/single-path cumulative review.
+  assert.match(verify, /(?:small(?:-diff)?|single(?:_budget| cumulative)?)[\s\S]{0,240}reusing the same gsd-reviewer session|reusing the same gsd-reviewer session[\s\S]{0,240}(?:small(?:-diff)?|single(?:_budget| cumulative)?)/i);
+  assert.match(verify, /fresh isolated (?:process-local )?reviewer context|fresh isolated context/i);
+  assert.doesNotMatch(verify, /dispatches the persistent gsd-reviewer agent \(reusing the same gsd-reviewer session with the bound reviewer model from `modelRoles\.gsdReviewer`\) against the cumulative `base\.\.\.HEAD` diff with that manifest\./);
   assert.match(execution, /Do not dispatch `gsdReviewer` per task/);
   assert.match(verify, /terminal repair continues without a fixed round count only while findings or the relevant diff demonstrably change; stop on a repeated blocking fingerprint or no relevant repair diff\./);
   assert.match(domain, /### D-gsd-4: Replace the fixed repair cap with a progress guard/);
@@ -1072,12 +1075,13 @@ test("T1 execution contract lifecycle and roles", () => {
   );
   assert.equal(reviewerFrontmatter.tools, undefined);
   assert.equal(reviewerFrontmatter.output_schema, undefined);
+  assert.deepEqual(reviewerFrontmatter.output.properties.mode.enum, ["single", "shard", "reducer", "integrator"]);
+  assert.deepEqual(reviewerFrontmatter.output.properties.authority.enum, ["evidence", "merge"]);
   assert.deepEqual(reviewerFrontmatter.output.properties.verdict.enum, ["PASS", "BLOCKED"]);
+  assert.equal(reviewerFrontmatter.output.properties.reviewed_commit.type, "string");
+  assert.equal(reviewerFrontmatter.output.properties.manifest_digest.type, "string");
   assert.equal(reviewerFrontmatter.output.properties.findings, undefined);
-  assert.deepEqual(
-    Object.keys(reviewerFrontmatter.output.optionalProperties),
-    ["findings"],
-  );
+  assert.ok(Object.keys(reviewerFrontmatter.output.optionalProperties).includes("findings"));
   assert.deepEqual(
     Object.keys(reviewerFrontmatter.output.optionalProperties.findings.elements.properties),
     ["severity", "file", "description"],
@@ -2292,8 +2296,8 @@ test("terminal-review-flow AC-1: enter terminal review only after all tasks", ()
   );
   assert.doesNotMatch(execution, /Do not dispatch `gsdReviewer` per task[\s\S]{0,400}After every non-superseded task and green Fast TDD Checks, update `state\.toon` for terminal entry/);
 
-  // One cumulative terminal review only after all tasks
-  assert.match(execution, /one cumulative|cumulative (?:whole-diff |terminal )?review/i);
+  // One terminal whole-diff gate only after all tasks (small path may use single cumulative review)
+  assert.match(execution, /one cumulative|cumulative (?:whole-diff |terminal )?review|context-safe terminal review|one terminal whole-diff gate/i);
   assert.match(verify, /after all tasks and [Ff]ast (?:TDD )?[Cc]hecks are green/i);
   assert.match(domain, /Do not dispatch `gsdReviewer` per task/);
   assert.match(master, /terminal whole-diff `gsdReviewer`|whole-diff review/i);
@@ -2506,4 +2510,514 @@ test("terminal-review-flow AC-5: same-commit resume invalidation and merge gates
   assert.match(reference, /same unchanged commit/i);
   assert.doesNotMatch(reference, /visual_review_|terminal_visual_/);
   assert.doesNotMatch(verify, /add(?:s|ing)? (?:a )?new `state\.toon` field|visual-result artifact/i);
+});
+
+
+// --- Adaptive Chunked Cumulative Review offline fixtures (never call live omp models) ---
+const ADAPTIVE_REVIEW_FIXTURES = {
+  reviewerSelectorConcrete: "openai-codex/gpt-5.5:high",
+  reviewerSelectorNormalized: "openai-codex/gpt-5.5",
+  registryExactMatch: {
+    selector: "openai-codex/gpt-5.5",
+    contextWindow: 272000,
+  },
+  invalidRegistryCases: [
+    { label: "absent", results: [] },
+    { label: "duplicate", results: [
+      { selector: "openai-codex/gpt-5.5", contextWindow: 272000 },
+      { selector: "openai-codex/gpt-5.5", contextWindow: 272000 },
+    ] },
+    { label: "null-window", results: [{ selector: "openai-codex/gpt-5.5", contextWindow: null }] },
+    { label: "zero-window", results: [{ selector: "openai-codex/gpt-5.5", contextWindow: 0 }] },
+    { label: "malformed-window", results: [{ selector: "openai-codex/gpt-5.5", contextWindow: "272000" }] },
+    { label: "selector-mismatch", results: [{ selector: "openai-codex/gpt-5.5:high", contextWindow: 272000 }] },
+  ],
+};
+
+function normalizeReviewerSelector(selector) {
+  const match = String(selector).match(/^([^/]+\/[^:]+)(?::.*)?$/);
+  return match ? match[1] : null;
+}
+
+function resolveContextCapacity(registryResults, normalizedSelector) {
+  const exact = (registryResults || []).filter(
+    (row) => row && row.selector === normalizedSelector && Number.isInteger(row.contextWindow) && row.contextWindow > 0,
+  );
+  if (exact.length !== 1) return null;
+  // Reject rows that only matched via suffix leakage: selector must equal base exactly.
+  return exact[0].contextWindow;
+}
+
+function reviewBudgets(contextWindow) {
+  const C = contextWindow;
+  return {
+    single_budget: Math.min(Math.floor(0.30 * C), 48000),
+    shard_budget: Math.min(Math.floor(0.20 * C), 32000),
+  };
+}
+
+function estimateReviewTokensUpperBound(payloadUtf8) {
+  // Conservative upper bound: raw UTF-8 byte count. Never divide by 3 or use optimistic ratios.
+  return Buffer.byteLength(payloadUtf8, "utf8");
+}
+
+function selectTerminalReviewMode(payloadUtf8, contextWindow) {
+  if (!Number.isInteger(contextWindow) || contextWindow <= 0) {
+    return { ok: false, reason: "invalid-capacity" };
+  }
+  const budgets = reviewBudgets(contextWindow);
+  const estimate = estimateReviewTokensUpperBound(payloadUtf8);
+  if (estimate <= budgets.single_budget) {
+    return { ok: true, mode: "single", authority: "merge", ...budgets, estimate };
+  }
+  return { ok: true, mode: "adaptive-chunked", authority: "pending-integrator", ...budgets, estimate };
+}
+
+test("adaptive-chunked-review: terminal gate is context-safe not unconditional one-cumulative", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const readme = read("README.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const master = read("skills/gsd/SKILL.md");
+  // Unconditional "one cumulative whole-diff review" must not name the entire terminal gate.
+  assert.doesNotMatch(verify, /Begin one cumulative whole-diff review/i);
+  assert.doesNotMatch(verify, /^\d+\. Begin one cumulative\b/m);
+  assert.doesNotMatch(readme, /then use one cumulative whole-diff review/i);
+  assert.doesNotMatch(reference, /load `gsd-verify` for one cumulative whole-diff review/i);
+  assert.doesNotMatch(execution, /load `gsd-verify` for one cumulative whole-diff review/i);
+  // Canonical umbrella terms for the terminal entry gate.
+  assert.match(verify, /context-safe terminal review|one terminal whole-diff gate/i);
+  assert.match(readme, /context-safe terminal review|one terminal whole-diff gate/i);
+  assert.match(reference, /context-safe terminal review|one terminal whole-diff gate/i);
+  assert.match(execution, /context-safe terminal review|one terminal whole-diff gate/i);
+  // Reserve single cumulative review for the small-path budget branch only.
+  assert.match(verify, /single cumulative review/);
+  assert.match(verify, /single_budget[\s\S]{0,200}single cumulative review|At or below `single_budget`[\s\S]{0,240}single cumulative review|small\/single path[\s\S]{0,80}single cumulative review/i);
+  assert.match(verify, /Adaptive Chunked Cumulative Review/);
+  assert.match(verify, /mode=integrator|root integrator/i);
+});
+
+test("adaptive-chunked-review terminal repair: lavish degrade, archive cleanup, README authority", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const readme = read("README.md");
+  const domain = read("docs/domain/gsd.md");
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+
+  // Lavish unavailable: degrade to equivalent terminal review; do not fail closed.
+  assert.doesNotMatch(verify, /Unavailable Lavish fails closed/i);
+  assert.match(
+    verify,
+    /(?:[Uu]navailable Lavish|when selected Lavish is unavailable)[\s\S]{0,160}degrade(?:s)? to equivalent terminal review|degrade(?:s)? to equivalent terminal review[\s\S]{0,120}without blocking/i,
+  );
+  assert.match(verify, /without blocking the deliverable|does not block the deliverable/i);
+
+  // archive-and-delete: materialize before review; remove scratch after publication; only retain keeps scratch after green merge.
+  assert.match(verify, /archive-and-delete[\s\S]{0,200}materialize[\s\S]{0,80}before review|materialize[\s\S]{0,40}before review[\s\S]{0,120}archive-and-delete/i);
+  assert.match(verify, /archive-and-delete[\s\S]{0,240}removes? `\.scratch\/<feature>\/` after publication|after publication[\s\S]{0,80}removes? `\.scratch\/<feature>\/`/i);
+  assert.match(verify, /after green merge[\s\S]{0,120}only `?retain`? keeps scratch|only `?retain`? keeps scratch/i);
+  assert.match(verify, /merged-cleanup-pending/);
+
+  // README: shard/reducer PASS never unlocks visual/E2E/merge.
+  assert.match(
+    readme,
+    /[Ss]hard or reducer PASS never (?:unlocks(?:\/authorizes)?|authorizes) Terminal Visual Review, Deferred Slow E2E, or merge|shard\/reducer PASS never unlocks\/authorizes Terminal Visual Review, Deferred Slow E2E, or merge/i,
+  );
+
+  // Domain root integrator capitalization + clear ordering
+  assert.match(domain, /Only the root integrator/);
+  assert.match(domain, /Only after merge-authoritative reviewer PASS[\s\S]{0,120}Terminal Visual Review[\s\S]{0,120}Deferred Slow E2E only after reviewer PASS/i);
+
+  // Handoff grammar
+  assert.match(handoff, /Persist neither per-shard keys nor shard lifecycle data/i);
+  assert.match(handoff, /Runtime state persists no shard lifecycle data/i);
+  assert.doesNotMatch(handoff, /Persist no per-shard keys; stores no shard lifecycle\./);
+  assert.doesNotMatch(handoff, /Runtime state stores no shard lifecycle data/);
+});
+
+test("adaptive-chunked-review terminal repair round-2: retain phase, PASS authority, mode placement", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const master = read("skills/gsd/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
+  const readme = read("README.md");
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+
+  // 1) retain finalizes completed-retained; merged-cleanup-pending is transient for delete/archive paths
+  assert.match(verify, /merged-cleanup-pending/);
+  assert.match(
+    verify,
+    /explicit `?retain`?[\s\S]{0,160}phase=completed-retained[\s\S]{0,80}next_action=none|retain[\s\S]{0,120}completed-retained[\s\S]{0,80}next_action`?=\s*`?none/i,
+  );
+  assert.match(
+    verify,
+    /(?:default delete|archive-and-delete)[\s\S]{0,160}remove(?:s)?(?: scratch| `\.scratch)|remove(?:s)? scratch[\s\S]{0,80}(?:default delete|archive-and-delete)/i,
+  );
+  assert.match(verify, /merged-cleanup-pending[\s\S]{0,120}(?:transient|crash recovery)|crash recovery[\s\S]{0,80}merged-cleanup-pending/i);
+
+  // 2) execution: only merge-authoritative single/root-integrator PASS unlocks visual/E2E; deny shard/reducer
+  assert.match(
+    execution,
+    /merge-authoritative (?:single\/root-integrator |root-integrator\/single )?reviewer PASS|mode=single[\s\S]{0,80}mode=integrator|single\/root integrator/i,
+  );
+  assert.match(
+    execution,
+    /(?:After|only after) merge-authoritative[\s\S]{0,80}reviewer PASS[\s\S]{0,120}Terminal Visual Review/i,
+  );
+  assert.match(
+    execution,
+    /[Ss]hard or reducer PASS never (?:unlocks|authorizes|unlocks\/authorizes) Terminal Visual Review, Deferred Slow E2E, or merge/i,
+  );
+
+  // 3) master: context-safe/Adaptive are terminal reviewer modes before visual/E2E, not E2E variants
+  assert.match(
+    master,
+    /Terminal reviewer modes are the context-safe single path or Adaptive Chunked Cumulative Review before Terminal Visual Review or Deferred Slow E2E/i,
+  );
+  assert.doesNotMatch(
+    master,
+    /Deferred Slow E2E \(context-safe single path or Adaptive Chunked Cumulative Review\)/i,
+  );
+
+  // 4) Full authority chain on every boundary surface (no E2E/merge-dropping alternation)
+  const fullChain =
+    /[Ss]hard(?: or |\/)reducer PASS never (?:authorizes|unlocks|unlocks\/authorizes) Terminal Visual Review, Deferred Slow E2E, or merge/;
+  for (const [name, body] of [
+    ["verify", verify],
+    ["reference", reference],
+    ["domain", domain],
+    ["readme", readme],
+    ["execution", execution],
+    ["master", master],
+  ]) {
+    assert.match(body, fullChain, `${name} must state full shard/reducer PASS denial chain`);
+  }
+
+  // 5) AC-5 resume rebuild chain (handoff + canonical surfaces)
+  const resumeChain =
+    /discards(?: or ignores)? partial(?: shard)? authority[\s\S]{0,80}rebuilds the manifest[\s\S]{0,80}reruns(?: required stages)?/i;
+  assert.match(handoff, resumeChain);
+  assert.match(verify, /discards(?: or ignores)? partial(?: shard)? authority[\s\S]{0,100}rebuilds the manifest[\s\S]{0,100}reruns(?: required stages)?/i);
+  assert.match(reference, /discards(?: or ignores)? partial(?: shard)? authority[\s\S]{0,100}rebuilds the manifest[\s\S]{0,100}reruns(?: required stages)?/i);
+  assert.match(domain, /discards(?: or ignores)? partial(?: shard)? authority[\s\S]{0,100}rebuilds the manifest[\s\S]{0,100}reruns(?: required stages)?/i);
+
+  // 6) REFERENCE grammar
+  assert.match(reference, /Partial shard evidence is reporting-only and adds? no `state\.toon` fields/i);
+  assert.doesNotMatch(reference, /Partial shard evidence is reporting-only and add no `state\.toon` fields/);
+
+  // 7) domain E2E failure folded into D-gsd-8 (no orphan standalone paragraph between decisions)
+  assert.match(domain, /### D-gsd-8:[\s\S]*E2E failure returns evidence to the executor[\s\S]*### D-gsd-9:/);
+  assert.doesNotMatch(domain, /\nE2E failure returns evidence to the executor; changed bytes must pass reviewer again before slow\/E2E reruns\.\n/);
+});
+
+
+test("adaptive-chunked-review offline fixtures never call live omp models", () => {
+  const suite = read("test/skills.test.js");
+  // Contract docs may mention the registry CLI; the test suite must not execute it.
+  assert.doesNotMatch(suite, /execFileSync\(\s*['"]omp['"]|spawnSync\(\s*['"]omp['"]|execSync\(\s*['"]omp['"]|Bun\.\$`omp |spawn\(\s*['"]omp['"]/);
+  assert.equal(normalizeReviewerSelector(ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorConcrete), ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorNormalized);
+  assert.equal(normalizeReviewerSelector("openai-codex/gpt-5.5"), "openai-codex/gpt-5.5");
+  // Suffixed selector must normalize before exact match; raw suffix lookup is invalid.
+  assert.notEqual(ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorConcrete, ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorNormalized);
+  const C = resolveContextCapacity(
+    [ADAPTIVE_REVIEW_FIXTURES.registryExactMatch],
+    ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorNormalized,
+  );
+  assert.equal(C, 272000);
+  // Suffixed selector without normalization must not resolve capacity.
+  assert.equal(
+    resolveContextCapacity(
+      [ADAPTIVE_REVIEW_FIXTURES.registryExactMatch],
+      ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorConcrete,
+    ),
+    null,
+  );
+  for (const invalid of ADAPTIVE_REVIEW_FIXTURES.invalidRegistryCases) {
+    assert.equal(
+      resolveContextCapacity(invalid.results, ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorNormalized),
+      null,
+      invalid.label,
+    );
+  }
+  const budgets = reviewBudgets(272000);
+  assert.equal(budgets.single_budget, Math.min(Math.floor(0.30 * 272000), 48000));
+  assert.equal(budgets.shard_budget, Math.min(Math.floor(0.20 * 272000), 32000));
+  assert.equal(budgets.single_budget, 48000);
+  assert.equal(budgets.shard_budget, 32000);
+  // Exercise below / at / above single_budget with distinct raw UTF-8 sizes.
+  const small = "x".repeat(budgets.single_budget - 1);
+  const exact = "y".repeat(budgets.single_budget);
+  const large = "z".repeat(budgets.single_budget + 1);
+  assert.equal(Buffer.byteLength(small, "utf8"), budgets.single_budget - 1);
+  assert.equal(Buffer.byteLength(exact, "utf8"), budgets.single_budget);
+  assert.equal(Buffer.byteLength(large, "utf8"), budgets.single_budget + 1);
+  assert.equal(estimateReviewTokensUpperBound(small), budgets.single_budget - 1);
+  assert.equal(estimateReviewTokensUpperBound(exact), budgets.single_budget);
+  assert.equal(estimateReviewTokensUpperBound(large), budgets.single_budget + 1);
+  assert.notEqual(estimateReviewTokensUpperBound(large), Math.floor(Buffer.byteLength(large, "utf8") / 3));
+  assert.equal(selectTerminalReviewMode(small, C).mode, "single");
+  assert.equal(selectTerminalReviewMode(exact, C).mode, "single");
+  assert.equal(selectTerminalReviewMode(large, C).mode, "adaptive-chunked");
+  assert.equal(selectTerminalReviewMode(large, null).ok, false);
+});
+
+test("adaptive-chunked-review AC-1: registry capacity, raw-byte budgets, mode selection", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
+  const readme = read("README.md");
+  const master = read("skills/gsd/SKILL.md");
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+
+  // Coherent capacity contract: exact base-selector normalization + exact registry match + positive integer contextWindow.
+  // Loose alternations like /normalize|exactly one|contextWindow/ alone must not pass.
+  const capacityContract = [
+    /normaliz(?:e|ed|ing)?[\s\S]{0,160}(?:exact(?:ly)?\s+)?base[- ]selector/i,
+    /(?:exactly one|one exact)[\s\S]{0,120}(?:base[- ]selector|match|result)/i,
+    /(?:positive integer\s+`?contextWindow`?|`?contextWindow`?\s+is a positive integer|positive integer `contextWindow`)/i,
+    /omp models find/,
+    /single_budget\s*=\s*min\(\s*floor\(\s*0\.30\s*\*\s*C\s*\)\s*,\s*48000\s*\)/,
+    /shard_budget\s*=\s*min\(\s*floor\(\s*0\.20\s*\*\s*C\s*\)\s*,\s*32000\s*\)/,
+    /raw UTF-8 byte count|raw UTF-8 bytes/i,
+    /conservative upper bound/i,
+    /fail(?:s)? closed/i,
+    /Adaptive Chunked Cumulative Review/,
+    /(?:at or below|<=|≤)\s*`?single_budget`?|values at or below `single_budget`|At or below `single_budget`/i,
+  ];
+
+  for (const body of [verify, reference, domain]) {
+    for (const re of capacityContract) {
+      assert.match(body, re);
+    }
+    assert.doesNotMatch(body, /estimate\s*=\s*bytes\s*\/\s*3|tokens?\s*≈\s*bytes\s*\/\s*3|optimistic character-to-token ratio that undercounts/i);
+  }
+
+  // Mutation/decoy: incomplete capacity text that would satisfy ungrouped /normalize|exactly one|contextWindow/ style checks.
+  const incompleteCapacityDecoy =
+    "normalize something. exactly one widget. contextWindow appears. omp models find nowhere useful.";
+  assert.match(incompleteCapacityDecoy, /normalize|normalized base selector|optional `:<variant>`/i);
+  assert.match(incompleteCapacityDecoy, /exactly one/);
+  assert.match(incompleteCapacityDecoy, /contextWindow/);
+  assert.doesNotMatch(incompleteCapacityDecoy, /normaliz(?:e|ed|ing)?[\s\S]{0,160}(?:exact(?:ly)?\s+)?base[- ]selector/i);
+  assert.doesNotMatch(
+    incompleteCapacityDecoy,
+    /(?:positive integer\s+`?contextWindow`?|`?contextWindow`?\s+is a positive integer|positive integer `contextWindow`)/i,
+  );
+  assert.doesNotMatch(incompleteCapacityDecoy, /(?:exactly one|one exact)[\s\S]{0,120}(?:base[- ]selector|match|result)/i);
+
+  assert.match(verify, /small(?:-diff)? path|single cumulative review/i);
+  assert.match(readme, /Adaptive Chunked Cumulative Review|adaptive chunked|context-safe/i);
+  assert.match(master, /Adaptive Chunked Cumulative Review|adaptive chunked|context-safe terminal review/i);
+  assert.match(domain, /### D-gsd-8:/);
+  // Tests remain offline: no project contextWindow setting and no live catalog requirement in suite docs.
+  assert.doesNotMatch(handoff, /contextWindow:/);
+  assert.doesNotMatch(reference, /project `contextWindow` setting|add a project contextWindow/i);
+});
+
+test("adaptive-chunked-review AC-2: task-seeded dependency-adjusted partition and coverage", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
+  const reviewer = read("agents/gsd-reviewer.md");
+
+  // Ordered/coherent partition contract — each clause is required; generic single-word alternations must not pass.
+  const partitionContract = [
+    /task commits seed(?:s|ed)? partitions?(?: only)?/i,
+    /dependency-connected(?:\/overlapping| or overlapping) work (?:is )?merges?|merge dependency-connected\/overlapping work/i,
+    /(?:oversized work (?:is )?splits?|split oversized work) at stable (?:symbol or line-range|symbol\/line-range) boundaries/i,
+    /exactly one primary shard/i,
+    // Consumer boundary packets for changed public-contract categories — generic "boundary packets" alone is insufficient.
+    /public APIs[\s\S]{0,60}schemas[\s\S]{0,60}state values[\s\S]{0,60}configuration[\s\S]{0,60}dispatch points[\s\S]{0,120}boundary packets?/i,
+    /boundary packets?[\s\S]{0,100}(?:for consumers|cover changed public|consumers and dispatch)/i,
+    /(?:classify(?:ied)? generated\/binary paths|generated and binary paths are classified|generated\/binary paths are classified)/i,
+    /deterministic manifest digest|manifest digest/i,
+    /(?:without duplicated primary ownership|never duplicates primary ownership|duplicated boundary context never duplicates primary)/i,
+  ];
+
+  for (const body of [verify, reference, domain]) {
+    for (const re of partitionContract) {
+      assert.match(body, re);
+    }
+  }
+
+  // Mutation/decoy: scattered generic words that old ungrouped matchers accepted.
+  const incompletePartitionDecoy =
+    "task commits seed nothing useful. dependency-connected notes. overlapping text. " +
+    "split something. symbol or line-range appears alone. generated files exist. binary blobs exist. " +
+    "boundary packet missing ownership rules. primary ownership maybe.";
+  assert.match(incompletePartitionDecoy, /task commits seed|seed(?:s|ed)? (?:the )?partition|Task commits seed/i);
+  assert.match(incompletePartitionDecoy, /dependency-connected|dependency-adjusted/i);
+  assert.match(incompletePartitionDecoy, /overlapping/i);
+  assert.match(incompletePartitionDecoy, /split (?:oversized|over-sized)(?: work)? at stable symbol|symbol or line-range/i);
+  assert.match(incompletePartitionDecoy, /generated|binary/i);
+  assert.doesNotMatch(incompletePartitionDecoy, /task commits seed(?:s|ed)? partitions?(?: only)?/i);
+  assert.doesNotMatch(
+    incompletePartitionDecoy,
+    /dependency-connected(?:\/overlapping| or overlapping) work (?:is )?merges?|merge dependency-connected\/overlapping work/i,
+  );
+  assert.doesNotMatch(
+    incompletePartitionDecoy,
+    /(?:oversized work (?:is )?splits?|split oversized work) at stable (?:symbol or line-range|symbol\/line-range) boundaries/i,
+  );
+  assert.doesNotMatch(
+    incompletePartitionDecoy,
+    /(?:classify(?:ied)? generated\/binary paths|generated and binary paths are classified|generated\/binary paths are classified)/i,
+  );
+  assert.doesNotMatch(
+    incompletePartitionDecoy,
+    /(?:without duplicated primary ownership|never duplicates primary ownership|duplicated boundary context never duplicates primary)/i,
+  );
+
+
+  // Generic boundary-packet wording is insufficient without consumer/public-contract categories.
+  const genericBoundaryDecoy =
+    "boundary packets without duplicated primary ownership; classify generated/binary paths.";
+  assert.match(genericBoundaryDecoy, /boundary packets?/i);
+  assert.match(genericBoundaryDecoy, /without duplicated primary ownership/i);
+  assert.doesNotMatch(
+    genericBoundaryDecoy,
+    /public APIs[\s\S]{0,60}schemas[\s\S]{0,60}state values[\s\S]{0,60}configuration[\s\S]{0,60}dispatch points[\s\S]{0,120}boundary packets?/i,
+  );
+  assert.doesNotMatch(
+    genericBoundaryDecoy,
+    /boundary packets?[\s\S]{0,100}(?:for consumers|cover changed public|consumers and dispatch)/i,
+  );
+
+  assert.match(reviewer, /primary (?:changed-)?line coverage|assigned coverage|coverage digest/i);
+  assert.match(reviewer, /boundary packet|boundary claims/i);
+  assert.match(domain, /Adaptive Chunked Cumulative Review/);
+});
+
+test("adaptive-chunked-review AC-3: eight concurrent per wave not eight-wave cap", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const readme = read("README.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
+  // Ambiguous total-cap wording; reject across verify, README, REFERENCE, and domain.
+  for (const body of [verify, readme, reference, domain]) {
+    assert.doesNotMatch(body, /at most eight fresh isolated shard waves/i);
+    assert.doesNotMatch(body, /at most eight\s+waves\b/i);
+    assert.doesNotMatch(body, /Run at most eight fresh isolated shard waves/i);
+    assert.doesNotMatch(body, /at most eight isolated shard reviews in bounded parallel waves/i);
+  }
+  for (const body of [verify, readme, reference, domain]) {
+    assert.match(
+      body,
+      /at most eight concurrent (?:fresh isolated )?(?:shard )?(?:reviewers|contexts|agents)/i,
+    );
+    assert.match(body, /per wave|concurrently/i);
+    assert.match(body, /no wave-count cap|continue(?:s)? waves until every shard/i);
+  }
+  assert.match(verify, /all shards run even after a blocking/i);
+  assert.match(domain, /all shards run even after a blocking/i);
+  assert.match(verify, /fresh isolated/i);
+  assert.match(domain, /fresh isolated/i);
+});
+
+
+
+test("adaptive-chunked-review AC-3: bounded fresh isolated shard waves", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
+  const reviewer = read("agents/gsd-reviewer.md");
+  const executor = read("agents/gsd-executor.md");
+
+  for (const body of [verify, reference, domain]) {
+    assert.match(body, /at most eight|max(?:imum)? (?:of )?eight|<=\s*8|≤\s*8/i);
+    assert.match(body, /fresh isolated/i);
+    assert.match(body, /never reus(?:e|es) the persistent cumulative reviewer context across shards|does not reuse (?:one |the )?persistent[\s\S]{0,80}across shards|Preserve persistent-session reuse only for the small|reusing the same gsd-reviewer session[\s\S]{0,80}only on this small/i);
+    assert.match(body, /mode\s*=\s*shard|`mode`:\s*`shard`|mode=shard/);
+    assert.match(body, /authority\s*=\s*evidence|authority=evidence/);
+    assert.match(body, /shard_budget/);
+    assert.match(body, /all shards run even after a blocking|continue(?:s)? waves until every shard/i);
+  }
+  assert.match(reviewer, /mode=shard|mode`:\s*`shard`|`mode` enum[\s\S]{0,80}shard/i);
+  assert.match(reviewer, /authority=evidence|authority`:\s*`evidence`/i);
+  assert.match(reviewer, /fresh isolated|fresh process-local/i);
+  assert.doesNotMatch(reviewer, /reus(?:e|es|ing) the same gsd-reviewer session across shards/i);
+  assert.match(executor, /Do not dispatch `gsdReviewer` per task|never launch the independent reviewer in the task loop/i);
+});
+
+test("adaptive-chunked-review AC-4: hierarchical reduce and root merge authority", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
+  const reviewer = read("agents/gsd-reviewer.md");
+  const readme = read("README.md");
+
+  for (const body of [verify, reference, domain]) {
+    assert.match(body, /mode\s*=\s*integrator|mode=integrator/);
+    assert.match(body, /authority\s*=\s*merge|authority=merge/);
+    assert.match(body, /reducer/i);
+    assert.match(body, /hierarchical|recursively combine|reducer waves/i);
+    assert.match(body, /only the root|sole merge-authoritative|only (?:the )?root integrator/i);
+    assert.match(body, /Shard or reducer PASS never|reducer or shard PASS never|never authorizes Terminal Visual Review/i);
+  }
+  assert.match(reviewer, /mode=integrator|`integrator`/);
+  assert.match(reviewer, /authority=merge|`merge`/);
+  assert.match(reviewer, /mode=reducer|`reducer`/);
+  assert.match(reviewer, /authority=evidence/);
+  assert.match(readme, /integrator|Adaptive Chunked Cumulative Review/i);
+  // Local shard PASS must be distinguishable from terminal merge PASS via required mode/authority.
+  const fm = parseAgentFrontmatter(reviewer, "gsd-reviewer");
+  assert.deepEqual(fm.output.properties.mode.enum, ["single", "shard", "reducer", "integrator"]);
+  assert.deepEqual(fm.output.properties.authority.enum, ["evidence", "merge"]);
+  assert.equal(fm.output.properties.reviewed_commit.type, "string");
+  assert.equal(fm.output.properties.manifest_digest.type, "string");
+});
+
+test("adaptive-chunked-review AC-5: resume rebuild, no state schema expansion, full invalidation", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+
+  for (const body of [verify, reference, domain, handoff]) {
+    assert.match(body, /reporting-only/);
+    assert.match(body, /no (?:new )?`state\.toon` (?:fields|keys)|add no `state\.toon`|stores no shard lifecycle|no per-shard/i);
+  }
+  for (const body of [verify, reference, domain]) {
+    assert.match(body, /rebuild(?:s)? (?:and rerun|the manifest)|rebuilds the manifest|discard(?:s)? or ignore(?:s)? partial|partial shard[\s\S]{0,120}(?:non-authoritative|reporting-only)|reporting-only[\s\S]{0,80}rebuild/i);
+    assert.match(body, /[Cc]hanged bytes invalidate/);
+    assert.match(body, /no (?:content-addressed )?shard(?:-result)? (?:cache|reuse)|reruns? every shard|full rerun/i);
+  }
+  assert.match(handoff, /review_round|blocking_fingerprint|reviewed_commit|progress_status/);
+  assert.doesNotMatch(handoff, /shard_id|shard_manifest|shard_result|reducer_output|adaptive_review_cache/);
+  assert.doesNotMatch(reference, /shard_id|shard_manifest|shard_result|adaptive_review_cache/);
+  assert.match(execution, /enter terminal verification\/repair/);
+  // Partial evidence must not authoritatively resume a sharded review mid-flight via state keys.
+  assert.doesNotMatch(verify, /resume from partial shard PASS|authoritative shard cache/i);
+});
+
+test("adaptive-chunked-review AC-6: non-authoritative task preflight and terminal ordering", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const executor = read("agents/gsd-executor.md");
+  const reviewer = read("agents/gsd-reviewer.md");
+  const readme = read("README.md");
+  const master = read("skills/gsd/SKILL.md");
+
+  for (const body of [execution, reference, domain, reviewer]) {
+    assert.match(body, /Do not dispatch `gsdReviewer` per task/);
+  }
+  assert.match(executor, /Never launch the independent reviewer in the task loop|Never launch per-task reviewer|non-authoritative preflight/i);
+  for (const body of [execution, domain, reference]) {
+    assert.match(body, /non-authoritative|advisory/i);
+    assert.match(body, /high-risk|preflight|self-review/i);
+  }
+  assert.match(execution, /next_action` set to `start\/continue task`/);
+  assert.doesNotMatch(execution, /next_action` set to `run task review\/repair`/);
+  // Visual/E2E unlock only after final merge-authoritative reviewer PASS, never shard/reducer PASS.
+  for (const body of [verify, reference, domain, readme]) {
+    assert.match(body, /only after reviewer PASS|after final reviewer PASS|after merge-authoritative reviewer PASS|only after merge-authoritative reviewer PASS|reviewer PASS[\s\S]{0,80}(?:slow|E2E|Terminal Visual)/i);
+    assert.match(body, /Terminal Visual Review/);
+    assert.match(body, /Deferred Slow E2E|slow\/E2E/);
+  }
+  assert.match(verify, /Shard or reducer PASS never|reducer or shard PASS never|never unlock(?:s)? Terminal Visual Review[\s\S]{0,40}shard/i);
+  assert.match(master, /terminal whole-diff|Adaptive Chunked|whole-diff review/i);
+  assert.match(executor, /terminal whole-diff review remains in `gsd-verify`/);
 });
