@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 
 const REQUIRED_PACKET_FILES = ["plan.md"];
 const VAGUE = /^(?:tbd|todo|works correctly|run tests|valid|covered|success)\.?$/i;
+const VALID_TASK_STATUSES = new Set(["pending", "in_progress", "done", "superseded"]);
 
 function fail(message) {
   throw new Error(`Markdown contract: ${message}`);
@@ -33,6 +34,34 @@ function canonicalSource(value, label) {
   return value;
 }
 
+function validateRepositoryPath(pathValue, fieldLabel, { allowScratch = false } = {}) {
+  if (pathValue !== pathValue.trim()) {
+    fail(`${fieldLabel} path has leading or trailing whitespace: ${pathValue}`);
+  }
+  if (pathValue.includes("\\")) {
+    fail(`${fieldLabel} contains backslash: ${pathValue}`);
+  }
+  if (pathValue.startsWith("/")) {
+    fail(`${fieldLabel} must be repository-relative (cannot start with /): ${pathValue}`);
+  }
+  const segments = pathValue.split("/");
+  for (const segment of segments) {
+    if (segment === "") {
+      fail(`${fieldLabel} contains empty segment: ${pathValue}`);
+    }
+    if (segment === "." || segment === "..") {
+      fail(`${fieldLabel} contains dot/traversal: ${pathValue}`);
+    }
+    if (!allowScratch && segment === ".scratch") {
+      fail(`${fieldLabel} contains .scratch: ${pathValue}`);
+    }
+  }
+  if (pathValue.endsWith(".toon")) {
+    fail(`${fieldLabel} contains runtime TOON path: ${pathValue}`);
+  }
+  return pathValue;
+}
+
 function validatePathsField(fieldValue, fieldLabel) {
   if (typeof fieldValue !== "string") {
     fail(`${fieldLabel} must be a string`);
@@ -40,34 +69,17 @@ function validatePathsField(fieldValue, fieldLabel) {
   if (!/^`[^`]+`(\s*,\s*`[^`]+`)*$/.test(fieldValue)) {
     fail(`${fieldLabel} must be comma-separated backticked repository-relative paths with no trailing/unbackticked text`);
   }
-  const paths = [...fieldValue.matchAll(/`([^`]+)`/g)].map(([, p]) => p);
-  for (const p of paths) {
-    if (p !== p.trim()) {
-      fail(`${fieldLabel} path has leading or trailing whitespace: ${p}`);
-    }
-    if (p.includes("\\")) {
-      fail(`${fieldLabel} contains backslash: ${p}`);
-    }
-    if (p.startsWith("/")) {
-      fail(`${fieldLabel} must be repository-relative (cannot start with /): ${p}`);
-    }
-    const segments = p.split("/");
-    for (const segment of segments) {
-      if (segment === "") {
-        fail(`${fieldLabel} contains empty segment: ${p}`);
-      }
-      if (segment === "." || segment === "..") {
-        fail(`${fieldLabel} contains dot/traversal: ${p}`);
-      }
-      if (segment === ".scratch") {
-        fail(`${fieldLabel} contains .scratch: ${p}`);
-      }
-    }
-    if (p.endsWith(".toon")) {
-      fail(`${fieldLabel} contains runtime TOON path: ${p}`);
-    }
+  return [...fieldValue.matchAll(/`([^`]+)`/g)]
+    .map(([, pathValue]) => validateRepositoryPath(pathValue, fieldLabel));
+}
+
+function validateArtifactPath(pathValue, feature, fieldLabel) {
+  validateRepositoryPath(pathValue, fieldLabel, { allowScratch: true });
+  const prefix = `.scratch/${feature}/prototype/`;
+  if (!pathValue.startsWith(prefix) || pathValue.length === prefix.length) {
+    fail(`${fieldLabel} must stay under ${prefix}`);
   }
-  return paths;
+  return pathValue;
 }
 
 function validateTitle(content, title) {
@@ -338,56 +350,57 @@ function parseInterfaces(content, criteria) {
   return pins;
 }
 
-function parseTasks(content, criteria) {
+function parseTasks(content, criteria, feature) {
   const value = section(content, "Tasks", true);
   const lines = value.split("\n");
   if (lines.some(line => line.trim() === "")) {
     fail("Tasks must not contain blank or whitespace lines");
   }
-  if (lines.length === 0 || lines.length % 5 !== 0) {
+
+  const starts = [];
+  for (let index = 0; index < lines.length; index++) {
+    if (/^### T[1-9]\d*: /.test(lines[index])) starts.push(index);
+  }
+  if (starts.length === 0 || starts[0] !== 0) {
     fail("Tasks must consist of sequential T blocks with no stray content");
   }
 
   const tasks = [];
   const ids = new Set();
-  const numBlocks = lines.length / 5;
   const active = new Set(criteria.filter((criterion) => criterion.state === "active").map((criterion) => criterion.id));
 
-  for (let i = 0; i < numBlocks; i++) {
-    const l1 = lines[i * 5];
-    const l2 = lines[i * 5 + 1];
-    const l3 = lines[i * 5 + 2];
-    const l4 = lines[i * 5 + 3];
-    const l5 = lines[i * 5 + 4];
-
-    const m1 = l1.match(/^### (T([1-9]\d*)): (.+)$/);
-    if (!m1) fail(`Task block ${i + 1} heading is invalid or malformed`);
-    const [, id, ordinalStr, title] = m1;
+  const parseIdentity = (block, blockIndex) => {
+    const heading = block[0]?.match(/^### (T([1-9]\d*)): (.+)$/);
+    if (!heading) fail(`Task block ${blockIndex + 1} heading is invalid or malformed`);
+    const [, id, ordinalStr, title] = heading;
     const ordinal = Number(ordinalStr);
-
-    const m2 = l2.match(/^- \*\*Satisfies:\*\* (.+)$/);
-    const m3 = l3.match(/^- \*\*Files:\*\* (.+)$/);
-    const m4 = l4.match(/^- \*\*Test:\*\* (.+)$/);
-    const m5 = l5.match(/^- \*\*Status:\*\* (.+)$/);
-    if (!m2 || !m3 || !m4 || !m5) {
-      fail("fields must be exactly ordered: Satisfies, Files, Test, Status");
-    }
-    const satisfiesValue = requiredExact(m2[1], `${id} Satisfies`);
-    const filesValue = requiredExact(m3[1], `${id} Files`);
-    const testValue = requiredExact(m4[1], `${id} Test`);
-    const status = requiredExact(m5[1], `${id} Status`);
-
-    if (ordinal !== i + 1) fail("task IDs must be sequential");
+    if (ordinal !== blockIndex + 1) fail("task IDs must be sequential");
     if (ids.has(id)) fail(`duplicate task ${id}`);
     ids.add(id);
 
-    const satisfies = satisfiesValue.split(",").map((value) => value.trim());
+    const satisfiesMatch = block[1]?.match(/^- \*\*Satisfies:\*\* (.+)$/);
+    if (!satisfiesMatch) fail("fields must begin with Satisfies");
+    const satisfiesValue = requiredExact(satisfiesMatch[1], `${id} Satisfies`);
+    const satisfies = satisfiesValue.split(",").map((criterion) => criterion.trim());
     if (satisfies.length === 0 || satisfies.some((criterion) => !active.has(criterion))) {
       fail(`${id} has unknown criterion`);
     }
-    const files = validatePathsField(filesValue, `${id} Files`);
-    if (files.length === 0) fail(`${id} needs at least one file`);
+    return {
+      id,
+      ordinal,
+      title: requiredExact(title, `${id} title`),
+      satisfies,
+    };
+  };
 
+  const parseTestAndStatus = (id, testLine, statusLine) => {
+    const testMatch = testLine?.match(/^- \*\*Test:\*\* (.+)$/);
+    const statusMatch = statusLine?.match(/^- \*\*Status:\*\* (.+)$/);
+    if (!testMatch || !statusMatch) {
+      fail("fields must end with Test, Status");
+    }
+    const testValue = requiredExact(testMatch[1], `${id} Test`);
+    const status = requiredExact(statusMatch[1], `${id} Status`);
     const isBackticked = testValue.startsWith("`") && testValue.endsWith("`") && !testValue.slice(1, -1).includes("`");
     if (!isBackticked) {
       fail(`${id} Test must be one fully backticked nonempty command or none`);
@@ -399,21 +412,102 @@ function parseTasks(content, criteria) {
     if (VAGUE.test(test)) {
       fail(`${id} Test must not be vague`);
     }
-    if (!new Set(["pending", "in_progress", "done", "superseded"]).has(status)) {
+    if (!VALID_TASK_STATUSES.has(status)) {
       fail(`${id} has invalid status`);
     }
+    return { test, status };
+  };
+
+  for (let blockIndex = 0; blockIndex < starts.length; blockIndex++) {
+    const end = starts[blockIndex + 1] ?? lines.length;
+    const block = lines.slice(starts[blockIndex], end);
+    const identity = parseIdentity(block, blockIndex);
+    const { id } = identity;
+
+    const legacyFilesMatch = block[2]?.match(/^- \*\*Files:\*\* (.+)$/);
+    if (legacyFilesMatch) {
+      if (block.length !== 5) {
+        fail("legacy task fields must be exactly ordered: Satisfies, Files, Test, Status");
+      }
+      const filesValue = requiredExact(legacyFilesMatch[1], `${id} Files`);
+      const files = validatePathsField(filesValue, `${id} Files`);
+      if (files.length === 0) fail(`${id} needs at least one file`);
+      const { test, status } = parseTestAndStatus(id, block[3], block[4]);
+      tasks.push({
+        ...identity,
+        files,
+        fileIntents: null,
+        artifacts: [],
+        test,
+        status,
+        format: "legacy",
+      });
+      continue;
+    }
+
+    if (block[2] !== "- **Files:**") {
+      fail("structured task fields must be exactly ordered: Satisfies, Files, Artifacts, Test, Status");
+    }
+    let cursor = 3;
+    const fileIntents = [];
+    const filePaths = new Set();
+    while (cursor < block.length && block[cursor] !== "- **Artifacts:**" && block[cursor] !== "- **Artifacts:** none") {
+      const entry = block[cursor].match(/^  - `([^`]+)` — (create|modify|delete): (.+)$/);
+      if (!entry) fail(`${id} Files entry must contain a backticked path, create|modify|delete operation, and intent`);
+      const [, rawPath, operation, rawIntent] = entry;
+      const pathValue = validateRepositoryPath(rawPath, `${id} Files`);
+      const intent = requiredExact(rawIntent, `${id} Files intent`);
+      if (VAGUE.test(intent)) fail(`${id} Files intent must not be vague`);
+      if (filePaths.has(pathValue)) fail(`${id} Files contains duplicate path: ${pathValue}`);
+      filePaths.add(pathValue);
+      fileIntents.push({ path: pathValue, operation, intent });
+      cursor++;
+    }
+    if (fileIntents.length === 0) fail(`${id} needs at least one structured file intent`);
+
+    const artifacts = [];
+    const artifactPaths = new Set();
+    if (block[cursor] === "- **Artifacts:** none") {
+      cursor++;
+    } else if (block[cursor] === "- **Artifacts:**") {
+      cursor++;
+      while (cursor < block.length && !block[cursor].startsWith("- **Test:**")) {
+        const entry = block[cursor].match(/^  - `([^`]+)` — reference: (.+); fidelity: (.+)$/);
+        if (!entry) fail(`${id} Artifacts entry must contain path, reference role, and fidelity requirements`);
+        const [, rawPath, rawRole, rawFidelity] = entry;
+        const pathValue = validateArtifactPath(rawPath, feature, `${id} Artifacts`);
+        const role = requiredExact(rawRole, `${id} Artifacts role`);
+        const fidelity = requiredExact(rawFidelity, `${id} Artifacts fidelity`);
+        if (VAGUE.test(role)) fail(`${id} Artifacts role must not be vague`);
+        if (VAGUE.test(fidelity)) fail(`${id} Artifacts fidelity must not be vague`);
+        if (artifactPaths.has(pathValue)) fail(`${id} Artifacts contains duplicate path: ${pathValue}`);
+        artifactPaths.add(pathValue);
+        artifacts.push({ path: pathValue, role, fidelity });
+        cursor++;
+      }
+      if (artifacts.length === 0) fail(`${id} Artifacts must be none or contain at least one reference`);
+    } else {
+      fail(`${id} Artifacts must be none or an ordered reference list`);
+    }
+
+    if (cursor + 2 !== block.length) {
+      fail("structured task fields must be exactly ordered: Satisfies, Files, Artifacts, Test, Status");
+    }
+    const { test, status } = parseTestAndStatus(id, block[cursor], block[cursor + 1]);
     tasks.push({
-      id,
-      ordinal,
-      title: requiredExact(title, `${id} title`),
-      satisfies,
-      files,
+      ...identity,
+      files: [...filePaths],
+      fileIntents,
+      artifacts,
       test,
-      status
+      status,
+      format: "structured",
     });
   }
 
-  return tasks;
+  const formats = new Set(tasks.map((task) => task.format));
+  if (formats.size !== 1) fail("Tasks must use one task grammar consistently");
+  return { tasks, taskFormat: tasks[0].format };
 }
 
 function parseDecisions(content) {
@@ -517,7 +611,7 @@ export function parseMarkdownPacket(files) {
     fail("Publication must be null or the canonical Markdown ledger path whose slug exactly equals Feature");
   }
 
-  const tasks = parseTasks(plan, criteria);
+  const { tasks, taskFormat } = parseTasks(plan, criteria, feature);
 
   let pubPath = null;
   if (publication !== "null") {
@@ -574,7 +668,7 @@ export function parseMarkdownPacket(files) {
   const active = criteria.filter((criterion) => criterion.state === "active").map((criterion) => criterion.id);
   if (active.some((criterion) => coverage.get(criterion) !== 1)) fail("plan must cover every active criterion exactly once");
 
-  return { feature, criteria, interfaces, invariants, nonGoals, tasks, decisions };
+  return { feature, criteria, interfaces, invariants, nonGoals, tasks, taskFormat, decisions };
 }
 
 export function bindApprovedSources(files) {

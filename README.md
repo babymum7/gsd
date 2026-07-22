@@ -18,9 +18,9 @@ From this checkout:
 bash install.sh
 ```
 
-The installer creates three direct symlinks: `~/.omp/agent/extensions/gsd-context.js`, `~/.omp/agent/agents/gsd-executor.md`, and `~/.omp/agent/agents/gsd-reviewer.md`, pointing to their tracked checkout sources. It uses no wrapper, preflights all three targets before publishing, relocates only recognizable stale managed links, and fails closed on extension or dedicated-agent collisions. It does not install an OMP command or copy/link skills into a user skill directory. Supported legacy GSD registrations are removed conservatively only after the extension and dedicated agents have published successfully; ambiguous user-owned objects are preserved with a warning.
+The installer publishes one direct symlink, `~/.omp/agent/extensions/gsd-context.js`, to the tracked extension. There is no wrapper; any target collision fails closed before publication. It installs no persistent model agent and no model-role configuration. Upgrade preflight removes only positively recognized managed legacy GSD agent links; regular files, directories, foreign links, live unrelated links, and unrelated agents fail closed or remain unchanged. It does not install an OMP command or copy/link skills into a user skill directory.
 
-Skills are repository files read lazily by the extension and are never separately installed. Relocation of the checkout requires reinstall. Since the symlink points to the tracked extension file, editing the extension in place does not require reinstall, but it does require you to start a new OMP session so that OMP loads the updated extension. Editing a skill in place takes effect the next time that skill is selected.
+Skills are repository files read lazily by the extension and are never separately installed. Relocation of the checkout requires reinstall. Editing the extension in place requires a new OMP session; start a new OMP session after an extension edit. Editing a skill takes effect the next time that skill is selected.
 
 ## Use ordinary prompts
 
@@ -46,21 +46,22 @@ If the checkout, hidden bootstrap, or visible catalog cannot be validated, the e
 flowchart LR
     U["Build X"] --> B[Discovery and stress-test]
     B --> P[plan.md with acceptance criteria]
-    P -->|approved| E[Per-task execution on wip/]
-    E --> V[Whole-diff verification and acceptance]
-    V -->|pass| M[Squash to base]
+    P -->|approved| E[Ordered session-owner execution on wip/]
+    E --> V[Deterministic terminal conformance]
+    V -->|green| L[Optional Terminal Visual Review]
+    L --> S[Deferred Slow E2E]
+    S -->|green| M[Squash to base]
     V -.implementation issue.-> E
     V -.load-bearing plan gap.-> B
 ```
 
-1. **Discovery.** `gsd-brainstorming` explores only the relevant code, exposes risks and missing decisions, and converges on the smallest sufficient contract. Large work is split into independently deliverable milestones.
-2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with observable acceptance criteria, exact task ownership, interfaces, focused checks, and a SHA-256 binding. The single post-plan action surface offers approve and execute, Build prototype with Lavish, revise, and pause/save. Approval writes atomic `.scratch/<feature>/state.toon`.
-3. **Execution.** `gsd-executing-plans` creates `wip/<feature>`, dispatches validated task slices from the plan, loads `gsd-tdd` for observable work, enforces Fast TDD Checks (RED→GREEN→refactor; no browser/resource-heavy task loops), uses executor fast-green evidence for task boundaries without per-task `gsdReviewer`, records reporting-only evidence, commits green work, and checkpoints `state.toon`.
-4. **Verification.** Whole-diff review before slow/E2E: `gsd-verify` runs context-safe terminal review after all tasks and fast checks pass and before any Terminal Visual Review or Deferred Slow E2E: resolve bound reviewer `contextWindow` via normalized `omp models find <provider>/<model> --json`, compare the complete payload's raw UTF-8 byte count to `single_budget=min(floor(0.30*C), 48000)` and `shard_budget=min(floor(0.20*C), 32000)`, then on the small path (`<= single_budget`) use single cumulative review with a reporting-only coverage manifest (persistent gsd-reviewer session reuse only here), or Adaptive Chunked Cumulative Review for oversized diffs (task-seeded dependency-adjusted shards, at most eight concurrent fresh isolated shard reviewers per wave (no wave-count cap; continue waves until every shard reports), hierarchical reporting-only reducers, and one root `mode=integrator`/`authority=merge` verdict). Parent-mediated executor repair loops until merge-authoritative reviewer PASS on commit C; shard or reducer PASS never unlocks/authorizes Terminal Visual Review, Deferred Slow E2E, or merge; After PASS, UI/UX work always receives a terminal surface with `Continue to Deferred Slow E2E` and `Visualize completed work with Lavish`; eligible substantial non-UI deliverables receive the same surface; ineligible work proceeds without a visual prompt; launch remains opt-in; selected visualization uses actual completed implementation evidence and must reach explicit visual acceptance only after reviewer PASS before the complete feature-affected slow suite (Deferred Slow E2E only after reviewer PASS); E2E failures return via the parent for fast repair, re-review, and refreshed visual acceptance of changed bytes before full E2E reruns. Reviewer and E2E never run concurrently. Merge requires reviewer PASS and complete slow/E2E GREEN on the same unchanged commit; when Terminal Visual Review was selected, merge also requires selected visual acceptance on that same unchanged commit. Repair is source-first with smallest-affected and progress-guarded re-review/slow-suite loops. A red gate blocks merging. Scratch auto-deletes after a green merge unless retain or archive-and-delete was explicitly selected before final review.
+1. **Discovery.** `gsd-brainstorming` explores only relevant code, exposes risks and missing decisions, and converges on the smallest sufficient contract. Large work is split into independently deliverable milestones.
+2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with observable acceptance criteria, structured file operations and intents, applicable prototype references, interfaces, focused checks, and a SHA-256 binding. The single post-plan action surface offers approve and execute, Build prototype with Lavish, revise, and pause/save. Approval writes atomic `schema:v3` `.scratch/<feature>/state.toon`.
+3. **Execution.** The current top-level session owner uses `gsd-executing-plans` to select `T1..TN` in order, rebuild each complete validated task slice, load `gsd-tdd` for observable work, perform Fast TDD Checks inline (RED→GREEN→refactor; no browser/resource-heavy task loops), commit each green checkpoint, and update `state.toon`. GSD dispatches no implementation, repair, diagnosis, architecture, or verification child task and never overlaps lifecycle work.
+4. **Verification.** `gsd-verify` deterministically checks the exact plan/state binding, active-criterion/interface/task coverage, changed-path ownership, plan-ordered task diffs, explicit decisions/invariants/non-goals, and current-commit focused-check evidence. Only malformed binding, ownership/coverage mismatch, explicit contract contradiction, unresolved change, or a red deterministic check blocks.
+5. **Visual and E2E gates.** Current-commit session-owner verification precedes any Terminal Visual Review and Deferred Slow E2E. UI/UX plans always receive `Continue to Deferred Slow E2E` / `Visualize completed work with Lavish`; eligible substantial non-UI deliverables receive the same surface; ineligible work proceeds without it. Visualization is capture-only: feedback is journaled to `.gsd-lavish/${feature}.feedback.json`, acknowledged as recorded-not-applied, and never changes source until the separate terminal `Start fixing` action. Pending feedback offers only `Start fixing` / `Continue feedback`; zero pending feedback plus current verification offers `Accept visual result` / `Continue feedback`. Source changes invalidate verification and visual acceptance. Deferred Slow E2E runs only after zero pending feedback and explicit acceptance when visualization was selected.
 
-Planning may Build prototype with Lavish for any feature type before approval; annotations return to `gsd-to-plan` and may revise the draft. Prototype sessions never become implementation evidence or terminal acceptance. Separately, after reviewer PASS and before Deferred Slow E2E, `gsd-verify` presents Terminal Visual Review: UI/UX plans always receive the two-action surface (`Continue to Deferred Slow E2E` / `Visualize completed work with Lavish`); eligible substantial non-UI deliverables receive the same surface; ineligible work proceeds without a visual prompt. Launch remains opt-in.
-
-A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active feature” validates the packet, its Markdown bindings, and Git state before resuming exactly one next action. Malformed, ambiguous, or hash-mismatched state stops instead of reconstructing requirements from memory.
+A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active feature” validates `schema:v3`, the exact plan path/hash, base/WIP identity, last green task/commit, current tree, and plan-referenced artifacts before rebuilding one active task or terminal slice. Malformed, ambiguous, or mismatched authority stops instead of reconstructing scope from memory.
 
 ## Other intent-driven behavior
 
@@ -77,30 +78,10 @@ A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active 
 
 Missing consumed artifacts do not trigger improvisation. The selected skill returns control to automatic selection or the recorded active owner with an actionable stop or transition.
 
-## Dual-Agent Model Roles
+## Session-owner authority
 
-GSD relies on two dedicated custom role bindings configured in global `~/.omp/agent/config.yml` or overridden locally in project `.omp/config.yml`:
-- `modelRoles.gsdExecutor`: Binds the executor model selector (`gsd-executor` agent via `@gsdExecutor`) that performs task implementation, runs focused checks, and carries out self-verification. Live agent identity is process-local and recreated from the selector after a session boundary.
-- `modelRoles.gsdReviewer`: Binds the independent reviewer model selector (`gsd-reviewer` agent via `@gsdReviewer`) that performs whole-diff terminal review and re-verification. Live agent identity is process-local.
+The current top-level session is the sole lifecycle authority. It interprets the approved plan, edits the canonical WIP, runs checks, commits, checkpoints, verifies conformance, routes visual feedback, runs Deferred Slow E2E, merges, and cleans up. A later top-level session assumes the same role only after canonical rehydration from `state.toon`, bound `plan.md`, Git, and required prototype references. No persistent model identity or custom agent configuration participates in authority.
 
-### Configuration Examples
-
-**Global configuration (`~/.omp/agent/config.yml`):**
-```yaml
-modelRoles:
-  gsdExecutor: "google-antigravity/gemini-3.5-flash:high"
-  gsdReviewer: "openai-codex/gpt-5.5:high"
-```
-
-**Project-local override (`.omp/config.yml`):**
-```yaml
-modelRoles:
-  gsdExecutor: "anthropic-direct/claude-3-7-sonnet"
-  gsdReviewer: "openai-direct/o3-mini"
-```
-
-### Precedence & Recovery
-Project `.omp/config.yml` settings take precedence over global `~/.omp/agent/config.yml`. If either `modelRoles.gsdExecutor` or `modelRoles.gsdReviewer` is missing, unresolved, alias-only, or identical to the other role, GSD fails closed prior to plan approval with an actionable error. GSD never mutates `config.yml` and never falls back to built-in `modelRoles.task` or `modelRoles.advisor`.
 ## State and repository layout
 
 - `.scratch/` is ignored and machine-local by default.
@@ -116,8 +97,8 @@ skills/
 ├── gsd/                              # hidden session bootstrap + canonical reference
 ├── gsd-brainstorming/                # discovery and requirements convergence
 ├── gsd-to-plan/                      # executable Markdown plan
-├── gsd-executing-plans/              # task execution and bounded delegation
-├── gsd-verify/                       # terminal review and acceptance gate
+├── gsd-executing-plans/              # sequential session-owner task execution
+├── gsd-verify/                       # deterministic conformance and acceptance gate
 ├── gsd-handoff/                      # pause, recovery, and portable resume
 ├── gsd-tdd/                          # mandatory Fast TDD RED→GREEN→refactor for observable tasks
 ├── gsd-ponytail/                     # YAGNI ladder

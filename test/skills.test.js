@@ -81,6 +81,103 @@ const canonicalPacket = () => ({
   "plan.md": "# Plan\n## Feature\n`canonical-fixture`\n## Base\n`main`\n## Summary\nValidate Markdown plan.\n## Context\nA tracked inline fixture.\n## Scope\n- Validate plan\n## Acceptance Criteria\n### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n## Decisions\nNone.\n## Invariants\n- **I-1:** Approved source bytes remain immutable.\n## Non-goals\n- **NG-1:** Runtime TOON is not edited by the parser.\n## Interfaces\n| Criterion | Seam | Path | Lower-seam reason |\n| --- | --- | --- | --- |\n| AC-1 | parser | `test/skills.test.js` | none |\n## Publication\nnull\n## Tasks\n### T1: Parse plan\n- **Satisfies:** AC-1\n- **Files:** `test/skills.test.js`\n- **Test:** `node --test test/skills.test.js`\n- **Status:** pending\n",
 });
 
+const structuredPacket = () => {
+  const packet = canonicalPacket();
+  packet["plan.md"] = packet["plan.md"].replace(
+    "### T1: Parse plan\n- **Satisfies:** AC-1\n- **Files:** `test/skills.test.js`\n- **Test:** `node --test test/skills.test.js`\n- **Status:** pending",
+    "### T1: Parse plan\n- **Satisfies:** AC-1\n- **Files:**\n  - `src/new.js` — create: expose the planned public entrypoint\n  - `src/current.js` — modify: enforce the approved behavior contract\n  - `src/obsolete.js` — delete: remove the superseded runtime path\n- **Artifacts:**\n  - `.scratch/canonical-fixture/prototype/dashboard.png` — reference: dashboard layout and component states; fidelity: preserve hierarchy, spacing tokens, loading state, and mobile stacking\n- **Test:** `node --test test/skills.test.js`\n- **Status:** pending",
+  );
+  return packet;
+};
+
+test("structured task file intents and prototype bindings parse deterministically", () => {
+  const legacy = parseMarkdownPacket(canonicalPacket());
+  assert.equal(legacy.taskFormat, "legacy");
+  assert.equal(legacy.tasks[0].format, "legacy");
+
+  const structured = structuredPacket();
+  const parsed = parseMarkdownPacket(structured);
+  assert.equal(parsed.taskFormat, "structured");
+  assert.deepEqual(parsed.tasks[0].fileIntents, [
+    { path: "src/new.js", operation: "create", intent: "expose the planned public entrypoint" },
+    { path: "src/current.js", operation: "modify", intent: "enforce the approved behavior contract" },
+    { path: "src/obsolete.js", operation: "delete", intent: "remove the superseded runtime path" },
+  ]);
+  assert.deepEqual(parsed.tasks[0].artifacts, [{
+    path: ".scratch/canonical-fixture/prototype/dashboard.png",
+    role: "dashboard layout and component states",
+    fidelity: "preserve hierarchy, spacing tokens, loading state, and mobile stacking",
+  }]);
+
+  const source = structured["plan.md"];
+  for (const [needle, replacement, error] of [
+    ["— create: expose", "— move: expose", /operation|Files entry/i],
+    ["create: expose the planned public entrypoint", "create: todo", /intent|vague/i],
+    ["`src/current.js` — modify", "`../src/current.js` — modify", /traversal|repository-relative/i],
+    ["`.scratch/canonical-fixture/prototype/dashboard.png`", "`.scratch/other-feature/prototype/dashboard.png`", /Artifacts|feature|prototype/i],
+    ["dashboard layout and component states", "todo", /role|vague/i],
+    ["preserve hierarchy, spacing tokens, loading state, and mobile stacking", "todo", /fidelity|vague/i],
+  ]) {
+    assert.throws(
+      () => parseMarkdownPacket({ "plan.md": source.replace(needle, replacement) }),
+      error,
+    );
+  }
+});
+
+test("planner single-writes structured tasks and execution binds prototype references", () => {
+  const planner = read("skills/gsd-to-plan/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+
+  for (const body of [planner, reference]) {
+    assert.match(body, /- \*\*Files:\*\*\n\s+- `<path>` — (?:create\|modify\|delete|<create\|modify\|delete>)/);
+    assert.match(body, /- \*\*Artifacts:\*\* none/);
+    assert.match(body, /\.scratch\/<feature>\/prototype\//);
+  }
+  assert.match(planner, /newly approve only structured task blocks/i);
+  assert.match(reference, /dual-read[\s\S]*single-write/i);
+  assert.match(execution, /artifact references[\s\S]*open every referenced artifact before source edits/i);
+  assert.match(execution, /already-approved[\s\S]*legacy task blocks/i);
+  assert.match(planner, /exist and are readable/i);
+  assert.match(planner, /prototype[\s\S]*never[\s\S]*scope authority/i);
+});
+
+test("session owner is sole lifecycle authority without model agents", () => {
+  const paths = [
+    "README.md",
+    "docs/domain/gsd.md",
+    ...filesUnder(SKILLS).map((path) => path.slice(ROOT.length + 1)),
+  ];
+  const corpus = paths.map((path) => [path, read(path)]);
+  const reference = read("skills/gsd/REFERENCE.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+  const designTwice = read("skills/gsd-codebase-design/DESIGN-IT-TWICE.md");
+  const designSkill = read("skills/gsd-codebase-design/SKILL.md");
+  const ponytail = read("skills/gsd-ponytail/SKILL.md");
+
+  for (const [path, body] of corpus) {
+    assert.doesNotMatch(
+      body,
+      /gsdReviewer|gsd-reviewer|gsdExecutor|gsd-executor|reviewer_model|executor_model|review_round|blocking_fingerprint|reviewed_commit|progress_status|terminal_repair_round|Adaptive Chunked Cumulative Review|\breducer\b|review shard|shard review|per-shard|shard lifecycle|root integrator|root-integrator|reviewer PASS|\bparent (?:owner|authority)\b/i,
+      path,
+    );
+  }
+  assert.match(reference, /schema:v3[\s\S]*session owner/i);
+  assert.match(handoff, /schema:v3[\s\S]*session owner/i);
+  assert.match(reference, /sole lifecycle authority/i);
+  assert.match(verify, /plan hash[\s\S]*every active AC[\s\S]*changed path[\s\S]*task diffs in plan order/i);
+  assert.match(verify, /malformed binding[\s\S]*ownership\/coverage mismatch[\s\S]*contract contradiction[\s\S]*red deterministic check/i);
+  assert.match(verify, /Terminal Visual Review[\s\S]*Deferred Slow E2E/i);
+  assert.doesNotMatch(designTwice, /sub-?agents?|`task`/i);
+  assert.match(designTwice, /three separate self-contained inline design passes/i);
+  assert.match(designSkill, /three sequential inline design passes/i);
+  assert.doesNotMatch(designSkill, /at least two interfaces/i);
+  assert.match(ponytail, /ponytail_level:<value>/);
+  assert.doesNotMatch(ponytail, /settings\[\]|ponytail_level,/);
+});
+
 test("every GSD skill has complete matching frontmatter", () => {
   for (const name of skillNames()) {
     const skill = read(`skills/${name}/SKILL.md`);
@@ -837,41 +934,38 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
   const verify = read("skills/gsd-verify/SKILL.md");
   const handoff = read("skills/gsd-handoff/SKILL.md");
   const tdd = read("skills/gsd-tdd/SKILL.md");
-  assert.match(master, /gsd-to-plan` \(writes the plan/);
+
+  assert.match(master, /gsd-brainstorming` → `gsd-to-plan` → approval/);
   assert.match(master, /stale non-authoritative state/);
   assert.match(reference, /Canonical Markdown contract/);
-  assert.match(reference, /SHA-256 hash/);
+  assert.match(reference, /SHA-256/);
   assert.match(reference, /Runtime records report progress and bind source bytes/);
   for (const skill of [planner, execution, verify, handoff, tdd]) {
-    assert.match(skill, /Markdown/i);
+    assert.match(skill, /plan\.md|Markdown/i);
     assert.match(skill, /hash|SHA-256|binding/i);
   }
-  assert.match(execution, /never rewrite the approved Markdown plan/);
-  assert.match(handoff, /atomic `?\.scratch\/<feature>\/state\.toon`?|Write atomic `\.scratch\/<feature>\/state\.toon`/i);
+  assert.match(execution, /never rewrite the approved Markdown plan/i);
+  assert.match(handoff, /Write atomic `\.scratch\/<feature>\/state\.toon`/i);
   assert.match(tdd, /focused test seam from the approved Markdown plan/);
-  assert.match(tdd, /consume the validated task slice and relevant pinned sections/);
+  assert.match(tdd, /consume the exact validated task slice and relevant pinned sections/);
   assert.doesNotMatch(tdd, /proposal\.toon|spec\.toon|plan\.toon/);
-  assert.doesNotMatch(reference, /TOON-only execution/i);
   assert.match(reference, /Quick-fix plan exception/);
   assert.match(master, /Quick-fix plan exception/);
-  assert.match(verify, /Critical\/Important findings and red gates block/);
-  assert.match(planner, /write atomic `state\.toon` with the plan path and SHA-256 hash/);
+  assert.match(verify, /malformed binding[\s\S]*red deterministic check blocks/i);
+  assert.match(planner, /atomically write canonical `schema:v3` `state\.toon`/);
   assert.doesNotMatch(execution, /^produces: \[[^\n]*plan\.md/m);
   assert.match(execution, /ledger byte-for-byte read-only throughout the per-task loop/);
-  assert.match(verify, /final milestone → delete the ledger/);
-  assert.match(handoff, /executor_model|reviewer_model/);
-  assert.match(handoff, /Malformed, duplicate, or invalid known values fail closed|malformed, duplicate, or invalid known values/i);
-  assert.match(handoff, /Candidate discovery|discover active candidates/i);
-  assert.match(planner, /fresh approval after Spec escalation supersedes older bindings/);
-  assert.match(execution, /Reject numbered handoffs|never treat numbered handoffs/i);
+  assert.match(verify, /final milestone deletes the ledger/);
+  assert.match(handoff, /Malformed, duplicate, or invalid known values fail closed/i);
+  assert.match(handoff, /discover active candidates/i);
+  assert.match(planner, /fresh approval after Spec escalation supersedes older binding state/);
+  assert.match(execution, /Reject legacy proposal\/spec\/design files, numbered handoffs/);
   assert.match(handoff, /Execution resume \| `state\.toon`; `plan\.md`/);
-  assert.match(reference, /Execution never depends on prompt-local memory for the approval binding/);
+  assert.match(reference, /session owner rebuilds complete task or terminal slices from canonical plan\/state\/Git/i);
   assert.match(reference, /# Milestones[\s\S]*\| ID \| Slug \| Goal \| Status \|/);
   assert.match(reference, /status is exactly `pending` or `done`/);
   assert.match(master, /all-`done`, fail closed/);
-  assert.match(reference, /state\.toon/);
   assert.doesNotMatch(reference, /Manual UI Review Gate/);
-  assert.doesNotMatch(master, /Manual UI Review Gate/);
 });
 
 test("master and visible skills declare automatic lazy activation", () => {
@@ -1005,143 +1099,80 @@ test("README documents the Markdown contract without legacy plan authority", () 
   assert.doesNotMatch(readme, /proposal\.toon|spec\.toon|design\.toon|plan\.toon/);
 });
 
-test("T1 execution contract lifecycle and roles", () => {
+test("T1 session-owner execution contract and lifecycle roles", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  const toPlan = read("skills/gsd-to-plan/SKILL.md");
+  const planner = read("skills/gsd-to-plan/SKILL.md");
   const verify = read("skills/gsd-verify/SKILL.md");
   const handoff = read("skills/gsd-handoff/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
   const readme = read("README.md");
   const domain = read("docs/domain/gsd.md");
 
-  assert.match(toPlan, /Before approval, GSD validates that concrete, available, and distinct model selectors are configured for `modelRoles\.gsdExecutor` and `modelRoles\.gsdReviewer`/);
-  assert.match(toPlan, /At approval, GSD binds these validated persistent executor and reviewer models\./);
-  assert.match(reference, /At approval, GSD binds the persistent executor model from `modelRoles\.gsdExecutor` and the distinct persistent reviewer model from `modelRoles\.gsdReviewer`\./);
-  assert.match(domain, /### D-gsd-3: Bind persistent OMP executor and reviewer roles/);
-  assert.match(toPlan, /rejects missing, unresolved, alias-only, or same-model bindings/);
-  assert.match(toPlan, /keeps the current model active before execution, and never substitutes the current model for either role/);
-
-  assert.match(execution, /The persistent executor, reviewer, or any launched OMP child agents consume the validated task slice/);
-  assert.match(execution, /dispatches the persistent gsd-executor agent with the bound executor model and direct-root TDD instructions/);
-  assert.match(execution, /GSD reuses its OMP agent identity \(gsd-executor/);
-  assert.match(execution, /The executor may fan out task attempts concurrently through OMP child agents if and only if the complete safe fan-out gate is satisfied/);
-  assert.match(execution, /If any proof of these conditions is absent, GSD must fall back to sequential task execution\./);
-  assert.match(reference, /explicitly dispatch the persistent gsd-executor agent \(with the bound executor model from `modelRoles\.gsdExecutor`\)/);
-  assert.doesNotMatch(execution, /Child roles \(implementer, reviewer, and fixer\)/);
-  assert.doesNotMatch(execution, /dispatches one fresh task implementer/);
-  assert.doesNotMatch(execution, /dispatches a fresh finding-scoped `task` fixer/);
-
-  // Persistent reviewer reuse is only for the small/single-path cumulative review.
-  assert.match(verify, /(?:small(?:-diff)?|single(?:_budget| cumulative)?)[\s\S]{0,240}reusing the same gsd-reviewer session|reusing the same gsd-reviewer session[\s\S]{0,240}(?:small(?:-diff)?|single(?:_budget| cumulative)?)/i);
-  assert.match(verify, /fresh isolated (?:process-local )?reviewer context|fresh isolated context/i);
-  assert.doesNotMatch(verify, /dispatches the persistent gsd-reviewer agent \(reusing the same gsd-reviewer session with the bound reviewer model from `modelRoles\.gsdReviewer`\) against the cumulative `base\.\.\.HEAD` diff with that manifest\./);
-  assert.match(execution, /Do not dispatch `gsdReviewer` per task/);
-  assert.match(verify, /terminal repair continues without a fixed round count only while findings or the relevant diff demonstrably change; stop on a repeated blocking fingerprint or no relevant repair diff\./);
-  assert.match(domain, /### D-gsd-4: Replace the fixed repair cap with a progress guard/);
-  assert.doesNotMatch(verify, /terminal repair has at most two complete re-review\/retest rounds/);
-
-  assert.match(handoff, /concrete, distinct executor and reviewer model selectors/);
-  assert.match(handoff, /Persist only model selectors|do not persist live agent identities/i);
-  assert.match(handoff, /review_round|blocking_fingerprint|progress_status/);
-  assert.match(readme, /## Dual-Agent Model Roles/);
-  assert.match(readme, /- `modelRoles\.gsdExecutor`:/);
-  assert.match(readme, /- `modelRoles\.gsdReviewer`:/);
-  assert.match(readme, /~\/\.omp\/agent\/config\.yml/);
-  assert.match(readme, /\.omp\/config\.yml/);
-  assert.match(readme, /never falls back to built-in `modelRoles\.task` or `modelRoles\.advisor`/);
-  assert.match(domain, /### D-gsd-5: Recreate process-local agents from bound models/);
-
-  const executorFrontmatter = parseAgentFrontmatter(read("agents/gsd-executor.md"), "gsd-executor");
-  const reviewerFrontmatter = parseAgentFrontmatter(read("agents/gsd-reviewer.md"), "gsd-reviewer");
-  assert.deepEqual(
-    {
-      name: executorFrontmatter.name,
-      model: executorFrontmatter.model,
-      spawns: executorFrontmatter.spawns,
-    },
-    { name: "gsd-executor", model: "@gsdExecutor", spawns: "*" },
-  );
-  assert.equal(executorFrontmatter.spawn_policy, undefined);
-  assert.equal(executorFrontmatter.subagents, undefined);
-  assert.deepEqual(
-    {
-      name: reviewerFrontmatter.name,
-      model: reviewerFrontmatter.model,
-    },
-    {
-      name: "gsd-reviewer",
-      model: "@gsdReviewer",
-    },
-  );
-  assert.equal(reviewerFrontmatter.tools, undefined);
-  assert.equal(reviewerFrontmatter.output_schema, undefined);
-  assert.deepEqual(reviewerFrontmatter.output.properties.mode.enum, ["single", "shard", "reducer", "integrator"]);
-  assert.deepEqual(reviewerFrontmatter.output.properties.authority.enum, ["evidence", "merge"]);
-  assert.deepEqual(reviewerFrontmatter.output.properties.verdict.enum, ["PASS", "BLOCKED"]);
-  assert.equal(reviewerFrontmatter.output.properties.reviewed_commit.type, "string");
-  assert.equal(reviewerFrontmatter.output.properties.manifest_digest.type, "string");
-  assert.equal(reviewerFrontmatter.output.properties.findings, undefined);
-  assert.ok(Object.keys(reviewerFrontmatter.output.optionalProperties).includes("findings"));
-  assert.deepEqual(
-    Object.keys(reviewerFrontmatter.output.optionalProperties.findings.elements.properties),
-    ["severity", "file", "description"],
-  );
-  assert.match(execution, /dispatches the persistent gsd-executor agent/);
-  assert.doesNotMatch(execution, /dispatches the persistent gsd-reviewer agent \(reusing the same gsd-reviewer session with the bound reviewer model from `modelRoles\.gsdReviewer`\) against the task diff/);
-  assert.match(verify, /dispatches the persistent gsd-reviewer agent/);
-  assert.match(readme, /Global configuration \(`~\/\.omp\/agent\/config\.yml`\):[\s\S]*modelRoles:\n\s+gsdExecutor:\s+"[^"]+"\n\s+gsdReviewer:\s+"[^"]+"/);
-  assert.match(readme, /Project-local override \(`\.omp\/config\.yml`\):[\s\S]*modelRoles:\n\s+gsdExecutor:\s+"[^"]+"\n\s+gsdReviewer:\s+"[^"]+"/);
-  assert.doesNotMatch(reference, /bound advisor model/);
-  assert.doesNotMatch(execution, /bound advisor model/);
-  assert.doesNotMatch(verify, /bound advisor model/);
-  assert.match(execution, /If the independent reviewer capability or model configuration is unavailable, GSD must fail closed immediately\./);
-  assert.match(reference, /If the independent reviewer capability or model configuration is unavailable, GSD must fail closed immediately\./);
-  assert.match(verify, /If the independent reviewer capability or model configuration is unavailable, GSD must fail closed immediately\./);
-
-  assert.match(execution, /Instead of repeated full validation, follow the approved phase-boundary semantic-validation and digest-guard model\./);
-  assert.match(execution, /without independently reparsing `plan\.md`/);
-  assert.match(execution, /Every observable task loads `gsd-tdd` and follows direct-root TDD: RED before implementation, GREEN after implementation, then refactor after green/);
-  assert.match(execution, /Task acceptance deferral is removed; the terminal verifier solely owns acceptance\/E2E\./);
-  assert.match(execution, /Repeat this full parse and binding check only at execution entry\/resume\./);
-  assert.match(execution, /Do not compare plan digest at ordinary task dispatch/);
-  assert.match(execution, /After any repair, the gsd-executor agent reruns only focused checks invalidated by its repair, records replacement green evidence for each invalidated check, and reports replacement green evidence to the parent for an executor-only focused-check decision\./);
-  assert.match(execution, /Any legacy `proposal\.md`, `spec\.md`, or `design\.md` is rejected\./);
-  assert.match(execution, /Missing, invalid, altered, or additional `plan\.md` is a Spec escalation\./);
-  assert.match(execution, /never rewrite the approved Markdown plan\./);
-  assert.match(execution, /The parent retains task order, Git commits, state checkpoints, and terminal transition\./);
+  for (const body of [planner, execution, verify, handoff, reference, readme, domain]) {
+    assert.doesNotMatch(
+      body,
+      /gsdReviewer|gsd-reviewer|gsdExecutor|gsd-executor|reviewer_model|executor_model|review_round|blocking_fingerprint|reviewed_commit|progress_status/i,
+    );
+  }
+  assert.match(planner, /current top-level session remains the sole lifecycle authority/i);
+  assert.match(execution, /current top-level session owner consumes the validated slice/);
+  assert.match(execution, /implements or repairs the task inline/);
+  assert.match(execution, /next task in strict heading order/);
+  assert.match(execution, /dispatches no[\s\S]{0,120}generic child task/);
+  assert.match(reference, /current top-level session owner implements and repairs each ordered task inline and sequentially/i);
+  assert.match(execution, /Task `Tn\+1` begins only from the committed green checkpoint of `Tn`/);
+  assert.match(execution, /No implementation task or repair overlaps another task, Terminal Visual Review, or Deferred Slow E2E/);
+  assert.match(verify, /session owner performs deterministic cumulative conformance/);
+  assert.match(verify, /No free-form critique or model-generated verdict is terminal authority/);
+  assert.match(domain, /### D-gsd-3: Make the session owner the sole lifecycle authority/);
+  assert.match(domain, /### D-gsd-4: Converge only through deterministic blockers/);
+  assert.match(domain, /### D-gsd-5: Rehydrate authority from canonical sources/);
+  assert.match(readme, /## Session-owner authority/);
+  assert.equal(existsSync(join(ROOT, "agents", "gsd-executor.md")), false);
+  assert.equal(existsSync(join(ROOT, "agents", "gsd-reviewer.md")), false);
+  assert.match(execution, /full parse and binding check at execution entry or resume/);
+  assert.match(execution, /At ordinary task selection consume the retained validated task slice/);
+  assert.match(execution, /RED before implementation, GREEN after implementation, then refactor after green/);
+  assert.match(execution, /rerun only checks invalidated by the repair/);
+  assert.match(execution, /Reject legacy proposal\/spec\/design files/);
+  assert.match(execution, /never rewrite approved Markdown/);
 });
 
-test("T2 state.toon contract and skill derivation", () => {
+test("T2 schema:v3 state.toon contract and skill derivation", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const handoff = read("skills/gsd-handoff/SKILL.md");
   const master = read("skills/gsd/SKILL.md");
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  const toPlan = read("skills/gsd-to-plan/SKILL.md");
+  const planner = read("skills/gsd-to-plan/SKILL.md");
   const verify = read("skills/gsd-verify/SKILL.md");
 
   assert.match(reference, /## Runtime state contract/);
-  assert.match(reference, /Resumable State Snapshot/);
-  assert.match(reference, /schema:v1/);
-  assert.match(reference, /phase:draft\|approved\|executing\|paused\|verifying\|repair\|merged-cleanup-pending\|completed-retained/);
-  assert.match(reference, /checkpoint_revision/);
-  assert.match(reference, /cleanup_preference:none\|delete\|retain\|archive-and-delete/);
-  assert.match(reference, /legacy key rejected|Reject every legacy key|including `mode`, `manual_ui_review`/i);
+  const currentStateBlock = reference.match(/```toon\nschema:v3\n[\s\S]*?\n```/);
+  assert.ok(currentStateBlock, "REFERENCE must contain canonical schema:v3");
+  assert.doesNotMatch(currentStateBlock[0], /model|agent|review/);
+  assert.match(currentStateBlock[0], /phase:draft\|approved\|executing\|paused\|verifying\|repair\|merged-cleanup-pending\|completed-retained/);
+  assert.match(currentStateBlock[0], /checkpoint_revision/);
+  assert.match(currentStateBlock[0], /cleanup_preference:none\|delete\|retain\|archive-and-delete/);
+  assert.match(reference, /exact valid active production `schema:v1` or `schema:v2`[\s\S]*atomically rewritten to canonical `schema:v3`/);
+  assert.match(reference, /Validate `phase` against the fixed schema enum/);
+  assert.match(handoff, /Reject an unknown `phase`; preserve an opaque `next_action`/);
+  assert.doesNotMatch(reference, /opaque state `phase`|opaque `phase`/);
+  assert.doesNotMatch(handoff, /unknown opaque `phase`|opaque `phase`/);
   assert.match(reference, /Atomic write/);
   assert.match(reference, /atomically renames it over `state\.toon`/);
   assert.match(reference, /No dispatch occurs from unvalidated or partially written/);
   assert.match(reference, /Skill derivation from phase and next_action/);
   assert.match(reference, /`start\/continue task`[\s\S]{0,200}gsd-executing-plans[\s\S]{0,80}gsd-handoff[\s\S]{0,80}gsd-tdd/);
-  assert.match(reference, /`enter terminal verification\/repair`[\s\S]{0,120}gsd-verify[\s\S]{0,80}gsd-handoff/);
-  assert.match(reference, /Do not load `gsd-verify` and do not dispatch `gsdReviewer` for task repair/);
+  assert.match(reference, /`enter terminal verification\/repair`[\s\S]{0,160}gsd-verify[\s\S]{0,80}gsd-handoff/);
   assert.doesNotMatch(reference, /reload\[N\]\{skill,path\}/);
   assert.doesNotMatch(handoff, /reload\[N\]\{skill,path\}/);
-  assert.doesNotMatch(reference, /JIT task attempt|handoff-<n>\.toon as authority/i);
   assert.doesNotMatch(reference, /Manual UI Review Gate/);
   assert.match(handoff, /Write atomic `\.scratch\/<feature>\/state\.toon`/);
   assert.match(handoff, /Active skills are derived from `phase` and `next_action`/);
   assert.match(handoff, /Never serialize a `reload` manifest/);
-  assert.match(toPlan, /Build prototype with Lavish/);
-  assert.match(toPlan, /write atomic `state\.toon`/);
+  assert.match(handoff, /schema:v1` and `schema:v2`[\s\S]*rewritten to `schema:v3`/);
+  assert.match(planner, /Build prototype with Lavish/);
+  assert.match(planner, /atomically write canonical `schema:v3` `state\.toon`/);
   assert.match(execution, /validated task slice/);
   assert.match(execution, /Do not write task-attempt TOON files/);
   assert.match(verify, /phase=merged-cleanup-pending|merged-cleanup-pending/);
@@ -1149,7 +1180,6 @@ test("T2 state.toon contract and skill derivation", () => {
   assert.match(master, /state\.toon/);
   assert.match(master, /Build prototype with Lavish/);
   assert.doesNotMatch(master, /result\.toon/);
-  assert.match(handoff, /Reject `manual_ui_review`/);
 });
 test("activation fixtures and response parser enforce lazy primary-skill selection", () => {
   const fixtureText = read("test/eval/fixtures.json");
@@ -1292,7 +1322,7 @@ test("compaction recovery capsule byte identity and drift protection", async () 
     mkdirSync(featDir);
     writeFileSync(join(featDir, "plan.md"), "plan");
     writeFileSync(join(featDir, "state.toon"), [
-      "schema:v1",
+      "schema:v2",
       "feature:ac-10",
       "phase:executing",
       "next_action:start/continue task",
@@ -1302,7 +1332,6 @@ test("compaction recovery capsule byte identity and drift protection", async () 
       "wip_branch:wip/ac-10",
       "last_green_task:none",
       "last_green_commit:none",
-      "executor_model:xai-oauth/grok-4.5",
       "reviewer_model:openai-codex/gpt-5.5:high",
       "review_round:none",
       "blocking_fingerprint:none",
@@ -1399,59 +1428,27 @@ test("AC-1: Ponytail lifecycle escalation and no reduced-scope completion", () =
 
 test("AC-2: Installation documentation distinguishes relocation from in-place edits", () => {
   const readme = read("README.md");
-
-  // Find the paragraph containing installation guidance
-  const paragraph = readme.split(/\n\s*\n/).find(p => p.includes("Relocation of the checkout") || p.includes("separately installed"));
-  assert.ok(paragraph, "Should find the installation-guidance paragraph");
-  const normalized = paragraph.replace(/\s+/g, " ").trim();
-
-  // Relocation requiring reinstall
-  assert.match(normalized, /Relocation of the checkout requires reinstall/);
-
-  // Combined in-place clause: editing the extension in place does not require reinstall but does require starting a new OMP session
-  assert.match(normalized, /editing the extension in place does not require reinstall, but it does require you to start a new OMP session/);
-
-  // Ensure opposite session guidance cannot pass
-  assert.doesNotMatch(normalized, /does not require starting a new OMP session/);
-  assert.doesNotMatch(normalized, /without starting a new OMP session/);
-  assert.doesNotMatch(normalized, /no new OMP session/);
-  assert.doesNotMatch(normalized, /does not require (?:you to )?(?:start|starting) a new OMP session/);
-  assert.doesNotMatch(normalized, /editing the extension in place requires reinstall/);
-  assert.doesNotMatch(normalized, /Relocation of the checkout does not require reinstall/);
+  assert.match(readme, /Relocation of the checkout requires reinstall/);
+  assert.match(readme, /Editing the extension in place requires a new OMP session/);
+  assert.match(readme, /editing a skill takes effect the next time that skill is selected/i);
+  assert.doesNotMatch(readme, /Relocation of the checkout does not require reinstall/);
 });
 
 test("AC-3: Milestone Ledger definition points to canonical plan and excludes legacy local spec", () => {
   const domain = read("docs/domain/gsd.md");
-
-  // Definition points to canonical plan and excludes local spec wording
-  assert.match(domain, /detailed acceptance criteria stay in the canonical plan/i);
+  const reference = read("skills/gsd/REFERENCE.md");
+  assert.match(domain, /Milestone Ledger[\s\S]{0,220}docs\/gsd\/<feature>\/milestones\.md/);
+  assert.match(domain, /precise user-approved milestone goals and durable pending\/done state/);
+  assert.match(reference, /goals are approved authority; its status column is controlled by terminal verification/);
   assert.doesNotMatch(domain, /local spec/i);
 });
 
 test("AC-4: Cross-references, None. explicit, repair evidence not duplicated, and renderer serialization", () => {
-  const bugDiagnosis = read("skills/gsd-diagnosing-bugs/SKILL.md");
-  const architecture = read("skills/gsd-improve-codebase-architecture/SKILL.md");
-  const executingPlans = read("skills/gsd-executing-plans/SKILL.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-
-  // Disclosure headings point to canonical reference and are immediately followed by fence
-  const pairRegex = /^[ ]{0,3}## Contextual disclosure.*\[\.\.\/gsd\/REFERENCE\.md\]\(\.\.\/gsd\/REFERENCE\.md\).*§ Contextual disclosure templates.*\r?\n[ ]{0,3}```/m;
-  assert.match(bugDiagnosis, pairRegex);
-  assert.match(architecture, pairRegex);
-
-  // None. is explicit in executing plans and reference
-  assert.match(executingPlans, /A "None\." decisions block in the plan is represented as an explicit empty decisions marker|A `None\.` decisions block in the plan is represented as an explicit empty decisions marker/i);
-  assert.match(reference, /A `None\.` decisions block in the plan is represented as an explicit empty decisions marker/i);
-
-  // Repair evidence is not duplicated in executing plans
-  assert.match(executingPlans, /the gsd-executor agent reruns only focused checks invalidated by its repair, records replacement green evidence for each invalidated check, and reports replacement green evidence to the parent for an executor-only focused-check decision/i);
-  assert.doesNotMatch(executingPlans, /Rerun all invalidated evidence and review\./i);
-  assert.doesNotMatch(executingPlans, /focused checks and evidence/i);
-  assert.doesNotMatch(executingPlans, /that repair pass/i);
-
-  // Renderer serialization without String.replace implication
-  assert.doesNotMatch(reference, /placeholder is replaced by/i);
-  assert.doesNotMatch(reference, /`<features>` is replaced by/i);
+  assert.match(execution, /A "None\." decisions block[\s\S]{0,100}explicit empty decisions marker/i);
+  assert.match(reference, /Decisions is exact `None\.` or sequential D blocks/);
+  assert.match(execution, /rerun only checks invalidated by the repair/i);
   assert.match(reference, /`<features>` template field is serialized as/i);
   assert.match(reference, /For Normal mode \(<= 5 active features\), `<resume_instruction>` is:/i);
   assert.match(reference, /For Bounded-Ambiguity mode \(> 5 active features\), `<resume_instruction>` is:/i);
@@ -1460,271 +1457,50 @@ test("AC-4: Cross-references, None. explicit, repair evidence not duplicated, an
 
 test("archive terminal disposition contract", () => {
   const reference = read("skills/gsd/REFERENCE.md");
-  const master = read("skills/gsd/SKILL.md");
   const verify = read("skills/gsd-verify/SKILL.md");
-  const toPlan = read("skills/gsd-to-plan/SKILL.md");
-  const executing = read("skills/gsd-executing-plans/SKILL.md");
-  const lavish = read("skills/gsd-lavish/SKILL.md");
-
-  assert.match(toPlan, /This is the last planning prompt:/);
-  assert.match(toPlan, /Build prototype with Lavish/);
-  assert.doesNotMatch(toPlan, /Manual UI Review Gate/);
-  assert.match(toPlan, /no later planning menu, approval confirmation, or generic Lavish visual-review offer appears/);
-  assert.match(executing, /Approval is the last normal planning prompt\./);
-  assert.doesNotMatch(executing, /Manual UI Review Gate/);
-  assert.match(reference, /Build prototype with Lavish|Planning Prototype Session/);
-  assert.doesNotMatch(reference, /Manual UI Review Gate/);
-
-  assert.match(reference, /Terminal scratch disposition/i);
-  assert.match(reference, /delete, retain, or archive-and-delete|retain or archive-and-delete/);
+  assert.match(reference, /Terminal scratch disposition/);
   assert.match(reference, /docs\/gsd\/<feature>\/archive\/plan\.md/);
   assert.match(reference, /docs\/gsd\/<feature>\/archive\/implementation\.md/);
   assert.match(reference, /same green one-feature\/one-squash commit/);
-  assert.match(reference, /never create a post-squash or post-merge documentation-only commit/);
-  assert.match(reference, /remove `\.scratch\/<feature>\/`|delete `\.scratch\/<feature>\/`/);
-
-  assert.match(verify, /archive-and-delete/);
-  assert.match(verify, /copy the exact approved `\.scratch\/<feature>\/plan\.md` to `docs\/gsd\/<feature>\/archive\/plan\.md`/);
-  assert.match(verify, /write `docs\/gsd\/<feature>\/archive\/implementation\.md`/);
-  assert.match(verify, /feature outcome, changed paths, acceptance outcomes, and verification evidence/);
-  assert.match(verify, /same green one-feature\/one-squash commit/);
-  assert.match(verify, /never create a post-squash documentation-only commit/);
-  assert.match(verify, /default to delete after green merge|automatically remove scratch/i);
-  assert.match(reference, /keeps `\.gsd-lavish\/` and removes only direct-child regular files.*exact feature-derived `\$\{feature\}\.` prefix/i);
-  assert.match(reference, /never delete `\.gsd-lavish\/` itself.*unrelated feature or non-feature artifacts/i);
-  assert.match(verify, /keeps `\.gsd-lavish\/` and removes only direct-child regular files.*exact feature-derived `\$\{feature\}\.` prefix/i);
-  assert.match(verify, /never delete `\.gsd-lavish\/` itself.*unrelated feature or non-feature artifacts/i);
+  assert.match(reference, /If either archive destination already exists, fail closed/);
+  assert.match(reference, /terminal-cleanup-owned lifecycle paths included in changed-path ownership proof/);
+  assert.match(verify, /canonical archive destinations are terminal-cleanup-owned lifecycle paths/);
+  assert.match(verify, /every other changed path must be task-owned/);
+  assert.match(verify, /phase=merged-cleanup-pending/);
   assert.match(reference, /matching symlink or non-regular entry fails closed and remains untouched/i);
-  assert.match(verify, /matching symlink or non-regular entry fails closed and remains untouched/i);
-  assert.match(lavish, /Planning prototype[\s\S]*sets `STEM="\$feature"`/i);
-  assert.match(lavish, /session-owned sidecar asset.*same `\$\{STEM\}\.` prefix/i);
-  assert.doesNotMatch(reference, /removes? the project-root `\.gsd-lavish\/`/i);
-  assert.doesNotMatch(verify, /removes? the project-root `\.gsd-lavish\/`/i);
-
-  assert.match(master, /retain or archive-and-delete/);
-  assert.match(master, /docs\/gsd\/<feature>\/archive\/plan\.md/);
-  assert.match(master, /docs\/gsd\/<feature>\/archive\/implementation\.md/);
-
-  assert.match(reference, /non-authoritative historical reference/);
-  assert.match(reference, /sole execution\/design authority/);
-  assert.match(reference, /Do not copy legacy handoffs|never copy handoffs/i);
-  assert.match(reference, /If either archive destination already exists, fail closed and preserve prior content; never overwrite/);
-  assert.match(reference, /pre-squash archive opportunity is not reopened after merge/);
-
-  assert.match(verify, /non-authoritative historical reference only/);
-  assert.match(verify, /never copy handoffs, attempts, or result markers/);
-  assert.match(verify, /fail closed without overwrite on collision/);
-
-  assert.match(master, /never reopens planning or any other menu/);
-  assert.match(master, /pre-squash archive opportunity is not reopened/);
-
-  assert.match(reference, /merged-cleanup-pending|completed-retained/);
-  assert.match(master, /merged-cleanup-pending|completed-retained/);
-
   assert.doesNotMatch(reference, /automatically archive every completed feature/i);
-  assert.doesNotMatch(reference, /archived plans as active authority/i);
-  assert.doesNotMatch(reference, /copy the full scratch packet/i);
-  assert.doesNotMatch(verify, /automatically archive every completed feature/i);
 });
 
 test("AC-1: Fast TDD is mandatory for observable tasks", () => {
   const tdd = read("skills/gsd-tdd/SKILL.md");
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  const toPlan = read("skills/gsd-to-plan/SKILL.md");
-  const brainstorm = read("skills/gsd-brainstorming/SKILL.md");
+  const planner = read("skills/gsd-to-plan/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  const executor = read("agents/gsd-executor.md");
-  const reviewer = read("agents/gsd-reviewer.md");
-  const readme = read("README.md");
-  const domain = read("docs/domain/gsd.md");
-
-  // Mandatory gsd-tdd load for observable task work
-  assert.match(execution, /Every observable task loads `gsd-tdd`/i);
-  assert.match(execution, /direct-root TDD instructions/);
-  assert.match(tdd, /Dispatched task TDD/);
-  assert.match(domain, /Every task with observable behavior must load `gsd-tdd`/);
-
-  // Fast deterministic public seam + RED before implementation, GREEN after, then refactor
-  assert.match(tdd, /Fast TDD Check/i);
-  assert.match(tdd, /RED before implementation/i);
-  assert.match(tdd, /GREEN after implementation/i);
-  assert.match(tdd, /RED→GREEN→refactor|RED -> GREEN -> refactor|RED→GREEN.*refactor/i);
-  assert.match(executor, /RED before implementation/i);
-  assert.match(executor, /GREEN after implementation/i);
-  assert.match(executor, /refactor after green/i);
-  assert.match(domain, /Fast TDD Check for RED→GREEN→refactor/);
-
-  // Fail closed: post-implementation-only checks are not the task TDD cadence
-  assert.doesNotMatch(executor, /Run exact focused checks after implementation; never run whole acceptance\/E2E suites\./);
-  assert.doesNotMatch(execution, /The executor runs its focused check once after implementation; it never runs acceptance checks\./);
-
-  // Observable behavior cannot use `none`; missing fast seam adds the smallest real seam
-  assert.match(toPlan, /Observable behavior always receives a fast public seam/i);
-  assert.match(toPlan, /smallest real (?:fast )?public seam/i);
-  assert.match(toPlan, /`none` is only for mechanically verified non-behavioral work/);
-  assert.doesNotMatch(toPlan, /`none` is only for mechanically verified non-behavioral work\. A vague check/);
-  // more precise: none must not be allowed for observable behavior
-  assert.match(toPlan, /never use `none` for observable behavior/i);
-  assert.match(brainstorm, /smallest real (?:fast )?public seam/i);
-  assert.match(brainstorm, /Fast TDD Check|fast deterministic/i);
-
-  // Per-task browser / resource-heavy checks are banned in the implementation task loop
-  assert.match(tdd, /no browser or GUI/i);
-  assert.match(tdd, /no (?:external )?network/i);
-  assert.match(tdd, /no long-lived server/i);
-  assert.match(tdd, /no large fixture/i);
-  assert.match(tdd, /material (?:machine )?cost|materially expensive/i);
-  assert.doesNotMatch(tdd, /focused check may be unit, integration, CLI, browser, or HTTP/);
-  assert.doesNotMatch(tdd, /focused browser\/HTTP test remains per-task/);
-  assert.doesNotMatch(brainstorm, /browser, CLI, or HTTP first/);
-  assert.match(reference, /No browser, GUI, external network, long-lived server, large fixture, or material(?:ly expensive)?/);
-  assert.match(executor, /never run (?:browser|resource-heavy|slow) (?:checks|suites) in the task loop/i);
-
-  // Reporting-only evidence: no persistent TDD TOON evidence fields
-  assert.match(tdd, /reporting and transcripts only/i);
-  assert.match(tdd, /Do not add persistent TDD evidence tables, fields, or schema to runtime TOON/);
-  assert.match(execution, /reporting and transcripts only/i);
-  assert.match(reference, /reporting-only and transcript-only/);
+  assert.match(execution, /Every observable task loads `gsd-tdd`/);
+  assert.match(execution, /RED before implementation, GREEN after implementation, then refactor after green/);
+  assert.match(tdd, /Fast TDD Check/);
+  assert.match(tdd, /RED before implementation[\s\S]{0,260}GREEN after implementation/);
+  assert.match(tdd, /required sequence is RED→GREEN→refactor/);
+  assert.match(planner, /never use `none` for observable behavior/i);
+  assert.match(reference, /Every observable task loads `gsd-tdd`/);
+  for (const body of [tdd, execution]) {
+    assert.match(body, /no browser|browser,[^\n]{0,100}stay outside the task loop|never runs? browser/i);
+    assert.match(body, /external network|resource-heavy/i);
+  }
   assert.doesNotMatch(reference, /tdd_evidence|red_evidence|green_evidence|refactor_evidence/);
-  assert.doesNotMatch(tdd, /\btdd_evidence\b|\bred_evidence\b|\bgreen_evidence\b|\brefactor_evidence\b/);
-  assert.doesNotMatch(execution, /\btdd_evidence\b|\bred_evidence\b|\bgreen_evidence\b|\brefactor_evidence\b/);
-
-  // README/domain/agent surface the mandatory fast test-first sequence
-  assert.match(readme, /fast deterministic|Fast TDD|RED→GREEN→refactor/i);
-  assert.match(readme, /gsd-tdd/);
-  assert.match(domain, /### D-gsd-6: Require fast TDD and defer resource-heavy E2E/);
-  assert.match(domain, /Planning adds the smallest real fast public seam when none exists/);
-
-  // Independent reviewer remains available but is not part of the per-task TDD loop for AC-1 evidence
-  assert.match(reviewer, /terminal/i);
 });
 
-test("AC-2: Terminal whole-diff review precedes slow E2E with same-commit gates", () => {
+test("AC-2: Terminal conformance precedes slow E2E with same-commit gates", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
   const verify = read("skills/gsd-verify/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  const master = read("skills/gsd/SKILL.md");
-  const executor = read("agents/gsd-executor.md");
-  const reviewer = read("agents/gsd-reviewer.md");
-  const readme = read("README.md");
-  const domain = read("docs/domain/gsd.md");
-
-  // No gsdReviewer / slow suite in the per-task implementation loop
-  assert.match(execution, /Do not dispatch `gsdReviewer` per task/i);
-  assert.match(execution, /task boundary (?:is )?based on executor fast-green evidence/i);
-  assert.doesNotMatch(execution, /dispatches the persistent gsd-reviewer agent \(reusing the same gsd-reviewer session with the bound reviewer model from `modelRoles\.gsdReviewer`\) against the task diff/);
-  assert.match(reference, /No browser, GUI, external network, long-lived server, large fixture, or material cost may run in an implementation task loop/);
-  assert.match(reference, /Do not dispatch `gsdReviewer` per task/i);
-  assert.match(domain, /Do not dispatch `gsdReviewer` per task/i);
-
-  // Executor stays on deterministic local fast checks, including fast acceptance/contract
-  assert.match(executor, /deterministic local (?:unit|integration|CLI|contract|fast)/i);
-  assert.match(executor, /never run (?:browser|resource-heavy|slow|whole-acceptance|E2E)/i);
-  assert.match(executor, /fast acceptance|contract/i);
-  assert.doesNotMatch(executor, /it never runs acceptance checks/i);
-  assert.doesNotMatch(execution, /it never runs acceptance checks/i);
-
-  // Exact terminal order: all tasks/fast green → whole-diff review/parent-mediated repair → reviewer PASS on C → full slow/E2E on C → merge only if both green and commit unchanged
-  assert.match(verify, /all tasks and [Ff]ast (?:TDD )?[Cc]hecks are green/i);
-  assert.match(
-    verify,
-    /whole(?:-|\s)?diff review[\s\S]{0,220}(?:before|prior to)[\s\S]{0,80}(?:complete feature-affected slow|Deferred Slow E2E|slow\/E2E)/i,
-  );
-  assert.match(
-    verify,
-    /(?:complete feature-affected slow(?:\/E2E)? suite|Deferred Slow E2E).{0,160}only after reviewer PASS/i,
-  );
-  assert.match(verify, /same (?:unchanged )?commit/i);
-  assert.match(
-    verify,
-    /[Mm]erge requires reviewer PASS and (?:the )?complete (?:feature-affected )?(?:slow(?:\/E2E)? suite|slow\/E2E) GREEN on the same (?:unchanged )?commit/i,
-  );
-  assert.match(reference, /whole(?:-|\s)?diff review[\s\S]{0,220}(?:before|prior to)[\s\S]{0,80}(?:complete feature-affected slow|Deferred Slow E2E|slow\/E2E)/i);
-  assert.match(reference, /(?:complete feature-affected slow(?:\/E2E)? suite|Deferred Slow E2E).{0,160}only after reviewer PASS/i);
-  assert.match(reference, /same (?:unchanged )?commit/i);
-  assert.match(domain, /whole(?:-|\s)?diff review first|before E2E|reviewer-first/i);
-  assert.match(domain, /only after reviewer PASS/i);
-  assert.match(domain, /same unchanged commit/i);
-  assert.match(readme, /whole(?:-|\s)?diff[\s\S]{0,160}(?:before|prior to)[\s\S]{0,80}(?:slow|E2E)/i);
-  assert.match(readme, /only after reviewer PASS|reviewer PASS[\s\S]{0,120}(?:slow|E2E)/i);
-  assert.match(readme, /same (?:unchanged )?commit/i);
-  assert.match(master, /Fast TDD[\s\S]{0,80}whole-diff[\s\S]{0,80}Deferred Slow E2E|Fast TDD[\s\S]{0,80}terminal whole-diff[\s\S]{0,80}Deferred Slow E2E/i);
-  assert.match(execution, /Fast TDD[\s\S]{0,80}whole-diff[\s\S]{0,80}Deferred Slow E2E|whole-diff review[\s\S]{0,40}Deferred Slow E2E/i);
-
-  // Parent-mediated reviewer findings / executor repair loop
-  assert.match(verify, /parent[\s\S]{0,120}(?:structured )?findings/i);
-  assert.match(verify, /parent-mediated|directing the persistent gsd-executor/i);
-  assert.match(reviewer, /returns structured findings to the parent|structured findings to the parent/i);
-  assert.match(reviewer, /never edits|must never edit|read-only/i);
-  assert.match(domain, /returns structured findings to the parent/i);
-  assert.match(domain, /parent sends blocking findings to the persistent executor/i);
-
-  // Reviewer is terminal whole-diff only; begins after fast green and does not require prior slow-suite evidence
-  assert.match(reviewer, /terminal whole(?:-|\s)?diff/i);
-  assert.match(reviewer, /after all tasks and fast checks|after all tasks\/fast/i);
-  assert.doesNotMatch(reviewer, /Begin only after the complete feature-affected slow suite is green/);
-  assert.doesNotMatch(reviewer, /complete feature-affected slow-suite evidence/);
-  assert.doesNotMatch(reviewer, /backing task and terminal review/);
-  assert.doesNotMatch(reviewer, /Review task diffs and terminal WIP diffs/);
-  assert.doesNotMatch(executor, /only after the complete feature-affected slow suite is green/);
-
-  // E2E-failure repair: parent forwards evidence → executor repairs + fast checks → changed bytes re-review → full E2E only after reviewer PASS; no review/E2E parallelism
-  assert.match(verify, /E2E failure[\s\S]{0,200}(?:executor|parent)/i);
-  assert.match(verify, /(?:changed bytes|any (?:source )?change|source-byte change)[\s\S]{0,160}re-?review|re-?review[\s\S]{0,120}(?:changed bytes|before.{0,40}E2E)/i);
-  assert.match(verify, /(?:full |complete )?(?:slow\/)?E2E[\s\S]{0,100}only after reviewer PASS|reviewer PASS[\s\S]{0,100}(?:full |complete )?(?:slow\/)?E2E rerun/i);
-  assert.match(verify, /never run (?:concurrently|in parallel)|Reviewer and E2E never|do not run reviewer and E2E/i);
-  assert.match(reference, /E2E failure|changed bytes|same (?:unchanged )?commit/i);
-  assert.match(domain, /E2E failure returns evidence to the executor/i);
-  assert.match(domain, /pass reviewer again before slow\/E2E reruns/i);
-
-  // Progress-guarded repair remains
-  assert.match(verify, /source(?:-first)? repair/i);
-  assert.match(verify, /smallest affected/i);
-  assert.match(verify, /whole(?:-|\s)?diff re-review/i);
-  assert.match(verify, /progress guard/i);
-  assert.match(reference, /smallest affected/i);
-  assert.match(reference, /progress guard/i);
-  assert.match(domain, /progress guard/i);
-
-  // Completion requires both gates green on the same commit
-  assert.match(verify, /Terminal completion requires both the complete feature-affected slow(?:\/E2E)? suite and `gsdReviewer` whole-diff verdict/i);
-  assert.match(reference, /Terminal completion requires both the complete feature-affected slow(?:\/E2E)? suite and `gsdReviewer` whole-diff verdict/i);
-  assert.match(readme, /whole-diff terminal review|whole-diff review/i);
-  assert.match(readme, /complete feature-affected slow suite|Deferred Slow E2E/i);
-  assert.doesNotMatch(readme, /reviews each task, records reporting-only evidence/);
-
-  // Canonical mandatory-use matrix gsd-verify intent must be reviewer-first
-  const matrixSection = reference.match(
-    /## Visible skill mandatory-use matrix\n+([\s\S]*?)(?:\n## |\n### |\n*$)/,
-  );
-  assert.ok(matrixSection, "REFERENCE must define ## Visible skill mandatory-use matrix");
-  const verifyMatrixRow = [...matrixSection[1].matchAll(
-    /^\| `(gsd-verify)` \| [^|]+ \| ([^|]+) \|/gm,
-  )].map((m) => m[2].trim())[0];
-  assert.ok(verifyMatrixRow, "matrix must include gsd-verify intent");
-  assert.match(
-    verifyMatrixRow,
-    /whole(?:-|\s)?diff review then (?:slow\/E2E|slow suite|Deferred Slow E2E)/i,
-  );
-  assert.doesNotMatch(
-    verifyMatrixRow,
-    /slow suite then whole(?:-|\s)?diff review/i,
-  );
-
-  // Negative: reject E2E-before-review, reviewer self-edit, per-task review, and review/E2E parallelism
-  assert.doesNotMatch(verify, /whole(?:-|\s)?diff review only after the complete feature-affected slow suite is green/i);
-  assert.doesNotMatch(reference, /begin whole-diff review only after that suite is green/i);
-  assert.doesNotMatch(reference, /whole(?:-|\s)?diff review only after the complete feature-affected slow suite is green/i);
-  assert.doesNotMatch(readme, /whole-diff terminal review only after that suite is green/i);
-  assert.doesNotMatch(executor, /terminal whole-diff review remains in `gsd-verify` only after the complete feature-affected slow suite is green/i);
-  assert.doesNotMatch(reviewer, /Begin only after the complete feature-affected slow suite is green/);
-  assert.doesNotMatch(reviewer, /(?:may|can|should|will) edit (?:source|files|code)|self-edit|repairs? (?:its|their) own findings|apply fixes directly/i);
-  assert.doesNotMatch(reviewer, /dispatch(?:es)? the persistent gsd-executor|(?<!never )owns repair|perform the repair/i);
-  assert.doesNotMatch(execution, /(?<!Do not )(?<!do not )dispatch `gsdReviewer` per task/);
-  assert.doesNotMatch(verify, /(?:allow|permits?|may|can|should)(?:\s+\w+){0,4}\s+reviewer and (?:the )?(?:slow|E2E).{0,40}(?:in parallel|concurrently)/i);
-  assert.doesNotMatch(verify, /parallelize (?:review|reviewer|E2E|slow)|run review(?:er)? and E2E together/i);
-  assert.doesNotMatch(reference, /(?:allow|permits?|may|can|should)(?:\s+\w+){0,4}\s+reviewer and (?:the )?(?:slow|E2E).{0,40}(?:in parallel|concurrently)/i);
-  assert.doesNotMatch(reference, /parallelize (?:review|reviewer|E2E|slow)|run review(?:er)? and E2E together/i);
+  assert.match(execution, /Only after every non-superseded task and Fast TDD Check is green/);
+  assert.match(execution, /deterministic cumulative conformance before any Terminal Visual Review or Deferred Slow E2E/);
+  assert.match(verify, /deterministic cumulative conformance before Terminal Visual Review or Deferred Slow E2E/);
+  assert.match(verify, /Run the complete feature-affected Deferred Slow E2E suite only after current-commit conformance/);
+  assert.match(verify, /full slow\/E2E GREEN on the same unchanged commit/);
+  assert.match(reference, /Deferred Slow E2E runs only after current conformance/);
+  assert.match(reference, /Green unchanged bytes then enter one-squash merge and cleanup/);
 });
 test("AC-optional: planning prototype replaces Manual UI Review", () => {
   const brainstorm = read("skills/gsd-brainstorming/SKILL.md");
@@ -1733,7 +1509,6 @@ test("AC-optional: planning prototype replaces Manual UI Review", () => {
   const handoff = read("skills/gsd-handoff/SKILL.md");
   const verify = read("skills/gsd-verify/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  const executor = read("agents/gsd-executor.md");
   const domain = read("docs/domain/gsd.md");
   const readme = read("README.md");
   const lavish = read("skills/gsd-lavish/SKILL.md");
@@ -1752,7 +1527,7 @@ test("AC-optional: planning prototype replaces Manual UI Review", () => {
   assert.doesNotMatch(execution, /manual_ui_review,on/);
   assert.doesNotMatch(handoff, /manual_ui_review,on/);
   assert.doesNotMatch(reference, /manual_ui_review,on/);
-  assert.doesNotMatch(executor, /Manual UI Review Gate/i);
+  assert.doesNotMatch(lavish, /Manual UI Review Gate/i);
 
   assert.match(reference, /Planning Prototype Session/);
   assert.match(reference, /Build prototype with Lavish/);
@@ -1766,31 +1541,23 @@ test("AC-optional: planning prototype replaces Manual UI Review", () => {
 test("AC-4: hidden bootstrap uses state.toon and prototype surface", () => {
   const master = read("skills/gsd/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-
   assert.match(master, /Build prototype with Lavish/i);
   assert.match(master, /Deferred Slow E2E/i);
   assert.match(master, /state\.toon/);
-  assert.doesNotMatch(master, /Manual UI Review Gate/i);
-  assert.doesNotMatch(master, /result\.toon/);
-  assert.match(master, /auto-deletes after a green merge|Scratch auto-deletes/i);
-  assert.match(master, /gsdReviewer|whole-diff/i);
-  assert.match(reference, /Planning Prototype Session|Build prototype with Lavish/i);
+  assert.match(master, /deterministic terminal conformance/i);
+  assert.match(reference, /Planning Prototype Session/);
   assert.match(reference, /merged-cleanup-pending|completed-retained/);
-  assert.doesNotMatch(reference, /Manual UI Review Gate/i);
+  assert.doesNotMatch(master, /result\.toon|gsdReviewer|gsd-reviewer/);
 });
 
-test("AC-2 repair: task repair is executor-only without gsd-verify or gsdReviewer", () => {
+test("AC-2 repair: task repair stays session-owner-inline without terminal verification", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-
-  assert.match(execution, /task repair[\s\S]{0,200}next_action` set to `start\/continue task`/);
-  assert.doesNotMatch(execution, /next_action` set to `run task review\/repair`/);
-
-  assert.doesNotMatch(reference, /`run task review\/repair`/);
+  assert.match(execution, /First checkpoint `next_action=start\/continue task`/);
+  assert.match(execution, /repair source-first[\s\S]{0,160}rerun only checks invalidated by the repair/);
+  assert.match(execution, /Load no terminal verifier until every task is green/);
   assert.match(reference, /`start\/continue task`[\s\S]{0,120}gsd-executing-plans[\s\S]{0,80}gsd-handoff[\s\S]{0,80}gsd-tdd/);
-  assert.match(execution, /Do not dispatch `gsdReviewer` per task/);
-  assert.match(reference, /Do not dispatch `gsdReviewer` per task/);
-  assert.doesNotMatch(reference, /run task review\/repair/);
+  assert.doesNotMatch(execution, /run task review\/repair|gsdReviewer|gsd-reviewer/);
 });
 
 test("AC-3: Visible skill dispatch is deterministic", () => {
@@ -1884,71 +1651,34 @@ test("AC-4: Concision preserves semantic parity", () => {
   const BASELINE_VISIBLE_WORDS = 13120;
   const visible = skillNames().filter((name) => name !== "gsd").sort();
   assert.equal(visible.length, 12);
-
-  let total = 0;
-  for (const name of visible) {
-    // Whitespace-delimited count matches original `wc -w` baseline methodology.
+  const total = visible.reduce((count, name) => {
     const body = read(`skills/${name}/SKILL.md`).trim();
-    const words = body ? body.split(/\s+/).filter(Boolean) : [];
-    total += words.length;
-  }
-  assert.ok(
-    total < BASELINE_VISIBLE_WORDS,
-    `visible-skill word count ${total} must be lower than baseline ${BASELINE_VISIBLE_WORDS}`,
-  );
+    return count + (body ? body.split(/\s+/).filter(Boolean).length : 0);
+  }, 0);
+  assert.ok(total < BASELINE_VISIBLE_WORDS, `${total} must remain below ${BASELINE_VISIBLE_WORDS}`);
 
   const reference = read("skills/gsd/REFERENCE.md");
   const execution = read("skills/gsd-executing-plans/SKILL.md");
   const tdd = read("skills/gsd-tdd/SKILL.md");
   const verify = read("skills/gsd-verify/SKILL.md");
-
-  // Shared rules live in REFERENCE; skills keep mode-specific dispatch
-  assert.match(reference, /## Visible skill mandatory-use matrix/);
   assert.match(reference, /### Fast TDD and task-loop constraints/);
-  assert.match(reference, /Do not dispatch `gsdReviewer` per task/);
-  assert.match(reference, /complete feature-affected slow suite/);
-
-  // Mandatory semantics preserved after compression
+  assert.match(reference, /deterministic cumulative conformance/);
   assert.match(execution, /Every observable task loads `gsd-tdd`/);
-  assert.match(execution, /Do not dispatch `gsdReviewer` per task/);
-  assert.match(tdd, /Fast TDD Check/);
   assert.match(tdd, /RED before implementation/);
   assert.match(tdd, /GREEN after implementation/);
-  assert.match(verify, /(?:complete feature-affected slow(?:\/E2E)? suite|Deferred Slow E2E).{0,160}only after reviewer PASS/i);
-  assert.match(verify, /progress guard/i);
-
-  // No vague permissive replacement for exact guards
+  assert.match(verify, /Deferred Slow E2E suite only after current-commit conformance/);
   for (const name of visible) {
-    const skill = read(`skills/${name}/SKILL.md`);
-    assert.match(skill, /## Dispatch contract/);
-    assert.doesNotMatch(skill, /\b(as needed|if useful|when appropriate|maybe|etc\.)\b/i);
+    assert.match(read(`skills/${name}/SKILL.md`), /## Dispatch contract/);
   }
 });
 
-test("AC-4 repair: executor agent forbids per-task re-review", () => {
-  const executor = read("agents/gsd-executor.md");
-  const reviewer = read("agents/gsd-reviewer.md");
-  const verify = read("skills/gsd-verify/SKILL.md");
+test("AC-4 repair: session-owner inline task repair forbids terminal re-entry", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-
-  assert.match(execution, /Do not dispatch `gsdReviewer` per task/);
-  assert.match(execution, /task repair[\s\S]{0,200}next_action` set to `start\/continue task`/);
-
-  assert.match(verify, /(?:complete feature-affected slow(?:\/E2E)? suite|Deferred Slow E2E).{0,160}only after reviewer PASS/i);
-  assert.match(reviewer, /terminal whole-diff/i);
-  assert.match(reviewer, /Do not dispatch `gsdReviewer` per task/);
-
-  assert.doesNotMatch(executor, /submit for re-review/i);
-  assert.doesNotMatch(executor, /dispatch `gsdReviewer`/i);
-  assert.doesNotMatch(executor, /Manual UI Review Gate/i);
-  assert.match(
-    executor,
-    /rerun only focused (?:Fast TDD )?Checks invalidated by the repair/i,
-  );
-  assert.match(
-    executor,
-    /report replacement green evidence to the parent for an executor-only focused-check decision/i,
-  );
+  assert.match(execution, /implements or repairs the task inline/);
+  assert.match(execution, /red focused check[\s\S]{0,180}bounded inline repair/i);
+  assert.match(execution, /rerun only checks invalidated by the repair/);
+  assert.match(execution, /Load no terminal verifier until every task is green/);
+  assert.doesNotMatch(execution, /submit for re-review|per-task verdict|gsdReviewer/);
 });
 
 test("AC-4 repair: lavish invocation requires explicit opt-in deliverable", () => {
@@ -1990,35 +1720,16 @@ test("AC-4 repair: ponytail is helper with no lifecycle ownership", () => {
 
 test("AC-4 repair: ponytail preference autofire and handoff state", () => {
   const ponytail = read("skills/gsd-ponytail/SKILL.md");
-
   const modes = ponytail.match(/## Invocation modes\n+([\s\S]*?)(?:\n## |\n*$)/);
-  assert.ok(modes, "Invocation modes section required");
-  const modeRows = [...modes[1].matchAll(/^\| (?!Mode|---)([^|]+) \|/gm)].map((m) => m[1].trim());
-  assert.ok(modeRows.length >= 2, "at least Quick-fix and Explicit toggle modes");
-  assert.ok(modeRows.some((r) => /quick-fix/i.test(r)), "Quick-fix auto-fire mode");
-  assert.ok(modeRows.some((r) => /explicit/i.test(r)), "Explicit session toggle mode");
-  assert.match(modes[1], /^\| Mode \| Required \| Optional \| Produced \| Missing required \|$/m);
-  for (const line of modes[1].split("\n")) {
-    if (!line.startsWith("|") || /Mode|---/.test(line)) continue;
-    const cells = line.split("|").slice(1, -1);
-    assert.equal(cells.length, 5, `mode row cell count: ${line}`);
-  }
-  assert.match(modes[1], /runtime policy transitions with no artifact requirements or writes/i);
-
-  assert.match(ponytail, /explicit_level/);
-  assert.match(ponytail, /auto_scope/);
-  assert.match(ponytail, /none\|lite\|full\|ultra|exactly `none\|lite\|full\|ultra`/);
-  assert.match(ponytail, /none\|quick-fix|exactly `none\|quick-fix`/);
-
-  assert.match(ponytail, /## State transitions \(normative\)/);
-  assert.match(ponytail, /event=quick-fix;explicit_level=none;auto_scope=none/);
-  assert.match(ponytail, /event=scope-expands;explicit_level=<current>;auto_scope=<scope>/);
-  assert.match(ponytail, /event=state-write;explicit_level=<level>;auto_scope=<scope>/);
-  assert.match(ponytail, /event=state-restore;explicit_level=<current>;auto_scope=<scope>;row=ponytail_level,<level>/);
-  assert.match(ponytail, /ponytail_level,<level>/);
-  assert.match(ponytail, /state\.toon/);
-  assert.match(ponytail, /Auto-fire never becomes explicit state|auto-fire is never serialized/i);
-
+  assert.ok(modes);
+  assert.match(modes[1], /Quick-fix auto-fire/);
+  assert.match(modes[1], /Explicit session toggle/);
+  assert.match(ponytail, /explicit_level` is exactly `none\|lite\|full\|ultra`/);
+  assert.match(ponytail, /auto_scope` is exactly `none\|quick-fix`/);
+  assert.match(ponytail, /ponytail_level:<level>/);
+  assert.match(ponytail, /ponytail_level:none/);
+  assert.match(ponytail, /scalar `ponytail_level:<value>`/);
+  assert.doesNotMatch(ponytail, /ponytail_level,<level>|row=ponytail_level/);
   assert.match(ponytail, /\*\*lite\*\*/);
   assert.match(ponytail, /\*\*full\*\*/);
   assert.match(ponytail, /\*\*ultra\*\*/);
@@ -2181,17 +1892,13 @@ test("AC-4 repair: codebase-design Implementation and seam principles", () => {
   assert.match(skill, /survive internal refactors|testing past the interface/i);
 });
 
-test("AC-4 repair: task repair is executor-only without re-enter review", () => {
+test("AC-4 repair: session-owner task repair does not enter terminal verification", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  assert.doesNotMatch(execution, /re-enters review/i);
-  assert.doesNotMatch(execution, /re-enter review/i);
-  assert.match(
-    execution,
-    /report replacement green evidence to the parent for an executor-only focused-check decision|executor-only focused-check decision/i,
-  );
-  assert.match(execution, /Do not dispatch `gsdReviewer` per task/);
-  assert.match(execution, /task repair[\s\S]{0,200}next_action` set to `start\/continue task`/);
-  assert.match(execution, /enter terminal verification\/repair|whole-diff review|gsd-verify/);
+  assert.match(execution, /First checkpoint `next_action=start\/continue task`/);
+  assert.match(execution, /rerun only checks invalidated by the repair/);
+  assert.match(execution, /Load no terminal verifier until every task is green/);
+  assert.match(execution, /enter terminal verification\/repair/);
+  assert.doesNotMatch(execution, /re-enters review|re-enter review|gsdReviewer/);
 });
 
 test("AC-4 repair: architecture Explore friction and domain ambiguity", () => {
@@ -2246,778 +1953,307 @@ test("AC-4 repair: architecture candidate enums exact", () => {
   );
 });
 
-test("AC-4 repair: executing task-repair reports grammar", () => {
+test("AC-4 repair: session-owner task-repair evidence grammar", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  assert.match(
-    execution,
-    /records replacement green evidence for each invalidated check, and reports replacement green evidence to the parent for an executor-only focused-check decision/i,
-  );
-  assert.doesNotMatch(
-    execution,
-    /records replacement green evidence for each invalidated check, and report replacement green evidence/i,
-  );
-  assert.doesNotMatch(execution, /re-enters review/i);
-  assert.doesNotMatch(execution, /re-enter review/i);
+  assert.match(execution, /green focused evidence, recorded only in reporting and transcripts/);
+  assert.match(execution, /rerun only checks invalidated by the repair/);
+  assert.match(execution, /Do not write task-attempt TOON files/);
 });
 
-test("terminal-review-flow AC-1: enter terminal review only after all tasks", () => {
+test("terminal-review-flow AC-1: enter terminal verification only after all tasks", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  const verify = read("skills/gsd-verify/SKILL.md");
-  const reference = read("skills/gsd/REFERENCE.md");
-  const domain = read("docs/domain/gsd.md");
-  const master = read("skills/gsd/SKILL.md");
-
-  // Intermediate green task checkpoints stay on start/continue task
-  assert.match(
-    execution,
-    /Record completion by atomically updating `state\.toon` with the completed task \(`last_green_task` \/ `last_green_commit`\) and `next_action` set to `start\/continue task`/,
-  );
-  assert.match(
-    execution,
-    /(?:Only after|only after) (?:every|all) non-superseded tasks?(?: and (?:their |its )?Fast TDD Checks)? are green[\s\S]{0,200}`next_action` set to `enter terminal verification\/repair`/i,
-  );
-  assert.match(
-    reference,
-    /After green Fast TDD Checks, update `state\.toon` with the completed task and keep `next_action` set to `start\/continue task`/,
-  );
-  assert.match(
-    reference,
-    /(?:Only after|When) every non-superseded task is complete[\s\S]{0,160}`enter terminal verification\/repair`/i,
-  );
-
-  // Negative: reject root per-task gsd-verify invocation after every task
-  assert.doesNotMatch(
-    execution,
-    /After every non-superseded task and green Fast TDD Checks[\s\S]{0,160}invoke `gsd-verify`/,
-  );
-  assert.doesNotMatch(
-    execution,
-    /After every non-superseded task[\s\S]{0,80}invoke `gsd-verify`/,
-  );
-  assert.doesNotMatch(execution, /Do not dispatch `gsdReviewer` per task[\s\S]{0,400}After every non-superseded task and green Fast TDD Checks, update `state\.toon` for terminal entry/);
-
-  // One terminal whole-diff gate only after all tasks (small path may use single cumulative review)
-  assert.match(execution, /one cumulative|cumulative (?:whole-diff |terminal )?review|context-safe terminal review|one terminal whole-diff gate/i);
-  assert.match(verify, /after all tasks and [Ff]ast (?:TDD )?[Cc]hecks are green/i);
-  assert.match(domain, /Do not dispatch `gsdReviewer` per task/);
-  assert.match(master, /terminal whole-diff `gsdReviewer`|whole-diff review/i);
-  assert.match(reference, /Do not load `gsd-verify` and do not dispatch `gsdReviewer` for task repair/);
+  assert.match(execution, /Atomically update `state\.toon` with `last_green_task`, `last_green_commit`, and `next_action=start\/continue task`/);
+  assert.match(execution, /Only after every non-superseded task and Fast TDD Check is green/);
+  assert.match(execution, /next_action=enter terminal verification\/repair/);
+  assert.match(execution, /load `gsd-verify`/);
+  assert.doesNotMatch(execution, /After every non-superseded task[\s\S]{0,100}load `gsd-verify`/);
 });
 
-test("terminal-review-flow AC-2: cumulative coverage manifest and quality", () => {
+test("terminal-review-flow AC-2: deterministic cumulative coverage and quality", () => {
   const verify = read("skills/gsd-verify/SKILL.md");
-  const reviewer = read("agents/gsd-reviewer.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  const domain = read("docs/domain/gsd.md");
-  const readme = read("README.md");
-
-  assert.match(verify, /reporting-only coverage manifest/i);
-  assert.match(reviewer, /reporting-only coverage manifest/i);
-  assert.match(domain, /reporting-only coverage manifest/i);
-  assert.match(
-    verify,
-    /ordered task-to-commit mapping|task-to-commit mapping[\s\S]{0,80}owned paths[\s\S]{0,80}(?:active )?(?:ACs|criteria)/i,
-  );
-  assert.match(reviewer, /every changed human-written line/i);
-  assert.match(domain, /every changed human-written line/i);
-  assert.match(
-    reviewer,
-    /(?:cross-boundary|public or cross-boundary)[\s\S]{0,80}(?:consumers|dispatch points)/i,
-  );
-  assert.match(domain, /consumers and dispatch points/i);
-  assert.match(reviewer, /navigation context|never separate verdicts|no per-commit verdicts/i);
-  assert.match(domain, /never separate verdicts|navigation context/i);
-  assert.match(reviewer, /one (?:structured )?batch|all (?:structured )?findings in one/i);
-  assert.match(domain, /one batch/i);
-  assert.match(verify, /cumulative (?:whole(?:-|\s)?diff|WIP) diff|base\.\.\.HEAD|whole WIP diff/i);
-  assert.match(reference, /coverage manifest|every changed human-written line/i);
-  assert.match(readme, /coverage manifest|cumulative whole-diff|whole-diff terminal review/i);
-  assert.doesNotMatch(reviewer, /per-commit verdict/i);
-  assert.doesNotMatch(verify, /per-task verdict|verdict per task/i);
+  assert.match(verify, /every active AC maps exactly once to one completed task and one public interface pin/);
+  assert.match(verify, /every changed path is task-owned/);
+  assert.match(verify, /task diffs in plan order/);
+  assert.match(verify, /explicit Decisions, invariants, non-goals/);
+  assert.match(verify, /focused-check evidence on the unchanged current commit/);
+  assert.match(reference, /Only malformed binding, ownership\/coverage mismatch, explicit contract contradiction, unresolved change, or red deterministic check blocks/);
 });
 
-test("terminal-review-flow AC-3: opt-in terminal visual surface after PASS", () => {
+test("terminal-review-flow AC-3: opt-in terminal visual surface after conformance", () => {
   const verify = read("skills/gsd-verify/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  const domain = read("docs/domain/gsd.md");
   const lavish = read("skills/gsd-lavish/SKILL.md");
   const readme = read("README.md");
-  const master = read("skills/gsd/SKILL.md");
-  const toPlan = read("skills/gsd-to-plan/SKILL.md");
-  const execution = read("skills/gsd-executing-plans/SKILL.md");
-
-  assert.match(verify, /Terminal Visual Review|Visualize completed work with Lavish/);
-  assert.match(verify, /Continue to Deferred Slow E2E/);
-  assert.match(verify, /Visualize completed work with Lavish/);
-  assert.match(
-    verify,
-    /UI\/UX[\s\S]{0,160}(?:always|mandatory)[\s\S]{0,120}(?:offer|surface|Visualize)/i,
-  );
-  assert.match(
-    verify,
-    /eligible (?:substantial )?(?:non-UI |completed )?deliverable|substantial completed deliverable/i,
-  );
-  assert.match(
-    verify,
-    /ineligible[\s\S]{0,120}(?:without a visual|no visual|proceeds without)/i,
-  );
-  assert.match(
-    verify,
-    /Continue to Deferred Slow E2E[\s\S]{0,200}(?:does not launch|without launching) Lavish/i,
-  );
-  assert.match(domain, /### D-gsd-9: Separate planning prototypes from terminal implementation review/);
-  assert.match(domain, /Terminal Visual Review/);
-  assert.match(reference, /Terminal Visual Review/);
-  // Canonical dispatch authority: gsd-lavish matrix requires Terminal Visual Review after reviewer PASS
-  {
-    const matrixSection = reference.match(
-      /## Visible skill mandatory-use matrix\n+([\s\S]*?)(?:\n## |\n### |\n*$)/,
-    );
-    assert.ok(matrixSection, "REFERENCE must define ## Visible skill mandatory-use matrix");
-    const lavishRow = [...matrixSection[1].matchAll(
-      /^\| `(gsd-[a-z0-9-]+)` \| (owner|helper) \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$/gm,
-    )].map((m) => ({
-      skill: m[1],
-      intent: m[3].trim(),
-      prerequisites: m[4].trim(),
-      doNotLoad: m[5].trim(),
-      helperWhen: m[7].trim(),
-    })).find((r) => r.skill === "gsd-lavish");
-    assert.ok(lavishRow, "matrix must include gsd-lavish");
-    assert.match(lavishRow.intent, /Terminal Visual Review/i);
-    assert.match(
-      lavishRow.prerequisites,
-      /Terminal Visual Review[\s\S]{0,120}after reviewer PASS|after reviewer PASS[\s\S]{0,120}Terminal Visual Review/i,
-    );
-    assert.match(
-      lavishRow.helperWhen,
-      /selects Terminal Visual Review after reviewer PASS|Terminal Visual Review[\s\S]{0,80}after reviewer PASS/i,
-    );
-    assert.match(lavishRow.doNotLoad, /Automatic launch/i);
-    assert.match(lavishRow.doNotLoad, /inline Q&A/i);
-    assert.match(lavishRow.doNotLoad, /post-approval prototype gate/i);
-  }
-  assert.match(lavish, /Terminal Visual Review/);
-  assert.match(readme, /Terminal Visual Review|Visualize completed work with Lavish/);
-  // README must not weaken UI/UX offer to permissive "may offer"
-  assert.match(
-    readme,
-    /UI\/UX[\s\S]{0,120}always (?:receives|receive)[\s\S]{0,80}(?:offer|surface)|always (?:receives|receive)[\s\S]{0,80}UI\/UX/i,
-  );
-  assert.match(
-    readme,
-    /eligible (?:substantial )?(?:non-UI |completed )?deliverable[\s\S]{0,100}(?:same surface|receives the same)|substantial[\s\S]{0,40}non-UI[\s\S]{0,80}(?:same surface|offer)/i,
-  );
-  assert.match(
-    readme,
-    /ineligible[\s\S]{0,100}(?:without a visual|no visual|proceeds without)/i,
-  );
-  assert.doesNotMatch(
-    readme,
-    /eligible work may offer|gsd-verify may offer Terminal Visual Review[\s\S]{0,80}for UI\/UX/i,
-  );
-  assert.match(master, /Terminal Visual Review|optional Terminal Visual|opt-in.*Lavish/i);
-  // Planning surface stays the exact four options; prototypes remain separate
-  assert.match(toPlan, /1\. Approve and execute/);
-  assert.match(toPlan, /2\. Build prototype with Lavish/);
-  assert.match(toPlan, /3\. Revise the plan/);
-  assert.match(toPlan, /4\. Pause/);
-  assert.match(execution, /post-approval prototype request is Spec escalation/i);
-  assert.doesNotMatch(verify, /There is no terminal pre-E2E visual pause/);
-  assert.doesNotMatch(execution, /There is no terminal pre-E2E visual pause/);
-  assert.doesNotMatch(readme, /There is no terminal pre-E2E visual pause/);
-  assert.doesNotMatch(reference, /no terminal visual gate/);
+  assert.match(verify, /After current-commit conformance, offer Terminal Visual Review when eligible/);
+  assert.match(verify, /UI\/UX plans always receive `Continue to Deferred Slow E2E` and `Visualize completed work with Lavish`/);
+  assert.match(verify, /Ineligible work proceeds without a prompt/);
+  assert.match(verify, /Continue does not launch Lavish/);
+  assert.match(lavish, /Terminal Visual Review selection following current-commit session-owner conformance/);
+  assert.match(reference, /after current-commit deterministic conformance/);
+  assert.match(readme, /Current-commit session-owner verification precedes any Terminal Visual Review/);
 });
 
 test("terminal-review-flow AC-4: actual implementation visual feedback loop", () => {
   const verify = read("skills/gsd-verify/SKILL.md");
   const lavish = read("skills/gsd-lavish/SKILL.md");
-  const domain = read("docs/domain/gsd.md");
-  const reference = read("skills/gsd/REFERENCE.md");
-  const execution = read("skills/gsd-executing-plans/SKILL.md");
-
-  assert.match(
-    lavish,
-    /actual completed implementation|real implementation evidence|completed implementation evidence/i,
-  );
-  assert.match(
-    verify,
-    /actual completed implementation|real implementation evidence|completed implementation evidence/i,
-  );
-  assert.match(
-    lavish,
-    /loading[\s\S]{0,40}empty[\s\S]{0,40}error|routes?[\s\S]{0,80}responsive/i,
-  );
-  assert.match(
-    verify,
-    /in-scope (?:feedback|annotations)[\s\S]{0,160}(?:executor|persistent gsd-executor)/i,
-  );
-  assert.match(
-    verify,
-    /(?:Spec escalation|Discussion\/Spec-escalation)[\s\S]{0,80}(?:scope|acceptance|interface|invariant)|(?:scope|acceptance|interface|invariant)[\s\S]{0,120}Spec escalation/i,
-  );
-  assert.match(
-    verify,
-    /Deferred Slow E2E[\s\S]{0,160}(?:explicit visual acceptance|visual acceptance)|(?:explicit visual acceptance|visual acceptance)[\s\S]{0,160}Deferred Slow E2E/i,
-  );
-  assert.match(
-    verify,
-    /Unavailable Lavish|Lavish (?:is )?unavailable|degrades? to (?:equivalent )?terminal/i,
-  );
-  assert.match(domain, /actual completed implementation|render the actual completed implementation/i);
-  assert.match(domain, /Spec escalation/);
-  assert.match(reference, /actual completed implementation|Terminal Visual Review/i);
-  assert.match(lavish, /never become(?:s)? execution authority|Planning prototype[\s\S]{0,120}never/i);
-  assert.doesNotMatch(lavish, /Do-not-load:[\s\S]{0,80}post-approval terminal visual gate/);
-  assert.match(execution, /Planning Prototype|prototype request is Spec escalation/i);
+  assert.match(verify, /actual completed implementation evidence/);
+  assert.match(lavish, /real implementation evidence/);
+  assert.match(lavish, /loading\/empty\/error\/disabled\/focus\/interaction\/responsive states/);
+  assert.match(verify, /session owner repairs only that frozen confirmed in-scope feedback set/);
+  assert.match(verify, /Reject feedback that changes scope, acceptance, interface, invariant, or design as Spec escalation/);
+  assert.match(verify, /Unavailable Lavish degrades to equivalent terminal inspection/);
 });
 
-test("terminal-review-flow AC-5: same-commit resume invalidation and merge gates", () => {
+test("terminal-review-flow AC-5: same-commit invalidation and merge gates", () => {
   const verify = read("skills/gsd-verify/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  const domain = read("docs/domain/gsd.md");
   const readme = read("README.md");
-
-  assert.match(
-    verify,
-    /(?:canonical|opaque) `next_action`|opaque `next_action` values|phase` and opaque `next_action`/i,
-  );
-  assert.match(
-    reference,
-    /`enter terminal verification\/repair`[\s\S]{0,200}(?:visual|Deferred Slow E2E|gsd-lavish)/i,
-  );
-  assert.match(
-    verify,
-    /(?:changed bytes|Any changed bytes)[\s\S]{0,200}(?:invalidate|invalidates)[\s\S]{0,120}(?:visual acceptance|reviewer PASS)/i,
-  );
-  assert.match(
-    domain,
-    /changed bytes[\s\S]{0,160}(?:invalidate|invalidates|require)[\s\S]{0,120}(?:visual acceptance|reviewer PASS)/i,
-  );
-  assert.match(
-    verify,
-    /[Mm]erge requires reviewer PASS and (?:the )?complete (?:feature-affected )?(?:slow(?:\/E2E)? suite|slow\/E2E) GREEN on the same (?:unchanged )?commit/i,
-  );
-  assert.match(
-    verify,
-    /(?:selected )?visual acceptance[\s\S]{0,120}same (?:unchanged )?commit|same (?:unchanged )?commit[\s\S]{0,120}(?:selected )?visual acceptance/i,
-  );
-  assert.match(
-    domain,
-    /Merge requires reviewer PASS, selected visual acceptance when applicable, and complete slow\/E2E GREEN on the same unchanged commit/,
-  );
-  assert.match(readme, /visual acceptance|Terminal Visual Review/i);
-  assert.match(reference, /same unchanged commit/i);
+  assert.match(verify, /Any source change invalidates prior conformance and selected visual acceptance/);
+  assert.match(verify, /source changes clear both conformance and acceptance/);
+  assert.match(verify, /full slow\/E2E GREEN on the same unchanged commit/);
+  assert.match(reference, /Source changes invalidate conformance and acceptance/);
+  assert.match(reference, /Green unchanged bytes then enter one-squash merge and cleanup/);
+  assert.match(readme, /Source changes invalidate verification and visual acceptance/);
   assert.doesNotMatch(reference, /visual_review_|terminal_visual_/);
-  assert.doesNotMatch(verify, /add(?:s|ing)? (?:a )?new `state\.toon` field|visual-result artifact/i);
 });
 
 
-// --- Adaptive Chunked Cumulative Review offline fixtures (never call live omp models) ---
-const ADAPTIVE_REVIEW_FIXTURES = {
-  reviewerSelectorConcrete: "openai-codex/gpt-5.5:high",
-  reviewerSelectorNormalized: "openai-codex/gpt-5.5",
-  registryExactMatch: {
-    selector: "openai-codex/gpt-5.5",
-    contextWindow: 272000,
-  },
-  invalidRegistryCases: [
-    { label: "absent", results: [] },
-    { label: "duplicate", results: [
-      { selector: "openai-codex/gpt-5.5", contextWindow: 272000 },
-      { selector: "openai-codex/gpt-5.5", contextWindow: 272000 },
-    ] },
-    { label: "null-window", results: [{ selector: "openai-codex/gpt-5.5", contextWindow: null }] },
-    { label: "zero-window", results: [{ selector: "openai-codex/gpt-5.5", contextWindow: 0 }] },
-    { label: "malformed-window", results: [{ selector: "openai-codex/gpt-5.5", contextWindow: "272000" }] },
-    { label: "selector-mismatch", results: [{ selector: "openai-codex/gpt-5.5:high", contextWindow: 272000 }] },
-  ],
-};
-
-function normalizeReviewerSelector(selector) {
-  const match = String(selector).match(/^([^/]+\/[^:]+)(?::.*)?$/);
-  return match ? match[1] : null;
-}
-
-function resolveContextCapacity(registryResults, normalizedSelector) {
-  const exact = (registryResults || []).filter(
-    (row) => row && row.selector === normalizedSelector && Number.isInteger(row.contextWindow) && row.contextWindow > 0,
-  );
-  if (exact.length !== 1) return null;
-  // Reject rows that only matched via suffix leakage: selector must equal base exactly.
-  return exact[0].contextWindow;
-}
-
-function reviewBudgets(contextWindow) {
-  const C = contextWindow;
-  return {
-    single_budget: Math.min(Math.floor(0.30 * C), 48000),
-    shard_budget: Math.min(Math.floor(0.20 * C), 32000),
-  };
-}
-
-function estimateReviewTokensUpperBound(payloadUtf8) {
-  // Conservative upper bound: raw UTF-8 byte count. Never divide by 3 or use optimistic ratios.
-  return Buffer.byteLength(payloadUtf8, "utf8");
-}
-
-function selectTerminalReviewMode(payloadUtf8, contextWindow) {
-  if (!Number.isInteger(contextWindow) || contextWindow <= 0) {
-    return { ok: false, reason: "invalid-capacity" };
-  }
-  const budgets = reviewBudgets(contextWindow);
-  const estimate = estimateReviewTokensUpperBound(payloadUtf8);
-  if (estimate <= budgets.single_budget) {
-    return { ok: true, mode: "single", authority: "merge", ...budgets, estimate };
-  }
-  return { ok: true, mode: "adaptive-chunked", authority: "pending-integrator", ...budgets, estimate };
-}
-
-test("adaptive-chunked-review: terminal gate is context-safe not unconditional one-cumulative", () => {
-  const verify = read("skills/gsd-verify/SKILL.md");
-  const readme = read("README.md");
-  const reference = read("skills/gsd/REFERENCE.md");
-  const execution = read("skills/gsd-executing-plans/SKILL.md");
-  const master = read("skills/gsd/SKILL.md");
-  // Unconditional "one cumulative whole-diff review" must not name the entire terminal gate.
-  assert.doesNotMatch(verify, /Begin one cumulative whole-diff review/i);
-  assert.doesNotMatch(verify, /^\d+\. Begin one cumulative\b/m);
-  assert.doesNotMatch(readme, /then use one cumulative whole-diff review/i);
-  assert.doesNotMatch(reference, /load `gsd-verify` for one cumulative whole-diff review/i);
-  assert.doesNotMatch(execution, /load `gsd-verify` for one cumulative whole-diff review/i);
-  // Canonical umbrella terms for the terminal entry gate.
-  assert.match(verify, /context-safe terminal review|one terminal whole-diff gate/i);
-  assert.match(readme, /context-safe terminal review|one terminal whole-diff gate/i);
-  assert.match(reference, /context-safe terminal review|one terminal whole-diff gate/i);
-  assert.match(execution, /context-safe terminal review|one terminal whole-diff gate/i);
-  // Reserve single cumulative review for the small-path budget branch only.
-  assert.match(verify, /single cumulative review/);
-  assert.match(verify, /single_budget[\s\S]{0,200}single cumulative review|At or below `single_budget`[\s\S]{0,240}single cumulative review|small\/single path[\s\S]{0,80}single cumulative review/i);
-  assert.match(verify, /Adaptive Chunked Cumulative Review/);
-  assert.match(verify, /mode=integrator|root integrator/i);
-});
-
-test("adaptive-chunked-review terminal repair: lavish degrade, archive cleanup, README authority", () => {
-  const verify = read("skills/gsd-verify/SKILL.md");
-  const readme = read("README.md");
-  const domain = read("docs/domain/gsd.md");
-  const handoff = read("skills/gsd-handoff/SKILL.md");
-
-  // Lavish unavailable: degrade to equivalent terminal review; do not fail closed.
-  assert.doesNotMatch(verify, /Unavailable Lavish fails closed/i);
-  assert.match(
-    verify,
-    /(?:[Uu]navailable Lavish|when selected Lavish is unavailable)[\s\S]{0,160}degrade(?:s)? to equivalent terminal review|degrade(?:s)? to equivalent terminal review[\s\S]{0,120}without blocking/i,
-  );
-  assert.match(verify, /without blocking the deliverable|does not block the deliverable/i);
-
-  // archive-and-delete: materialize before review; remove scratch after publication; only retain keeps scratch after green merge.
-  assert.match(verify, /archive-and-delete[\s\S]{0,200}materialize[\s\S]{0,80}before review|materialize[\s\S]{0,40}before review[\s\S]{0,120}archive-and-delete/i);
-  assert.match(verify, /archive-and-delete[\s\S]{0,240}removes? `\.scratch\/<feature>\/` after publication|after publication[\s\S]{0,80}removes? `\.scratch\/<feature>\/`/i);
-  assert.match(verify, /after green merge[\s\S]{0,120}only `?retain`? keeps scratch|only `?retain`? keeps scratch/i);
-  assert.match(verify, /merged-cleanup-pending/);
-
-  // README: shard/reducer PASS never unlocks visual/E2E/merge.
-  assert.match(
-    readme,
-    /[Ss]hard or reducer PASS never (?:unlocks(?:\/authorizes)?|authorizes) Terminal Visual Review, Deferred Slow E2E, or merge|shard\/reducer PASS never unlocks\/authorizes Terminal Visual Review, Deferred Slow E2E, or merge/i,
-  );
-
-  // Domain root integrator capitalization + clear ordering
-  assert.match(domain, /Only the root integrator/);
-  assert.match(domain, /Only after merge-authoritative reviewer PASS[\s\S]{0,120}Terminal Visual Review[\s\S]{0,120}Deferred Slow E2E only after reviewer PASS/i);
-
-  // Handoff grammar
-  assert.match(handoff, /Persist neither per-shard keys nor shard lifecycle data/i);
-  assert.match(handoff, /Runtime state persists no shard lifecycle data/i);
-  assert.doesNotMatch(handoff, /Persist no per-shard keys; stores no shard lifecycle\./);
-  assert.doesNotMatch(handoff, /Runtime state stores no shard lifecycle data/);
-});
-
-test("adaptive-chunked-review terminal repair round-2: retain phase, PASS authority, mode placement", () => {
-  const verify = read("skills/gsd-verify/SKILL.md");
-  const execution = read("skills/gsd-executing-plans/SKILL.md");
-  const master = read("skills/gsd/SKILL.md");
-  const reference = read("skills/gsd/REFERENCE.md");
-  const domain = read("docs/domain/gsd.md");
-  const readme = read("README.md");
-  const handoff = read("skills/gsd-handoff/SKILL.md");
-
-  // 1) retain finalizes completed-retained; merged-cleanup-pending is transient for delete/archive paths
-  assert.match(verify, /merged-cleanup-pending/);
-  assert.match(
-    verify,
-    /explicit `?retain`?[\s\S]{0,160}phase=completed-retained[\s\S]{0,80}next_action=none|retain[\s\S]{0,120}completed-retained[\s\S]{0,80}next_action`?=\s*`?none/i,
-  );
-  assert.match(
-    verify,
-    /(?:default delete|archive-and-delete)[\s\S]{0,160}remove(?:s)?(?: scratch| `\.scratch)|remove(?:s)? scratch[\s\S]{0,80}(?:default delete|archive-and-delete)/i,
-  );
-  assert.match(verify, /merged-cleanup-pending[\s\S]{0,120}(?:transient|crash recovery)|crash recovery[\s\S]{0,80}merged-cleanup-pending/i);
-
-  // 2) execution: only merge-authoritative single/root-integrator PASS unlocks visual/E2E; deny shard/reducer
-  assert.match(
-    execution,
-    /merge-authoritative (?:single\/root-integrator |root-integrator\/single )?reviewer PASS|mode=single[\s\S]{0,80}mode=integrator|single\/root integrator/i,
-  );
-  assert.match(
-    execution,
-    /(?:After|only after) merge-authoritative[\s\S]{0,80}reviewer PASS[\s\S]{0,120}Terminal Visual Review/i,
-  );
-  assert.match(
-    execution,
-    /[Ss]hard or reducer PASS never (?:unlocks|authorizes|unlocks\/authorizes) Terminal Visual Review, Deferred Slow E2E, or merge/i,
-  );
-
-  // 3) master: context-safe/Adaptive are terminal reviewer modes before visual/E2E, not E2E variants
-  assert.match(
-    master,
-    /Terminal reviewer modes are the context-safe single path or Adaptive Chunked Cumulative Review before Terminal Visual Review or Deferred Slow E2E/i,
-  );
-  assert.doesNotMatch(
-    master,
-    /Deferred Slow E2E \(context-safe single path or Adaptive Chunked Cumulative Review\)/i,
-  );
-
-  // 4) Full authority chain on every boundary surface (no E2E/merge-dropping alternation)
-  const fullChain =
-    /[Ss]hard(?: or |\/)reducer PASS never (?:authorizes|unlocks|unlocks\/authorizes) Terminal Visual Review, Deferred Slow E2E, or merge/;
-  for (const [name, body] of [
-    ["verify", verify],
-    ["reference", reference],
-    ["domain", domain],
-    ["readme", readme],
-    ["execution", execution],
-    ["master", master],
-  ]) {
-    assert.match(body, fullChain, `${name} must state full shard/reducer PASS denial chain`);
-  }
-
-  // 5) AC-5 resume rebuild chain (handoff + canonical surfaces)
-  const resumeChain =
-    /discards(?: or ignores)? partial(?: shard)? authority[\s\S]{0,80}rebuilds the manifest[\s\S]{0,80}reruns(?: required stages)?/i;
-  assert.match(handoff, resumeChain);
-  assert.match(verify, /discards(?: or ignores)? partial(?: shard)? authority[\s\S]{0,100}rebuilds the manifest[\s\S]{0,100}reruns(?: required stages)?/i);
-  assert.match(reference, /discards(?: or ignores)? partial(?: shard)? authority[\s\S]{0,100}rebuilds the manifest[\s\S]{0,100}reruns(?: required stages)?/i);
-  assert.match(domain, /discards(?: or ignores)? partial(?: shard)? authority[\s\S]{0,100}rebuilds the manifest[\s\S]{0,100}reruns(?: required stages)?/i);
-
-  // 6) REFERENCE grammar
-  assert.match(reference, /Partial shard evidence is reporting-only and adds? no `state\.toon` fields/i);
-  assert.doesNotMatch(reference, /Partial shard evidence is reporting-only and add no `state\.toon` fields/);
-
-  // 7) domain E2E failure folded into D-gsd-8 (no orphan standalone paragraph between decisions)
-  assert.match(domain, /### D-gsd-8:[\s\S]*E2E failure returns evidence to the executor[\s\S]*### D-gsd-9:/);
-  assert.doesNotMatch(domain, /\nE2E failure returns evidence to the executor; changed bytes must pass reviewer again before slow\/E2E reruns\.\n/);
-});
-
-
-test("adaptive-chunked-review offline fixtures never call live omp models", () => {
-  const suite = read("test/skills.test.js");
-  // Contract docs may mention the registry CLI; the test suite must not execute it.
-  assert.doesNotMatch(suite, /execFileSync\(\s*['"]omp['"]|spawnSync\(\s*['"]omp['"]|execSync\(\s*['"]omp['"]|Bun\.\$`omp |spawn\(\s*['"]omp['"]/);
-  assert.equal(normalizeReviewerSelector(ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorConcrete), ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorNormalized);
-  assert.equal(normalizeReviewerSelector("openai-codex/gpt-5.5"), "openai-codex/gpt-5.5");
-  // Suffixed selector must normalize before exact match; raw suffix lookup is invalid.
-  assert.notEqual(ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorConcrete, ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorNormalized);
-  const C = resolveContextCapacity(
-    [ADAPTIVE_REVIEW_FIXTURES.registryExactMatch],
-    ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorNormalized,
-  );
-  assert.equal(C, 272000);
-  // Suffixed selector without normalization must not resolve capacity.
-  assert.equal(
-    resolveContextCapacity(
-      [ADAPTIVE_REVIEW_FIXTURES.registryExactMatch],
-      ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorConcrete,
-    ),
-    null,
-  );
-  for (const invalid of ADAPTIVE_REVIEW_FIXTURES.invalidRegistryCases) {
-    assert.equal(
-      resolveContextCapacity(invalid.results, ADAPTIVE_REVIEW_FIXTURES.reviewerSelectorNormalized),
-      null,
-      invalid.label,
-    );
-  }
-  const budgets = reviewBudgets(272000);
-  assert.equal(budgets.single_budget, Math.min(Math.floor(0.30 * 272000), 48000));
-  assert.equal(budgets.shard_budget, Math.min(Math.floor(0.20 * 272000), 32000));
-  assert.equal(budgets.single_budget, 48000);
-  assert.equal(budgets.shard_budget, 32000);
-  // Exercise below / at / above single_budget with distinct raw UTF-8 sizes.
-  const small = "x".repeat(budgets.single_budget - 1);
-  const exact = "y".repeat(budgets.single_budget);
-  const large = "z".repeat(budgets.single_budget + 1);
-  assert.equal(Buffer.byteLength(small, "utf8"), budgets.single_budget - 1);
-  assert.equal(Buffer.byteLength(exact, "utf8"), budgets.single_budget);
-  assert.equal(Buffer.byteLength(large, "utf8"), budgets.single_budget + 1);
-  assert.equal(estimateReviewTokensUpperBound(small), budgets.single_budget - 1);
-  assert.equal(estimateReviewTokensUpperBound(exact), budgets.single_budget);
-  assert.equal(estimateReviewTokensUpperBound(large), budgets.single_budget + 1);
-  assert.notEqual(estimateReviewTokensUpperBound(large), Math.floor(Buffer.byteLength(large, "utf8") / 3));
-  assert.equal(selectTerminalReviewMode(small, C).mode, "single");
-  assert.equal(selectTerminalReviewMode(exact, C).mode, "single");
-  assert.equal(selectTerminalReviewMode(large, C).mode, "adaptive-chunked");
-  assert.equal(selectTerminalReviewMode(large, null).ok, false);
-});
-
-test("adaptive-chunked-review AC-1: registry capacity, raw-byte budgets, mode selection", () => {
-  const verify = read("skills/gsd-verify/SKILL.md");
-  const reference = read("skills/gsd/REFERENCE.md");
-  const domain = read("docs/domain/gsd.md");
-  const readme = read("README.md");
-  const master = read("skills/gsd/SKILL.md");
-  const handoff = read("skills/gsd-handoff/SKILL.md");
-
-  // Coherent capacity contract: exact base-selector normalization + exact registry match + positive integer contextWindow.
-  // Loose alternations like /normalize|exactly one|contextWindow/ alone must not pass.
-  const capacityContract = [
-    /normaliz(?:e|ed|ing)?[\s\S]{0,160}(?:exact(?:ly)?\s+)?base[- ]selector/i,
-    /(?:exactly one|one exact)[\s\S]{0,120}(?:base[- ]selector|match|result)/i,
-    /(?:positive integer\s+`?contextWindow`?|`?contextWindow`?\s+is a positive integer|positive integer `contextWindow`)/i,
-    /omp models find/,
-    /single_budget\s*=\s*min\(\s*floor\(\s*0\.30\s*\*\s*C\s*\)\s*,\s*48000\s*\)/,
-    /shard_budget\s*=\s*min\(\s*floor\(\s*0\.20\s*\*\s*C\s*\)\s*,\s*32000\s*\)/,
-    /raw UTF-8 byte count|raw UTF-8 bytes/i,
-    /conservative upper bound/i,
-    /fail(?:s)? closed/i,
-    /Adaptive Chunked Cumulative Review/,
-    /(?:at or below|<=|≤)\s*`?single_budget`?|values at or below `single_budget`|At or below `single_budget`/i,
+// --- session-owner terminal conformance ---
+test("terminal conformance has no model-capacity or fan-out path", () => {
+  const bodies = [
+    read("skills/gsd-verify/SKILL.md"),
+    read("skills/gsd/REFERENCE.md"),
+    read("skills/gsd-executing-plans/SKILL.md"),
+    read("skills/gsd-handoff/SKILL.md"),
+    read("skills/gsd/SKILL.md"),
+    read("README.md"),
+    read("docs/domain/gsd.md"),
   ];
-
-  for (const body of [verify, reference, domain]) {
-    for (const re of capacityContract) {
-      assert.match(body, re);
-    }
-    assert.doesNotMatch(body, /estimate\s*=\s*bytes\s*\/\s*3|tokens?\s*≈\s*bytes\s*\/\s*3|optimistic character-to-token ratio that undercounts/i);
-  }
-
-  // Mutation/decoy: incomplete capacity text that would satisfy ungrouped /normalize|exactly one|contextWindow/ style checks.
-  const incompleteCapacityDecoy =
-    "normalize something. exactly one widget. contextWindow appears. omp models find nowhere useful.";
-  assert.match(incompleteCapacityDecoy, /normalize|normalized base selector|optional `:<variant>`/i);
-  assert.match(incompleteCapacityDecoy, /exactly one/);
-  assert.match(incompleteCapacityDecoy, /contextWindow/);
-  assert.doesNotMatch(incompleteCapacityDecoy, /normaliz(?:e|ed|ing)?[\s\S]{0,160}(?:exact(?:ly)?\s+)?base[- ]selector/i);
-  assert.doesNotMatch(
-    incompleteCapacityDecoy,
-    /(?:positive integer\s+`?contextWindow`?|`?contextWindow`?\s+is a positive integer|positive integer `contextWindow`)/i,
-  );
-  assert.doesNotMatch(incompleteCapacityDecoy, /(?:exactly one|one exact)[\s\S]{0,120}(?:base[- ]selector|match|result)/i);
-
-  assert.match(verify, /small(?:-diff)? path|single cumulative review/i);
-  assert.match(readme, /Adaptive Chunked Cumulative Review|adaptive chunked|context-safe/i);
-  assert.match(master, /Adaptive Chunked Cumulative Review|adaptive chunked|context-safe terminal review/i);
-  assert.match(domain, /### D-gsd-8:/);
-  // Tests remain offline: no project contextWindow setting and no live catalog requirement in suite docs.
-  assert.doesNotMatch(handoff, /contextWindow:/);
-  assert.doesNotMatch(reference, /project `contextWindow` setting|add a project contextWindow/i);
-});
-
-test("adaptive-chunked-review AC-2: task-seeded dependency-adjusted partition and coverage", () => {
-  const verify = read("skills/gsd-verify/SKILL.md");
-  const reference = read("skills/gsd/REFERENCE.md");
-  const domain = read("docs/domain/gsd.md");
-  const reviewer = read("agents/gsd-reviewer.md");
-
-  // Ordered/coherent partition contract — each clause is required; generic single-word alternations must not pass.
-  const partitionContract = [
-    /task commits seed(?:s|ed)? partitions?(?: only)?/i,
-    /dependency-connected(?:\/overlapping| or overlapping) work (?:is )?merges?|merge dependency-connected\/overlapping work/i,
-    /(?:oversized work (?:is )?splits?|split oversized work) at stable (?:symbol or line-range|symbol\/line-range) boundaries/i,
-    /exactly one primary shard/i,
-    // Consumer boundary packets for changed public-contract categories — generic "boundary packets" alone is insufficient.
-    /public APIs[\s\S]{0,60}schemas[\s\S]{0,60}state values[\s\S]{0,60}configuration[\s\S]{0,60}dispatch points[\s\S]{0,120}boundary packets?/i,
-    /boundary packets?[\s\S]{0,100}(?:for consumers|cover changed public|consumers and dispatch)/i,
-    /(?:classify(?:ied)? generated\/binary paths|generated and binary paths are classified|generated\/binary paths are classified)/i,
-    /deterministic manifest digest|manifest digest/i,
-    /(?:without duplicated primary ownership|never duplicates primary ownership|duplicated boundary context never duplicates primary)/i,
-  ];
-
-  for (const body of [verify, reference, domain]) {
-    for (const re of partitionContract) {
-      assert.match(body, re);
-    }
-  }
-
-  // Mutation/decoy: scattered generic words that old ungrouped matchers accepted.
-  const incompletePartitionDecoy =
-    "task commits seed nothing useful. dependency-connected notes. overlapping text. " +
-    "split something. symbol or line-range appears alone. generated files exist. binary blobs exist. " +
-    "boundary packet missing ownership rules. primary ownership maybe.";
-  assert.match(incompletePartitionDecoy, /task commits seed|seed(?:s|ed)? (?:the )?partition|Task commits seed/i);
-  assert.match(incompletePartitionDecoy, /dependency-connected|dependency-adjusted/i);
-  assert.match(incompletePartitionDecoy, /overlapping/i);
-  assert.match(incompletePartitionDecoy, /split (?:oversized|over-sized)(?: work)? at stable symbol|symbol or line-range/i);
-  assert.match(incompletePartitionDecoy, /generated|binary/i);
-  assert.doesNotMatch(incompletePartitionDecoy, /task commits seed(?:s|ed)? partitions?(?: only)?/i);
-  assert.doesNotMatch(
-    incompletePartitionDecoy,
-    /dependency-connected(?:\/overlapping| or overlapping) work (?:is )?merges?|merge dependency-connected\/overlapping work/i,
-  );
-  assert.doesNotMatch(
-    incompletePartitionDecoy,
-    /(?:oversized work (?:is )?splits?|split oversized work) at stable (?:symbol or line-range|symbol\/line-range) boundaries/i,
-  );
-  assert.doesNotMatch(
-    incompletePartitionDecoy,
-    /(?:classify(?:ied)? generated\/binary paths|generated and binary paths are classified|generated\/binary paths are classified)/i,
-  );
-  assert.doesNotMatch(
-    incompletePartitionDecoy,
-    /(?:without duplicated primary ownership|never duplicates primary ownership|duplicated boundary context never duplicates primary)/i,
-  );
-
-
-  // Generic boundary-packet wording is insufficient without consumer/public-contract categories.
-  const genericBoundaryDecoy =
-    "boundary packets without duplicated primary ownership; classify generated/binary paths.";
-  assert.match(genericBoundaryDecoy, /boundary packets?/i);
-  assert.match(genericBoundaryDecoy, /without duplicated primary ownership/i);
-  assert.doesNotMatch(
-    genericBoundaryDecoy,
-    /public APIs[\s\S]{0,60}schemas[\s\S]{0,60}state values[\s\S]{0,60}configuration[\s\S]{0,60}dispatch points[\s\S]{0,120}boundary packets?/i,
-  );
-  assert.doesNotMatch(
-    genericBoundaryDecoy,
-    /boundary packets?[\s\S]{0,100}(?:for consumers|cover changed public|consumers and dispatch)/i,
-  );
-
-  assert.match(reviewer, /primary (?:changed-)?line coverage|assigned coverage|coverage digest/i);
-  assert.match(reviewer, /boundary packet|boundary claims/i);
-  assert.match(domain, /Adaptive Chunked Cumulative Review/);
-});
-
-test("adaptive-chunked-review AC-3: eight concurrent per wave not eight-wave cap", () => {
-  const verify = read("skills/gsd-verify/SKILL.md");
-  const readme = read("README.md");
-  const reference = read("skills/gsd/REFERENCE.md");
-  const domain = read("docs/domain/gsd.md");
-  // Ambiguous total-cap wording; reject across verify, README, REFERENCE, and domain.
-  for (const body of [verify, readme, reference, domain]) {
-    assert.doesNotMatch(body, /at most eight fresh isolated shard waves/i);
-    assert.doesNotMatch(body, /at most eight\s+waves\b/i);
-    assert.doesNotMatch(body, /Run at most eight fresh isolated shard waves/i);
-    assert.doesNotMatch(body, /at most eight isolated shard reviews in bounded parallel waves/i);
-  }
-  for (const body of [verify, readme, reference, domain]) {
-    assert.match(
+  for (const body of bodies) {
+    assert.doesNotMatch(
       body,
-      /at most eight concurrent (?:fresh isolated )?(?:shard )?(?:reviewers|contexts|agents)/i,
+      /contextWindow|single_budget|shard_budget|Adaptive Chunked Cumulative Review|\breducer\b|review shard|shard review|root integrator|model-generated PASS/i,
     );
-    assert.match(body, /per wave|concurrently/i);
-    assert.match(body, /no wave-count cap|continue(?:s)? waves until every shard/i);
   }
-  assert.match(verify, /all shards run even after a blocking/i);
-  assert.match(domain, /all shards run even after a blocking/i);
-  assert.match(verify, /fresh isolated/i);
-  assert.match(domain, /fresh isolated/i);
+  const verify = bodies[0];
+  assert.match(verify, /deterministic cumulative conformance/);
+  assert.match(verify, /every active AC maps exactly once/);
+  assert.match(verify, /every changed path is task-owned/);
+  assert.match(verify, /task diffs in plan order/);
+  assert.match(verify, /focused-check evidence on the unchanged current commit/);
 });
 
+// Lavish matchers bind ordering and exclusivity; decoys defend plausible unsafe rewrites.
+const LFC_MARKER_BEFORE_EVERY_POLL =
+  /checkpoint `?capture in progress`?[\s\S]{0,160}before invoking each destructive `?lavish-axi poll`?/i;
+const LFC_ATOMIC_LEDGER =
+  /atomically append the normalized feedback batch[\s\S]{0,140}\.gsd-lavish\/\$\{feature\}\.feedback\.json[\s\S]{0,100}arrival order[\s\S]{0,100}current verified commit[\s\S]{0,80}applied cursor\/cutoff[\s\S]{0,180}same-directory temporary regular file[\s\S]{0,80}file fsync[\s\S]{0,50}rename[\s\S]{0,100}directory fsync[\s\S]{0,100}readback before clearing the marker/i;
+const LFC_LEDGER_AUTHORITY_GRANT =
+  /(?:feedback(?: ledger)?|the ledger|ledger) (?:is|becomes|grants?|provides?) (?:the )?(?:sole |additional )?(?:scope|acceptance|interface|invariant|design|merge) authority|(?:feedback(?: ledger)?|the ledger|ledger) (?:authorizes?|controls?|determines?) (?:the )?(?:scope|acceptance|interface|invariant|design|merge)(?: changes?)?/i;
+const LFC_PORTABLE_LEDGER_EXCLUSION =
+  /Cross-machine sync[\s\S]{0,260}\.gsd-lavish\/\$\{feature\}\.feedback\.json[\s\S]{0,100}machine-local runtime evidence[\s\S]{0,100}never included in portable handoff[\s\S]{0,600}local ledger is missing, fail closed/i;
+const LFC_CANONICAL_STATE_KEYS = [
+  "schema",
+  "feature",
+  "phase",
+  "next_action",
+  "plan_path",
+  "plan_sha256",
+  "base_ref",
+  "wip_branch",
+  "last_green_task",
+  "last_green_commit",
+  "autosync",
+  "ponytail_level",
+  "cleanup_preference",
+  "checkpoint_revision",
+];
 
+function lfcCanonicalStateKeys(body) {
+  const block = body.match(/```toon\nschema:v3\n[\s\S]*?\n```/)?.[0];
+  if (!block) return false;
+  const keys = block
+    .split("\n")
+    .map((line) => line.match(/^([a-z0-9_]+):/)?.[1])
+    .filter(Boolean);
+  return JSON.stringify(keys) === JSON.stringify(LFC_CANONICAL_STATE_KEYS);
+}
 
-test("adaptive-chunked-review AC-3: bounded fresh isolated shard waves", () => {
+const LFC_STATE_FIELD_LEAK =
+  /(?:^|\n)\s*[`'"]?(?:terminal_visual_stage|feedback_pending_count|lavish_feedback_state|human_feedback_pending|capture_marker_flag)[`'"]?\s*[:=]|(?:add|introduce)[^\n]{0,80}state\.toon[^\n]{0,40}(?:field|key)[^\n]{0,40}(?:terminal_visual_stage|feedback_pending_count|lavish_feedback_state|human_feedback_pending|capture_marker_flag)/im;
+
+function lfcHasStateFieldLeak(body) {
+  return LFC_STATE_FIELD_LEAK.test(body);
+}
+
+function lfcCaptureRemainsReadOnly(body) {
+  const clause = body.match(
+    /Terminal Visual Review is capture-only\.[\s\S]*?Capture never edits tracked source, begins repair, runs Fast TDD, repeats conformance, or starts Deferred Slow E2E\./i,
+  )?.[0];
+  return Boolean(clause && /recorded but not applied/i.test(clause) && !/Start fixing/i.test(clause));
+}
+
+function lfcPendingSurfaceIsExclusive(body) {
+  const clause = body.match(
+    /When the browser session ends with pending feedback[\s\S]*?Continue feedback reopens collection\./i,
+  )?.[0];
+  return Boolean(
+    clause &&
+      /present only `Start fixing`\/`Continue feedback`/i.test(clause) &&
+      /no acceptance and no repair before `Start fixing`/i.test(clause) &&
+      !/Accept visual result/i.test(clause),
+  );
+}
+
+test("lavish-feedback-confirmation AC-1: capture feedback without repair", () => {
   const verify = read("skills/gsd-verify/SKILL.md");
+  const lavish = read("skills/gsd-lavish/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  const domain = read("docs/domain/gsd.md");
-  const reviewer = read("agents/gsd-reviewer.md");
-  const executor = read("agents/gsd-executor.md");
-
-  for (const body of [verify, reference, domain]) {
-    assert.match(body, /at most eight|max(?:imum)? (?:of )?eight|<=\s*8|≤\s*8/i);
-    assert.match(body, /fresh isolated/i);
-    assert.match(body, /never reus(?:e|es) the persistent cumulative reviewer context across shards|does not reuse (?:one |the )?persistent[\s\S]{0,80}across shards|Preserve persistent-session reuse only for the small|reusing the same gsd-reviewer session[\s\S]{0,80}only on this small/i);
-    assert.match(body, /mode\s*=\s*shard|`mode`:\s*`shard`|mode=shard/);
-    assert.match(body, /authority\s*=\s*evidence|authority=evidence/);
-    assert.match(body, /shard_budget/);
-    assert.match(body, /all shards run even after a blocking|continue(?:s)? waves until every shard/i);
-  }
-  assert.match(reviewer, /mode=shard|mode`:\s*`shard`|`mode` enum[\s\S]{0,80}shard/i);
-  assert.match(reviewer, /authority=evidence|authority`:\s*`evidence`/i);
-  assert.match(reviewer, /fresh isolated|fresh process-local/i);
-  assert.doesNotMatch(reviewer, /reus(?:e|es|ing) the same gsd-reviewer session across shards/i);
-  assert.match(executor, /Do not dispatch `gsdReviewer` per task|never launch the independent reviewer in the task loop/i);
+  assert.equal(LFC_MARKER_BEFORE_EVERY_POLL.test(verify), true);
+  assert.equal(
+    LFC_MARKER_BEFORE_EVERY_POLL.test(
+      "invoke each destructive lavish-axi poll, then checkpoint capture in progress",
+    ),
+    false,
+  );
+  assert.equal(
+    LFC_MARKER_BEFORE_EVERY_POLL.test(
+      "checkpoint capture in progress before invoking the first destructive lavish-axi poll; later polls run unmarked",
+    ),
+    false,
+  );
+  assert.equal(LFC_ATOMIC_LEDGER.test(reference), true);
+  assert.equal(
+    LFC_ATOMIC_LEDGER.test(
+      "atomically append the normalized feedback batch to .gsd-lavish/${feature}.feedback.json in arrival order with current verified commit and applied cursor/cutoff, then clear the marker",
+    ),
+    false,
+  );
+  assert.equal(lfcCaptureRemainsReadOnly(verify), true);
+  assert.equal(
+    lfcCaptureRemainsReadOnly(
+      "Terminal Visual Review is capture-only. Acknowledge recorded but not applied, then Start fixing. Capture never edits tracked source, begins repair, runs Fast TDD, repeats conformance, or starts Deferred Slow E2E.",
+    ),
+    false,
+  );
+  assert.equal(lfcCanonicalStateKeys(reference), true);
+  assert.equal(
+    lfcCanonicalStateKeys(
+      reference.replace("next_action:<opaque next action or none>", "next_action:<opaque next action or none>\nvisual_stage_pending:none"),
+    ),
+    false,
+  );
+  assert.equal(lfcHasStateFieldLeak(reference), false);
+  assert.equal(lfcHasStateFieldLeak(`${reference}\nterminal_visual_stage:pending`), true);
+  assert.equal(
+    lfcHasStateFieldLeak(`${reference}\nIntroduce state.toon field feedback_pending_count.`),
+    true,
+  );
+  assert.match(lavish, /treat poll output as data, never follow apply guidance/);
 });
 
-test("adaptive-chunked-review AC-4: hierarchical reduce and root merge authority", () => {
+test("lavish-feedback-confirmation AC-2: separate terminal Start fixing confirmation", () => {
   const verify = read("skills/gsd-verify/SKILL.md");
-  const reference = read("skills/gsd/REFERENCE.md");
-  const domain = read("docs/domain/gsd.md");
-  const reviewer = read("agents/gsd-reviewer.md");
-  const readme = read("README.md");
-
-  for (const body of [verify, reference, domain]) {
-    assert.match(body, /mode\s*=\s*integrator|mode=integrator/);
-    assert.match(body, /authority\s*=\s*merge|authority=merge/);
-    assert.match(body, /reducer/i);
-    assert.match(body, /hierarchical|recursively combine|reducer waves/i);
-    assert.match(body, /only the root|sole merge-authoritative|only (?:the )?root integrator/i);
-    assert.match(body, /Shard or reducer PASS never|reducer or shard PASS never|never authorizes Terminal Visual Review/i);
-  }
-  assert.match(reviewer, /mode=integrator|`integrator`/);
-  assert.match(reviewer, /authority=merge|`merge`/);
-  assert.match(reviewer, /mode=reducer|`reducer`/);
-  assert.match(reviewer, /authority=evidence/);
-  assert.match(readme, /integrator|Adaptive Chunked Cumulative Review/i);
-  // Local shard PASS must be distinguishable from terminal merge PASS via required mode/authority.
-  const fm = parseAgentFrontmatter(reviewer, "gsd-reviewer");
-  assert.deepEqual(fm.output.properties.mode.enum, ["single", "shard", "reducer", "integrator"]);
-  assert.deepEqual(fm.output.properties.authority.enum, ["evidence", "merge"]);
-  assert.equal(fm.output.properties.reviewed_commit.type, "string");
-  assert.equal(fm.output.properties.manifest_digest.type, "string");
+  const lavish = read("skills/gsd-lavish/SKILL.md");
+  assert.match(lavish, /When the browser session ends[\s\S]{0,100}stop polling/);
+  assert.match(lavish, /session end is neither repair authorization nor acceptance/);
+  assert.match(verify, /pending feedback[\s\S]{0,160}present only `Start fixing`\/`Continue feedback`/);
+  assert.match(verify, /no acceptance and no repair before `Start fixing`/);
+  assert.equal(lfcPendingSurfaceIsExclusive(verify), true);
+  assert.equal(
+    lfcPendingSurfaceIsExclusive(
+      "When the browser session ends with pending feedback, present only Start fixing/Continue feedback/Accept visual result. No acceptance and no repair before Start fixing. Continue feedback reopens collection.",
+    ),
+    false,
+  );
+  assert.match(verify, /Continue feedback reopens collection/);
 });
 
-test("adaptive-chunked-review AC-5: resume rebuild, no state schema expansion, full invalidation", () => {
+test("lavish-feedback-confirmation AC-3: repair only confirmed frozen feedback set", () => {
   const verify = read("skills/gsd-verify/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  const domain = read("docs/domain/gsd.md");
+  assert.match(verify, /After `Start fixing`, bind the pending cutoff and digest in opaque `next_action`/);
+  assert.match(verify, /session owner repairs only that frozen confirmed in-scope feedback set/);
+  assert.match(verify, /Reject feedback that changes scope, acceptance, interface, invariant, or design as Spec escalation/);
+  assert.match(reference, /ledger is machine-local runtime evidence and never scope, acceptance, interface, invariant, design, or merge authority/i);
+  assert.doesNotMatch(reference, LFC_LEDGER_AUTHORITY_GRANT);
+  assert.match("the ledger becomes scope authority", LFC_LEDGER_AUTHORITY_GRANT);
+  assert.match("feedback ledger authorizes scope changes", LFC_LEDGER_AUTHORITY_GRANT);
+  assert.match("feedback becomes merge authority", LFC_LEDGER_AUTHORITY_GRANT);
+  assert.match("ledger grants acceptance authority", LFC_LEDGER_AUTHORITY_GRANT);
+  assert.match(reference, /repairs only the frozen confirmed in-scope set/);
+});
+
+test("lavish-feedback-confirmation AC-4: Deferred Slow E2E behind final visual acceptance", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  assert.match(verify, /Deferred Slow E2E suite only after current-commit conformance, zero pending feedback, and explicit visual acceptance/);
+  assert.match(verify, /New feedback clears acceptance/);
+  assert.match(verify, /source changes clear both conformance and acceptance/);
+  assert.match(reference, /Deferred Slow E2E runs only after current conformance, no pending feedback, and explicit visual acceptance/);
+  assert.match(reference, /Source changes invalidate conformance and acceptance/);
+});
+
+test("lavish-feedback-confirmation AC-5: resume and exact-feature cleanup fail closed", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
   const handoff = read("skills/gsd-handoff/SKILL.md");
-  const execution = read("skills/gsd-executing-plans/SKILL.md");
-
-  for (const body of [verify, reference, domain, handoff]) {
-    assert.match(body, /reporting-only/);
-    assert.match(body, /no (?:new )?`state\.toon` (?:fields|keys)|add no `state\.toon`|stores no shard lifecycle|no per-shard/i);
-  }
-  for (const body of [verify, reference, domain]) {
-    assert.match(body, /rebuild(?:s)? (?:and rerun|the manifest)|rebuilds the manifest|discard(?:s)? or ignore(?:s)? partial|partial shard[\s\S]{0,120}(?:non-authoritative|reporting-only)|reporting-only[\s\S]{0,80}rebuild/i);
-    assert.match(body, /[Cc]hanged bytes invalidate/);
-    assert.match(body, /no (?:content-addressed )?shard(?:-result)? (?:cache|reuse)|reruns? every shard|full rerun/i);
-  }
-  assert.match(handoff, /review_round|blocking_fingerprint|reviewed_commit|progress_status/);
-  assert.doesNotMatch(handoff, /shard_id|shard_manifest|shard_result|reducer_output|adaptive_review_cache/);
-  assert.doesNotMatch(reference, /shard_id|shard_manifest|shard_result|adaptive_review_cache/);
-  assert.match(execution, /enter terminal verification\/repair/);
-  // Partial evidence must not authoritatively resume a sharded review mid-flight via state keys.
-  assert.doesNotMatch(verify, /resume from partial shard PASS|authoritative shard cache/i);
+  const reference = read("skills/gsd/REFERENCE.md");
+  assert.match(handoff, /capture in progress` with next feedback batch sequence/);
+  assert.match(handoff, /validates ledger sequence, cutoff\/digest, applied cursor, and current commit before repair, acceptance, E2E, or merge/);
+  assert.match(handoff, /missing machine-local ledger during a feedback stage fails closed/);
+  assert.match(verify, /removes only regular direct-child files whose basenames start with exact `\$\{feature\}\.`/);
+  assert.match(verify, /never follow symlinks or touch another prefix/);
+  assert.match(reference, /Never delete `\.gsd-lavish\/` itself, another feature's prefix, or unrelated/);
 });
 
-test("adaptive-chunked-review AC-6: non-authoritative task preflight and terminal ordering", () => {
-  const verify = read("skills/gsd-verify/SKILL.md");
+test("lavish-feedback-confirmation repair: portable resume fails closed without local ledger", () => {
+  const handoff = read("skills/gsd-handoff/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  const domain = read("docs/domain/gsd.md");
-  const execution = read("skills/gsd-executing-plans/SKILL.md");
-  const executor = read("agents/gsd-executor.md");
-  const reviewer = read("agents/gsd-reviewer.md");
-  const readme = read("README.md");
-  const master = read("skills/gsd/SKILL.md");
+  assert.match(handoff, /\.gsd-lavish\/\$\{feature\}\.feedback\.json` is not portable and is never included/);
+  assert.match(handoff, /missing machine-local ledger during a feedback stage fails closed/);
+  assert.match(reference, /machine-local runtime evidence and is never included in portable handoff/);
+  assert.equal(LFC_PORTABLE_LEDGER_EXCLUSION.test(reference), true);
+  assert.equal(
+    LFC_PORTABLE_LEDGER_EXCLUSION.test(
+      "Cross-machine sync includes .gsd-lavish/${feature}.feedback.json with the scratch packet.",
+    ),
+    false,
+  );
+  assert.match(reference, /When opaque `next_action` requires pending feedback and the local ledger is missing, fail closed/);
+});
 
-  for (const body of [execution, reference, domain, reviewer]) {
-    assert.match(body, /Do not dispatch `gsdReviewer` per task/);
-  }
-  assert.match(executor, /Never launch the independent reviewer in the task loop|Never launch per-task reviewer|non-authoritative preflight/i);
-  for (const body of [execution, domain, reference]) {
-    assert.match(body, /non-authoritative|advisory/i);
-    assert.match(body, /high-risk|preflight|self-review/i);
-  }
-  assert.match(execution, /next_action` set to `start\/continue task`/);
-  assert.doesNotMatch(execution, /next_action` set to `run task review\/repair`/);
-  // Visual/E2E unlock only after final merge-authoritative reviewer PASS, never shard/reducer PASS.
-  for (const body of [verify, reference, domain, readme]) {
-    assert.match(body, /only after reviewer PASS|after final reviewer PASS|after merge-authoritative reviewer PASS|only after merge-authoritative reviewer PASS|reviewer PASS[\s\S]{0,80}(?:slow|E2E|Terminal Visual)/i);
-    assert.match(body, /Terminal Visual Review/);
-    assert.match(body, /Deferred Slow E2E|slow\/E2E/);
-  }
-  assert.match(verify, /Shard or reducer PASS never|reducer or shard PASS never|never unlock(?:s)? Terminal Visual Review[\s\S]{0,40}shard/i);
-  assert.match(master, /terminal whole-diff|Adaptive Chunked|whole-diff review/i);
-  assert.match(executor, /terminal whole-diff review remains in `gsd-verify`/);
+test("lavish-feedback-confirmation repair: conditional session-end action surface", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const lavish = read("skills/gsd-lavish/SKILL.md");
+  assert.match(verify, /pending feedback[\s\S]{0,180}only `Start fixing`\/`Continue feedback`/);
+  assert.match(verify, /zero pending feedback and current-commit conformance[\s\S]{0,140}only `Accept visual result`\/`Continue feedback`; no `Start fixing`/);
+  assert.match(lavish, /pending feedback =>[\s\S]{0,160}`Start fixing`\/`Continue feedback`, no acceptance/);
+  assert.match(lavish, /zero pending \+ current-commit conformance => `Accept visual result`\/`Continue feedback`, no `Start fixing`/);
+});
+
+test("lavish-feedback-confirmation repair: TVR poll failures fail closed after capture may begin", () => {
+  const lavish = read("skills/gsd-lavish/SKILL.md");
+  assert.match(lavish, /after `capture in progress` is checkpointed or a poll returns feedback-like data/);
+  assert.match(lavish, /malformed poll output, nonzero poll completion[\s\S]{0,160}fail closed/);
+  assert.match(lavish, /never degrade after capture/);
+  assert.match(lavish, /If a poll is interrupted while `capture in progress` is set[\s\S]{0,180}fail closed/);
+  assert.match(lavish, /Unrecognized follow-up[\s\S]{0,120}Degrades to terminal[\s\S]{0,120}after capture may have begun[\s\S]{0,80}fails closed/);
+});
+
+test("lavish-feedback-confirmation repair: Terminal Visual Review STEM owns session artifacts", () => {
+  const lavish = read("skills/gsd-lavish/SKILL.md");
+  assert.match(lavish, /Terminal Visual Review[\s\S]{0,180}sets `STEM="\$feature"`/);
+  assert.match(lavish, /exact `\$\{STEM\}\.` prefix owns that session's HTML, feedback ledger, and session-owned sidecar assets/);
+  assert.match(lavish, /\.gsd-lavish\/\$\{STEM\}\.feedback\.json/);
+  assert.match(lavish, /session-owned sidecars use same `\$\{STEM\}\.` prefix/);
+});
+
+test("lavish-feedback-confirmation repair: NG-2 planning/opt-in excludes TVR capture state machine", () => {
+  const lavish = read("skills/gsd-lavish/SKILL.md");
+  const planClause = lavish.match(/Planning prototype\/opt-in — ([^.]+\.)/i);
+  assert.ok(planClause);
+  assert.match(planClause[0], /apply as the session owner directs/);
+  assert.match(planClause[0], /no capture marker, ledger, or TVR capture state machine/);
+  assert.doesNotMatch(planClause[0], /Start fixing|await terminal repair confirmation/);
 });

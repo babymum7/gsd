@@ -67,7 +67,9 @@ null
 ## Tasks
 ### T1: <short task>
 - **Satisfies:** AC-1
-- **Files:** `<path>`
+- **Files:**
+  - `<path>` — <create|modify|delete>: <concise contract intent>
+- **Artifacts:** none
 - **Test:** `<focused command or none>`
 - **Status:** pending
 ```
@@ -79,13 +81,15 @@ Decisions is exact `None.` or sequential D blocks with Decision and Rationale:
 - **Rationale:** <value>
 ```
 
-Tasks are sequential `T1`…`TN`; their order encodes dependencies. Every active AC occurs exactly once across non-superseded tasks. Each task owns exact paths, has a concrete focused check, and pins the highest deterministic public seam specified for its AC. A task spanning ACs requires identical seam, test path, and lower-seam reason. Keep rows as pointers; the parent builds the detailed task brief from the validated plan at dispatch.
+Tasks are sequential `T1`…`TN`; their order encodes dependencies. Every active AC occurs exactly once across non-superseded tasks. Each task owns one or more unique exact repository-relative paths in an ordered `Files` block; every entry has exactly one `create|modify|delete` operation and a concise non-vague contract intent. `Artifacts` is exact `none` or an ordered list whose entries use `` `.scratch/<feature>/prototype/<path>` — reference: <role>; fidelity: <requirements> ``. Each task has a concrete focused check and pins the highest deterministic public seam specified for its AC. A task spanning ACs requires identical seam, test path, and lower-seam reason. Keep task rows self-contained at the file/artifact boundary without per-symbol pseudo-code; the owner builds the transient task slice directly from them.
 
 Plan complete observable behavior, not layers. Use Expand → Migrate → Contract only when all callers cannot migrate atomically; Contract requires a completed caller/reference inventory. Observable behavior always receives a fast public seam; if none exists, add the smallest real fast public seam instead of using `none`. Never use `none` for observable behavior. `none` is only for mechanically verified non-behavioral work. Classify each task's focused check as a Fast TDD Check: deterministic, local, and free of browser/GUI, external network, long-lived server, large fixture, or material cost. A vague check, behavior task without a fast seam, duplicate/unowned AC, missing file owner, or an unresolved design choice returns to Discussion rather than creating a plan.
 
 ## Post-plan action surface
 
-Before the approval gate, parse the finalized `plan.md` and prove feature consistency, canonical ordering, concrete AC semantics, interface pins, task coverage, file ownership, decisions validation, and focused checks. Record the exact path and SHA-256 digest of `plan.md`. The plan bytes are immutable for the execution cycle once approved; the execution-control plane applies phase-boundary plan validation: full semantic parse and binding checks occur only at plan approval, execution resume, terminal entry, and pre-squash. Digest guards do not run at ordinary task dispatch. Before approval, GSD validates that concrete, available, and distinct model selectors are configured for `modelRoles.gsdExecutor` and `modelRoles.gsdReviewer` in OMP configuration; rejects missing, unresolved, alias-only, or same-model bindings; keeps the current model active before execution, and never substitutes the current model for either role. At approval, GSD binds these validated persistent executor and reviewer models.
+Before the approval gate, parse finalized `plan.md` and prove feature consistency, canonical ordering, concrete AC semantics, interface pins, task coverage, file ownership, decision validity, artifact availability/readability, and focused checks. Record exact path and SHA-256. Approved bytes are immutable. Full semantic parse and binding checks run only at approval, execution resume, terminal entry, and pre-squash; digest guards do not run at ordinary task selection. The current top-level session remains the sole lifecycle authority.
+
+The parser dual-reads structured and legacy task blocks so exact already-approved hash-bound legacy plans can finish. This planner single-writes and may newly approve only structured task blocks; a newly submitted legacy-format plan returns to Discussion instead of receiving a new approval binding.
 
 Present exactly one post-plan action surface for every complete draft plan and every feature type:
 
@@ -94,11 +98,13 @@ Present exactly one post-plan action surface for every complete draft plan and e
 3. Revise the plan
 4. Pause & save progress
 
-Choosing `Build prototype with Lavish` is launch consent and causes no second confirmation. Load `gsd-lavish` for a feature-appropriate interactive prototype; annotations return here, update and revalidate the draft, optionally promote selected stable assets under `.scratch/<feature>/prototype/` with relative links from Context or Decisions, then present the same approve/build/revise/pause surface again. Unavailable Lavish degrades without blocking planning. Prototype sessions and artifacts never become execution authority or Terminal Visual Review evidence. After approval, a prototype request is Spec escalation, not an execution or terminal gate. Do not ask about terminal visual review during planning; Terminal Visual Review is owned later by `gsd-verify` after reviewer PASS.
+Choosing `Build prototype with Lavish` is launch consent and causes no second confirmation. Load `gsd-lavish` for a feature-appropriate interactive prototype; annotations return here, update and revalidate the draft, optionally promote selected stable assets under `.scratch/<feature>/prototype/` with relative links from Context or Decisions, then present the same approve/build/revise/pause surface again. Unavailable Lavish degrades without blocking planning. Prototype sessions and artifacts never become execution authority or Terminal Visual Review evidence. After approval, a prototype request is Spec escalation, not an execution or terminal gate. Do not ask about terminal visual review during planning; Terminal Visual Review is owned later by `gsd-verify` after current-commit conformance.
+
+After prototype feedback, every promoted reference used by implementation is bound in the applicable task `Artifacts` block with role and fidelity requirements. Before presenting approval, validate all referenced paths stay under `.scratch/<feature>/prototype/`, exist and are readable. Prototype artifacts guide implementation but never become scope authority, acceptance evidence, or a replacement for current-commit Terminal Visual Review.
 
 This is the last planning prompt: Approve and execute ends planning; no later planning menu, approval confirmation, or generic Lavish visual-review offer appears. Scratch cleanup defaults to automatic delete after green merge; retain or archive-and-delete only when explicitly selected before final review, and that choice never reopens planning or any other menu.
 
-On approval, immediately load `gsd-handoff` in `Execution state write` mode and write atomic `state.toon` with the plan path and SHA-256 hash, `phase=approved`, no completed task, concrete distinct bound model selectors, and `next_action` set to `start/continue task`. Read it back and verify the binding before dispatch. A fresh approval after Spec escalation supersedes older bindings by atomic overwrite of `state.toon`; there is no numbered handoff history. Never leave partial state bytes. Then load `gsd-executing-plans` without another prompt.
+On approval, immediately load `gsd-handoff` in `Execution state write` mode and atomically write canonical `schema:v3` `state.toon` with plan path/hash, `phase=approved`, no completed task, base/WIP identity, canonical preferences, checkpoint revision, and `next_action` set to `start/continue task`. Read it back and verify the binding before execution. A fresh approval after Spec escalation supersedes older binding state by atomic overwrite; there is no numbered handoff history. Never leave partial state bytes. Then load `gsd-executing-plans` without another prompt.
 
 ## Contextual disclosure
 

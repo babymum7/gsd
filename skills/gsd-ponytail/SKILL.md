@@ -30,7 +30,7 @@ Lazy senior dev: efficient, not careless. The best code is the code never writte
 Only an active **explicit** `lite|full|ultra` toggle survives a session reset, and only via the `ponytail_level` field on atomic `state.toon`; auto-fire is never serialized. A hard reset without `state.toon` loses the explicit level like any unsaved scratch — set it again explicitly to restore it.
 
 ## State transitions (normative)
-`<current>` is the current `explicit_level`, `<scope>` is the current `auto_scope`, `<level>` is an explicitly supplied accepted level, `<invalid>` is a supplied value outside that domain, and `<level-or-full>` resolves an omitted toggle level to `full`. Accepted explicit toggle levels (normative): `lite|full|ultra`. Apply this table exactly. Every Inputs cell names the event and the required pre-transition state/input; a row whose Inputs do not match must not apply. Outputs marked `none` produce no cue, `n/a` means the scenario performs no state operation, and `omit` means a state write keeps `ponytail_level=none`.
+`<current>` is current `explicit_level`, `<scope>` is current `auto_scope`, `<level>` is an explicitly supplied accepted level, `<invalid>` is outside that domain, and `<level-or-full>` resolves an omitted toggle level to `full`. Accepted explicit levels are exactly `lite|full|ultra`. Apply this table exactly; unmatched Inputs do not apply. Outputs marked `none` produce no cue and `n/a` means no state operation.
 
 | Scenario | Inputs | Next state | Owner/action | Skill/load | Output | State field |
 |---|---|---|---|---|---|---|
@@ -45,16 +45,16 @@ Only an active **explicit** `lite|full|ultra` toggle survives a session reset, a
 | Invalid explicit toggle | `event=toggle;explicit_level=<current>;auto_scope=<scope>;level=<invalid>` | `explicit_level=<current>;auto_scope=none` | `none` | `none` | `Ponytail level must be lite, full, or ultra.` | `n/a` |
 | Stop or normal mode | `event=stop;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=none;auto_scope=none` | `none` | `none` | `Ponytail: none — normal mode.` | `n/a` |
 | Fresh task dispatch | `event=dispatch;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `none` | `none` | `Ponytail Level: <current>` | `n/a` |
-| Handoff write with explicit toggle | `event=state-write;explicit_level=<level>;auto_scope=<scope>` | `explicit_level=<level>;auto_scope=none` | `none` | `none` | `none` | `ponytail_level,<level>` |
-| Handoff write without explicit toggle | `event=state-write;explicit_level=none;auto_scope=<scope>` | `explicit_level=none;auto_scope=none` | `none` | `none` | `none` | `omit` |
-| Handoff restore with explicit toggle | `event=state-restore;explicit_level=<current>;auto_scope=<scope>;row=ponytail_level,<level>` | `explicit_level=<level>;auto_scope=none` | `none` | `none` | `none` | `ponytail_level,<level>` |
-| Handoff restore without explicit toggle | `event=state-restore;explicit_level=<current>;auto_scope=<scope>;row=missing` | `explicit_level=none;auto_scope=none` | `none` | `none` | `none` | `omit` |
-| Handoff restore with invalid explicit toggle | `event=state-restore;row=ponytail_level,<invalid>` | no transition | `1` | `gsd-handoff` | `Blocker: invalid state.toon preferences.` | preserve invalid state |
-| Handoff restore with duplicate explicit toggle | `event=state-restore;row=duplicate` | no transition | `1` | `gsd-handoff` | `Blocker: invalid state.toon preferences.` | preserve invalid state |
+| Handoff write with explicit toggle | `event=state-write;explicit_level=<level>;auto_scope=<scope>` | `explicit_level=<level>;auto_scope=none` | `none` | `none` | `none` | `ponytail_level:<level>` |
+| Handoff write without explicit toggle | `event=state-write;explicit_level=none;auto_scope=<scope>` | `explicit_level=none;auto_scope=none` | `none` | `none` | `none` | `ponytail_level:none` |
+| Handoff restore with explicit toggle | `event=state-restore;explicit_level=<current>;auto_scope=<scope>;value=ponytail_level:<level>` | `explicit_level=<level>;auto_scope=none` | `none` | `none` | `none` | `ponytail_level:<level>` |
+| Handoff restore without explicit toggle | `event=state-restore;explicit_level=<current>;auto_scope=<scope>;value=ponytail_level:none` | `explicit_level=none;auto_scope=none` | `none` | `none` | `none` | `ponytail_level:none` |
+| Handoff restore with invalid explicit toggle | `event=state-restore;value=ponytail_level:<invalid>` | no transition | `1` | `gsd-handoff` | `Blocker: invalid state.toon preferences.` | preserve invalid state |
+| Handoff restore with duplicate explicit toggle | `event=state-restore;value=duplicate` | no transition | `1` | `gsd-handoff` | `Blocker: invalid state.toon preferences.` | preserve invalid state |
 
 For a supplied toggle, only the accepted domain enters `explicit_level`; omission means `full`. Invalid level preserves prior `explicit_level`, clears `auto_scope`, emits the table's allowed-level feedback, and never becomes state. Stop/normal sets both fields to `none`.
-On every valid handoff restore, initialize `explicit_level=none` and `auto_scope=none` before inspecting `settings[]`. A valid `ponytail_level,lite|full|ultra` row overrides only `explicit_level`. Invalid/duplicate rows block resume via `gsd-handoff` and never reach this transition. Auto scope is never restored.
-A hard-blocker or verify-fail stop preserves `explicit_level` and clears `auto_scope`. `scope-expands` preserves explicit level and clears auto scope. Auto-fire never becomes explicit state, never reaches a fresh task brief, and never appears in `settings[]`. Every real quick-fix loads this skill and emits exactly one table cue.
+On every valid handoff restore, initialize `explicit_level=none` and `auto_scope=none` before inspecting scalar `ponytail_level:<value>`. A valid `ponytail_level:lite|full|ultra` value overrides only `explicit_level`; `ponytail_level:none` leaves it cleared. Invalid or duplicate values block resume through `gsd-handoff`. Auto scope is never restored.
+A hard-blocker or verify-fail stop preserves `explicit_level` and clears `auto_scope`. `scope-expands` preserves explicit level and clears auto scope. Auto-fire never becomes explicit state, never reaches a fresh task brief, and never persists. Every real quick-fix loads this skill and emits exactly one table cue.
 
 
 ## The ladder (stop at the first rung that holds — after you understand the problem, not instead of it)

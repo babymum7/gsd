@@ -11,7 +11,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 - Role: helper
 - Helper-when: must load when designing one named module interface or seam; cannot be skipped while that condition holds
 - Do-not-load: system-wide architecture audit
-- Transition: return design result to the parent owner
+- Transition: return design result to the session owner
 
 # Codebase Design
 
@@ -68,7 +68,7 @@ Good interfaces make testing natural: accept dependencies, return results, keep 
 - **"Boundary"**: overloaded with DDD's bounded context. Say **seam** or **interface**.
 
 ## Going deeper
-Design it twice: sketch at least two interfaces before committing. Prefer the deeper option with the smaller hard surface. Deepen only when friction is evidenced; return the chosen design to the parent owner.
+Design it twice: run the three sequential inline design passes in [DESIGN-IT-TWICE.md](DESIGN-IT-TWICE.md) before committing. Prefer the deeper option with the smaller hard surface. Deepen only when friction is evidenced; return the chosen design to the session owner.
 
 
 - Deepening: [DEEPENING.md](DEEPENING.md). Design-it-twice: [DESIGN-IT-TWICE.md](DESIGN-IT-TWICE.md).

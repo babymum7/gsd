@@ -1,6 +1,6 @@
 ---
 name: gsd-diagnosing-bugs
-description: "Use for a non-obvious bug, regression, intermittent failure, performance problem, or failed execution repair that needs root-cause evidence. Do not use for a known single-spot quick fix. Returns evidence to the active executor or architecture workflow."
+description: "Use for a non-obvious bug, regression, intermittent failure, performance problem, or failed execution repair that needs root-cause evidence. Do not use for a known single-spot quick fix. The session owner diagnoses inline and returns evidence to execution or architecture."
 triggers: non-obvious bug, regression, intermittent failure, performance problem, or execution blocker
 produces: []
 consumes: [docs/domain/index.md, docs/domain/<scope>.md]
@@ -10,7 +10,7 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
 - Do-not-load: known single-spot quick fix
-- Transition: return evidence to executor, or hand architectural cause to `gsd-improve-codebase-architecture`
+- Transition: return evidence to the session-owner execution flow, or hand architectural cause to `gsd-improve-codebase-architecture`
 
 # Diagnosing Bugs
 
@@ -46,12 +46,13 @@ Write the regression test **before** the fix — but only if a **correct seam** 
 
 ## Phase 6 — Cleanup + post-mortem
 - [ ] Original repro no longer reproduces.
-- [ ] Regression test passes (or missing seam documented).
-- [ ] All `[DEBUG-...]` removed (grep the prefix).
-- [ ] Throwaway prototypes deleted.
-- [ ] Correct hypothesis stated in the commit message.
+- [ ] Regression test passes, or the missing seam is documented.
+- [ ] All `[DEBUG-...]` instrumentation is removed.
+- [ ] Original Phase-1 signal is green.
+- [ ] Throwaway harnesses and prototypes are deleted.
+- [ ] The commit message records the confirmed hypothesis and root cause.
 
-In standalone diagnosis only, ask what would have prevented this. After a successful standalone diagnosis, an architectural cause may hand off to `gsd-improve-codebase-architecture` as a pre-approval post-diagnosis architecture audit, after the fix. In Execution-blocker diagnosis, ask no post-mortem question. After a successful in-task Execution-blocker diagnosis, return to `gsd-executing-plans` immediately with the fixed repro evidence and preserve `explicit_level` while setting `auto_scope=none`. An Execution-blocker diagnosis entered after terminal repair exhaustion with `terminal_repair_round=2` never opens another repair even when it identifies the cause: retain the evidence, emit the canonical Blocker stop, and wait for a later validated resume to begin a genuinely new gate. If architecture is load-bearing for a current acceptance criterion, interface, or invariant, use Spec escalation; otherwise pass only a report-only future candidate through `gsd-improve-codebase-architecture` and return, with no selection, lavish offer, or refactor.
+In standalone diagnosis only, ask what would have prevented the bug. An architectural cause may transition to `gsd-improve-codebase-architecture` after the fix. In Execution-blocker mode, ask no post-mortem question; the session owner returns immediately to `gsd-executing-plans` with fixed repro evidence, preserves `explicit_level`, clears `auto_scope`, and writes no repair-round runtime field. A load-bearing AC/interface/invariant ambiguity is Spec escalation, not a diagnosis guess. Diagnosis is always performed inline in the current top-level session.
 
 ## Optional context signal
 Diagnosis harvest is optional and bounded to the minimized bug path. Reuse only the prompt/trace, reproduction, hypotheses, and code/docs already relevant to the diagnosis; never widen into a repository glossary/decision scan or create missing scaffolds. Trigger `gsd-domain-modeling` only if that evidence reveals a recurring project-specific term or explicit decision/rationale signal. Generic error vocabulary, a one-off identifier, implementation detail, and code shape without rationale are no-op. Diagnosis never writes domain artifacts itself.

@@ -54,7 +54,7 @@ Domain context is lazy and evidence-gated:
 2. A candidate exists only for a recurring project-specific term or an explicit architectural decision with evidenced rationale. Only then read `docs/domain/index.md` and the minimum relevant mapped shards.
 3. Load `gsd-domain-modeling` as the sole writer only for a certain candidate. Before approval, material ambiguity about meaning, ownership, or tradeoffs asks one focused question and writes nothing. Certain pre-approval writes return exact changed paths for task ownership in the eventual plan.
 4. A hard-to-reverse, surprising decision with a real tradeoff and evidenced rationale may become a domain decision. Reversible preferences do not.
-5. After approval, this skill is no longer the owner: load-bearing ambiguity returns through the executor's spec-gap transition; non-load-bearing documentation ambiguity is skipped.
+5. After approval, this skill is no longer the owner: load-bearing ambiguity returns through the session owner's execution spec-gap transition; non-load-bearing documentation ambiguity is skipped.
 
 Missing `docs/domain/index.md` is normal. Check related existing decisions before proposing a new one.
 

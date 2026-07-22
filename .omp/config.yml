@@ -1,3 +1,0 @@
-modelRoles:
-  gsdExecutor: xai-oauth/grok-4.5
-  gsdReviewer: openai-codex/gpt-5.5:high

@@ -13,7 +13,7 @@ Load this file only when the matching flow needs its policy. It defines the shar
 | Produced | May be created by the selected mode. |
 | Fallback | The documented recovery, reconstruction, or blocker path. Never invent a file or contents. |
 
-Choose mode from explicit intent and entry context first. Artifact presence alone never selects a mode. Preserve opaque state `phase` and `next_action` values on resume. A missing, malformed, duplicate, or hash-mismatched **required** artifact fails closed; optional state does not.
+Choose mode from explicit intent and entry context first. Artifact presence alone never selects a mode. Validate `phase` against the fixed schema enum and preserve only opaque `next_action` values on resume. A missing, malformed, duplicate, or hash-mismatched **required** artifact fails closed; optional state does not.
 
 
 ## Visible skill mandatory-use matrix
@@ -24,16 +24,16 @@ Canonical dispatch authority for the 12 visible GSD skills. Shared semantics liv
 | --- | --- | --- | --- | --- | --- | --- |
 | `gsd-brainstorming` | owner | Resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance contract | Explicit design intent or load-bearing Spec-gap return | Read-only questions, pure mechanical edits, known single-spot quick fix | On convergence load `gsd-to-plan` | — |
 | `gsd-to-plan` | owner | Create or finalize the canonical `plan.md` after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unapproved plan | Design decisions still open; Nano edits | On approval write `state.toon` and load `gsd-executing-plans` | — |
-| `gsd-executing-plans` | owner | Implement approved plan tasks on `wip/<feature>` with Fast TDD and executor-only task repair | Valid approved `plan.md` and bound resumable `state.toon` | No bound plan/state; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
+| `gsd-executing-plans` | owner | Implement approved plan tasks inline and sequentially on `wip/<feature>` with Fast TDD and session-owner repair | Valid approved `plan.md` and bound resumable `state.toon` | No bound plan/state; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
 | `gsd-handoff` | owner | Pause, save, resume, or recover from a valid `state.toon` or compaction capsule | Valid `state.toon` or recovery capsule naming peer owner | Missing/malformed state used to invent work | Load the peer skill named by validated `next_action` | — |
-| `gsd-verify` | owner | Standalone diff/PR review or terminal planned/quick-fix gate with whole-diff review then slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Invent completion without gates; dispatch `gsdReviewer` per task | Planned green path: squash, automatic cleanup, optional retain/archive | — |
-| `gsd-diagnosing-bugs` | owner | Produce root-cause evidence for non-obvious bugs, regressions, intermittent failures, or performance problems | Non-obvious failure or execution blocker needing evidence | Known single-spot quick fix | Return evidence to executor or hand architecture cause to `gsd-improve-codebase-architecture` | — |
+| `gsd-verify` | owner | Standalone diff/PR review or terminal planned/quick-fix deterministic conformance then slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Invent completion without deterministic gates | Planned green path: squash, automatic cleanup, optional retain/archive | — |
+| `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | Non-obvious failure or execution blocker needing evidence | Known single-spot quick fix | Return evidence to session-owner execution or hand an architecture cause to `gsd-improve-codebase-architecture` | — |
 | `gsd-improve-codebase-architecture` | owner | Audit or refactor architecture, or deepen candidates after diagnosis names an architectural cause | Explicit architecture intent or diagnosis-returned architectural cause | One named interface design without architecture scope | Return recommendations into discussion/plan ownership | — |
 | `gsd-ponytail` | helper | Run a known-scope behavioral quick fix or apply explicit ponytail preference level | Real known single-spot behavioral scope or explicit lite/full/ultra/normal preference | Non-trivial new behavior needing brainstorming; Nano work | Return to the normal GSD lifecycle or escalate to `gsd-brainstorming` when scope expands | must load when a known-scope quick fix is active or an explicit lite/full/ultra/normal preference is set (including normal/stop clearing state); cannot be skipped while that condition holds |
-| `gsd-tdd` | helper | Drive Fast TDD Check RED→GREEN→refactor at a public seam for observable behavior | Parent owner is implementing or repairing observable behavior | Primary skill selection; resource-heavy browser/E2E task loops | Return green/red evidence to parent owner | must load when an observable task is dispatched or repaired |
-| `gsd-domain-modeling` | helper | Write durable domain terms/decisions when already-bounded evidence makes a candidate certain | Certain project-specific term or evidenced architectural decision in already-bounded work | Proactive repository scans; uncertain candidates | Return exact changed domain paths to parent owner | must load when a durable domain candidate is certain |
-| `gsd-codebase-design` | helper | Design one named module interface, seam, or deep-module boundary | Named module/interface target from parent owner or explicit request | System-wide architecture audit | Return design result to parent owner | must load when designing one named module interface or seam |
-| `gsd-lavish` | helper | Opt-in browser visual review, pre-approval planning prototype, or Terminal Visual Review of actual completed implementation | User opt-in, post-plan `Build prototype with Lavish` choice, or Terminal Visual Review selection (`Visualize completed work with Lavish`) after reviewer PASS; eligible deliverable | Automatic launch; inline Q&A; post-approval prototype gate | Return annotations to parent owner | must load when the user opts into visual review, chooses Build prototype with Lavish, or selects Terminal Visual Review after reviewer PASS |
+| `gsd-tdd` | helper | Drive Fast TDD RED→GREEN→refactor at a public seam | Session owner is implementing or repairing observable behavior | Primary skill selection; resource-heavy browser/E2E task loops | Return green/red evidence to session owner | must load when an observable task is selected or repaired |
+| `gsd-domain-modeling` | helper | Write durable domain terms/decisions from certain bounded evidence | Certain project-specific term or evidenced architectural decision | Proactive repository scans; uncertain candidates | Return exact changed domain paths to session owner | must load when a durable domain candidate is certain |
+| `gsd-codebase-design` | helper | Design one named module interface, seam, or deep-module boundary inline | Named module/interface target from session owner or explicit request | System-wide architecture audit | Return design result to session owner | must load when designing one named module interface or seam |
+| `gsd-lavish` | helper | Opt-in visual review, planning prototype, or Terminal Visual Review of completed implementation | User opt-in, post-plan `Build prototype with Lavish`, or Terminal Visual Review selection after current-commit conformance | Automatic launch; inline Q&A; post-approval prototype gate | Return annotations to session owner | must load when the user opts in, chooses Build prototype with Lavish, or selects Terminal Visual Review after current-commit conformance |
 
 ## Durable documentation contract
 
@@ -57,11 +57,13 @@ TOON remains runtime-only: the single atomic `state.toon` snapshot. Runtime reco
 
 ### Fast TDD and task-loop constraints
 
-Every observable task loads `gsd-tdd` and uses a Fast TDD Check for RED before implementation, GREEN after implementation, and refactor after green. No browser, GUI, external network, long-lived server, large fixture, or material cost may run in an implementation task loop. Do not dispatch `gsdReviewer` per task; the task boundary is based on executor fast-green evidence. If no fast public seam exists, planning adds the smallest real fast public seam; never use `none` for observable behavior. Red/Green/refactor evidence remains reporting-only and transcript-only; do not add persistent TDD evidence fields to runtime TOON. After all tasks and fast checks pass, begin whole-diff review as context-safe terminal review with a reporting-only coverage manifest before any Terminal Visual Review or the complete feature-affected slow/E2E suite. Resolve capacity from `omp models find <provider>/<model> --json` after normalizing optional `:<variant>`; accept `C` only from exactly one exact base-selector match with positive integer `contextWindow`; use `single_budget=min(floor(0.30*C), 48000)` and `shard_budget=min(floor(0.20*C), 32000)`; estimate with raw UTF-8 byte count as a conservative upper bound (never an optimistic byte-to-token divisor). Values at or below `single_budget` use single cumulative review (`mode=single`, `authority=merge`) and may reuse the persistent gsd-reviewer session only on this small/single path; above it use Adaptive Chunked Cumulative Review: task commits seed partitions; dependency-connected or overlapping work merges; oversized work splits at stable symbol or line-range boundaries; every changed human-written line has exactly one primary shard; changed public APIs, schemas, state values, configuration, and dispatch points receive boundary packets for consumers without duplicated primary ownership; generated/binary paths are classified; deterministic manifest digest binds the reviewed commit. Run at most eight concurrent fresh isolated shard reviewers/contexts per wave (no wave-count cap; continue waves until every shard reports) (`mode=shard`, `authority=evidence`); never reuse the persistent cumulative reviewer context across shards, reducers, or the root integrator. Hierarchical reporting-only reducer waves (`mode=reducer`, `authority=evidence`) fit summaries; only the root integrator (`mode=integrator`, `authority=merge`) emits the sole terminal verdict and one findings batch. Fail closed on invalid registry/binding, coverage gaps/conflicts, unresolved edges, oversized inputs, or stale bindings. Shard/reducer PASS never authorizes Terminal Visual Review, Deferred Slow E2E, or merge. Partial shard evidence is reporting-only and adds no `state.toon` fields or per-shard keys; resume discards or ignores partial shard authority, rebuilds the manifest, and reruns required stages; changed bytes invalidate all review and selected visual evidence with no content-addressed shard-result reuse. The parent-mediated reviewer/executor repair loop runs until merge-authoritative reviewer PASS on commit C. After reviewer PASS, offer Terminal Visual Review for UI/UX plans and otherwise only for eligible substantial deliverables; when selected, complete feedback, repair, re-review, and explicit visual acceptance before Deferred Slow E2E. Failures are fixed at their source and rerun through the smallest affected subset until clear; any changed bytes invalidate prior reviewer PASS and selected visual acceptance and require whole-diff re-review, reviewer PASS, and refreshed visual acceptance when applicable before full slow/E2E reruns. Reviewer and E2E never run concurrently. Repeat that progress-guarded loop until green under the progress guard. Terminal completion requires both the complete feature-affected slow suite and `gsdReviewer` whole-diff verdict to be green on the same unchanged commit, plus resolved visual acceptance when selected. Do not dispatch `gsdReviewer` per task; a high-risk task may use executor self-review or another non-authoritative preflight advisory only.
+Every observable task loads `gsd-tdd` and uses a Fast TDD Check for RED before implementation, GREEN after implementation, and refactor after green. Browser, GUI, external network, long-lived server, large fixture, and material-cost checks never run in the implementation loop. The current top-level session owner implements and repairs each ordered task inline and sequentially; GSD dispatches no child implementation, repair, diagnosis, architecture, or verification work. Task boundaries use focused green evidence kept only in reporting/transcripts. Planning adds the smallest real fast public seam when none exists; observable behavior never uses `none`.
 
 ### Planning Prototype Session
 
 A Planning Prototype Session is an optional pre-approval Lavish session built from a completed draft plan for any feature type. After every complete draft plan, the single post-plan action surface offers approve and execute, `Build prototype with Lavish`, revise, and pause/save together. Choosing `Build prototype with Lavish` is launch consent and causes no second confirmation. Lavish annotations return to `gsd-to-plan`, may revise and revalidate the draft, and may promote selected stable assets under `.scratch/<feature>/prototype/` with relative links from plan Context or Decisions. Prototype sessions and artifacts never become implementation evidence or terminal acceptance. After approval, a prototype request is Spec escalation, not an execution or terminal gate. Separately, Terminal Visual Review is an optional post-review pre-E2E inspection of actual completed implementation evidence; it is not a planning prototype and never uses mocks or draft artifacts as acceptance evidence.
+
+Promoted prototype references used by implementation must be bound to the applicable task `Artifacts` block. They guide layout, states, tokens, responsiveness, API shape, CLI flow, or other named fidelity requirements, but never replace plan scope authority or current-commit Terminal Visual Review evidence. The task slice opens every bound reference before source edits.
 
 ### Packet grammar
 
@@ -102,7 +104,9 @@ null
 ## Tasks
 ### T1: <short task>
 - **Satisfies:** AC-1
-- **Files:** `<path>`
+- **Files:**
+  - `<path>` — <create|modify|delete>: <concise contract intent>
+- **Artifacts:** none
 - **Test:** `<focused command or none>`
 - **Status:** pending
 ```
@@ -117,15 +121,17 @@ Decisions is exact `None.` or sequential D blocks:
 
 An AC ID is a positive sequential integer. Only `active` criteria execute; a replacement receives a new ID while the former criterion is `superseded`. Outcome, Action, and Expected must independently name a concrete behavior, operation, and observable result. `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid. Every active AC has exactly one matching Interfaces row. A lower seam is valid only with a concrete reason that the higher production boundary is absent or cannot deterministically isolate the criterion. Task IDs are positive sequential integers in heading order. Every active AC appears exactly once across non-superseded task `Satisfies` fields. Every task owns at least one exact repository-relative path and one concrete focused check. Observable behavior always receives a fast public seam; never use `none` for observable behavior.
 
+Canonical task parsing uses Expand → Migrate → Contract. The parser is dual-read for structured blocks and exact already-approved legacy path-only blocks, while `gsd-to-plan` is single-write and newly approves only structured blocks. Remove the legacy reader only after no active bound legacy plan remains. Structured `Files` entries require a unique safe repository-relative path, one `create|modify|delete` operation, and concise non-vague intent. `Artifacts` is exact `none` or unique exact paths under `.scratch/<feature>/prototype/`, each with a non-vague reference role and concrete fidelity requirements; approval validates every reference exists and is readable.
+
 ### Quick-fix plan exception
 
 A Quick-fix is not a converged feature packet. Its direct fast path may write a minimal UTF-8/LF `plan.md` containing exactly `# Quick-fix Plan`, `## Feature`, `## Base`, and `## Tasks` with one or two task headings, each naming its files and focused check. Only the Quick-fix WIP verifier may consume it. It has no proposal/spec/design source set, no approval binding, and no normal-packet authority. Ordinary packet validation MUST NOT classify it as malformed converged state or dispatch normal execution from it; its special `gsd-verify` gate owns it until landing or a blocker.
 
 ### Approval binding
 
-`gsd-to-plan` validates the canonical `plan.md`, writes the plan, prints the task/AC summary, calculates the SHA-256 hash for `plan.md`, and presents the single post-plan action surface. Approval records the feature, `plan.md` path, and its hash in `state.toon`. After approval, the execution-control plane applies phase-boundary plan validation: full semantic parse and binding checks occur only at plan approval, execution resume, terminal entry, and pre-squash. Do not copy or compare the digest for ordinary task dispatches or green-task checkpoints. At approval, GSD binds the persistent executor model from `modelRoles.gsdExecutor` and the distinct persistent reviewer model from `modelRoles.gsdReviewer`. Persist only the model selectors; live agent identities are process-local and may be reused while reachable, then recreated from the same selectors. The parent builds task briefs directly from the validated plan; executors consume the validated task slice without independently reparsing `plan.md`. If the independent reviewer capability or model configuration is unavailable, GSD must fail closed immediately. Execution never depends on prompt-local memory for the approval binding.
+`gsd-to-plan` validates canonical structured `plan.md`, prints its task/AC summary, calculates SHA-256, and presents the single post-plan action surface. Approval records feature, exact plan path/hash, base/WIP identity, no completed task, canonical preferences, and checkpoint revision in atomic `schema:v3` `state.toon`, then reads it back before loading `gsd-executing-plans`. A fresh approval after Spec escalation atomically supersedes the older binding. Full semantic parse and binding checks run only at approval, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use the retained validated slice.
 
-On approval, `gsd-to-plan` immediately loads `gsd-handoff` and writes atomic `.scratch/<feature>/state.toon` with `phase=approved`, bound plan path/hash, base/WIP identity, concrete distinct executor and reviewer model selectors, `next_action` set to `start/continue task`, and phase-inapplicable fields set to canonical `none`. Read it back and validate before dispatch. A fresh approval after Spec escalation supersedes older bindings by overwriting `state.toon` atomically; there is no numbered handoff history. Then load `gsd-executing-plans` without another prompt.
+No model, agent, or persistent session identity participates in approval. The current top-level session is the sole lifecycle authority; a later session assumes that role only through canonical rehydration.
 
 ### Convergence Ledger publication contract
 
@@ -169,7 +175,7 @@ The status transition or deletion is part of the reviewed WIP diff and lands onl
 Exactly one current `.scratch/<feature>/state.toon` owns resume discovery. It is a fixed-schema UTF-8/LF scalar record with canonical field order:
 
 ```toon
-schema:v1
+schema:v3
 feature:<feature-slug>
 phase:draft|approved|executing|paused|verifying|repair|merged-cleanup-pending|completed-retained
 next_action:<opaque next action or none>
@@ -179,19 +185,13 @@ base_ref:<branch or oid>|none
 wip_branch:wip/<feature>|none
 last_green_task:T<n>|none
 last_green_commit:<40-hex>|none
-executor_model:<selector>|none
-reviewer_model:<selector>|none
-review_round:<positive int>|none
-blocking_fingerprint:<64-hex>|none
-reviewed_commit:<40-hex>|none
-progress_status:none|advanced|blocked|pending
 autosync:none|on|off
 ponytail_level:none|lite|full|ultra
 cleanup_preference:none|delete|retain|archive-and-delete
 checkpoint_revision:<positive int>
 ```
 
-Phase-inapplicable fields use canonical `none`. Reject blank lines, unknown keys, duplicates, reordered fields, empty values, and every legacy key including `mode`, `manual_ui_review`, `executor_agent`, `reviewer_agent`, `executor_generation`, `reviewer_generation`, `reload`, `task_attempt`, and `settings`. Numbered handoffs, task-attempt files, reload manifests, and result markers provide no authority and are never aliased.
+Phase-inapplicable values use canonical `none`. Current `schema:v3` parsing rejects blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, and obsolete model, agent, or review-progress rows. Numbered handoffs, task attempts, reload manifests, and result markers have no authority. On resume only, an exact valid active production `schema:v1` or `schema:v2` record is fully validated then atomically rewritten to canonical `schema:v3`, with obsolete rows discarded and `checkpoint_revision` incremented. Malformed, partial, reordered, unknown, non-concrete, or terminal legacy records fail closed unchanged; partial old terminal evidence is discarded and deterministic conformance reruns.
 
 ### Atomic write
 
@@ -199,16 +199,17 @@ Every checkpoint write creates a complete temporary file in the same feature dir
 
 ### Checkpoint cadence
 
-Persist only these resumable checkpoints:
+Persist only:
 
 - draft plan existence
 - approval binding (`phase=approved`)
 - green task commit (`last_green_task` / `last_green_commit`)
-- pause or automatic context-pressure (`phase=paused`)
-- terminal entry / completed terminal verdict (`phase=verifying` or `repair`, with last completed review progress)
-- merged cleanup (`phase=merged-cleanup-pending` or `completed-retained`)
+- pause or automatic context pressure (`phase=paused`)
+- terminal entry, repair, or current-commit conformance (`phase=verifying|repair`)
+- Terminal Visual Review capture sequence, repair confirmation/cutoff/digest, and visual acceptance encoded only through `phase` plus opaque `next_action`
+- merged cleanup (`phase=merged-cleanup-pending|completed-retained`)
 
-Do not write task-active, pending-review, numbered-history, reload-manifest, live-agent-generation, or per-shard adaptive-review checkpoints. Derive active skills from `phase` and `next_action`. Build task briefs from the validated plan. A `None.` decisions block in the plan is represented as an explicit empty decisions marker in the task slice. Reuse reachable process-local agents or recreate them from bound model selectors. Store only the last completed blocking fingerprint, reviewed commit, review round, and progress status needed to reject no-progress repair; pending review dispatch may safely repeat after interruption.
+Do not write active-task, numbered-history, reload-manifest, or persistent identity checkpoints. The session owner rebuilds complete task or terminal slices from canonical plan/state/Git and required prototype references. Structured slices preserve ordered file paths, operations, intents, applicable AC/Decision constraints, artifact paths, roles, and fidelity requirements; every reference is validated and opened before edits. Exact already-approved legacy task blocks remain readable only through their bound feature completion.
 
 ### Plan digest checks
 
@@ -216,19 +217,18 @@ Calculate and bind SHA-256 at approval, then compare it only at execution resume
 
 ### Skill derivation from phase and next_action
 
-Active subskills are derived, never stored as a reload manifest:
+Active helpers are derived, never stored as a reload manifest:
 
-- `start/continue task` (including task repair): requires `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`. Do not load `gsd-verify` and do not dispatch `gsdReviewer` for task repair.
-- `enter terminal verification/repair`: requires `gsd-verify` and `gsd-handoff`. The same opaque `next_action` resumes context-safe terminal review/repair, optional Terminal Visual Review (including `gsd-lavish` when selected), and Deferred Slow E2E without new `state.toon` fields; adaptive rebuild discards partial shard authority and uses no per-shard keys.
-- `Discussion/Spec-escalation`: requires `gsd-handoff`.
-- Conditional: `gsd-ponytail` when `ponytail_level` is `lite|full|ultra`; inline codebase-design/domain-modeling complete before checkpoint and are not resumable execution modes.
+- `start/continue task`: `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`; implementation and repair remain session-owner inline.
+- `enter terminal verification/repair`: `gsd-verify` and `gsd-handoff`; opaque `next_action` resumes deterministic conformance, optional capture-only `gsd-lavish`, repair confirmation, visual acceptance, or Deferred Slow E2E without new state keys.
+- `Discussion/Spec-escalation`: `gsd-handoff`.
+- Conditional: `gsd-ponytail` for `ponytail_level=lite|full|ultra`; inline codebase-design/domain-modeling complete before checkpoint.
 
-Master (`gsd`) is always present from bootstrap and is never listed as a derived reload skill.
-Recovery must never load master recursively or execute the capsule again; ordinary processing continues through the validated `state.toon` and peer skill.
+Master (`gsd`) is already present from bootstrap and is never listed as a derived reload skill. Recovery must never load master recursively or execute the capsule again.
 
 ### Candidate discovery
 
-Generic agents and harness adapters derive active feature candidates from the workspace filesystem:
+The extension and harness adapters derive active feature candidates from the workspace filesystem:
 
 1. **Directory Inspection**: Check if `.scratch/` exists and is a directory in `cwd`. If missing or not a directory, candidate list is empty (`[]`).
 2. **Feature Directory Filtering**: Inspect child entries of `.scratch/`. A candidate entry is eligible if it is a real directory (not a symlink), its name matches `^[a-z0-9]+(?:-[a-z0-9]+)*$`, and UTF-8 byte length is <= 255.
@@ -301,15 +301,17 @@ Apply this matrix only before non-direct lifecycle work. Strictly validate every
 
 ## Post-approval pipeline contract
 
-Approval is the final prompt of the normal planning cycle after the single post-plan action surface. Immediately dispatch `gsd-executing-plans`; no later planning menu, approval confirmation, or generic Lavish visual-review offer appears. For each ordered task, explicitly dispatch the persistent gsd-executor agent (with the bound executor model from `modelRoles.gsdExecutor`) with a validated task slice built from the plan. After green Fast TDD Checks, update `state.toon` with the completed task and keep `next_action` set to `start/continue task`. Only after every non-superseded task is complete and all Fast TDD Checks are green, set `next_action` to `enter terminal verification/repair` and load `gsd-verify` for one terminal whole-diff gate (context-safe terminal review).
+Approval is the final normal planning prompt. The current top-level session owner executes ordered tasks inline from complete validated slices, performs Fast TDD RED→GREEN→refactor, commits each green checkpoint, and never dispatches child lifecycle work. Task `Tn+1` starts only from committed green `Tn`; tasks, repairs, Terminal Visual Review, and Deferred Slow E2E never overlap.
 
-When every non-superseded task is complete and all Fast TDD Checks are green, `gsd-verify` begins context-safe terminal review with a reporting-only coverage manifest before any Terminal Visual Review or the complete feature-affected slow/E2E suite, and runs the complete feature-affected slow/E2E suite (Deferred Slow E2E) only after reviewer PASS on the current commit and resolution of any offered/selected terminal visual flow. Terminal verification performs one full parse at entry. Resolve reviewer capacity from the installed OMP registry via normalized `omp models find <provider>/<model> --json` (exactly one exact base-selector match with positive integer `contextWindow`); compute `single_budget=min(floor(0.30*C), 48000)` and `shard_budget=min(floor(0.20*C), 32000)`; measure the complete required payload with raw UTF-8 byte count as a conservative upper bound. On the small/single path (single cumulative review) (at or below `single_budget`), the parent dispatches the persistent gsd-reviewer with the bound reviewer model from `modelRoles.gsdReviewer`, reusing the same gsd-reviewer session only on this small/single cumulative path, against the cumulative `base...HEAD` diff (`mode=single`, `authority=merge`). For oversized payloads, use Adaptive Chunked Cumulative Review: parent-built task-seeded dependency-adjusted shards with exactly one primary shard per changed human-written line, boundary packets without duplicated primary ownership, deterministic manifest digest, at most eight concurrent fresh isolated shard contexts; continue waves until every shard reports; all shards run even after a blocking result, hierarchical reporting-only reducers when needed, and one fresh root integrator; never reuse the persistent cumulative reviewer context across shards, reducers, or the root integrator. Shard/reducer results are `authority=evidence` only; only root `mode=integrator`/`authority=merge` (or small-path single) is terminal. Shard or reducer PASS never authorizes Terminal Visual Review, Deferred Slow E2E, or merge. The reviewer remains read-only, covers every changed human-written line (via shards plus integrator cross-boundary reasoning on the large path), traces changed public or cross-boundary values to consumers and dispatch points, returns all structured findings to the parent in one batch, and never edits or owns repair; the parent mediates executor source-first repair with fast checks. If the independent reviewer capability or model configuration is unavailable, GSD must fail closed immediately. Missing context metadata, coverage gaps, conflicting claims, unresolved edges, oversized dispatched inputs, or stale bindings fail closed. Partial shard manifests/results remain reporting-only and add no `state.toon` fields; store no shard lifecycle data; resume rebuilds and reruns; changed bytes invalidate every shard, reducer, integrator, and selected visual acceptance with no content-addressed reuse. After reviewer PASS, offer Terminal Visual Review for UI/UX work always and for other eligible substantial deliverables; Continue does not launch Lavish, while selected visualization uses actual completed implementation evidence and must reach explicit visual acceptance before E2E. An E2E failure returns evidence via the parent to the executor; any changed bytes invalidate prior reviewer PASS and selected visual acceptance and require reviewer PASS again, plus refreshed visual acceptance when selected, before full E2E reruns. Reviewer and E2E never run concurrently. Only a green terminal verifier can squash to base. Terminal completion requires both the complete feature-affected slow suite and `gsdReviewer` whole-diff verdict to be green on the same unchanged commit, plus resolved visual acceptance when selected. Merge requires reviewer PASS, selected visual acceptance when applicable, and complete slow/E2E GREEN on the same unchanged commit. Post-approval pipeline output reports factual progress or blockers only; blocker stops never imply merge success.
+After all tasks and fast checks are green, `gsd-verify` proves deterministic cumulative conformance on the unchanged current commit: exact plan/state binding, every active AC exactly once across completed tasks and public interfaces, all changed paths task-owned, task diffs read in plan order, explicit decisions/invariants/non-goals upheld, and focused-check evidence current. Only malformed binding, ownership/coverage mismatch, explicit contract contradiction, unresolved change, or red deterministic check blocks.
+
+Current conformance precedes any Terminal Visual Review. Capture checkpoints `capture in progress` before every destructive poll and records no tracked-source mutation. After each successful poll, atomically append the normalized feedback batch to `.gsd-lavish/${feature}.feedback.json` in arrival order with the current verified commit and applied cursor/cutoff through a same-directory temporary regular file, file fsync, rename, directory fsync where supported, and readback before clearing the marker. The ledger is machine-local runtime evidence and never scope, acceptance, interface, invariant, design, or merge authority. Pending feedback ends on the separate `Start fixing`/`Continue feedback` surface. After `Start fixing`, the session owner binds cutoff and digest in opaque `next_action`, repairs only the frozen confirmed in-scope set, reruns affected Fast TDD, repeats conformance, and refreshes visual evidence. Zero pending plus current conformance exposes `Accept visual result`/`Continue feedback` with no `Start fixing`. Deferred Slow E2E runs only after current conformance, no pending feedback, and explicit visual acceptance when selected. Source changes invalidate conformance and acceptance. Green unchanged bytes then enter one-squash merge and cleanup.
 
 ## Git/base/WIP/scratch mechanics
 
 For branch-backed writes, first require a Git work tree. `plan.md` records the base before `wip/<feature>` is created. The feature branch is `wip/<feature>` and never self-references as base. Keep `.scratch/` machine-local and git-ignored; portable sync, where intentionally requested, is an explicit pathspec operation and remains runtime-only. Review diffs exclude scratch. Before squash, verify base, WIP, upstream, and reviewed non-scratch tree against the recorded runtime binding; any mismatch blocks merge. Nano and read-only work are completely git-free.
 
-Cross-machine sync carries the committed WIP branch and exact `.scratch/<feature>/` packet (`plan.md`, `state.toon`, and promoted prototype references). Dirty non-scratch paths still require an explicit named snapshot decision. A resumed process recreates agents from bound model selectors. Portable sync never sweeps unrelated dirty paths or treats prototype artifacts as authority.
+Cross-machine sync carries the committed WIP branch and exact `.scratch/<feature>/` packet (`plan.md`, `state.toon`, and promoted prototype references). Ignored `.gsd-lavish/${feature}.feedback.json` is machine-local runtime evidence and is never included in portable handoff. Dirty non-scratch paths still require an explicit named snapshot decision. On resume, the session owner rehydrates from the bound schema-v3 state, exact plan bytes/hash, base/WIP, last green task/commit, current tree, and required artifacts. Portable sync never sweeps unrelated dirty paths or treats prototype artifacts as authority. When opaque `next_action` requires pending feedback and the local ledger is missing, fail closed — return to the source machine or explicit feedback reconciliation/resubmission; never silently continue, accept, or repair.
 
 ## Feature cleanup
 
@@ -321,8 +323,8 @@ Before final terminal review/squash, the user may explicitly select retain or ar
 
 - **delete (default):** after the green squash, remove `.scratch/<feature>/`.
 - **retain:** keep `.scratch/<feature>/` and set `phase=completed-retained` with `next_action=none`.
-- **archive-and-delete:** materialize the feature archive under `docs/gsd/<feature>/archive/` before final terminal review/squash, include those files in the same reviewed squash, then remove `.scratch/<feature>/` after publication; never create a post-squash or post-merge documentation-only commit. Archive promoted prototype references needed by relative links when selected.
-Final green cleanup keeps `.gsd-lavish/` and removes only direct-child regular files whose basenames start with the exact feature-derived `${feature}.` prefix. Missing `.gsd-lavish/` or no matching files is a no-op. Inspect the root and each match with `lstat`, require the root to resolve exactly under the project and every match to remain a regular direct child, and never follow symlinks; a matching symlink or non-regular entry fails closed and remains untouched. Never delete `.gsd-lavish/` itself, another feature's prefix, or unrelated feature or non-feature artifacts.
+- **archive-and-delete:** materialize the feature archive under `docs/gsd/<feature>/archive/` before final terminal conformance/squash, include those files in the same reviewed squash, then remove `.scratch/<feature>/` after publication; never create a post-squash or post-merge documentation-only commit. Archive promoted prototype references needed by relative links when selected. The canonical `docs/gsd/<feature>/archive/plan.md` and `docs/gsd/<feature>/archive/implementation.md` destinations are terminal-cleanup-owned lifecycle paths included in changed-path ownership proof; every other changed path must be task-owned.
+Final green cleanup keeps `.gsd-lavish/` and removes only direct-child regular files whose basenames start with the exact feature-derived `${feature}.` prefix (including `${feature}.feedback.json` and other exact-feature-prefixed session artifacts). Missing `.gsd-lavish/` or no matching files is a no-op. Inspect the root and each match with `lstat`, require the root to resolve exactly under the project and every match to remain a regular direct child, and never follow symlinks; a matching symlink or non-regular entry fails closed and remains untouched. Never delete `.gsd-lavish/` itself, another feature's prefix, or unrelated feature or non-feature artifacts.
 
 ### Feature archive contract
 
@@ -340,7 +342,7 @@ Existing one-squash branch cleanup and scratch cleanup contracts remain intact.
 
 ## Lavish opt-in gate taxonomy
 
-Lavish is an optional browser review surface, never an automatic launch. Offer or launch it when either: (1) a substantial completed, reviewable deliverable exists, the flow is not mid-conversation, and browser annotation adds real review value; (2) the user chooses `Build prototype with Lavish` on the post-plan action surface (launch consent); or (3) after cumulative reviewer PASS, Terminal Visual Review is offered for UI/UX plans always and for other eligible substantial deliverables, and the user selects `Visualize completed work with Lavish`. Fold one offer into the current surface when offering; launch only after acceptance unless Build prototype already supplied consent. Ordinary post-approval task-loop progress has no Lavish offer; the only post-approval visual surface is Terminal Visual Review after reviewer PASS and before Deferred Slow E2E. Terminal Visual Review consumes actual completed implementation evidence, not planning prototypes or mocks. Missing browser or lavish capability degrades silently to equivalent terminal prose without blocking planning or the deliverable.
+Lavish is optional and never launches automatically. Offer or launch only when: (1) a substantial completed reviewable deliverable exists, the flow is not mid-conversation, and browser annotation adds real value; (2) the user chooses `Build prototype with Lavish` on the post-plan surface, which is launch consent; or (3) after current-commit deterministic conformance, Terminal Visual Review is offered for every UI/UX plan and eligible substantial non-UI work, and the user selects `Visualize completed work with Lavish`. Ordinary post-approval task progress has no visual offer. Planning prototypes never satisfy terminal evidence.
 
 ## Contextual disclosure templates
 

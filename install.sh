@@ -17,10 +17,10 @@ EXT_TARGET="${OMP_EXTENSIONS_DIR}/gsd-context.js"
 EXT_SOURCE="${REPO}/extensions/gsd-context.js"
 
 OMP_AGENTS_DIR="${OMP_AGENT_DIR}/agents"
-EXEC_TARGET="${OMP_AGENTS_DIR}/gsd-executor.md"
-EXEC_SOURCE="${REPO}/agents/gsd-executor.md"
-REV_TARGET="${OMP_AGENTS_DIR}/gsd-reviewer.md"
-REV_SOURCE="${REPO}/agents/gsd-reviewer.md"
+LEGACY_EXEC_TARGET="${OMP_AGENTS_DIR}/gsd-executor.md"
+LEGACY_EXEC_SOURCE="${REPO}/agents/gsd-executor.md"
+LEGACY_REVIEW_TARGET="${OMP_AGENTS_DIR}/gsd-reviewer.md"
+LEGACY_REVIEW_SOURCE="${REPO}/agents/gsd-reviewer.md"
 # Global variables for cleanup and restoration
 CLEANUP_TMP_SYMLINK=""
 CLEANUP_BACKUP_TARGET=""
@@ -30,6 +30,10 @@ RESTORE_EXPECTED_SOURCE=""
 RESTORE_BACKUP_TARGET=""
 APPROVED_BACKUP_LINK_TARGET=""
 APPROVED_BACKUP_INODE=""
+LEGACY_EXEC_ACTION="none"
+LEGACY_EXEC_LINK_TARGET=""
+LEGACY_REVIEW_ACTION="none"
+LEGACY_REVIEW_LINK_TARGET=""
 read_link_exact() {
   local link_path="$1"
   local var_name="$2"
@@ -440,6 +444,74 @@ remove_legacy_managed_command() {
   fi
   printf "  warn: could not remove legacy command %s; preserving it.\n" "$target" >&2
   return 1
+}
+
+preflight_legacy_agent_target() {
+  local target="$1"
+  local source="$2"
+  local file_name="$3"
+  local label="$4"
+  local action_var="$5"
+  local link_var="$6"
+  printf -v "$action_var" "%s" "none"
+  printf -v "$link_var" "%s" ""
+
+  if [ ! -e "$target" ] && [ ! -L "$target" ]; then
+    return 0
+  fi
+  if [ ! -L "$target" ]; then
+    printf "error: unmanaged collision: legacy %s target %s is not a symlink; move or remove it.\n" "$label" "$target" >&2
+    return 1
+  fi
+
+  local link_target=""
+  if ! read_link_exact "$target" link_target; then
+    printf "error: unmanaged collision: legacy %s target %s cannot be read; move or remove it.\n" "$label" "$target" >&2
+    return 1
+  fi
+  if [[ "$link_target" == *$'\n'* || "$link_target" == *$'\r'* ]]; then
+    printf "error: unmanaged collision: legacy %s target %s has an invalid link value; move or remove it.\n" "$label" "$target" >&2
+    return 1
+  fi
+
+  if [ "$link_target" = "$source" ] \
+    || { [[ "$link_target" == /* ]] \
+      && [[ "${link_target%/*}" == */agents ]] \
+      && [ "${link_target##*/}" = "$file_name" ] \
+      && [ ! -e "$target" ]; }; then
+    printf -v "$action_var" "%s" "remove"
+    printf -v "$link_var" "%s" "$link_target"
+    return 0
+  fi
+
+  printf "error: unmanaged collision: legacy %s target %s points to foreign or live source %s; move or remove it.\n" "$label" "$target" "$link_target" >&2
+  return 1
+}
+
+remove_preflighted_legacy_agent() {
+  local target="$1"
+  local label="$2"
+  local action_var="$3"
+  local link_var="$4"
+  [ "${!action_var}" = "remove" ] || return 0
+
+  local link_target=""
+  if [ ! -L "$target" ] \
+    || ! read_link_exact "$target" link_target \
+    || [ "$link_target" != "${!link_var}" ]; then
+    printf "error: legacy %s target %s changed after preflight; preserving it.\n" "$label" "$target" >&2
+    return 1
+  fi
+
+  local target_arg="$target"
+  if [[ "$target_arg" == -* ]]; then
+    target_arg="./$target_arg"
+  fi
+  if ! rm -f -- "$target_arg"; then
+    printf "error: could not remove managed legacy %s target %s.\n" "$label" "$target" >&2
+    return 1
+  fi
+  printf "  removed legacy OMP %s agent: %s\n" "$label" "$target"
 }
 
 preflight_managed_target() {
@@ -1091,7 +1163,7 @@ sync_managed_target() {
   fi
 }
 
-# Extension and agent parents are load-bearing and must be real directories.
+# Extension parents and the optional legacy-agents parent must be real directories.
 for p in "$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR" "$OMP_AGENTS_DIR"; do
   check_p="$p"
   if [[ "$check_p" == -* ]]; then
@@ -1107,12 +1179,12 @@ for p in "$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR" "$OMP_AGENTS_DIR"; do
   fi
 done
 
+preflight_legacy_agent_target "$LEGACY_EXEC_TARGET" "$LEGACY_EXEC_SOURCE" "gsd-executor.md" "executor" "LEGACY_EXEC_ACTION" "LEGACY_EXEC_LINK_TARGET"
+preflight_legacy_agent_target "$LEGACY_REVIEW_TARGET" "$LEGACY_REVIEW_SOURCE" "gsd-reviewer.md" "reviewer" "LEGACY_REVIEW_ACTION" "LEGACY_REVIEW_LINK_TARGET"
 preflight_managed_target "$EXT_TARGET" "$EXT_SOURCE" "EXT" "*/extensions/gsd-context.js"
-preflight_managed_target "$EXEC_TARGET" "$EXEC_SOURCE" "EXEC" "*/agents/gsd-executor.md"
-preflight_managed_target "$REV_TARGET" "$REV_SOURCE" "REV" "*/agents/gsd-reviewer.md"
+remove_preflighted_legacy_agent "$LEGACY_EXEC_TARGET" "executor" "LEGACY_EXEC_ACTION" "LEGACY_EXEC_LINK_TARGET"
+remove_preflighted_legacy_agent "$LEGACY_REVIEW_TARGET" "reviewer" "LEGACY_REVIEW_ACTION" "LEGACY_REVIEW_LINK_TARGET"
 sync_managed_target "$EXT_TARGET" "$EXT_SOURCE" "EXT" "*/extensions/gsd-context.js"
-sync_managed_target "$EXEC_TARGET" "$EXEC_SOURCE" "EXEC" "*/agents/gsd-executor.md"
-sync_managed_target "$REV_TARGET" "$REV_SOURCE" "REV" "*/agents/gsd-reviewer.md"
 
 if [ -L "$OMP_COMMANDS_DIR" ]; then
   printf "  warn: preserving legacy command: commands path %s is a symlink.\n" "$OMP_COMMANDS_DIR" >&2
@@ -1166,7 +1238,5 @@ LAVISH_STATE="lavish visual path ready (dist/cli.mjs present)"
 printf "\nGSD installation complete\n"
 printf "  Source checkout: %s\n" "$REPO"
 printf "  OMP extension symlink: %s -> %s\n" "$EXT_TARGET" "$EXT_SOURCE"
-printf "  OMP executor agent symlink: %s -> %s\n" "$EXEC_TARGET" "$EXEC_SOURCE"
-printf "  OMP reviewer agent symlink: %s -> %s\n" "$REV_TARGET" "$REV_SOURCE"
 printf "  Lavish: %s\n" "$LAVISH_STATE"
 printf "  Next: start a new OMP session to load the extension.\n"

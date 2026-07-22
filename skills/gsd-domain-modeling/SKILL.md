@@ -11,7 +11,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 - Role: helper
 - Helper-when: must load when a durable domain candidate is certain; cannot be skipped while that condition holds
 - Do-not-load: proactive repository scans; uncertain candidates
-- Transition: return exact changed domain paths to the parent owner
+- Transition: return exact changed domain paths to the session owner
 
 # Domain Modeling
 

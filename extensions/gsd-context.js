@@ -94,7 +94,7 @@ Stop immediately on any malformed or ambiguous state, or if the intent is unrela
 }
 
 
-const STATE_SCHEMA = 'v1';
+const STATE_SCHEMA = 'v3';
 const STATE_FILE = 'state.toon';
 const ACTIVE_STATE_PHASES = Object.freeze([
   'draft',
@@ -119,6 +119,43 @@ const STATE_FIELD_ORDER = Object.freeze([
   'wip_branch',
   'last_green_task',
   'last_green_commit',
+  'autosync',
+  'ponytail_level',
+  'cleanup_preference',
+  'checkpoint_revision',
+]);
+const LEGACY_V2_STATE_FIELD_ORDER = Object.freeze([
+  'schema',
+  'feature',
+  'phase',
+  'next_action',
+  'plan_path',
+  'plan_sha256',
+  'base_ref',
+  'wip_branch',
+  'last_green_task',
+  'last_green_commit',
+  'reviewer_model',
+  'review_round',
+  'blocking_fingerprint',
+  'reviewed_commit',
+  'progress_status',
+  'autosync',
+  'ponytail_level',
+  'cleanup_preference',
+  'checkpoint_revision',
+]);
+const LEGACY_V1_STATE_FIELD_ORDER = Object.freeze([
+  'schema',
+  'feature',
+  'phase',
+  'next_action',
+  'plan_path',
+  'plan_sha256',
+  'base_ref',
+  'wip_branch',
+  'last_green_task',
+  'last_green_commit',
   'executor_model',
   'reviewer_model',
   'review_round',
@@ -131,10 +168,19 @@ const STATE_FIELD_ORDER = Object.freeze([
   'checkpoint_revision',
 ]);
 
+
 const STATE_FIELD_SET = new Set(STATE_FIELD_ORDER);
+const LEGACY_V2_STATE_FIELD_SET = new Set(LEGACY_V2_STATE_FIELD_ORDER);
+const LEGACY_V1_STATE_FIELD_SET = new Set(LEGACY_V1_STATE_FIELD_ORDER);
 const LEGACY_STATE_KEYS = new Set([
   'mode',
   'manual_ui_review',
+  'executor_model',
+  'reviewer_model',
+  'review_round',
+  'blocking_fingerprint',
+  'reviewed_commit',
+  'progress_status',
   'executor_agent',
   'reviewer_agent',
   'executor_generation',
@@ -171,7 +217,7 @@ function requireScalar(value, field) {
   return value;
 }
 
-function parseState(content, label = 'state.toon') {
+function parseStateFields(content, label, fieldOrder, fieldSet) {
   if (typeof content !== 'string') {
     throw new Error(`${label}: content must be text`);
   }
@@ -197,10 +243,10 @@ function parseState(content, label = 'state.toon') {
     }
     const key = line.slice(0, idx);
     const value = line.slice(idx + 1);
-    if (!STATE_FIELD_SET.has(key) && LEGACY_STATE_KEYS.has(key)) {
+    if (!fieldSet.has(key) && LEGACY_STATE_KEYS.has(key)) {
       throw new Error(`${label}: legacy key rejected: ${key}`);
     }
-    if (!STATE_FIELD_SET.has(key)) {
+    if (!fieldSet.has(key)) {
       throw new Error(`${label}: unknown key: ${key}`);
     }
     if (Object.prototype.hasOwnProperty.call(fields, key)) {
@@ -212,21 +258,75 @@ function parseState(content, label = 'state.toon') {
     fields[key] = value;
   }
 
-  for (const key of STATE_FIELD_ORDER) {
+  for (const key of fieldOrder) {
     if (!Object.prototype.hasOwnProperty.call(fields, key)) {
       throw new Error(`${label}: missing required field: ${key}`);
     }
   }
 
-  // Enforce canonical order for durable snapshots.
   const keys = Object.keys(fields);
-  for (let i = 0; i < STATE_FIELD_ORDER.length; i++) {
-    if (keys[i] !== STATE_FIELD_ORDER[i]) {
+  for (let i = 0; i < fieldOrder.length; i++) {
+    if (keys[i] !== fieldOrder[i]) {
       throw new Error(`${label}: fields must appear in canonical order`);
     }
   }
+  return fields;
+}
 
-  return validateState(fields, label);
+function parseState(content, label = 'state.toon') {
+  return validateState(
+    parseStateFields(content, label, STATE_FIELD_ORDER, STATE_FIELD_SET),
+    label,
+  );
+}
+
+function migrateLegacyState(legacy, label) {
+  const migrated = Object.create(null);
+  for (const key of STATE_FIELD_ORDER) {
+    migrated[key] = key === 'schema' ? STATE_SCHEMA : legacy[key];
+  }
+  migrated.checkpoint_revision = (BigInt(migrated.checkpoint_revision) + 1n).toString();
+  return validateState(migrated, label);
+}
+
+function parseLegacyV2State(content, label) {
+  const legacy = parseStateFields(
+    content,
+    label,
+    LEGACY_V2_STATE_FIELD_ORDER,
+    LEGACY_V2_STATE_FIELD_SET,
+  );
+  return migrateLegacyState(validateLegacyV2State(legacy, label), label);
+}
+
+function parseLegacyV1State(content, label) {
+  const legacy = parseStateFields(
+    content,
+    label,
+    LEGACY_V1_STATE_FIELD_ORDER,
+    LEGACY_V1_STATE_FIELD_SET,
+  );
+  if (legacy.schema !== 'v1') {
+    throw new Error(`${label}: unsupported legacy schema: ${legacy.schema}`);
+  }
+  if (!ACTIVE_STATE_PHASES.includes(legacy.phase)) {
+    throw new Error(`${label}: legacy phase must be active`);
+  }
+  if (!isConcreteModelSelector(legacy.executor_model)) {
+    throw new Error(`${label}: legacy executor_model must be a concrete bound model selector`);
+  }
+  if (!isConcreteModelSelector(legacy.reviewer_model)) {
+    throw new Error(`${label}: legacy reviewer_model must be a concrete bound model selector`);
+  }
+  if (legacy.executor_model === legacy.reviewer_model) {
+    throw new Error(`${label}: legacy executor and reviewer models must be distinct`);
+  }
+
+  const legacyV2 = Object.create(null);
+  for (const key of LEGACY_V2_STATE_FIELD_ORDER) {
+    legacyV2[key] = key === 'schema' ? 'v2' : legacy[key];
+  }
+  return migrateLegacyState(validateLegacyV2State(legacyV2, label), label);
 }
 
 
@@ -266,29 +366,29 @@ function isValidWipBranch(wipBranch, feature) {
   return wipBranch === `wip/${feature}`;
 }
 
-function validateState(input, label = 'state.toon') {
+function copyStateFields(input, fieldOrder, fieldSet, label) {
   if (!input || typeof input !== 'object') {
     throw new Error(`${label}: state must be an object`);
   }
   const state = Object.create(null);
-  for (const key of STATE_FIELD_ORDER) {
+  for (const key of fieldOrder) {
     if (!Object.prototype.hasOwnProperty.call(input, key)) {
       throw new Error(`${label}: missing required field: ${key}`);
     }
     state[key] = requireScalar(input[key], key);
   }
   for (const key of Object.keys(input)) {
-    if (!STATE_FIELD_SET.has(key)) {
+    if (!fieldSet.has(key)) {
       if (LEGACY_STATE_KEYS.has(key)) {
         throw new Error(`${label}: legacy key rejected: ${key}`);
       }
       throw new Error(`${label}: unknown key: ${key}`);
     }
   }
+  return state;
+}
 
-  if (state.schema !== STATE_SCHEMA) {
-    throw new Error(`${label}: unsupported schema: ${state.schema}`);
-  }
+function validateCommonState(state, label) {
   if (!FEATURE_RE.test(state.feature) || Buffer.byteLength(state.feature, 'utf8') > 255) {
     throw new Error(`${label}: invalid feature slug`);
   }
@@ -302,9 +402,6 @@ function validateState(input, label = 'state.toon') {
   if (state.phase === 'draft') {
     if (state.plan_path !== NONE || state.plan_sha256 !== NONE) {
       throw new Error(`${label}: draft plan binding must be none`);
-    }
-    if (state.executor_model !== NONE || state.reviewer_model !== NONE) {
-      throw new Error(`${label}: draft model selectors must be none`);
     }
     if (state.base_ref !== NONE || state.wip_branch !== NONE) {
       throw new Error(`${label}: draft git identity must be none`);
@@ -325,18 +422,6 @@ function validateState(input, label = 'state.toon') {
     }
     if (!SHA256_RE.test(state.plan_sha256)) {
       throw new Error(`${label}: invalid plan_sha256`);
-    }
-    if (state.executor_model === NONE || state.reviewer_model === NONE) {
-      throw new Error(`${label}: model selectors required after approval`);
-    }
-    if (!isConcreteModelSelector(state.executor_model)) {
-      throw new Error(`${label}: executor_model must be a concrete bound model selector`);
-    }
-    if (!isConcreteModelSelector(state.reviewer_model)) {
-      throw new Error(`${label}: reviewer_model must be a concrete bound model selector`);
-    }
-    if (state.executor_model === state.reviewer_model) {
-      throw new Error(`${label}: executor and reviewer models must be distinct`);
     }
     if (state.base_ref === NONE || state.wip_branch === NONE) {
       throw new Error(`${label}: git identity required after approval`);
@@ -363,19 +448,6 @@ function validateState(input, label = 'state.toon') {
   if ((state.last_green_task === NONE) !== (state.last_green_commit === NONE)) {
     throw new Error(`${label}: last_green_task and last_green_commit must both be set or none`);
   }
-
-  if (state.review_round !== NONE && !/^[1-9]\d*$/.test(state.review_round)) {
-    throw new Error(`${label}: invalid review_round`);
-  }
-  if (state.blocking_fingerprint !== NONE && !SHA256_RE.test(state.blocking_fingerprint)) {
-    throw new Error(`${label}: invalid blocking_fingerprint`);
-  }
-  if (state.reviewed_commit !== NONE && !COMMIT_RE.test(state.reviewed_commit)) {
-    throw new Error(`${label}: invalid reviewed_commit`);
-  }
-  if (!PROGRESS_RE.test(state.progress_status)) {
-    throw new Error(`${label}: invalid progress_status`);
-  }
   if (!AUTOSYNC_RE.test(state.autosync)) {
     throw new Error(`${label}: invalid autosync`);
   }
@@ -388,8 +460,43 @@ function validateState(input, label = 'state.toon') {
   if (!/^[1-9]\d*$/.test(state.checkpoint_revision)) {
     throw new Error(`${label}: invalid checkpoint_revision`);
   }
+  return state;
+}
 
-  // Repair/verifying may carry review progress; other phases keep none unless completed comparison retained.
+function validateLegacyV2State(input, label = 'state.toon') {
+  const state = copyStateFields(
+    input,
+    LEGACY_V2_STATE_FIELD_ORDER,
+    LEGACY_V2_STATE_FIELD_SET,
+    label,
+  );
+  if (state.schema !== 'v2') {
+    throw new Error(`${label}: unsupported legacy schema: ${state.schema}`);
+  }
+  if (!ACTIVE_STATE_PHASES.includes(state.phase)) {
+    throw new Error(`${label}: legacy phase must be active`);
+  }
+  validateCommonState(state, label);
+
+  if (state.phase === 'draft') {
+    if (state.reviewer_model !== NONE) {
+      throw new Error(`${label}: draft reviewer model selector must be none`);
+    }
+  } else if (!isConcreteModelSelector(state.reviewer_model)) {
+    throw new Error(`${label}: reviewer_model must be a concrete bound model selector`);
+  }
+  if (state.review_round !== NONE && !/^[1-9]\d*$/.test(state.review_round)) {
+    throw new Error(`${label}: invalid review_round`);
+  }
+  if (state.blocking_fingerprint !== NONE && !SHA256_RE.test(state.blocking_fingerprint)) {
+    throw new Error(`${label}: invalid blocking_fingerprint`);
+  }
+  if (state.reviewed_commit !== NONE && !COMMIT_RE.test(state.reviewed_commit)) {
+    throw new Error(`${label}: invalid reviewed_commit`);
+  }
+  if (!PROGRESS_RE.test(state.progress_status)) {
+    throw new Error(`${label}: invalid progress_status`);
+  }
   if (['draft', 'approved', 'executing', 'paused'].includes(state.phase)) {
     if (
       state.review_round !== NONE ||
@@ -400,8 +507,15 @@ function validateState(input, label = 'state.toon') {
       throw new Error(`${label}: review progress must be none before terminal phases`);
     }
   }
-
   return state;
+}
+
+function validateState(input, label = 'state.toon') {
+  const state = copyStateFields(input, STATE_FIELD_ORDER, STATE_FIELD_SET, label);
+  if (state.schema !== STATE_SCHEMA) {
+    throw new Error(`${label}: unsupported schema: ${state.schema}`);
+  }
+  return validateCommonState(state, label);
 }
 
 function serializeState(input) {
@@ -423,6 +537,14 @@ function readStateFile(statePath) {
     throw new Error(`${statePath}: state.toon must be a regular file`);
   }
   const content = fs.readFileSync(statePath, 'utf8');
+  if (/^schema:v1(?:\r?\n|$)/.test(content)) {
+    const migrated = parseLegacyV1State(content, statePath);
+    return writeStateAtomic(path.dirname(statePath), migrated);
+  }
+  if (/^schema:v2(?:\r?\n|$)/.test(content)) {
+    const migrated = parseLegacyV2State(content, statePath);
+    return writeStateAtomic(path.dirname(statePath), migrated);
+  }
   return parseState(content, statePath);
 }
 
