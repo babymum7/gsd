@@ -130,11 +130,10 @@ test("planner single-writes structured tasks and execution binds prototype refer
   const reference = read("skills/gsd/REFERENCE.md");
   const execution = read("skills/gsd-executing-plans/SKILL.md");
 
-  for (const body of [planner, reference]) {
-    assert.match(body, /- \*\*Files:\*\*\n\s+- `<path>` — (?:create\|modify\|delete|<create\|modify\|delete>)/);
-    assert.match(body, /- \*\*Artifacts:\*\* none/);
-    assert.match(body, /\.scratch\/<feature>\/prototype\//);
-  }
+  assert.match(reference, /- \*\*Files:\*\*\n\s+- `<path>` — (?:create\|modify\|delete|<create\|modify\|delete>)/);
+  assert.match(reference, /- \*\*Artifacts:\*\* none/);
+  assert.match(reference, /\.scratch\/<feature>\/prototype\//);
+  assert.match(planner, /REFERENCE\.md[^.\n]*§ Packet grammar/);
   assert.match(planner, /newly approve only structured task blocks/i);
   assert.match(reference, /dual-read[\s\S]*single-write/i);
   assert.match(execution, /artifact references[\s\S]*open every referenced artifact before source edits/i);
@@ -1648,19 +1647,33 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
 });
 
 test("AC-4: Concision preserves semantic parity", () => {
-  const BASELINE_VISIBLE_WORDS = 13120;
+  const MAX_VISIBLE_WORDS = 10900;
+  const MAX_BOOTSTRAP_WORDS = 900;
+  const MAX_REFERENCE_WORDS = 4800;
+  const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
   const visible = skillNames().filter((name) => name !== "gsd").sort();
   assert.equal(visible.length, 12);
-  const total = visible.reduce((count, name) => {
-    const body = read(`skills/${name}/SKILL.md`).trim();
-    return count + (body ? body.split(/\s+/).filter(Boolean).length : 0);
-  }, 0);
-  assert.ok(total < BASELINE_VISIBLE_WORDS, `${total} must remain below ${BASELINE_VISIBLE_WORDS}`);
+  const total = visible.reduce(
+    (count, name) => count + wordCount(read(`skills/${name}/SKILL.md`)),
+    0,
+  );
+  assert.ok(total <= MAX_VISIBLE_WORDS, `${total} must not exceed ${MAX_VISIBLE_WORDS}`);
+  assert.ok(wordCount(read("skills/gsd/SKILL.md")) <= MAX_BOOTSTRAP_WORDS);
+  assert.ok(wordCount(read("skills/gsd/REFERENCE.md")) <= MAX_REFERENCE_WORDS);
 
   const reference = read("skills/gsd/REFERENCE.md");
   const execution = read("skills/gsd-executing-plans/SKILL.md");
   const tdd = read("skills/gsd-tdd/SKILL.md");
   const verify = read("skills/gsd-verify/SKILL.md");
+  const planner = read("skills/gsd-to-plan/SKILL.md");
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+  const lavish = read("skills/gsd-lavish/SKILL.md");
+  assert.match(planner, /REFERENCE\.md[^.\n]*§ Packet grammar/);
+  assert.match(handoff, /REFERENCE\.md[^.\n]*§ Runtime state contract/);
+  assert.match(verify, /REFERENCE\.md[^.\n]*§ Post-approval pipeline contract/);
+  assert.match(lavish, /REFERENCE\.md[^.\n]*§ Post-approval pipeline contract/);
+  assert.doesNotMatch(planner, /```md\n# Plan/);
+  assert.doesNotMatch(handoff, /schema:v3\nfeature:/);
   assert.match(reference, /### Fast TDD and task-loop constraints/);
   assert.match(reference, /deterministic cumulative conformance/);
   assert.match(execution, /Every observable task loads `gsd-tdd`/);
@@ -1694,6 +1707,71 @@ test("AC-4 repair: lavish invocation requires explicit opt-in deliverable", () =
   // Keep portable mktemp contract intact
   assert.match(lavish, /mktemp "\$ARTIFACT_DIR\/\$\{STEM\}\.XXXXXX"/);
   assert.equal((lavish.match(/^# Lavish$/gm) || []).length, 1);
+});
+test("lavish HTML allocation is portable, no-clobber, and CLI-compatible", async () => {
+  const lavish = read("skills/gsd-lavish/SKILL.md");
+  const allocation = lavish.match(/### HTML target allocation\n\n```sh\n([\s\S]*?)\n```/);
+  assert.ok(allocation, "gsd-lavish must expose an executable HTML target allocation block");
+  assert.match(allocation[1], /mktemp "\$ARTIFACT_DIR\/\$\{STEM\}\.XXXXXX"/);
+  assert.doesNotMatch(allocation[1], /XXXXXX\.html/);
+  assert.match(allocation[1], /HTML_FILE="\$\{TMP_HTML\}\.html"/);
+  assert.match(allocation[1], /ln "\$TMP_HTML" "\$HTML_FILE"/);
+
+  const { chmodSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } =
+    await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { spawnSync } = await import("node:child_process");
+  const execute = (artifactDir, extraEnv = {}) => spawnSync(
+    "sh",
+    ["-eu", "-c", `${allocation[1]}\nprintf '%s\\n' "$HTML_FILE"`],
+    {
+      encoding: "utf8",
+      env: { ...process.env, ARTIFACT_DIR: artifactDir, STEM: "session-link", ...extraEnv },
+    },
+  );
+
+  const normalRoot = mkdtempSync(join(tmpdir(), "gsd-lavish-html-"));
+  const failureRoot = mkdtempSync(join(tmpdir(), "gsd-lavish-html-fail-"));
+  try {
+    const normal = execute(normalRoot);
+    assert.equal(normal.status, 0, normal.stderr);
+    const htmlFile = normal.stdout.trim();
+    assert.equal(dirname(htmlFile), normalRoot);
+    assert.match(basename(htmlFile), /^session-link\..+\.html$/);
+    assert.deepEqual(readdirSync(normalRoot), [basename(htmlFile)]);
+    const htmlStat = lstatSync(htmlFile);
+    assert.equal(htmlStat.isFile(), true);
+    assert.equal(htmlStat.isSymbolicLink(), false);
+
+    const artifactDir = join(failureRoot, "artifacts");
+    const binDir = join(failureRoot, "bin");
+    mkdirSync(artifactDir);
+    mkdirSync(binDir);
+    const failingLn = join(binDir, "ln");
+    writeFileSync(failingLn, "#!/bin/sh\nexit 1\n", "utf8");
+    chmodSync(failingLn, 0o755);
+    const failed = execute(artifactDir, { PATH: `${binDir}:${process.env.PATH}` });
+    assert.notEqual(failed.status, 0);
+    assert.deepEqual(readdirSync(artifactDir), []);
+  } finally {
+    rmSync(normalRoot, { recursive: true, force: true });
+    rmSync(failureRoot, { recursive: true, force: true });
+  }
+});
+
+test("lavish surfaces the validated session URL before blocking feedback poll", () => {
+  const lavish = read("skills/gsd-lavish/SKILL.md");
+  const workflow = lavish.match(/## Workflow\n([\s\S]*?)(?:\n## |\n*$)/);
+  assert.ok(workflow);
+  const relay = workflow[1].indexOf("Lavish session: <url>");
+  const poll = workflow[1].indexOf('node "$CLI" poll <html-file>');
+  assert.ok(relay >= 0, "workflow must expose the active session URL");
+  assert.ok(poll > relay, "assistant-visible session URL must precede the blocking poll");
+  assert.match(workflow[1], /session\.file[\s\S]{0,160}canonical `HTML_FILE`/);
+  assert.match(workflow[1], /session\.url[\s\S]{0,160}HTTP\(S\)/);
+  assert.match(workflow[1], /assistant-visible[\s\S]{0,120}before[\s\S]{0,120}blocking poll/);
+  assert.match(workflow[1], /missing or malformed[\s\S]{0,120}Degrade to terminal/);
+  assert.match(workflow[1], /user-ended[\s\S]{0,160}--reopen/);
 });
 
 test("AC-4 repair: ponytail is helper with no lifecycle ownership", () => {

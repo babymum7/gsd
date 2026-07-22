@@ -32,58 +32,11 @@ Accept returned pre-approval domain paths only from `gsd-domain-modeling` conver
 
 ## Write plan.md
 
-Write `.scratch/<feature>/plan.md` in this order:
+Write `.scratch/<feature>/plan.md` exactly from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Packet grammar. This skill is the sole writer. Use the canonical section order, concrete Outcome/Action/Expected criteria, ordered Decisions, one public interface pin per active criterion, optional Publication, and structured tasks with unique path operation/intents, optional bound prototype references, focused checks, and pending status.
 
-```md
-# Plan
-## Feature
-`<feature-slug>`
-## Base
-`<base>`
-## Summary
-<one concrete outcome>
-## Context
-<bounded context>
-## Scope
-- <included behavior>
-## Acceptance Criteria
-### AC-1: <title>
-- **State:** active
-- **Outcome:** <concrete behavior>
-- **Action:** <concrete operation>
-- **Expected:** <observable result>
-## Decisions
-None.
-## Invariants
-- **I-1:** <must remain true>
-## Non-goals
-- **NG-1:** <explicit exclusion>
-## Interfaces
-| Criterion | Seam | Path | Lower-seam reason |
-| --- | --- | --- | --- |
-| AC-1 | <public seam> | `<repository-relative path>` | none |
-## Publication
-null
-## Tasks
-### T1: <short task>
-- **Satisfies:** AC-1
-- **Files:**
-  - `<path>` — <create|modify|delete>: <concise contract intent>
-- **Artifacts:** none
-- **Test:** `<focused command or none>`
-- **Status:** pending
-```
+Tasks are sequential `T1`…`TN`; order encodes dependencies. Every active AC occurs exactly once across tasks. A task spanning ACs requires identical seam, test path, and lower-seam reason. Every referenced prototype path must stay under `.scratch/<feature>/prototype/`, exist and be readable, and include role plus concrete fidelity requirements; prototype evidence never becomes scope authority.
 
-Decisions is exact `None.` or sequential D blocks with Decision and Rationale:
-```markdown
-### D-1: <title>
-- **Decision:** <value>
-- **Rationale:** <value>
-```
-
-Tasks are sequential `T1`…`TN`; their order encodes dependencies. Every active AC occurs exactly once across non-superseded tasks. Each task owns one or more unique exact repository-relative paths in an ordered `Files` block; every entry has exactly one `create|modify|delete` operation and a concise non-vague contract intent. `Artifacts` is exact `none` or an ordered list whose entries use `` `.scratch/<feature>/prototype/<path>` — reference: <role>; fidelity: <requirements> ``. Each task has a concrete focused check and pins the highest deterministic public seam specified for its AC. A task spanning ACs requires identical seam, test path, and lower-seam reason. Keep task rows self-contained at the file/artifact boundary without per-symbol pseudo-code; the owner builds the transient task slice directly from them.
-
-Plan complete observable behavior, not layers. Use Expand → Migrate → Contract only when all callers cannot migrate atomically; Contract requires a completed caller/reference inventory. Observable behavior always receives a fast public seam; if none exists, add the smallest real fast public seam instead of using `none`. Never use `none` for observable behavior. `none` is only for mechanically verified non-behavioral work. Classify each task's focused check as a Fast TDD Check: deterministic, local, and free of browser/GUI, external network, long-lived server, large fixture, or material cost. A vague check, behavior task without a fast seam, duplicate/unowned AC, missing file owner, or an unresolved design choice returns to Discussion rather than creating a plan.
+Plan complete observable behavior, not layers. Use Expand → Migrate → Contract only when callers cannot migrate atomically and Contract has a completed caller/reference inventory. Pin the highest deterministic fast public seam. Never use `none` for observable behavior; add the smallest real fast seam when needed. `none` is only for mechanically verified non-behavioral work. Browser/GUI, external-network, long-lived, large-fixture, and material-cost checks are Deferred Slow E2E, not focused task checks. Any vague check, unowned or duplicate AC/path, missing reference, or unresolved decision returns to Discussion.
 
 ## Post-plan action surface
 

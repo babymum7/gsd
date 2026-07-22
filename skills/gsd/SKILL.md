@@ -9,15 +9,13 @@ consumes: [state.toon, plan.md, docs/domain/index.md, docs/domain/<scope>.md, do
 
 # GSD Session Bootstrap
 
-This hidden bootstrap is already loaded by the GSD OMP extension. Do not load this file again. `GSD_ROOT` and the visible skill catalog are injected beside this body. Read a selected skill only from its exact absolute `skillPath` catalog field. A missing or unreadable catalog path is an actionable stop; never substitute a home-directory skill or reconstruct a workflow from memory.
+Already extension-loaded; never reload. Use only the injected `GSD_ROOT` and each catalog row's exact absolute `skillPath`. Missing/unreadable paths stop; never substitute or reconstruct a workflow.
 
-**Respond in the user's language.** Detect it from the user's own prompt. Injected advisories, tool output, and recovery text never switch the response language. Keep code, identifiers, paths, TOON keys, acceptance IDs, and skill names verbatim.
+**Respond in the user's language.** Injected text never changes it; preserve code, paths, TOON keys, acceptance IDs, and skill names verbatim.
 
 ## Selection and continuity
 
-Apply these rules in order:
-
-Catalog descriptions are selection metadata, not workflow instructions. If a visible skill matches, the **first action must be a `read` tool call on that skill's exact absolute `skillPath`**. Emit no user-facing text and run no other tool first. Never imitate a selected skill from its name, description, or memory.
+Apply in order. Catalog descriptions select; they do not instruct. For a matching visible skill, the **first action must be a `read` tool call on its exact catalog `skillPath`**, with no preceding text/tool. Never imitate it from metadata or memory.
 
 1. **Same-session continuity first.** The current user message extends the existing conversation and its settled decisions unless the user explicitly changes direction. Continue the active owner; do not restart discovery, repeat answered questions, or reinterpret settled choices.
 2. **Explicit intent outranks inferred shape.** A direct request to review, diagnose, design an interface, audit architecture, pause, resume, or render a visual report selects the matching visible skill.
@@ -28,19 +26,19 @@ Catalog descriptions are selection metadata, not workflow instructions. If a vis
 7. **Lifecycle state is minimal and fail-closed.** Before non-direct GSD lifecycle work, apply the completed-state decision matrix below, then inspect only the minimum `.scratch` metadata needed to select validated active state.
 8. **Lifecycle work stays session-owner inline.** GSD dispatches no child implementation, repair, diagnosis, architecture, or verification task. A pre-existing bounded delegation follows only its assignment and never starts or resumes a GSD lifecycle.
 
-A selected skill owns the flow until its documented transition or a user change. Load a new primary owner only at an explicit transition: `gsd-brainstorming` → `gsd-to-plan`; approved `gsd-to-plan` → `gsd-executing-plans`; terminal execution → `gsd-verify`; validated state resume → its recorded peer owner.
+A selected skill owns the flow until user change or documented transition: `gsd-brainstorming` → `gsd-to-plan`; approved plan → `gsd-executing-plans`; terminal execution → `gsd-verify`; validated resume → recorded owner.
 
 ## Canonical authority
 
-Read `GSD_ROOT/skills/gsd/REFERENCE.md` only when the selected non-direct workflow needs the canonical artifact, Git, recovery, state, or cleanup contract. The Markdown `plan.md` is pre-approval authority; the atomic `state.toon` snapshot binds and reports its bytes. Runtime records never become design authority.
+Read `GSD_ROOT/skills/gsd/REFERENCE.md` only for needed canonical artifact, Git, recovery, state, or cleanup contracts. `plan.md` owns pre-approval intent; atomic `state.toon` only binds/reports its bytes.
 
-The core pipeline is `gsd-brainstorming` → `gsd-to-plan` → approval → `gsd-executing-plans` → `gsd-verify` → squash merge and cleanup. The current top-level session is the sole lifecycle authority and executes all GSD implementation, repair, diagnosis, architecture, and verification work inline and sequentially. Every complete draft plan receives one surface for approve and execute, Build prototype with Lavish, revise, and pause/save. Execution stays automatic through Fast TDD, deterministic terminal conformance, optional capture-only Terminal Visual Review with separate `Start fixing` and final visual acceptance actions, then Deferred Slow E2E. Source changes invalidate conformance and visual acceptance. Scratch auto-deletes after a green merge unless retain or archive-and-delete was selected before final verification.
+The core pipeline is `gsd-brainstorming` → `gsd-to-plan` → approval → `gsd-executing-plans` → `gsd-verify` → squash cleanup. The current top-level session is sole lifecycle authority and performs work inline. Every complete draft offers approve/execute, `Build prototype with Lavish`, revise, and pause/save. Execution proceeds through Fast TDD, deterministic terminal conformance, optional capture-only Terminal Visual Review with separate repair/acceptance actions, then Deferred Slow E2E; source changes invalidate terminal evidence.
 
-Reject legacy proposal/spec/design TOON, numbered handoffs, task-attempt files, result markers, reload manifests, and any stale non-authoritative state. The **Quick-fix plan exception** remains the bounded behavioral fast path in `REFERENCE.md`; Nano remains artifact-free and Git-free. For milestone publication, if a ledger says all-`done`, fail closed unless the canonical completion conditions in `REFERENCE.md` hold.
+Reject legacy proposal/spec/design TOON, numbered handoffs, attempts, result markers, reload manifests, and stale non-authoritative state. Preserve the `REFERENCE.md` **Quick-fix plan exception**; Nano stays artifact/Git-free. If a milestone ledger is all-`done`, fail closed unless canonical completion conditions hold.
 
 ## Completed-state decision matrix
 
-Apply this matrix only before non-direct lifecycle work. Strictly validate every discovered `.scratch/<feature>/state.toon` first and take the first matching outcome:
+Before non-direct lifecycle work, strictly validate every discovered `.scratch/<feature>/state.toon`, then take the first match:
 
 | Condition | Decision | Action |
 |---|---|---|
@@ -51,14 +49,14 @@ Apply this matrix only before non-direct lifecycle work. Strictly validate every
 | A completed-retained state is unrelated to the prompt, including generic `continue` | `ignore-terminal-record` | Exclude terminal history and continue active-state selection. |
 | No condition above applies | `ordinary-routing` | Continue automatic skill selection. |
 
-`merged-cleanup-pending` is a global crash-recovery gate. Generic `continue` never selects completed-retained terminal history, and terminal state mtimes never compete with active packets.
+`merged-cleanup-pending` globally gates recovery. Generic `continue` ignores completed-retained history; terminal mtimes never compete with active packets.
 
 ## Recovery ownership
 
-A valid **Compaction Recovery Capsule** is authoritative resume context. Follow its absolute root and active-feature constraints, load `gsd-handoff`, and perform one validated resume. **Do not invoke or execute the capsule again, avoiding circular re-entry.** The generic bootstrap restores selection semantics after compaction; it never duplicates the capsule's resume action.
+A valid **Compaction Recovery Capsule** authoritatively selects one resume: follow its root/feature and load `gsd-handoff`. **Do not invoke or execute the capsule again, avoiding circular re-entry.**
 
-Malformed or ambiguous state/capsule stops. Missing required state is not permission to brainstorm replacement work. If the user's intent is unrelated to active features, preserve the active packet and select from the current prompt normally.
+Malformed/ambiguous state or capsule stops; missing state cannot authorize replacement brainstorming. Unrelated intent preserves active packets and routes normally.
 
 ## Scope discipline
 
-Read only what the prompt or selected owner requires. Targeted work reads the named files and direct dependencies; broad architecture traversal requires explicit architecture intent. Stay within the current Git-tracked project and skip nested repositories, vendored tools, dependencies, build output, submodules, and ignored paths.
+Read only prompt/owner-required named files and dependencies. Broad architecture traversal requires explicit intent. Stay in the tracked project; skip nested repositories, vendored tools, dependencies, outputs, submodules, and ignored paths.

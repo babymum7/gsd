@@ -25,11 +25,11 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 ## Intake and immutable contract
 
-Validate current canonical `schema:v3` state, then read `.scratch/<feature>/plan.md` and perform one full parse and binding check at execution entry or resume. Reject legacy proposal/spec/design files, numbered handoffs, task-attempt files, reload manifests, and result markers as authority. At ordinary task selection consume the retained validated task slice; repeat the full parse only at resume, terminal entry, and pre-squash boundaries. The session owner keeps lifecycle authority and never reconstructs scope from conversational memory.
+Perform one full parse and binding check at execution entry or resume: validate canonical `schema:v3` and `.scratch/<feature>/plan.md` under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Canonical Markdown contract. Reject legacy proposal/spec/design files, numbered handoffs, attempts, reload manifests, and result markers. At ordinary task selection consume the retained validated task slice; repeat full parsing only at resume, terminal entry, and pre-squash. Never reconstruct scope from memory.
 
-The execution parser may dual-read structured task blocks and exact already-approved hash-bound legacy task blocks. Legacy parsing preserves completion of an existing binding only; execution never creates or newly approves a legacy binding.
+Dual-read exact already-approved hash-bound legacy task blocks only to finish their binding; execution never creates or approves one.
 
-Read `plan.md` task headings in order. Use only valid bound `state.toon` plus Git evidence to determine which non-superseded task is next; the approved Markdown Status field is never mutated after approval and cannot itself prove completion. Work on `wip/<feature>` from the approved Base. Preserve the existing Git/base/WIP/conflict, milestone, and scratch-cleanup contracts in [../gsd/REFERENCE.md](../gsd/REFERENCE.md); runtime state cannot modify the approved Markdown contract. Missing, invalid, altered, or additional `plan.md` is a Spec escalation.
+Select the next task in strict heading order from bound state and Git evidence, never mutable plan Status. Work on approved `wip/<feature>` and follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics. Runtime state cannot modify intent; missing, invalid, altered, or additional `plan.md` is Spec escalation. Never rewrite the approved Markdown plan.
 
 ## Per-task loop
 
