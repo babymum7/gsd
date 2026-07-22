@@ -1120,7 +1120,7 @@ test("T1 session-owner execution contract and lifecycle roles", () => {
   assert.match(execution, /dispatches no[\s\S]{0,120}generic child task/);
   assert.match(reference, /current top-level session owner implements and repairs each ordered task inline and sequentially/i);
   assert.match(execution, /Task `Tn\+1` begins only from the committed green checkpoint of `Tn`/);
-  assert.match(execution, /No implementation task or repair overlaps another task, Terminal Visual Review, or Deferred Slow E2E/);
+  assert.match(execution, /Passive feedback transport[\s\S]{0,160}source mutations never overlap/i);
   assert.match(verify, /session owner performs deterministic cumulative conformance/);
   assert.match(verify, /No free-form critique or model-generated verdict is terminal authority/);
   assert.match(domain, /### D-gsd-3: Make the session owner the sole lifecycle authority/);
@@ -1759,19 +1759,48 @@ test("lavish HTML allocation is portable, no-clobber, and CLI-compatible", async
   }
 });
 
-test("lavish surfaces the validated session URL before blocking feedback poll", () => {
+test("lavish returns control and drains feedback without blocking the main agent", () => {
   const lavish = read("skills/gsd-lavish/SKILL.md");
   const workflow = lavish.match(/## Workflow\n([\s\S]*?)(?:\n## |\n*$)/);
   assert.ok(workflow);
   const relay = workflow[1].indexOf("Lavish session: <url>");
-  const poll = workflow[1].indexOf('node "$CLI" poll <html-file>');
+  const release = workflow[1].indexOf("return control immediately to the main agent session");
   assert.ok(relay >= 0, "workflow must expose the active session URL");
-  assert.ok(poll > relay, "assistant-visible session URL must precede the blocking poll");
+  assert.ok(release > relay, "workflow must release the main session after exposing the URL");
   assert.match(workflow[1], /session\.file[\s\S]{0,160}canonical `HTML_FILE`/);
   assert.match(workflow[1], /session\.url[\s\S]{0,160}HTTP\(S\)/);
-  assert.match(workflow[1], /assistant-visible[\s\S]{0,120}before[\s\S]{0,120}blocking poll/);
+  assert.match(workflow[1], /override[\s\S]{0,80}open `next_step`[\s\S]{0,160}Do not respond[\s\S]{0,160}non-blocking/i);
+  assert.match(workflow[1], /exactly one[\s\S]{0,120}tracked asynchronous job/);
+  assert.match(workflow[1], /guarantees[\s\S]{0,120}completion[\s\S]{0,120}same main agent session/);
+  assert.match(workflow[1], /status`? is `feedback`[\s\S]{0,140}`pending_prompts` is positive/);
+  assert.match(workflow[1], /direct `node "\$CLI" poll <html-file>` only when/);
+  assert.match(workflow[1], /never[\s\S]{0,100}indefinite foreground poll/i);
+  assert.match(workflow[1], /shell `&`[\s\S]{0,100}`nohup`[\s\S]{0,100}`disown`/i);
+  assert.doesNotMatch(workflow[1], /before any blocking poll|Then run `node "\$CLI" poll <html-file>`/);
   assert.match(workflow[1], /missing or malformed[\s\S]{0,120}Degrade to terminal/);
   assert.match(workflow[1], /user-ended[\s\S]{0,160}--reopen/);
+});
+
+test("lavish refreshes only relevant stale artifacts and serializes feedback", () => {
+  const lavish = read("skills/gsd-lavish/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+  const readme = read("README.md");
+  const domain = read("docs/domain/gsd.md");
+
+  assert.match(lavish, /relevant source change[\s\S]{0,180}canonical `HTML_FILE`/i);
+  assert.match(lavish, /irrelevant source change[\s\S]{0,120}(?:leave|leaves) the artifact untouched/i);
+  assert.match(lavish, /Lavish session updated: <url>/);
+  assert.match(lavish, /older artifact\/source revision[\s\S]{0,180}reconcile[\s\S]{0,120}never silently appl/i);
+  assert.match(lavish, /asynchronous feedback[\s\S]{0,160}next safe boundary/i);
+  assert.match(execution, /passive feedback transport[\s\S]{0,160}source mutations never overlap/i);
+  assert.match(verify, /direct main-session instructions[\s\S]{0,180}source changes clear both conformance and acceptance/i);
+  assert.match(handoff, /tracked job handles[\s\S]{0,140}runtime-only[\s\S]{0,140}never[\s\S]{0,80}`state\.toon`/i);
+  assert.match(reference, /main agent session[\s\S]{0,180}indefinite foreground poll/i);
+  assert.match(readme, /Lavish[\s\S]{0,180}does not block the main agent session/i);
+  assert.match(domain, /D-gsd-13: Keep Lavish polling non-blocking and revision-aware/);
 });
 
 test("AC-4 repair: ponytail is helper with no lifecycle ownership", () => {

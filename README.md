@@ -63,6 +63,8 @@ flowchart LR
 
 A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active feature” validates `schema:v3`, the exact plan path/hash, base/WIP identity, last green task/commit, current tree, and plan-referenced artifacts before rebuilding one active task or terminal slice. Malformed, ambiguous, or mismatched authority stops instead of reconstructing scope from memory.
 
+Lavish feedback transport does not block the main agent session: direct conversation remains available, relevant source changes refresh the associated visual artifact, and unrelated changes leave it untouched.
+
 ## Other intent-driven behavior
 
 | You say | Primary behavior |

@@ -18,7 +18,7 @@
 | Resumable State Snapshot | The atomic canonical `schema:v3` `.scratch/<feature>/state.toon` record binding plan bytes, Git identity, green checkpoint, preferences, and checkpoint revision without model or agent identity. | handoff history, task attempt |
 | Session Owner | The current top-level session as the sole lifecycle authority. A later top-level session assumes the role only after canonical rehydration; the role is not a persisted identity. | persistent parent identity, model role |
 | Terminal Conformance | Deterministic current-commit proof of plan/state binding, active-criterion/interface/task coverage, changed-path ownership, plan-ordered diffs, explicit decisions/invariants/non-goals, and focused-check evidence. | free-form verdict, subjective approval |
-| Terminal Visual Review | An optional post-conformance, pre-E2E Lavish inspection of the actual completed deliverable. Collection is capture-only until separate terminal repair confirmation; source changes invalidate conformance and visual acceptance. | planning prototype, automatic source repair |
+| Terminal Visual Review | An optional post-conformance, pre-E2E Lavish inspection of the actual completed deliverable. Poll transport is tracked and non-blocking; browser feedback handling is capture-only, while direct main-session instructions remain available. Source changes invalidate conformance and visual acceptance. | planning prototype, foreground polling, automatic source repair |
 
 ## Decisions
 
@@ -81,3 +81,8 @@
 
 - **Decision:** Capture feedback in `.gsd-lavish/${feature}.feedback.json` without tracked-source mutation. Pending feedback offers only `Start fixing`/`Continue feedback`; zero pending plus current conformance offers `Accept visual result`/`Continue feedback`.
 - **Rationale:** Separate collection, repair authorization, and acceptance preserve user intent and unchanged-commit evidence.
+
+### D-gsd-13: Keep Lavish polling non-blocking and revision-aware
+
+- **Decision:** Never occupy the main agent session with an indefinite Lavish poll. Use the non-blocking pending-feedback status/drain path by default; a long poll may run only through a verified harness-native tracked job that guarantees completion delivery to the same session. Direct user work remains sequentially available, and relevant source changes refresh the associated artifact while irrelevant changes leave it untouched.
+- **Rationale:** Two live feedback channels require responsiveness without fire-and-forget process loss or blind application of stale visual feedback; source changes still invalidate terminal conformance and visual acceptance.
