@@ -74,15 +74,15 @@
 
 ### D-gsd-11: Clean transient feature artifacts after green merge
 
-- **Decision:** Delete feature scratch automatically after a green merge unless retain or archive-and-delete was selected; clean only regular direct-child Lavish artifacts with the exact feature prefix.
+- **Decision:** Delete feature scratch automatically after a green merge unless retain or archive-and-delete was selected; clean only the exact direct `.lavish/sessions/<session-id>/` directory after `lstat` inspection.
 - **Rationale:** Exact ownership removes completed runtime evidence without touching neighboring sessions.
 
 ### D-gsd-12: Gate terminal visual source repair on explicit confirmation
 
-- **Decision:** Capture feedback in `.gsd-lavish/${feature}.feedback.json` without tracked-source mutation. Pending feedback offers only `Start fixing`/`Continue feedback`; zero pending plus current conformance offers `Accept visual result`/`Continue feedback`.
+- **Decision:** Capture feedback in the session's `.lavish/sessions/<session-id>/feedback.json` without tracked-source mutation. Pending feedback offers only `Start fixing`/`Continue feedback`; zero pending plus current conformance offers `Accept visual result`/`Continue feedback`.
 - **Rationale:** Separate collection, repair authorization, and acceptance preserve user intent and unchanged-commit evidence.
 
-### D-gsd-13: Keep Lavish polling non-blocking and revision-aware
+### D-gsd-13: Keep Lavish feedback finite and revision-aware
 
-- **Decision:** Never occupy the main agent session with an indefinite Lavish poll. In a verified harness, keep at most one same-session tracked poll armed per canonical `HTML_FILE`; re-arm only after its completion is delivered or a clearly pre-delivery timeout is observed and required marker/ledger reconciliation succeeds. While that Lavish session remains open, each direct main-session turn also reconciles exact-target status non-blockingly; harnesses without tracked delivery use status/drain only. Relevant source changes refresh the associated artifact while irrelevant changes leave it untouched.
-- **Rationale:** Alternating direct chat and browser review requires continuous timeout healing without duplicate polls, unmanaged processes, busy polling, concurrent source mutations, or blind application of stale visual feedback.
+- **Decision:** Never occupy the main agent session with an indefinite poll. Use the direct Bun CLI's finite `feedback <session-id>` command to read ordered records while the session remains open; source changes invalidate the evidence and require a fresh review.
+- **Rationale:** Direct commands preserve interactive control, prevent duplicate unmanaged watchers, and keep visual feedback tied to the unchanged verified commit.

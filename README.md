@@ -6,7 +6,7 @@ Inspired by:
 
 - [mattpocock/skills](https://github.com/mattpocock/skills) — action-oriented Markdown skills.
 - [obra/superpowers](https://github.com/obra/superpowers) — the session-bootstrap and lazy-skill mechanism. GSD uses that activation idea, not Superpowers' workflow or skill bodies.
-- [lavish-axi](https://github.com/kunchenguid/lavish-axi) — optional HTML-first visual reporting and human review.
+- Root-owned `tools/lavish` — Bun-native interactive browser feedback and image capture.
 - [ponytail](https://github.com/DietrichGebert/ponytail) — YAGNI and lazy-senior-dev discipline.
 - [open-gsd/gsd-core](https://github.com/open-gsd/gsd-core) — context engineering for long-running delivery work.
 
@@ -18,7 +18,7 @@ From this checkout:
 bash install.sh
 ```
 
-The installer publishes one direct symlink, `~/.omp/agent/extensions/gsd-context.js`, to the tracked extension. There is no wrapper; any target collision fails closed before publication. It installs no persistent model agent and no model-role configuration. Upgrade preflight removes only positively recognized managed legacy GSD agent links; regular files, directories, foreign links, live unrelated links, and unrelated agents fail closed or remain unchanged. It does not install an OMP command or copy/link skills into a user skill directory.
+The installer publishes a direct extension symlink at `~/.omp/agent/extensions/gsd-context.js` and, when Bun builds the internal tool successfully, a direct `lavish` symlink at `~/.omp/agent/bin/lavish`. There is no wrapper; target collisions fail closed before publication. It installs no persistent model agent or model-role configuration. Upgrade preflight removes only positively recognized managed legacy GSD agent links; regular files, directories, foreign links, live unrelated links, and unrelated agents fail closed or remain unchanged. It does not install an OMP command or copy/link skills into a user skill directory.
 
 Skills are repository files read lazily by the extension and are never separately installed. Relocation of the checkout requires reinstall. Editing the extension in place requires a new OMP session; start a new OMP session after an extension edit. Editing a skill takes effect the next time that skill is selected.
 
@@ -59,11 +59,11 @@ flowchart LR
 2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with observable acceptance criteria, structured file operations and intents, applicable prototype references, interfaces, focused checks, and a SHA-256 binding. The single post-plan action surface offers approve and execute, Build prototype with Lavish, revise, and pause/save. Approval writes atomic `schema:v3` `.scratch/<feature>/state.toon`.
 3. **Execution.** The current top-level session owner uses `gsd-executing-plans` to select `T1..TN` in order, rebuild each complete validated task slice, load `gsd-tdd` for observable work, perform Fast TDD Checks inline (RED→GREEN→refactor; no browser/resource-heavy task loops), commit each green checkpoint, and update `state.toon`. GSD dispatches no implementation, repair, diagnosis, architecture, or verification child task and never overlaps lifecycle work.
 4. **Verification.** `gsd-verify` deterministically checks the exact plan/state binding, active-criterion/interface/task coverage, changed-path ownership, plan-ordered task diffs, explicit decisions/invariants/non-goals, and current-commit focused-check evidence. Only malformed binding, ownership/coverage mismatch, explicit contract contradiction, unresolved change, or a red deterministic check blocks.
-5. **Visual and E2E gates.** Current-commit session-owner verification precedes any Terminal Visual Review and Deferred Slow E2E. UI/UX plans always receive `Continue to Deferred Slow E2E` / `Visualize completed work with Lavish`; eligible substantial non-UI deliverables receive the same surface; ineligible work proceeds without it. Visualization is capture-only: feedback is journaled to `.gsd-lavish/${feature}.feedback.json`, acknowledged as recorded-not-applied, and never changes source until the separate terminal `Start fixing` action. Pending feedback offers only `Start fixing` / `Continue feedback`; zero pending feedback plus current verification offers `Accept visual result` / `Continue feedback`. Source changes invalidate verification and visual acceptance. Deferred Slow E2E runs only after zero pending feedback and explicit acceptance when visualization was selected.
+5. **Visual and E2E gates.** Current-commit session-owner verification precedes Terminal Visual Review and Deferred Slow E2E. Eligible work can open the internal Lavish CLI directly against the live app; ordered comments and image metadata remain machine-local under `.lavish/`, are acknowledged as recorded-not-applied, and never change source until the separate terminal `Start fixing` action. Source changes invalidate verification and visual acceptance.
 
 A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active feature” validates `schema:v3`, the exact plan path/hash, base/WIP identity, last green task/commit, current tree, and plan-referenced artifacts before rebuilding one active task or terminal slice. Malformed, ambiguous, or mismatched authority stops instead of reconstructing scope from memory.
 
-Lavish feedback does not block the main agent session: direct conversation remains available, repeated Lavish feedback returns while the same session remains open through one-job re-arm, relevant source changes refresh its artifact, and unrelated changes leave it untouched.
+Lavish feedback stays finite and interactive: direct `feedback <session-id>` reads ordered machine-local records while the same session remains available for another command. Use `end <session-id>` explicitly when review is complete; source changes invalidate the evidence.
 
 ## Other intent-driven behavior
 
@@ -107,30 +107,30 @@ skills/
 ├── gsd-diagnosing-bugs/              # hard-bug diagnosis loop
 ├── gsd-domain-modeling/              # bounded-context documentation
 ├── gsd-codebase-design/              # deep modules and interface design
-├── gsd-improve-codebase-architecture/# architecture audit
-└── gsd-lavish/                       # optional visual reporting
+└── gsd-improve-codebase-architecture/# architecture audit
 ```
 
-## Optional Lavish editor
+## Lavish editor
 
-The Lavish CLI is a Git submodule at `tools/lavish-axi`.
+Lavish is regular tracked Bun source in `tools/lavish`; installation builds it locally and performs no external Lavish fetch.
 
-**Primary path:** `bash install.sh` updates configured submodules from remote with detached checkout (`git submodule update --init --remote --checkout --recursive`) and rebuilds the optional Lavish visual path when the submodule tip changed or `dist/cli.mjs` is missing and `pnpm` is available. Network, Git, pnpm, or build failure does not block extension installation; visual output degrades to terminal. Install never auto-commits the parent repository's submodule pointer.
-
-No pnpm? Build it manually:
+Build the internal tool with:
 
 ```bash
-cd tools/lavish-axi && pnpm install && pnpm run build
+bun run --cwd tools/lavish build
 ```
 
-Optional manual pin:
+Open an already-running URL or a local HTML file, then use the session ID for feedback and cleanup:
 
 ```bash
-git submodule update --init --remote --checkout tools/lavish-axi
-cd tools/lavish-axi && pnpm install && pnpm run build && cd ../..
-git add tools/lavish-axi
-git commit -m "Pin lavish-axi submodule tip"
+bun tools/lavish/src/cli.ts open --url http://127.0.0.1:3000
+bun tools/lavish/src/cli.ts open --file /absolute/path/to/fixture.html
+bun tools/lavish/src/cli.ts sessions
+bun tools/lavish/src/cli.ts feedback <session-id>
+bun tools/lavish/src/cli.ts end <session-id>
 ```
+
+The live page remains interactive. Lavish provides Interact and Annotate modes, accepts uploaded or pasted images, and captures the current viewport or a dragged viewport region as PNG attachments. Full-document capture is deferred. Runtime session data and attachments live under the ignored `.lavish/` directory; browser profiles live outside the repository and are isolated per project.
 
 ## Verification
 

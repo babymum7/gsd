@@ -18,7 +18,7 @@ Choose mode from explicit intent and entry context first. Artifact presence alon
 
 ## Visible skill mandatory-use matrix
 
-Canonical dispatch authority for the 12 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill. Helper rows with a true Helper-when condition must load and cannot be skipped.
+Canonical dispatch authority for the 11 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill. Helper rows with a true Helper-when condition must load and cannot be skipped.
 
 | Skill | Role | Intent | Prerequisites | Do-not-load | Transition | Helper-when |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -33,7 +33,6 @@ Canonical dispatch authority for the 12 visible GSD skills. Shared semantics liv
 | `gsd-tdd` | helper | Drive Fast TDD RED→GREEN→refactor at a public seam | Session owner is implementing or repairing observable behavior | Primary skill selection; resource-heavy browser/E2E task loops | Return green/red evidence to session owner | must load when an observable task is selected or repaired |
 | `gsd-domain-modeling` | helper | Write durable domain terms/decisions from certain bounded evidence | Certain project-specific term or evidenced architectural decision | Proactive repository scans; uncertain candidates | Return exact changed domain paths to session owner | must load when a durable domain candidate is certain |
 | `gsd-codebase-design` | helper | Design one named module interface, seam, or deep-module boundary inline | Named module/interface target from session owner or explicit request | System-wide architecture audit | Return design result to session owner | must load when designing one named module interface or seam |
-| `gsd-lavish` | helper | Opt-in visual review, planning prototype, or Terminal Visual Review of completed implementation | User opt-in, post-plan `Build prototype with Lavish`, or Terminal Visual Review selection after current-commit conformance | Automatic launch; inline Q&A; post-approval prototype gate | Return annotations to session owner | must load when the user opts in, chooses Build prototype with Lavish, or selects Terminal Visual Review after current-commit conformance |
 
 ## Durable documentation contract
 
@@ -220,7 +219,7 @@ Calculate and bind SHA-256 at approval, then compare it only at execution resume
 Active helpers are derived, never stored as a reload manifest:
 
 - `start/continue task`: `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`; implementation and repair remain session-owner inline.
-- `enter terminal verification/repair`: `gsd-verify` and `gsd-handoff`; opaque `next_action` resumes deterministic conformance, optional capture-only `gsd-lavish`, repair confirmation, visual acceptance, or Deferred Slow E2E without new state keys.
+- `enter terminal verification/repair`: `gsd-verify` and `gsd-handoff`; opaque `next_action` resumes deterministic conformance, optional capture-only direct Lavish CLI sessions, repair confirmation, visual acceptance, or Deferred Slow E2E without new state keys.
 - `Discussion/Spec-escalation`: `gsd-handoff`.
 - Conditional: `gsd-ponytail` for `ponytail_level=lite|full|ultra`; inline codebase-design/domain-modeling complete before checkpoint.
 
@@ -301,21 +300,19 @@ Apply this matrix only before non-direct lifecycle work. Strictly validate every
 
 ## Post-approval pipeline contract
 
-After approval, top-level owner runs sequential tasks with Fast TDD RED→GREEN→refactor, commits green checkpoints, and dispatches no child lifecycle work. `Tn+1` requires committed green `Tn`. Mutations and Deferred Slow E2E never overlap; Lavish transport may wait while main agent stays interactive.
+After approval, the top-level owner runs sequential tasks with Fast TDD RED→GREEN→refactor, commits green checkpoints, and dispatches no child lifecycle work. `Tn+1` requires committed green `Tn`. Mutations and Deferred Slow E2E never overlap; direct Lavish transport may remain open while the main agent stays interactive.
 
-After green checks, `gsd-verify` proves deterministic cumulative conformance on unchanged commit: exact binding, one task/interface mapping per active AC, owned paths, plan-ordered diffs, decisions/invariants/non-goals, and focused evidence. Only malformed binding, ownership/coverage mismatch, explicit contract contradiction, unresolved change, or red deterministic check blocks.
+After green checks, `gsd-verify` proves deterministic cumulative conformance on the unchanged commit: exact binding, one task/interface mapping per active AC, owned paths, plan-ordered diffs, decisions/invariants/non-goals, and focused evidence. Only malformed binding, ownership/coverage mismatch, explicit contract contradiction, unresolved change, or a red deterministic check blocks.
 
-Conformance precedes Terminal Visual Review. Never occupy the main agent session with an indefinite foreground poll. A tracked poll is a finite one-shot; start a replacement poll only after settlement and marker/ledger reconciliation. Use exact-target status/drain or, with guaranteed same-session completion, one job per canonical `HTML_FILE` (`async:true`, `timeout:3600`). While open, each direct turn preserves an active job; otherwise drain or re-arm. A clearly pre-delivery timeout checks exact-target status, then drains or re-arms. `user-ended` stops; nonzero, malformed, cancelled, or post-capture failures fail closed with no re-arm. Before TVR polling, checkpoint sequence, launch commit, artifact digest; direct instructions remain available, mutations stay sequential, capture stays read-only.
+Conformance precedes Terminal Visual Review. When selected, open the already-running URL or HTML file through `bun "$GSD_ROOT/tools/lavish/src/cli.ts" open --url "$URL"` or `open --file "$HTML_FILE"`, retain the session ID, read finite ordered `feedback` results using the returned cursor, and end the session explicitly. Never occupy the main agent with an indefinite poll. Feedback and image attachments are machine-local `.lavish/` evidence and never scope, acceptance, interface, invariant, design, or merge authority.
 
-Queue feedback at the next safe boundary; reconcile older revisions, refreshing only relevant artifacts. After each successful poll, atomically append the normalized feedback batch to `.gsd-lavish/${feature}.feedback.json` in arrival order with the current verified commit and applied cursor/cutoff through a same-directory temporary regular file, file fsync, rename, directory fsync where supported, and readback before clearing the marker. The ledger is machine-local runtime evidence and never scope, acceptance, interface, invariant, design, or merge authority.
-
-Pending: `Start fixing`/`Continue feedback`. `Start fixing` binds cutoff/digest; the session owner repairs only the frozen confirmed in-scope set, reruns Fast TDD/conformance, and refreshes visual evidence. Zero pending plus conformance offers `Accept visual result`/`Continue feedback`, without `Start fixing`. Deferred Slow E2E runs only after current conformance, no pending feedback, and explicit visual acceptance when selected. Source changes invalidate conformance and acceptance. Green unchanged bytes then enter one-squash merge and cleanup.
+Pending feedback offers `Start fixing`/`Continue feedback`; `Start fixing` binds the pending cursor and digest. The session owner repairs only the frozen confirmed in-scope set, reruns Fast TDD/conformance, and refreshes visual evidence. Zero pending plus conformance offers `Accept visual result`/`Continue feedback`, without `Start fixing`. Deferred Slow E2E runs only after current conformance, no pending feedback, and explicit visual acceptance when selected. Source changes invalidate conformance and acceptance. Green unchanged bytes then enter one-squash merge and cleanup.
 
 ## Git/base/WIP/scratch mechanics
 
 For branch-backed writes, first require a Git work tree. `plan.md` records the base before `wip/<feature>` is created. The feature branch is `wip/<feature>` and never self-references as base. Keep `.scratch/` machine-local and git-ignored; portable sync, where intentionally requested, is an explicit pathspec operation and remains runtime-only. Review diffs exclude scratch. Before squash, verify base, WIP, upstream, and reviewed non-scratch tree against the recorded runtime binding; any mismatch blocks merge. Nano and read-only work are completely git-free.
 
-Cross-machine sync carries the committed WIP branch and exact `.scratch/<feature>/` packet (`plan.md`, `state.toon`, and promoted prototype references). Ignored `.gsd-lavish/${feature}.feedback.json` is machine-local runtime evidence and is never included in portable handoff. Dirty non-scratch paths still require an explicit named snapshot decision. On resume, the session owner rehydrates from the bound schema-v3 state, exact plan bytes/hash, base/WIP, last green task/commit, current tree, and required artifacts. Portable sync never sweeps unrelated dirty paths or treats prototype artifacts as authority. When opaque `next_action` requires pending feedback and the local ledger is missing, fail closed — return to the source machine or explicit feedback reconciliation/resubmission; never silently continue, accept, or repair.
+Cross-machine sync carries the committed WIP branch and exact `.scratch/<feature>/` packet (`plan.md`, `state.toon`, and promoted prototype references). `.lavish/sessions/` and `.lavish/profiles/` are machine-local runtime evidence and are never included in portable handoff. Dirty non-scratch paths still require an explicit named snapshot decision. On resume, the session owner rehydrates from the bound schema-v3 state, exact plan bytes/hash, base/WIP, last green task/commit, current tree, and required artifacts. Portable sync never sweeps unrelated dirty paths or treats prototype artifacts as authority. When a direct Lavish session is required and its local directory is missing, fail closed and return to the source machine.
 
 ## Feature cleanup
 
@@ -328,7 +325,7 @@ Before final terminal review/squash, the user may explicitly select retain or ar
 - **delete (default):** after the green squash, remove `.scratch/<feature>/`.
 - **retain:** keep `.scratch/<feature>/` and set `phase=completed-retained` with `next_action=none`.
 - **archive-and-delete:** materialize the feature archive under `docs/gsd/<feature>/archive/` before final terminal conformance/squash, include those files in the same reviewed squash, then remove `.scratch/<feature>/` after publication; never create a post-squash or post-merge documentation-only commit. Archive promoted prototype references needed by relative links when selected. The canonical `docs/gsd/<feature>/archive/plan.md` and `docs/gsd/<feature>/archive/implementation.md` destinations are terminal-cleanup-owned lifecycle paths included in changed-path ownership proof; every other changed path must be task-owned.
-Final green cleanup keeps `.gsd-lavish/` and removes only direct-child regular files whose basenames start with the exact feature-derived `${feature}.` prefix (including `${feature}.feedback.json` and other exact-feature-prefixed session artifacts). Missing `.gsd-lavish/` or no matching files is a no-op. Inspect the root and each match with `lstat`, require the root to resolve exactly under the project and every match to remain a regular direct child, and never follow symlinks; a matching symlink or non-regular entry fails closed and remains untouched. Never delete `.gsd-lavish/` itself, another feature's prefix, or unrelated feature or non-feature artifacts.
+Final green cleanup ends the recorded Lavish session and removes only its exact `.lavish/sessions/<session-id>/` directory after `lstat` inspection. Missing session data is a no-op; symlinks, non-directories, another session, or the persistent project profile are never followed or deleted.
 
 ### Feature archive contract
 

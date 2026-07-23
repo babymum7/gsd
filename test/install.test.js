@@ -30,17 +30,20 @@ function makeHomeSandbox() {
 }
 
 function populateInstallRepo(repo, { withDist = false } = {}) {
-  const lavish = join(repo, "tools", "lavish-axi");
-  mkdirSync(lavish, { recursive: true });
+  const lavish = join(repo, "tools", "lavish");
+  mkdirSync(join(lavish, "src"), { recursive: true });
   copyFileSync(join(ROOT, "install.sh"), join(repo, "install.sh"));
   mkdirSync(join(repo, "extensions"), { recursive: true });
   copyFileSync(join(ROOT, "extensions", "gsd-context.js"), join(repo, "extensions", "gsd-context.js"));
   copyFileSync(join(ROOT, "VERSION"), join(repo, "VERSION"));
-  copyFileSync(join(ROOT, ".gitmodules"), join(repo, ".gitmodules"));
-  writeFileSync(join(lavish, "package.json"), '{"name":"lavish-axi-fixture"}\n');
+  writeFileSync(
+    join(lavish, "package.json"),
+    '{\"name\":\"@gsd/lavish-fixture\",\"scripts\":{\"build\":\"bun build src/cli.ts --target bun --outdir dist\"}}\\n',
+  );
+  writeFileSync(join(lavish, "src", "cli.ts"), 'console.log(\"fixture\");\\n');
   if (withDist) {
     mkdirSync(join(lavish, "dist"), { recursive: true });
-    writeFileSync(join(lavish, "dist", "cli.mjs"), "export default 1;\n");
+    writeExecutable(join(lavish, "dist", "cli.js"), "#!/usr/bin/env bun\\n");
   }
   return lavish;
 }
@@ -77,55 +80,16 @@ function runInstaller(home, fakeBin) {
   return runInstallerAt(ROOT, home, fakeBin);
 }
 
-/**
- * Fake git that logs argv and returns scripted SHAs for
- * `git -C <lavish> rev-parse HEAD`. Submodule update is a no-op success.
- *
- * SHA sequence: each successful rev-parse consumes the next entry; leftover
- * calls reuse the last entry.
- */
-function installFakeGit(fakeBin, logPath, { lavishPath, shas }) {
-  const statePath = join(dirname(logPath), "git-sha-state");
-  writeFileSync(statePath, "0");
+function installFakeBun(fakeBin, logPath, { exitCode = 0 } = {}) {
   writeExecutable(
-    join(fakeBin, "git"),
+    join(fakeBin, "bun"),
     `#!/bin/sh
 printf '%s\\n' "$*" >> ${JSON.stringify(logPath)}
-# git -C <path> rev-parse HEAD  → scripted SHAs for the lavish tree only
-if [ "$1" = "-C" ] && [ "$3" = "rev-parse" ] && [ "$4" = "HEAD" ]; then
-  if [ "$2" = ${JSON.stringify(lavishPath)} ]; then
-    idx=$(cat ${JSON.stringify(statePath)})
-    shas=${JSON.stringify(shas.join(" "))}
-    set -- $shas
-    i=0
-    for s in "$@"; do
-      if [ "$i" -eq "$idx" ]; then
-        echo "$s"
-        echo $((idx + 1)) > ${JSON.stringify(statePath)}
-        exit 0
-      fi
-      i=$((i + 1))
-    done
-    # past the list: repeat last
-    echo "$s"
-    exit 0
-  fi
-  echo "other-sha"
-  exit 0
-fi
-if [ "$1" = "-C" ] && [ "$3" = "submodule" ]; then exit 0; fi
-if [ "$1" = "submodule" ]; then exit 0; fi
+if [ ${exitCode} -ne 0 ]; then exit ${exitCode}; fi
+mkdir -p dist
+printf '#!/usr/bin/env bun\\n' > dist/cli.js
+chmod 755 dist/cli.js
 exit 0
-`,
-  );
-}
-
-function installFakePnpm(fakeBin, logPath, { exitCode = 0 } = {}) {
-  writeExecutable(
-    join(fakeBin, "pnpm"),
-    `#!/bin/sh
-printf '%s\\n' "$*" >> ${JSON.stringify(logPath)}
-exit ${exitCode}
 `,
   );
 }
@@ -142,7 +106,7 @@ GSD_ROOT="${escaped}"
 
 test("installer publishes only the extension and is idempotent", () => {
   const { temporary, home, fakeBin } = makeHomeSandbox();
-  for (const command of ["git", "pnpm"]) {
+  for (const command of ["git", "bun"]) {
     writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
   }
 
@@ -189,7 +153,7 @@ test("installer removes only recognized legacy model-agent links and preserves u
   for (const targetName of ["gsd-executor.md", "gsd-reviewer.md"]) {
     for (const legacyTarget of ["current-root", "dangling-managed-shape"]) {
       const { temporary, home, fakeBin, repo } = makeInstallFixture();
-      for (const command of ["git", "pnpm"]) {
+      for (const command of ["git", "bun"]) {
         writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
       }
       try {
@@ -215,7 +179,7 @@ test("installer removes only recognized legacy model-agent links and preserves u
 
 test("installer keeps recognized legacy agent links until extension publication succeeds", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
-  for (const command of ["git", "pnpm"]) {
+  for (const command of ["git", "bun"]) {
     writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
   }
   try {
@@ -240,7 +204,7 @@ test("installer keeps recognized legacy agent links until extension publication 
 
 test("installer preserves a raced replacement of a managed legacy skill link", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
-  for (const command of ["git", "pnpm"]) {
+  for (const command of ["git", "bun"]) {
     writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
   }
   try {
@@ -265,7 +229,7 @@ test("installer preserves a raced replacement of a managed legacy skill link", (
 test("installer fails before publication on unsafe legacy executor collisions", () => {
   for (const collision of ["regular", "directory", "foreign-link", "live-prior-checkout-link"]) {
     const { temporary, home, fakeBin, repo } = makeInstallFixture();
-    for (const command of ["git", "pnpm"]) {
+    for (const command of ["git", "bun"]) {
       writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
     }
     try {
@@ -313,7 +277,7 @@ test("installer fails before publication on unsafe legacy executor collisions", 
 
 test("installer removes supported current-root and dead-root legacy commands", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
-  for (const command of ["git", "pnpm"]) {
+  for (const command of ["git", "bun"]) {
     writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
   }
   const commands = join(home, ".omp", "agent", "commands");
@@ -340,7 +304,7 @@ test("installer removes supported current-root and dead-root legacy commands", (
 
 test("installer preserves ambiguous legacy command objects with warnings", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
-  for (const command of ["git", "pnpm"]) {
+  for (const command of ["git", "bun"]) {
     writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
   }
   const commands = join(home, ".omp", "agent", "commands");
@@ -387,7 +351,7 @@ test("installer preserves ambiguous legacy command objects with warnings", () =>
 test("unsafe commands directories warn and do not block extension publication", () => {
   for (const kind of ["symlink", "file"]) {
     const { temporary, home, fakeBin, repo } = makeInstallFixture();
-    for (const command of ["git", "pnpm"]) {
+    for (const command of ["git", "bun"]) {
       writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
     }
     const agentDir = join(home, ".omp", "agent");
@@ -421,7 +385,7 @@ test("unsafe commands directories warn and do not block extension publication", 
 
 test("reject repository roots containing carriage return or newline", () => {
   const { temporary, home, fakeBin } = makeHomeSandbox();
-  for (const command of ["git", "pnpm"]) {
+  for (const command of ["git", "bun"]) {
     writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
   }
 
@@ -447,139 +411,89 @@ test("reject repository roots containing carriage return or newline", () => {
 
 test("portable mktemp templates end in X", () => {
   const installer = readFileSync(join(ROOT, "install.sh"), "utf8");
-  const lavish = readFileSync(join(ROOT, "skills", "gsd-lavish", "SKILL.md"), "utf8");
   assert.doesNotMatch(installer, /sync_managed_command|TMP_COMMAND_FILE|mktemp [^\n]*gsd\.md/);
   assert.doesNotMatch(installer, /mktemp [^\n]*XXXXXX\.[A-Za-z]/);
-  assert.match(lavish, /mktemp "\$ARTIFACT_DIR\/\$\{STEM\}\.XXXXXX"/);
-  assert.doesNotMatch(lavish, /mktemp [^\n]*XXXXXX\.[A-Za-z]/);
 });
 
-test("installer refreshes submodules from remote with detached checkout", () => {
-  const { temporary, home, fakeBin, repo, lavish } = makeInstallFixture({ withDist: true });
+test("installer builds and registers the tracked Bun Lavish CLI idempotently", () => {
+  const { temporary, home, fakeBin, repo, lavish } = makeInstallFixture();
+  const bunLog = join(temporary, "bun.log");
   const gitLog = join(temporary, "git.log");
-  installFakeGit(fakeBin, gitLog, { lavishPath: lavish, shas: ["aaa", "aaa"] });
-  installFakePnpm(fakeBin, join(temporary, "pnpm.log"));
+  installFakeBun(fakeBin, bunLog);
+  writeExecutable(
+    join(fakeBin, "git"),
+    `#!/bin/sh
+printf '%s\n' "$*" >> ${JSON.stringify(gitLog)}
+exit 1
+`,
+  );
 
   try {
-    const result = runInstallerAt(repo, home, fakeBin);
-    assert.equal(result.status, 0, result.stderr + result.stdout);
-    const target = join(home, ".omp", "agent", "extensions", "gsd-context.js");
-    assert.ok(lstatSync(target).isSymbolicLink());
-    const log = readFileSync(gitLog, "utf8");
-    assert.match(log, /submodule update --init --remote --checkout --recursive/);
-    assert.doesNotMatch(log, /--merge/);
-    assert.doesNotMatch(log, /--rebase/);
-    // Install must never stage/commit/push.
-    assert.doesNotMatch(log, /(?:^|\s)(add|commit|push)(?:\s|$)/m);
+    const first = runInstallerAt(repo, home, fakeBin);
+    assert.equal(first.status, 0, first.stderr + first.stdout);
+    const extensionTarget = join(home, ".omp", "agent", "extensions", "gsd-context.js");
+    const lavishTarget = join(home, ".omp", "agent", "bin", "lavish");
+    assert.ok(lstatSync(extensionTarget).isSymbolicLink());
+    assert.ok(lstatSync(lavishTarget).isSymbolicLink());
+    assert.equal(readlinkSync(lavishTarget), join(lavish, "dist", "cli.js"));
+    assert.equal(lstatSync(join(lavish, "dist", "cli.js")).isFile(), true);
+    assert.match(readFileSync(bunLog, "utf8"), /run build/);
+    assert.equal(existsSync(gitLog), false, "installer must not invoke git for internal Lavish");
+    assert.match(first.stdout, /building internal lavish CLI with Bun/);
+    assert.match(first.stdout, /Lavish: ready at/);
+
+    const second = runInstallerAt(repo, home, fakeBin);
+    assert.equal(second.status, 0, second.stderr + second.stdout);
+    assert.equal(readlinkSync(lavishTarget), join(lavish, "dist", "cli.js"));
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
 });
 
-test("installer rebuilds lavish when submodule SHA changes", () => {
-  const { temporary, home, fakeBin, repo, lavish } = makeInstallFixture({ withDist: true });
-  const gitLog = join(temporary, "git.log");
-  const pnpmLog = join(temporary, "pnpm.log");
-  installFakeGit(fakeBin, gitLog, { lavishPath: lavish, shas: ["sha-before", "sha-after"] });
-  installFakePnpm(fakeBin, pnpmLog, { exitCode: 0 });
-
-  try {
-    assert.ok(existsSync(join(lavish, "dist", "cli.mjs")));
-    const result = runInstallerAt(repo, home, fakeBin);
-    assert.equal(result.status, 0, result.stderr + result.stdout);
-    const pnpm = readFileSync(pnpmLog, "utf8");
-    assert.match(pnpm, /install --frozen-lockfile/);
-    assert.match(pnpm, /build/);
-    assert.match(result.stdout, /building lavish-axi/);
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
+test("installer never refreshes an external Lavish repository", () => {
+  const installer = readFileSync(join(ROOT, "install.sh"), "utf8");
+  assert.doesNotMatch(installer, /submodule update|lavish-axi|pnpm|cli\.mjs/i);
+  assert.match(installer, /tools\/lavish/);
+  assert.match(installer, /bun run build/);
+  assert.equal(existsSync(join(ROOT, ".gitmodules")), false);
 });
 
-test("installer rebuilds lavish when dist is missing even if SHA is unchanged", () => {
-  const { temporary, home, fakeBin, repo, lavish } = makeInstallFixture({ withDist: false });
-  const gitLog = join(temporary, "git.log");
-  const pnpmLog = join(temporary, "pnpm.log");
-  installFakeGit(fakeBin, gitLog, { lavishPath: lavish, shas: ["same", "same"] });
-  installFakePnpm(fakeBin, pnpmLog, { exitCode: 0 });
-
-  try {
-    assert.equal(existsSync(join(lavish, "dist", "cli.mjs")), false);
-    const result = runInstallerAt(repo, home, fakeBin);
-    assert.equal(result.status, 0, result.stderr + result.stdout);
-    const pnpm = readFileSync(pnpmLog, "utf8");
-    assert.match(pnpm, /install --frozen-lockfile/);
-    assert.match(pnpm, /build/);
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test("installer skips lavish rebuild when SHA is unchanged and dist exists", () => {
-  const { temporary, home, fakeBin, repo, lavish } = makeInstallFixture({ withDist: true });
-  const gitLog = join(temporary, "git.log");
-  const pnpmLog = join(temporary, "pnpm.log");
-  installFakeGit(fakeBin, gitLog, { lavishPath: lavish, shas: ["same-sha", "same-sha"] });
-  installFakePnpm(fakeBin, pnpmLog, { exitCode: 0 });
-
-  try {
-    const result = runInstallerAt(repo, home, fakeBin);
-    assert.equal(result.status, 0, result.stderr + result.stdout);
-    assert.equal(existsSync(pnpmLog), false, "pnpm must not be invoked");
-    assert.doesNotMatch(result.stdout + result.stderr, /building lavish-axi/);
-    assert.match(result.stdout, /lavish visual path ready/);
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test("installer warns and still registers when submodule or lavish build fails", () => {
-  const { temporary, home, fakeBin, repo, lavish } = makeInstallFixture({ withDist: false });
-  // git always fails; pnpm always fails — registration must still succeed.
+test("installer preserves extension registration when the optional Lavish build fails", () => {
+  const { temporary, home, fakeBin, repo } = makeInstallFixture();
+  installFakeBun(fakeBin, join(temporary, "bun.log"), { exitCode: 1 });
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
-
   try {
     const result = runInstallerAt(repo, home, fakeBin);
     assert.equal(result.status, 0, result.stderr + result.stdout);
-    const target = join(home, ".omp", "agent", "extensions", "gsd-context.js");
-    assert.ok(lstatSync(target).isSymbolicLink());
-    assert.match(result.stdout + result.stderr, /warn:|degrade|unavailable/i);
+    const extensionTarget = join(home, ".omp", "agent", "extensions", "gsd-context.js");
+    const lavishTarget = join(home, ".omp", "agent", "bin", "lavish");
+    assert.ok(lstatSync(extensionTarget).isSymbolicLink());
+    assertPathAbsent(lavishTarget);
+    assert.match(result.stdout + result.stderr, /internal lavish build failed|lavish unavailable/i);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
 });
 
-test("README documents install as the primary upstream tool refresh path", () => {
+test("README documents the internal direct Lavish tool", () => {
   const readme = readFileSync(join(ROOT, "README.md"), "utf8");
   assert.match(readme, /bash install\.sh/);
-  assert.match(readme, /--remote --checkout/);
-  assert.match(
-    readme,
-    /Primary path:[\s\S]*bash install\.sh[\s\S]*updates configured submodules from remote/i,
-  );
-  assert.match(readme, /rebuilds the CLI when the tip SHA changes|rebuilds the optional lavish visual path when the submodule tip changed/i);
-  assert.match(readme, /never (auto-)?commits? the parent/i);
-  // Manual remote update may remain as optional pin help, but must not be the only path.
-  assert.match(readme, /Optional manual pin/i);
+  assert.match(readme, /tracked Bun (?:tool|source) in `tools\/lavish`/);
+  assert.match(readme, /bun tools\/lavish\/src\/cli\.ts open --url/);
+  assert.match(readme, /Interact and Annotate modes/);
+  assert.match(readme, /current viewport or a dragged viewport region/);
+  assert.doesNotMatch(readme, /tools\/lavish-axi|git submodule|pnpm|\.gsd-lavish/);
   assert.match(readme, /~|\.omp\/agent\/extensions\/gsd-context\.js/);
   assert.match(readme, /extensions\/gsd-context\.js/);
   assert.match(readme, /no wrapper/i);
   assert.match(readme, /collision/i);
   assert.match(readme, /start a new OMP session/i);
-
-  // Reject obsolete strings in normal workflow
-  assert.doesNotMatch(readme, /proposal\.md/i);
-  assert.doesNotMatch(readme, /spec\.md/i);
-  assert.doesNotMatch(readme, /design\.md/i);
-  assert.doesNotMatch(readme, /spec flawed/i);
-  assert.doesNotMatch(readme, /against the spec/i);
 });
 
 test("T4: extension-only fresh install, repeat, and stale relocation", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -636,7 +550,7 @@ test("T4: extension-only fresh install, repeat, and stale relocation", () => {
 test("T4: transaction - command remains unchanged when extension preflight fails", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     // Make sure extensions/gsd-context.js exists in the mock repo
@@ -670,7 +584,7 @@ test("T4: transaction - command remains unchanged when extension preflight fails
 test("T4: deterministic race/no-clobber coverage using test seam", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -741,7 +655,7 @@ test("T4: deterministic race/no-clobber coverage using test seam", () => {
 test("T4: live symlink to another source fails closed, regular-file collision fails closed, preservation on failure", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     // Make sure extensions/gsd-context.js exists in the mock repo
@@ -802,7 +716,7 @@ test("T4: agent targets live/dangling symlink, regular file, and directory colli
   for (const targetName of ["gsd-executor.md", "gsd-reviewer.md"]) {
     const { temporary, home, fakeBin, repo } = makeInstallFixture();
     writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-    writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+    writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
     try {
       mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -867,7 +781,7 @@ test("T4: OMP_AGENTS_DIR parent as symlink or file fails closed with exit 1", ()
   for (const kind of ["symlink", "file"]) {
     const { temporary, home, fakeBin, repo } = makeInstallFixture();
     writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-    writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+    writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
     try {
       const ompAgentDir = join(home, ".omp", "agent");
@@ -899,7 +813,7 @@ test("T4: special checkout/home paths with spaces, quotes, dollar signs, glob ch
   mkdirSync(specialHome);
   
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -920,7 +834,7 @@ test("T4: special checkout/home paths with spaces, quotes, dollar signs, glob ch
 test("T4: late symlink reclassification", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -961,7 +875,7 @@ test("T4: late symlink reclassification", () => {
 test("T4: signal termination and cleanup behavior", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1021,7 +935,7 @@ test("T4: signal termination and cleanup behavior", () => {
 test("T4: first window race - post-classify target replacement", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1062,7 +976,7 @@ test("T4: first window race - post-classify target replacement", () => {
 test("T4: post-classify failure preserves independently occupied backup path", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1123,7 +1037,7 @@ test("T4: post-classify failure preserves independently occupied backup path", (
 test("T4: second window race - backup publication skipped due to unowned backup object", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1182,7 +1096,7 @@ test("T4: second window race - backup publication skipped due to unowned backup 
 test("T4: regression - skipped move with identical inode/target backup preserves both", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1235,7 +1149,7 @@ test("T4: regression - skipped move with identical inode/target backup preserves
 test("T4: trailing-newline symlink target is not accepted as same-source or managed stale and remains unchanged", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1275,7 +1189,7 @@ test("T4: trailing-newline symlink target is not accepted as same-source or mana
 test("T4: post-backup-move race - target replacement after backup move", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1336,7 +1250,7 @@ test("T4: post-backup-move race - target replacement after backup move", () => {
 test("T4: replace backup after a successful move while target remains absent", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1372,7 +1286,7 @@ test("T4: replace backup after a successful move while target remains absent", (
 test("T4: post-capture regular replacement in real window is restored on failure", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1408,7 +1322,7 @@ test("T4: post-capture regular replacement in real window is restored on failure
 test("T4: post-capture symlink replacement in real window is restored on failure", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1444,7 +1358,7 @@ test("T4: post-capture symlink replacement in real window is restored on failure
 test("T4: make old referent live after ownership proof and verify still-owned backup is removed", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1481,7 +1395,7 @@ test("T4: make old referent live after ownership proof and verify still-owned ba
 test("T4: Seam 1 - replace object between validation and quarantine (GSD_TEST_SEAM_PRE_QUARANTINE)", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1523,7 +1437,7 @@ test("T4: Seam 1 - replace object between validation and quarantine (GSD_TEST_SE
 test("T4: Seam 2 - replace object between quarantine revalidation and delete/restore (GSD_TEST_SEAM_POST_QUARANTINE_REVALIDATE)", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1564,7 +1478,7 @@ test("T4: Seam 2 - replace object between quarantine revalidation and delete/res
 test("T4: source recreation after successful quarantine move preserves source replacement and processes approved quarantine", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1600,7 +1514,7 @@ test("T4: source recreation after successful quarantine move preserves source re
 test("T4: TERM immediately after quarantine move processes approved quarantine and leaves no owned orphan", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1631,7 +1545,7 @@ test("T4: TERM immediately after quarantine move processes approved quarantine a
 test("T4: skipped quarantine move preserves unowned pre-existing quarantine and owned backup source", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1675,7 +1589,7 @@ test("T4: skipped quarantine move preserves unowned pre-existing quarantine and 
 test("T4: signal termination after successful publication cleans up backup and quarantine", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });
@@ -1707,7 +1621,7 @@ test("T4: signal termination after successful publication cleans up backup and q
 test("T4: combined regular race and post-quarantine sigterm cleanup behavior", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();
   writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  writeExecutable(join(fakeBin, "pnpm"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
 
   try {
     mkdirSync(join(repo, "extensions"), { recursive: true });

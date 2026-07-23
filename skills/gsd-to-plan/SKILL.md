@@ -40,8 +40,6 @@ Plan complete observable behavior, not layers. Use Expand → Migrate → Contra
 
 ## Post-plan action surface
 
-Before the approval gate, parse finalized `plan.md` and prove feature consistency, canonical ordering, concrete AC semantics, interface pins, task coverage, file ownership, decision validity, artifact availability/readability, and focused checks. Record exact path and SHA-256. Approved bytes are immutable. Full semantic parse and binding checks run only at approval, execution resume, terminal entry, and pre-squash; digest guards do not run at ordinary task selection. The current top-level session remains the sole lifecycle authority.
-
 The parser dual-reads structured and legacy task blocks so exact already-approved hash-bound legacy plans can finish. This planner single-writes and may newly approve only structured task blocks; a newly submitted legacy-format plan returns to Discussion instead of receiving a new approval binding.
 
 Present exactly one post-plan action surface for every complete draft plan and every feature type:
@@ -51,14 +49,13 @@ Present exactly one post-plan action surface for every complete draft plan and e
 3. Revise the plan
 4. Pause & save progress
 
-Choosing `Build prototype with Lavish` is launch consent and causes no second confirmation. Load `gsd-lavish` for a feature-appropriate interactive prototype; annotations return here, update and revalidate the draft, optionally promote selected stable assets under `.scratch/<feature>/prototype/` with relative links from Context or Decisions, then present the same approve/build/revise/pause surface again. Unavailable Lavish degrades without blocking planning. Prototype sessions and artifacts never become execution authority or Terminal Visual Review evidence. After approval, a prototype request is Spec escalation, not an execution or terminal gate. Do not ask about terminal visual review during planning; Terminal Visual Review is owned later by `gsd-verify` after current-commit conformance.
+Choosing `Build prototype with Lavish` is launch consent and causes no second confirmation. The session owner materializes the feature-appropriate prototype under `.scratch/<feature>/prototype/`, then invokes the internal tool directly with `bun "$GSD_ROOT/tools/lavish/src/cli.ts" open --file "$HTML_FILE"`. Retain the returned session ID, read ordered annotations with `bun "$GSD_ROOT/tools/lavish/src/cli.ts" feedback "$SESSION_ID"`, and end it with the matching `end` command. Do not load a bridge skill. If Bun, Chromium, or the CLI is unavailable before a session opens, degrade without blocking planning. Annotations return here, update and revalidate the draft, and may promote selected stable assets under `.scratch/<feature>/prototype/` with relative links from Context or Decisions. Prototype sessions and artifacts never become execution authority or Terminal Visual Review evidence. After approval, a prototype request is Spec escalation, not an execution or terminal gate.
 
 After prototype feedback, every promoted reference used by implementation is bound in the applicable task `Artifacts` block with role and fidelity requirements. Before presenting approval, validate all referenced paths stay under `.scratch/<feature>/prototype/`, exist and are readable. Prototype artifacts guide implementation but never become scope authority, acceptance evidence, or a replacement for current-commit Terminal Visual Review.
 
 This is the last planning prompt: Approve and execute ends planning; no later planning menu, approval confirmation, or generic Lavish visual-review offer appears. Scratch cleanup defaults to automatic delete after green merge; retain or archive-and-delete only when explicitly selected before final review, and that choice never reopens planning or any other menu.
 
 On approval, immediately load `gsd-handoff` in `Execution state write` mode and atomically write canonical `schema:v3` `state.toon` with plan path/hash, `phase=approved`, no completed task, base/WIP identity, canonical preferences, checkpoint revision, and `next_action` set to `start/continue task`. Read it back and verify the binding before execution. A fresh approval after Spec escalation supersedes older binding state by atomic overwrite; there is no numbered handoff history. Never leave partial state bytes. Then load `gsd-executing-plans` without another prompt.
-
 ## Contextual disclosure
 
 Use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates. Inline firing appends nothing.

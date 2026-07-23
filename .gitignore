@@ -7,7 +7,7 @@ dist/
 .scratch/
 
 # Lavish review artifacts
-.gsd-lavish/
+.lavish/
 
 # OS files
 .DS_Store

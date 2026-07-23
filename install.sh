@@ -15,6 +15,10 @@ OMP_TARGET="${OMP_COMMANDS_DIR}/gsd.md"
 OMP_EXTENSIONS_DIR="${OMP_AGENT_DIR}/extensions"
 EXT_TARGET="${OMP_EXTENSIONS_DIR}/gsd-context.js"
 EXT_SOURCE="${REPO}/extensions/gsd-context.js"
+OMP_BIN_DIR="${OMP_AGENT_DIR}/bin"
+LAVISH_TARGET="${OMP_BIN_DIR}/lavish"
+LAVISH_DIR="${REPO}/tools/lavish"
+LAVISH_SOURCE="${LAVISH_DIR}/dist/cli.js"
 
 OMP_AGENTS_DIR="${OMP_AGENT_DIR}/agents"
 LEGACY_EXEC_TARGET="${OMP_AGENTS_DIR}/gsd-executor.md"
@@ -1163,8 +1167,27 @@ sync_managed_target() {
   fi
 }
 
+# --- Build the tracked internal Lavish CLI; never fetch external source. ---
+LAVISH_READY=0
+LAVISH_STATE="lavish unavailable — install Bun and re-run bash install.sh"
+if [ -f "$LAVISH_DIR/package.json" ] && command -v bun >/dev/null 2>&1; then
+  echo "  building internal lavish CLI with Bun..."
+  if (cd "$LAVISH_DIR" && bun run build >/dev/null 2>&1) \
+    && [ -f "$LAVISH_SOURCE" ] && [ ! -L "$LAVISH_SOURCE" ]; then
+    chmod u+x "$LAVISH_SOURCE"
+    LAVISH_READY=1
+    LAVISH_STATE="ready at $LAVISH_TARGET"
+  else
+    echo "  warn: internal lavish build failed — direct browser review is unavailable." >&2
+  fi
+fi
+
+REGISTRATION_PARENTS=("$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR" "$OMP_AGENTS_DIR")
+if [ "$LAVISH_READY" -eq 1 ]; then
+  REGISTRATION_PARENTS+=("$OMP_BIN_DIR")
+fi
 # Extension parents and the optional legacy-agents parent must be real directories.
-for p in "$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR" "$OMP_AGENTS_DIR"; do
+for p in "${REGISTRATION_PARENTS[@]}"; do
   check_p="$p"
   if [[ "$check_p" == -* ]]; then
     check_p="./$check_p"
@@ -1182,7 +1205,13 @@ done
 preflight_legacy_agent_target "$LEGACY_EXEC_TARGET" "$LEGACY_EXEC_SOURCE" "gsd-executor.md" "executor" "LEGACY_EXEC_ACTION" "LEGACY_EXEC_LINK_TARGET"
 preflight_legacy_agent_target "$LEGACY_REVIEW_TARGET" "$LEGACY_REVIEW_SOURCE" "gsd-reviewer.md" "reviewer" "LEGACY_REVIEW_ACTION" "LEGACY_REVIEW_LINK_TARGET"
 preflight_managed_target "$EXT_TARGET" "$EXT_SOURCE" "EXT" "*/extensions/gsd-context.js"
+if [ "$LAVISH_READY" -eq 1 ]; then
+  preflight_managed_target "$LAVISH_TARGET" "$LAVISH_SOURCE" "LAVISH" "*/tools/lavish/dist/cli.js"
+fi
 sync_managed_target "$EXT_TARGET" "$EXT_SOURCE" "EXT" "*/extensions/gsd-context.js"
+if [ "$LAVISH_READY" -eq 1 ]; then
+  sync_managed_target "$LAVISH_TARGET" "$LAVISH_SOURCE" "LAVISH" "*/tools/lavish/dist/cli.js"
+fi
 remove_preflighted_legacy_agent "$LEGACY_EXEC_TARGET" "executor" "LEGACY_EXEC_ACTION" "LEGACY_EXEC_LINK_TARGET"
 remove_preflighted_legacy_agent "$LEGACY_REVIEW_TARGET" "reviewer" "LEGACY_REVIEW_ACTION" "LEGACY_REVIEW_LINK_TARGET"
 
@@ -1218,35 +1247,8 @@ if [ -d "${HOME}/.agents/skills" ]; then
   done
 fi
 
-# --- Optional submodule refresh and lavish build ---
-LAVISH="$REPO/tools/lavish-axi"
-# Record pre-update SHA when possible; never fail install if git is missing/broken.
-LAVISH_SHA_BEFORE=""
-if [ -d "$LAVISH" ]; then
-  LAVISH_SHA_BEFORE="$(git -C "$LAVISH" rev-parse HEAD 2>/dev/null || true)"
-fi
-
-if [ -f "$REPO/.gitmodules" ]; then
-  git -C "$REPO" submodule update --init --remote --checkout --recursive >/dev/null 2>&1 \
-    || echo "  warn: submodule remote update failed — lavish HTML path may be unavailable; skills degrade to terminal."
-fi
-
-LAVISH_SHA_AFTER=""
-if [ -d "$LAVISH" ]; then
-  LAVISH_SHA_AFTER="$(git -C "$LAVISH" rev-parse HEAD 2>/dev/null || true)"
-fi
-
-# Rebuild when tip changed or dist is missing. All git/pnpm probes stay non-fatal.
-if [ -d "$LAVISH" ] && command -v pnpm >/dev/null 2>&1; then
-  if [ ! -f "$LAVISH/dist/cli.mjs" ] || { [ -n "$LAVISH_SHA_AFTER" ] && [ "$LAVISH_SHA_BEFORE" != "$LAVISH_SHA_AFTER" ]; }; then
-    echo "  building lavish-axi (pnpm install && pnpm build)..."
-    (cd "$LAVISH" && pnpm install --frozen-lockfile >/dev/null 2>&1 && pnpm build >/dev/null 2>&1) \
-      || echo "  warn: lavish-axi build failed — lavish HTML path unavailable; skills degrade to terminal."
-  fi
-fi
-
-LAVISH_STATE="lavish visual path ready (dist/cli.mjs present)"
-[ -f "$LAVISH/dist/cli.mjs" ] || LAVISH_STATE="lavish not built — install pnpm and re-run, or: cd tools/lavish-axi && pnpm i && pnpm build"
+# Lavish is regular tracked source. Installation performs no Git submodule or
+# external package-manager refresh.
 printf "\nGSD installation complete\n"
 printf "  Source checkout: %s\n" "$REPO"
 printf "  OMP extension symlink: %s -> %s\n" "$EXT_TARGET" "$EXT_SOURCE"

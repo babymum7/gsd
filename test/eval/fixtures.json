@@ -140,8 +140,8 @@
     "state": "clean repo; no .scratch/ directory",
     "prompt": "render this architecture comparison as a lavish visual report",
     "decision": "ordinary-routing",
-    "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-lavish"
+    "expectedAction": "direct",
+    "expectedPrimarySkill": null
   },
   {
     "id": "milestone-ledger-recovery",
