@@ -1431,6 +1431,74 @@ test("state.toon lifecycle checkpoint contract", async () => {
   }
 });
 
+test("atomic state writes survive feature-directory swaps", () => {
+  const tempDir = mkdtempSync(join(tmpdir(), "gsd-state-race-"));
+  const scratch = join(tempDir, ".scratch");
+  mkdirSync(scratch, { recursive: true });
+  const nodeFs = require("node:fs");
+  const realOpenSync = nodeFs.openSync;
+  const realRenameSync = nodeFs.renameSync;
+  const realSymlinkSync = nodeFs.symlinkSync;
+  try {
+    const preopenFeature = join(scratch, "preopen-race");
+    const preopenMoved = join(scratch, "preopen-race-moved");
+    const preopenEscape = join(tempDir, "preopen-escape");
+    mkdirSync(preopenFeature);
+    writeFileSync(join(preopenFeature, "plan.md"), "plan");
+    mkdirSync(preopenEscape);
+
+    let openSwapped = false;
+    nodeFs.openSync = function(filePath, ...args) {
+      if (!openSwapped && filePath === preopenFeature) {
+        openSwapped = true;
+        realRenameSync.call(this, preopenFeature, preopenMoved);
+        realSymlinkSync.call(this, preopenEscape, preopenFeature);
+      }
+      return realOpenSync.call(this, filePath, ...args);
+    };
+    assert.throws(
+      () => writeActiveStateFixture(preopenFeature, "preopen-race"),
+      /identity|symlink|stable|directory/i,
+    );
+    assert.equal(
+      readdirSync(preopenEscape).some((name) => name === "state.toon" || name.endsWith(".tmp")),
+      false,
+      "a swapped parent must not receive state output",
+    );
+    nodeFs.openSync = realOpenSync;
+
+    const prerenameFeature = join(scratch, "prerename-race");
+    const prerenameMoved = join(scratch, "prerename-race-moved");
+    const prerenameEscape = join(tempDir, "prerename-escape");
+    mkdirSync(prerenameFeature);
+    writeFileSync(join(prerenameFeature, "plan.md"), "plan");
+    mkdirSync(prerenameEscape);
+
+    let renameSwapped = false;
+    nodeFs.renameSync = function(source, destination) {
+      if (!renameSwapped) {
+        renameSwapped = true;
+        realRenameSync.call(this, prerenameFeature, prerenameMoved);
+        realSymlinkSync.call(this, prerenameEscape, prerenameFeature);
+      }
+      return realRenameSync.call(this, source, destination);
+    };
+    writeActiveStateFixture(prerenameFeature, "prerename-race");
+    assert.equal(renameSwapped, true, "the rename-boundary swap must run");
+    assert.match(readFileSync(join(prerenameMoved, "state.toon"), "utf8"), /feature:prerename-race/);
+    assert.equal(
+      readdirSync(prerenameEscape).some((name) => name === "state.toon" || name.endsWith(".tmp")),
+      false,
+      "a swapped parent must not redirect the stable directory handle",
+    );
+  } finally {
+    nodeFs.openSync = realOpenSync;
+    nodeFs.renameSync = realRenameSync;
+    nodeFs.symlinkSync = realSymlinkSync;
+    rmSync(tempDir, { recursive: true, force: true });
+  }
+});
+
 test("plan_path and wip_branch must match state.feature on read/validate", () => {
   const base = {
     schema: "v3",

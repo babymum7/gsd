@@ -781,12 +781,60 @@ function resolveFeatureDirectory(featureDir, expectedFeature = null) {
     throw new Error(`featureDir identity changed during validation: ${featureDir}`);
   }
 
-  return { absolute: realFeatureDir, feature: base, scratchDir };
+  return {
+    absolute: realFeatureDir,
+    feature: base,
+    scratchDir,
+    featureIdentity: { dev: realFeatureStat.dev, ino: realFeatureStat.ino },
+  };
+}
+
+function openStableFeatureDirectory(featureMeta) {
+  let fd;
+  try {
+    const flags =
+      fs.constants.O_RDONLY |
+      (fs.constants.O_DIRECTORY ?? 0) |
+      (fs.constants.O_NOFOLLOW ?? 0);
+    fd = fs.openSync(featureMeta.absolute, flags);
+    const opened = fs.fstatSync(fd);
+    if (
+      opened.dev !== featureMeta.featureIdentity.dev ||
+      opened.ino !== featureMeta.featureIdentity.ino
+    ) {
+      throw new Error(`featureDir identity changed before write: ${featureMeta.absolute}`);
+    }
+
+    const fdPath = process.platform === 'linux'
+      ? `/proc/self/fd/${fd}`
+      : process.platform === 'darwin'
+        ? `/dev/fd/${fd}`
+        : null;
+    if (!fdPath) {
+      throw new Error('stable feature directory handles are unavailable on this platform');
+    }
+    let resolvedFdPath;
+    try {
+      resolvedFdPath = fs.realpathSync(fdPath);
+    } catch (error) {
+      throw new Error(`cannot resolve stable feature directory handle (${error.message})`);
+    }
+    if (resolvedFdPath !== featureMeta.absolute) {
+      throw new Error(`featureDir handle resolved unexpectedly: ${resolvedFdPath}`);
+    }
+    return { fd, path: fdPath };
+  } catch (error) {
+    if (fd !== undefined) {
+      try { fs.closeSync(fd); } catch { /* ignore */ }
+    }
+    throw error;
+  }
 }
 
 function writeStateAtomic(featureDir, input) {
   const state = validateState(input);
-  const { absolute } = resolveFeatureDirectory(featureDir, state.feature);
+  const featureMeta = resolveFeatureDirectory(featureDir, state.feature);
+  const { absolute } = featureMeta;
   if (state.plan_path !== NONE) {
     const expectedPlan = `.scratch/${state.feature}/plan.md`;
     if (state.plan_path !== expectedPlan) {
@@ -797,13 +845,19 @@ function writeStateAtomic(featureDir, input) {
   if (Buffer.byteLength(body, 'utf8') > STATE_FILE_MAX_BYTES) {
     throw new Error(`state.toon exceeds size limit of ${STATE_FILE_MAX_BYTES} bytes`);
   }
-  const target = path.join(absolute, STATE_FILE);
-  const temp = path.join(absolute, `.${STATE_FILE}.${process.pid}.${Date.now()}.tmp`);
 
+  let directoryFd;
+  let target;
+  let temp;
   let fd;
   let ownsTemp = false;
   let tempIdentity = null;
   try {
+    const stableDirectory = openStableFeatureDirectory(featureMeta);
+    directoryFd = stableDirectory.fd;
+    target = path.join(stableDirectory.path, STATE_FILE);
+    temp = path.join(stableDirectory.path, `.${STATE_FILE}.${process.pid}.${Date.now()}.tmp`);
+
     try {
       const flags =
         fs.constants.O_WRONLY |
@@ -827,26 +881,23 @@ function writeStateAtomic(featureDir, input) {
     tempIdentity = null;
 
     try {
-      const dirFd = fs.openSync(absolute, 'r');
-      try {
-        fs.fsyncSync(dirFd);
-      } catch {
-        // Directory fsync is best-effort where unsupported.
-      } finally {
-        fs.closeSync(dirFd);
-      }
+      fs.fsyncSync(directoryFd);
     } catch {
-      // ignore directory open failures on exotic FS
+      // Directory fsync is best-effort where unsupported.
     }
 
-    const readBack = readStateFile(target);
-    if (serializeState(readBack) !== body) {
+    const stableRoot = fs.realpathSync(path.dirname(target));
+    const readBack = parseState(
+      readBoundedRegularText(target, STATE_FILE_MAX_BYTES, target, stableRoot),
+      target,
+    );
+    if (readBack.feature !== state.feature || serializeState(readBack) !== body) {
       throw new Error(`${target}: read-back validation failed`);
     }
     return readBack;
   } catch (error) {
     try {
-      if (ownsTemp && tempIdentity) {
+      if (ownsTemp && tempIdentity && temp) {
         const current = fs.lstatSync(temp);
         if (current.isFile() && current.dev === tempIdentity.dev && current.ino === tempIdentity.ino) {
           fs.unlinkSync(temp);
@@ -856,8 +907,13 @@ function writeStateAtomic(featureDir, input) {
       // Preserve any path whose identity no longer matches this invocation.
     }
     throw sanitizeStateError(error, 'state.toon');
+  } finally {
+    if (directoryFd !== undefined) {
+      try { fs.closeSync(directoryFd); } catch { /* ignore */ }
+    }
   }
 }
+
 
 function detectCandidates(cwd) {
   const requestedScratchDir = path.join(cwd, '.scratch');
