@@ -983,6 +983,7 @@ function gsdContextExtension(pi) {
   const extPath = fs.realpathSync(EXTENSION_FILE);
   const GSD_ROOT = path.dirname(path.dirname(extPath));
   let pendingCapsule = null;
+  let capsuleQueuedForNextTurn = false;
   let bootstrap = null;
   let bootstrapError = null;
   let injectBootstrap = false;
@@ -1011,6 +1012,7 @@ function gsdContextExtension(pi) {
   for (const eventName of ['session_start', 'session_switch', 'session_branch', 'session_tree']) {
     pi.on(eventName, async () => {
       rebuildBootstrap();
+      capsuleQueuedForNextTurn = false;
     });
   }
 
@@ -1021,11 +1023,13 @@ function gsdContextExtension(pi) {
   pi.on('session_shutdown', async () => {
     bootstrap = null;
     bootstrapError = null;
+    capsuleQueuedForNextTurn = false;
     injectBootstrap = false;
     lastLoggedBootstrapError = null;
   });
 
   pi.on('before_agent_start', async (event) => {
+    capsuleQueuedForNextTurn = false;
     if (!injectBootstrap || (!bootstrap && !bootstrapError)) return undefined;
     const systemPrompt = Array.isArray(event.systemPrompt) ? event.systemPrompt : [];
     if (systemPrompt.some((block) => typeof block === 'string' && block.includes(SYSTEM_POLICY_MARKER))) {
@@ -1070,10 +1074,17 @@ function gsdContextExtension(pi) {
     if (pendingCapsule) {
       const capsuleToSend = pendingCapsule;
       pendingCapsule = null;
-      await pi.sendMessage(capsuleToSend, {
-        deliverAs: 'nextTurn',
-        triggerTurn: false,
-      });
+      if (capsuleQueuedForNextTurn) return;
+      capsuleQueuedForNextTurn = true;
+      try {
+        await pi.sendMessage(capsuleToSend, {
+          deliverAs: 'nextTurn',
+          triggerTurn: false,
+        });
+      } catch (error) {
+        capsuleQueuedForNextTurn = false;
+        throw error;
+      }
     }
   });
 }

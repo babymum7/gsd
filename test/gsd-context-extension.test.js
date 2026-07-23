@@ -386,10 +386,21 @@ test("capsule extension production API contract", (t) => {
       await registeredEvents["session_compact"]({}, ctxMock);
       assert.equal(sentMessages.length, 1, "Should not send when pending state is cleared");
 
-      // Trigger session.compacting and session_compact again -> should send unconditionally (repeated compaction)
+      // Repeated compactions in one agent turn must not queue duplicate
+      // nextTurn recovery messages for the same upcoming user prompt.
+      const secondCompacting = await registeredEvents["session.compacting"]({}, ctxMock);
+      assert.deepEqual(secondCompacting.context, [injectedCapsule], "Compaction context remains a single capsule");
+      await registeredEvents["session_compact"]({}, ctxMock);
+      const thirdCompacting = await registeredEvents["session.compacting"]({}, ctxMock);
+      assert.deepEqual(thirdCompacting.context, [injectedCapsule], "Repeated compaction context remains a single capsule");
+      await registeredEvents["session_compact"]({}, ctxMock);
+      assert.equal(sentMessages.length, 1, "One user turn receives at most one recovery capsule");
+      // The next user turn consumes the queued message; a later compaction may
+      // enqueue one new capsule.
+      await registeredEvents["before_agent_start"]({ systemPrompt: [] });
       await registeredEvents["session.compacting"]({}, ctxMock);
       await registeredEvents["session_compact"]({}, ctxMock);
-      assert.equal(sentMessages.length, 2, "Repeated compaction should send unconditionally");
+      assert.equal(sentMessages.length, 2, "A new user turn may receive a fresh recovery capsule");
 
       // Test inert behavior (empty candidates)
       const emptyTempDir = mkdtempSync(join(tmpdir(), "omp-gsd-empty-"));
@@ -714,7 +725,8 @@ test("T3 Review Fixes detailed behavior", async (t) => {
       assert.equal(sentMessages[0].message, expectedCapsuleOverCap, "Over-cap hook 2 (compacted) output must match independent renderer exactly");
 
       // Case 2: Normal multiple (3 features)
-      sentMessages.length = 0; // reset
+      sentMessages.length = 0;
+      await registeredEvents["before_agent_start"]({ systemPrompt: [] });
       rmSync(join(scratchDir, "feat-f"), { recursive: true, force: true });
       rmSync(join(scratchDir, "feat-e"), { recursive: true, force: true });
       rmSync(join(scratchDir, "feat-d"), { recursive: true, force: true });
