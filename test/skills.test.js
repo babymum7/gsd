@@ -1517,7 +1517,9 @@ test("AC-optional: planning prototype replaces Manual UI Review", () => {
   assert.match(toPlan, /Approve and execute/);
   assert.match(toPlan, /single post-plan action surface|post-plan action surface/);
   assert.match(toPlan, /launch consent/);
-  assert.match(toPlan, /tools\/lavish\/src\/cli\.ts" open --file/);
+  assert.match(toPlan, /tools\/lavish\/src\/cli\.ts" prototype "\$HTML_FILE"/);
+  assert.match(toPlan, /poll "\$SESSION_ID"/);
+  assert.match(toPlan, /--agent-reply/);
   assert.doesNotMatch(toPlan, /Manual UI Review Gate/i);
 
   assert.doesNotMatch(verify, /There is no terminal pre-E2E visual pause/);
@@ -1701,11 +1703,12 @@ test("internal Lavish migration is direct and bridge-free", () => {
   ];
   const combined = callerBodies.join("\n");
   assert.match(combined, /tools\/lavish\/src\/cli\.ts/);
-  assert.match(combined, /open --url/);
-  assert.match(combined, /open --file/);
-  assert.match(combined, /feedback "\$SESSION_ID"/);
+  assert.match(combined, /app "\$URL"/);
+  assert.match(combined, /prototype "\$HTML_FILE"/);
+  assert.match(combined, /poll "\$SESSION_ID"/);
+  assert.match(combined, /--agent-reply/);
   assert.match(combined, /end (?:it with the matching `end` command|the session explicitly)/);
-  assert.doesNotMatch(combined, /gsd-lavish|lavish-axi|\.gsd-lavish|cli\.mjs|\bpnpm\b/i);
+  assert.doesNotMatch(combined, /open --url|open --file|gsd-lavish|lavish-axi|\.gsd-lavish|cli\.mjs|\bpnpm\b/i);
 });
 
 
@@ -2004,7 +2007,7 @@ test("terminal-review-flow AC-3: opt-in terminal visual surface after conformanc
   assert.match(verify, /UI\/UX plans always receive `Continue to Deferred Slow E2E` and `Visualize completed work with Lavish`/);
   assert.match(verify, /Ineligible work proceeds without a prompt/);
   assert.match(verify, /Continue does not launch a helper/);
-  assert.match(verify, /tools\/lavish\/src\/cli\.ts" open --url/);
+  assert.match(verify, /tools\/lavish\/src\/cli\.ts" app "\$URL"/);
   assert.match(reference, /after current-commit deterministic conformance/);
   assert.match(tool, /runs on Bun/);
   assert.match(readme, /Current-commit session-owner verification precedes Terminal Visual Review/);
@@ -2014,7 +2017,10 @@ test("terminal-review-flow AC-4: actual implementation visual feedback loop", ()
   const verify = read("skills/gsd-verify/SKILL.md");
   const overlay = read("tools/lavish/src/injected/overlay.ts");
   assert.match(verify, /completed live app or HTML target/);
-  assert.match(overlay, />Interact<\/button><button data-mode="annotate">Annotate</);
+  assert.match(overlay, /data-mode="interact"/);
+  assert.match(overlay, /data-mode="annotate"/);
+  assert.match(overlay, /data-queue/);
+  assert.match(overlay, /data-send/);
   assert.match(overlay, /data-capture="viewport"/);
   assert.match(overlay, /data-capture="region"/);
   assert.match(verify, /session owner repairs only that frozen confirmed in-scope feedback set/);
@@ -2064,22 +2070,24 @@ test("terminal conformance has no model-capacity or fan-out path", () => {
 // --- direct internal Lavish integration ---
 test("Lavish CLI exposes a finite non-interactive session lifecycle", () => {
   const cli = read("tools/lavish/src/cli.ts");
-  assert.match(cli, /lavish open --url <url>/);
-  assert.match(cli, /lavish open --file <path>/);
+  assert.match(cli, /lavish prototype <file>/);
+  assert.match(cli, /lavish app <url>/);
   assert.match(cli, /lavish sessions/);
+  assert.match(cli, /lavish poll <id>/);
   assert.match(cli, /lavish feedback <id>/);
   assert.match(cli, /lavish end <id>/);
+  assert.match(cli, /--agent-reply <message>/);
   assert.match(cli, /Every command is non-interactive/);
-  assert.match(cli, /open requires exactly one of --url or --file/);
-  assert.match(cli, /cursor: result\.cursor/);
+  assert.doesNotMatch(cli, /lavish open/);
+  assert.match(cli, /next_step/);
 });
 
 test("Lavish live review separates app interaction from annotation", () => {
   const overlay = read("tools/lavish/src/injected/overlay.ts");
   const tool = read("tools/lavish/README.md");
   assert.match(tool, /\*\*Interact\*\* and \*\*Annotate\*\* modes/);
-  assert.match(tool, /Interact mode passes ordinary app pointer,[\s\S]{0,120}events through/);
-  assert.match(tool, /Annotate mode records a bounded DOM[\s\S]{0,120}without activating the selected app control/);
+  assert.match(tool, /Interact mode passes[\s\S]{0,100}ordinary app pointer,[\s\S]{0,100}events through/);
+  assert.match(tool, /Annotate mode[\s\S]{0,140}highlights[\s\S]{0,140}does not activate the selected app control/);
   assert.match(overlay, /return mode === "annotate" \? "annotate" : "pass"/);
   assert.match(overlay, /data-mode="interact"/);
   assert.match(overlay, /data-mode="annotate"/);
@@ -2092,8 +2100,8 @@ test("Lavish capture contract is current viewport and dragged region only", () =
   assert.match(overlay, /Capture viewport/);
   assert.match(overlay, /Capture region/);
   assert.match(tool, /current viewport/);
-  assert.match(tool, /dragged rectangle captures a viewport region/);
-  assert.match(tool, /Full-document[\s\S]{0,80}not part of this milestone/);
+  assert.match(tool, /dragged viewport region/);
+  assert.match(tool, /Full-document capture is unavailable/);
   assert.match(page, /Page\.captureScreenshot/);
   assert.doesNotMatch(overlay, /data-capture="full/);
 });
@@ -2104,12 +2112,13 @@ test("Lavish feedback remains machine-local evidence with exact cleanup", () => 
   const reference = read("skills/gsd/REFERENCE.md");
   const tool = read("tools/lavish/README.md");
   const combined = [verify, handoff, reference, tool].join("\n");
-  assert.match(verify, /feedback "\$SESSION_ID"/);
-  assert.match(verify, /finite ordered results/);
+  assert.match(verify, /poll "\$SESSION_ID"/);
+  assert.match(verify, /ordered batch and attachment metadata/);
+  assert.match(verify, /feedback "\$SESSION_ID"` is audit history only/);
   assert.match(verify, /remove only its exact `\.lavish\/sessions\/<session-id>\/` directory/);
-  assert.match(handoff, /direct Lavish session ID, feedback cursor/);
+  assert.match(handoff, /direct Lavish session ID, delivery cursor, reply cursor/);
   assert.match(reference, /\.lavish\/sessions\/` and `\.lavish\/profiles\//);
-  assert.match(tool, /creation-ordered records/);
+  assert.match(tool, /Delivered feedback contains ordered comments/);
   assert.match(tool, /Binary[\s\S]{0,100}never embedded/);
   assert.doesNotMatch(combined, /gsd-lavish|lavish-axi|\.gsd-lavish|cli\.mjs|\bpnpm\b/i);
 });

@@ -450,6 +450,45 @@ exit 1
   }
 });
 
+test("published Lavish bundle respawns its built daemon entrypoint", () => {
+  const temporary = mkdtempSync(join(tmpdir(), "gsd-lavish-bundle-"));
+  const dist = join(temporary, "dist");
+  const project = join(temporary, "project");
+  mkdirSync(project);
+  try {
+    const build = spawnSync(
+      "bun",
+      [
+        "build",
+        join(ROOT, "tools", "lavish", "src", "cli.ts"),
+        "--target",
+        "bun",
+        "--outdir",
+        dist,
+      ],
+      { encoding: "utf8" },
+    );
+    assert.equal(build.status, 0, build.stderr + build.stdout);
+    const bundledCli = join(dist, "cli.js");
+    const run = spawnSync("bun", [bundledCli, "app", "http://fixture.test"], {
+      cwd: project,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        LAVISH_PROJECT_ROOT: project,
+        LAVISH_BROWSER: join(temporary, "missing-browser"),
+        LAVISH_DAEMON_TIMEOUT_MS: "1000",
+        XDG_STATE_HOME: join(temporary, "state"),
+      },
+    });
+    assert.equal(run.status, 1, run.stderr + run.stdout);
+    assert.match(run.stdout, /configured browser does not exist/);
+    assert.doesNotMatch(run.stdout, /timed out starting|dist\/cli\.ts/);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
 test("installer never refreshes an external Lavish repository", () => {
   const installer = readFileSync(join(ROOT, "install.sh"), "utf8");
   assert.doesNotMatch(installer, /submodule update|lavish-axi|pnpm|cli\.mjs/i);
@@ -479,9 +518,13 @@ test("README documents the internal direct Lavish tool", () => {
   const readme = readFileSync(join(ROOT, "README.md"), "utf8");
   assert.match(readme, /bash install\.sh/);
   assert.match(readme, /tracked Bun (?:tool|source) in `tools\/lavish`/);
-  assert.match(readme, /bun tools\/lavish\/src\/cli\.ts open --url/);
-  assert.match(readme, /Interact and Annotate modes/);
-  assert.match(readme, /current viewport or a dragged viewport region/);
+  assert.match(readme, /bun tools\/lavish\/src\/cli\.ts prototype/);
+  assert.match(readme, /bun tools\/lavish\/src\/cli\.ts app/);
+  assert.match(readme, /poll <session-id>/);
+  assert.match(readme, /Interact passes native events through/);
+  assert.match(readme, /current-viewport, and dragged-region images/);
+  assert.match(readme, /Queue drafts remain private[\s\S]*Send now/);
+  assert.doesNotMatch(readme, /open --url|open --file/);
   assert.doesNotMatch(readme, /tools\/lavish-axi|git submodule|pnpm|\.gsd-lavish/);
   assert.match(readme, /~|\.omp\/agent\/extensions\/gsd-context\.js/);
   assert.match(readme, /extensions\/gsd-context\.js/);

@@ -16,12 +16,14 @@ import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 
 export type SessionState = "starting" | "ready" | "ended" | "failed";
+export type SessionType = "prototype" | "app";
 
 export interface SessionRecord {
   id: string;
+  sessionType: SessionType;
+  state: SessionState;
   projectRoot: string;
   target: { kind: "url" | "file"; value: string };
-  state: SessionState;
   createdAt: string;
   updatedAt: string;
   profileDir: string;

@@ -33,6 +33,7 @@ function writeSession(root: string, id: string): void {
   const now = new Date().toISOString();
   const record: SessionRecord = {
     id,
+    sessionType: "app",
     projectRoot: root,
     target: { kind: "url", value: "http://fixture.test" },
     state: "ready",

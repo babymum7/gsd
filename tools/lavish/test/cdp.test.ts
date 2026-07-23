@@ -4,8 +4,9 @@ import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { CdpClient } from "../src/cdp/client.ts";
+import { resolveBrowserEnvironment } from "../src/cdp/browser.ts";
 import { readJson, sessionFile, writeJsonAtomic, type SessionRecord } from "../src/paths.ts";
-import { runDaemon } from "../src/session.ts";
+import { daemonEntrypoint, runDaemon } from "../src/session.ts";
 
 test("CDP client correlates responses and forwards events", async () => {
   const seen: string[] = [];
@@ -73,6 +74,39 @@ test("CDP client can reconnect after a failed handshake", async () => {
   }
 });
 
+test("browser launch recovers a bounded desktop environment only when display variables are absent", () => {
+  const recovered = resolveBrowserEnvironment(
+    { PATH: "/usr/bin", HOME: "/home/test" },
+    "linux",
+    [
+      "DISPLAY=:0",
+      "WAYLAND_DISPLAY=wayland-0",
+      "XAUTHORITY=/run/user/1000/.mutter-Xwaylandauth.test",
+      "XDG_RUNTIME_DIR=/run/user/1000",
+      "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/1000/bus",
+      "IGNORED_SECRET=must-not-copy",
+    ].join("\n"),
+  );
+  assert.equal(recovered.DISPLAY, ":0");
+  assert.equal(recovered.WAYLAND_DISPLAY, "wayland-0");
+  assert.equal(recovered.XDG_RUNTIME_DIR, "/run/user/1000");
+  assert.equal("IGNORED_SECRET" in recovered, false);
+
+  const inherited = resolveBrowserEnvironment(
+    { DISPLAY: ":7", PATH: "/custom/bin" },
+    "linux",
+    "DISPLAY=:0\nWAYLAND_DISPLAY=wayland-0",
+  );
+  assert.equal(inherited.DISPLAY, ":7");
+  assert.equal(inherited.WAYLAND_DISPLAY, undefined);
+});
+
+test("daemon entrypoint follows the actual source or built executable", () => {
+  assert.equal(daemonEntrypoint("/repo/tools/lavish/src/cli.ts"), "/repo/tools/lavish/src/cli.ts");
+  assert.equal(daemonEntrypoint("/repo/tools/lavish/dist/cli.js"), "/repo/tools/lavish/dist/cli.js");
+  assert.doesNotMatch(daemonEntrypoint("/repo/tools/lavish/dist/cli.js"), /dist\/cli\.ts$/);
+});
+
 test("session launch failure stops Chromium and records failed state", async () => {
   const root = mkdtempSync(join(tmpdir(), "lavish-cdp-failure-"));
   const browser = join(root, "fake-browser");
@@ -103,6 +137,7 @@ server.stop(true);
   const now = new Date().toISOString();
   const record: SessionRecord = {
     id: "failed-session",
+    sessionType: "app",
     projectRoot: root,
     target: { kind: "url", value: "http://127.0.0.1:3000" },
     state: "starting",

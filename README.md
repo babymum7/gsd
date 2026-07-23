@@ -59,11 +59,11 @@ flowchart LR
 2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with observable acceptance criteria, structured file operations and intents, applicable prototype references, interfaces, focused checks, and a SHA-256 binding. The single post-plan action surface offers approve and execute, Build prototype with Lavish, revise, and pause/save. Approval writes atomic `schema:v3` `.scratch/<feature>/state.toon`.
 3. **Execution.** The current top-level session owner uses `gsd-executing-plans` to select `T1..TN` in order, rebuild each complete validated task slice, load `gsd-tdd` for observable work, perform Fast TDD Checks inline (RED→GREEN→refactor; no browser/resource-heavy task loops), commit each green checkpoint, and update `state.toon`. GSD dispatches no implementation, repair, diagnosis, architecture, or verification child task and never overlaps lifecycle work.
 4. **Verification.** `gsd-verify` deterministically checks the exact plan/state binding, active-criterion/interface/task coverage, changed-path ownership, plan-ordered task diffs, explicit decisions/invariants/non-goals, and current-commit focused-check evidence. Only malformed binding, ownership/coverage mismatch, explicit contract contradiction, unresolved change, or a red deterministic check blocks.
-5. **Visual and E2E gates.** Current-commit session-owner verification precedes Terminal Visual Review and Deferred Slow E2E. Eligible work can open the internal Lavish CLI directly against the live app; ordered comments and image metadata remain machine-local under `.lavish/`, are acknowledged as recorded-not-applied, and never change source until the separate terminal `Start fixing` action. Source changes invalidate verification and visual acceptance.
+5. **Visual and E2E gates.** Current-commit session-owner verification precedes Terminal Visual Review and Deferred Slow E2E. Eligible work opens the typed Lavish session and attaches its completion-aware poll before reporting that feedback is monitored. Ordered comments and image metadata remain machine-local under `.lavish/`, are acknowledged as recorded-not-applied, and never change source until the separate terminal `Start fixing` action. Source changes invalidate verification and visual acceptance.
 
 A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active feature” validates `schema:v3`, the exact plan path/hash, base/WIP identity, last green task/commit, current tree, and plan-referenced artifacts before rebuilding one active task or terminal slice. Malformed, ambiguous, or mismatched authority stops instead of reconstructing scope from memory.
 
-Lavish feedback stays finite and interactive: direct `feedback <session-id>` reads ordered machine-local records while the same session remains available for another command. Use `end <session-id>` explicitly when review is complete; source changes invalidate the evidence.
+Lavish feedback stays finite and interactive: `Queue` keeps drafts private, `Send now` wakes the attached `poll <session-id>`, and each agent reply is published before polling resumes. Direct `feedback <session-id>` reads ordered machine-local history without serving as a wake path. Use `end <session-id>` explicitly when review is complete; source changes invalidate the evidence.
 
 ## Other intent-driven behavior
 
@@ -120,17 +120,28 @@ Build the internal tool with:
 bun run --cwd tools/lavish build
 ```
 
-Open an already-running URL or a local HTML file, then use the session ID for feedback and cleanup:
+Open a local HTML prototype or an already-running app URL. Start the returned
+poll command before claiming that feedback is monitored:
 
 ```bash
-bun tools/lavish/src/cli.ts open --url http://127.0.0.1:3000
-bun tools/lavish/src/cli.ts open --file /absolute/path/to/fixture.html
+bun tools/lavish/src/cli.ts prototype /absolute/path/to/fixture.html
+bun tools/lavish/src/cli.ts app http://127.0.0.1:3000
 bun tools/lavish/src/cli.ts sessions
+bun tools/lavish/src/cli.ts poll <session-id> --after 0 --after-reply 0
+bun tools/lavish/src/cli.ts poll <session-id> --after <cursor> --after-reply <reply-cursor> --agent-reply "Applied the requested changes."
 bun tools/lavish/src/cli.ts feedback <session-id>
 bun tools/lavish/src/cli.ts end <session-id>
 ```
 
-The live page remains interactive. Lavish provides Interact and Annotate modes, accepts uploaded or pasted images, and captures the current viewport or a dragged viewport region as PNG attachments. Full-document capture is deferred. Runtime session data and attachments live under the ignored `.lavish/` directory; browser profiles live outside the repository and are isolated per project.
+Prototype sessions serve regular local HTML; app sessions open the real URL in
+its own CDP-driven tab without an iframe. Both use the same collapsible review
+drawer. Interact passes native events through. Annotate highlights elements or
+selected text and opens a contextual card. Queue drafts remain private to the
+daemon session until Send now atomically delivers the ordered batch to the
+waiting poll. Uploaded, pasted, current-viewport, and dragged-region images are
+bounded attachments; full-document capture is unavailable. Runtime data lives
+under ignored `.lavish/`; browser profiles live outside the repository and are
+isolated per project.
 
 ## Verification
 

@@ -1,17 +1,22 @@
 import type { AttachmentSource } from "../attachments.ts";
 import type { CaptureRegion } from "../injected/capture.ts";
 
+interface NormalizedFeedback {
+  draftId: string;
+  comment: string;
+  anchor: Record<string, string> | null;
+  attachmentIds: string[];
+}
+
 export type BindingMessage =
   | { type: "ready" }
   | { type: "attachment"; dataUrl: string; source: "upload" | "paste"; name: string }
   | { type: "capture"; mode: "viewport" | "region"; region?: CaptureRegion }
-  | {
-      type: "feedback";
-      deliveryId: string;
-      comment: string;
-      anchor: Record<string, string> | null;
-      attachmentIds: string[];
-    };
+  | ({ type: "queue" } & NormalizedFeedback)
+  | { type: "remove"; draftId: string }
+  | ({ type: "feedback"; deliveryId: string } & NormalizedFeedback);
+
+const ITEM_ID_RE = /^[A-Za-z0-9][A-Za-z0-9-]{7,63}$/;
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -19,6 +24,57 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function boundedString(value: unknown, limit: number): string {
   return typeof value === "string" ? value.trim().slice(0, limit) : "";
+}
+
+function normalizeAnchor(value: unknown): Record<string, string> | null {
+  if (!isRecord(value)) return null;
+  const anchor: Record<string, string> = {};
+  for (const field of ["tag", "id", "role", "name", "text", "selector", "selection"] as const) {
+    const fieldValue = boundedString(value[field], field === "text" || field === "selection" ? 240 : 512);
+    if (fieldValue) anchor[field] = fieldValue;
+  }
+  const urlValue = boundedString(value.url, 4096);
+  if (urlValue) {
+    try {
+      const url = new URL(urlValue);
+      url.username = "";
+      url.password = "";
+      url.search = "";
+      url.hash = "";
+      anchor.url = url.toString();
+    } catch {
+      // Invalid page URLs are omitted rather than persisted as opaque data.
+    }
+  }
+  return Object.keys(anchor).length === 0 ? null : anchor;
+}
+
+function normalizeAttachmentIds(value: unknown): string[] {
+  const attachmentIds: string[] = [];
+  const seen = new Set<string>();
+  if (!Array.isArray(value)) return attachmentIds;
+  for (const item of value) {
+    const id = typeof item === "string"
+      ? item
+      : isRecord(item) && typeof item.id === "string"
+        ? item.id
+        : "";
+    if (!/^[a-z0-9][a-z0-9-]{7,63}$/.test(id) || seen.has(id)) continue;
+    seen.add(id);
+    attachmentIds.push(id);
+  }
+  return attachmentIds;
+}
+
+function normalizeFeedback(message: Record<string, unknown>, fallbackDraftId = ""): NormalizedFeedback {
+  const draftId = boundedString(message.draftId, 64) || fallbackDraftId;
+  if (!ITEM_ID_RE.test(draftId)) throw new Error("feedback draft id is invalid");
+  return {
+    draftId,
+    comment: boundedString(message.comment, 20_000),
+    anchor: normalizeAnchor(message.anchor),
+    attachmentIds: normalizeAttachmentIds(message.attachments),
+  };
 }
 
 export function normalizeBindingMessage(payload: string): BindingMessage {
@@ -55,59 +111,24 @@ export function normalizeBindingMessage(payload: string): BindingMessage {
       width: message.region.width,
       height: message.region.height,
     };
-    if (!Object.values(region).every((value) => typeof value === "number" && Number.isFinite(value))) {
+    if (!Object.values(region).every((item) => typeof item === "number" && Number.isFinite(item))) {
       throw new Error("capture geometry must contain finite numbers");
     }
     return { type: "capture", mode, region: region as CaptureRegion };
   }
+  if (message.type === "queue") return { type: "queue", ...normalizeFeedback(message) };
+  if (message.type === "remove") {
+    const draftId = boundedString(message.draftId, 64);
+    if (!ITEM_ID_RE.test(draftId)) throw new Error("feedback draft id is invalid");
+    return { type: "remove", draftId };
+  }
   if (message.type === "feedback") {
     const deliveryId = boundedString(message.deliveryId, 64);
-    if (!/^[A-Za-z0-9][A-Za-z0-9-]{7,63}$/.test(deliveryId)) {
-      throw new Error("feedback delivery id is invalid");
-    }
-    const attachmentIds: string[] = [];
-    const seen = new Set<string>();
-    if (Array.isArray(message.attachments)) {
-      for (const value of message.attachments) {
-        const id = typeof value === "string"
-          ? value
-          : isRecord(value) && typeof value.id === "string"
-            ? value.id
-            : "";
-        if (!/^[a-z0-9][a-z0-9-]{7,63}$/.test(id) || seen.has(id)) continue;
-        seen.add(id);
-        attachmentIds.push(id);
-      }
-    }
-
-    let anchor: Record<string, string> | null = null;
-    if (isRecord(message.anchor)) {
-      anchor = {};
-      for (const field of ["tag", "id", "role", "name", "text", "selector", "selection"] as const) {
-        const value = boundedString(message.anchor[field], field === "text" || field === "selection" ? 240 : 512);
-        if (value) anchor[field] = value;
-      }
-      const urlValue = boundedString(message.anchor.url, 4096);
-      if (urlValue) {
-        try {
-          const url = new URL(urlValue);
-          url.username = "";
-          url.password = "";
-          url.search = "";
-          url.hash = "";
-          anchor.url = url.toString();
-        } catch {
-          // Invalid page URLs are omitted rather than persisted as opaque data.
-        }
-      }
-      if (Object.keys(anchor).length === 0) anchor = null;
-    }
+    if (!ITEM_ID_RE.test(deliveryId)) throw new Error("feedback delivery id is invalid");
     return {
       type: "feedback",
       deliveryId,
-      comment: boundedString(message.comment, 20_000),
-      anchor,
-      attachmentIds,
+      ...normalizeFeedback(message, deliveryId),
     };
   }
   throw new Error(`unknown message type: ${String(message.type)}`);
