@@ -523,7 +523,34 @@ function serializeState(input) {
   return STATE_FIELD_ORDER.map((key) => `${key}:${state[key]}`).join('\n') + '\n';
 }
 
-function readStateFile(statePath) {
+function parseLegacyCompletedState(content, label) {
+  let schema;
+  let fieldOrder;
+  let fieldSet;
+  if (/^schema:v1(?:\r?\n|$)/.test(content)) {
+    schema = 'v1';
+    fieldOrder = LEGACY_V1_STATE_FIELD_ORDER;
+    fieldSet = LEGACY_V1_STATE_FIELD_SET;
+  } else if (/^schema:v2(?:\r?\n|$)/.test(content)) {
+    schema = 'v2';
+    fieldOrder = LEGACY_V2_STATE_FIELD_ORDER;
+    fieldSet = LEGACY_V2_STATE_FIELD_SET;
+  } else {
+    return null;
+  }
+
+  const legacy = parseStateFields(content, label, fieldOrder, fieldSet);
+  if (legacy.schema !== schema) {
+    throw new Error(`${label}: unsupported legacy schema: ${legacy.schema}`);
+  }
+  if (!COMPLETED_STATE_PHASES.includes(legacy.phase)) return null;
+
+  // Completed legacy packets are inert. Validate their canonical state fields,
+  // but leave obsolete review progress untouched and never migrate the file.
+  return validateCommonState(legacy, label);
+}
+
+function readStateFileInternal(statePath, allowLegacyCompleted) {
   let lst;
   try {
     lst = fs.lstatSync(statePath);
@@ -537,6 +564,10 @@ function readStateFile(statePath) {
     throw new Error(`${statePath}: state.toon must be a regular file`);
   }
   const content = fs.readFileSync(statePath, 'utf8');
+  if (allowLegacyCompleted) {
+    const completed = parseLegacyCompletedState(content, statePath);
+    if (completed) return completed;
+  }
   if (/^schema:v1(?:\r?\n|$)/.test(content)) {
     const migrated = parseLegacyV1State(content, statePath);
     return writeStateAtomic(path.dirname(statePath), migrated);
@@ -546,6 +577,14 @@ function readStateFile(statePath) {
     return writeStateAtomic(path.dirname(statePath), migrated);
   }
   return parseState(content, statePath);
+}
+
+function readStateFile(statePath) {
+  return readStateFileInternal(statePath, false);
+}
+
+function readCandidateStateFile(statePath) {
+  return readStateFileInternal(statePath, true);
 }
 
 function sanitizeStateError(error, label = 'state.toon') {
@@ -722,7 +761,7 @@ function detectCandidates(cwd) {
 
     let state;
     try {
-      state = readStateFile(path.join(featureMeta.absolute, STATE_FILE));
+      state = readCandidateStateFile(path.join(featureMeta.absolute, STATE_FILE));
     } catch (error) {
       throw sanitizeStateError(error, `state.toon (${name})`);
     }

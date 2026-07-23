@@ -1649,3 +1649,83 @@ test("legacy v1 migration rejects invalid or terminal records without changing b
     rmSync(temporary, { recursive: true, force: true });
   }
 });
+
+test("auto-compact ignores an exact retained v1 terminal state without migration", () => {
+  const temporary = mkdtempSync(join(tmpdir(), "gsd-state-retained-v1-"));
+  try {
+    const featureDir = join(temporary, ".scratch", "fx-carry-value");
+    mkdirSync(featureDir, { recursive: true });
+    writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
+    const statePath = join(featureDir, "state.toon");
+    const legacyBytes = [
+      "schema:v1",
+      "feature:fx-carry-value",
+      "phase:completed-retained",
+      "next_action:none",
+      "plan_path:.scratch/fx-carry-value/plan.md",
+      "plan_sha256:b3c80be0be8a1411c47492240719f04cc4441712a0006744ea93c493f9094f75",
+      "base_ref:main",
+      "wip_branch:wip/fx-carry-value",
+      "last_green_task:T4",
+      "last_green_commit:0b553d1de4136d949163d74a3bbcbfd92bb182cd",
+      "executor_model:xai-oauth/grok-4.5:xhigh",
+      "reviewer_model:openai-codex/gpt-5.6-sol:xhigh",
+      "review_round:3",
+      "blocking_fingerprint:55810586ba453e4c36333edde5bae2829aaa6b70b584c9440f7b6b1d460e486f",
+      "reviewed_commit:b301968cfd26c8758b42bda04be76fe64ff2f769",
+      "progress_status:merged-clean-wip-deleted-scratch-retained",
+      "autosync:none",
+      "ponytail_level:none",
+      "cleanup_preference:retain",
+      "checkpoint_revision:13",
+      "",
+    ].join("\n");
+    writeFileSync(statePath, legacyBytes);
+
+    assert.throws(() => readStateFile(statePath), /legacy phase must be active/);
+    assert.deepEqual(detectCandidates(temporary), []);
+    assert.equal(readFileSync(statePath, "utf8"), legacyBytes);
+    assert.equal(readdirSync(featureDir).some((name) => name.endsWith(".tmp")), false);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("auto-compact also ignores a retained v2 terminal state without migration", () => {
+  const temporary = mkdtempSync(join(tmpdir(), "gsd-state-retained-v2-"));
+  try {
+    const featureDir = join(temporary, ".scratch", "retained-v2");
+    mkdirSync(featureDir, { recursive: true });
+    writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
+    const statePath = join(featureDir, "state.toon");
+    const legacyBytes = [
+      "schema:v2",
+      "feature:retained-v2",
+      "phase:completed-retained",
+      "next_action:none",
+      "plan_path:.scratch/retained-v2/plan.md",
+      `plan_sha256:${"e".repeat(64)}`,
+      "base_ref:main",
+      "wip_branch:wip/retained-v2",
+      "last_green_task:T2",
+      `last_green_commit:${"b".repeat(40)}`,
+      "reviewer_model:openai-codex/gpt-5.5:high",
+      "review_round:2",
+      `blocking_fingerprint:${"c".repeat(64)}`,
+      `reviewed_commit:${"d".repeat(40)}`,
+      "progress_status:merged-clean-wip-deleted-scratch-retained",
+      "autosync:none",
+      "ponytail_level:none",
+      "cleanup_preference:retain",
+      "checkpoint_revision:9",
+      "",
+    ].join("\n");
+    writeFileSync(statePath, legacyBytes);
+
+    assert.throws(() => readStateFile(statePath), /legacy phase must be active/);
+    assert.deepEqual(detectCandidates(temporary), []);
+    assert.equal(readFileSync(statePath, "utf8"), legacyBytes);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
