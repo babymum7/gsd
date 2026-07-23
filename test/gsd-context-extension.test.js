@@ -395,12 +395,37 @@ test("capsule extension production API contract", (t) => {
       assert.deepEqual(thirdCompacting.context, [injectedCapsule], "Repeated compaction context remains a single capsule");
       await registeredEvents["session_compact"]({}, ctxMock);
       assert.equal(sentMessages.length, 1, "One user turn receives at most one recovery capsule");
-      // The next user turn consumes the queued message; a later compaction may
-      // enqueue one new capsule.
+      // OMP drains pending nextTurn messages immediately before
+      // before_agent_start, so this event is the queue-consumption boundary.
       await registeredEvents["before_agent_start"]({ systemPrompt: [] });
       await registeredEvents["session.compacting"]({}, ctxMock);
       await registeredEvents["session_compact"]({}, ctxMock);
       assert.equal(sentMessages.length, 2, "A new user turn may receive a fresh recovery capsule");
+
+      // Session boundaries must invalidate a capsule prepared by an older
+      // compaction cycle.
+      await registeredEvents["session.compacting"]({}, ctxMock);
+      const beforeSwitchCount = sentMessages.length;
+      await registeredEvents["session_switch"]({}, ctxMock);
+      await registeredEvents["session_compact"]({}, ctxMock);
+      assert.equal(sentMessages.length, beforeSwitchCount, "Session switch clears an unsent capsule");
+
+      // A failed compacting pass must not leave the previous successful
+      // capsule available to an unrelated session_compact notification.
+      await registeredEvents["before_agent_start"]({ systemPrompt: [] });
+      await registeredEvents["session.compacting"]({}, ctxMock);
+      const malformedDir = join(tempDir, ".scratch", "malformed-state");
+      mkdirSync(malformedDir);
+      writeFileSync(join(malformedDir, "plan.md"), "plan");
+      writeFileSync(join(malformedDir, "state.toon"), "schema:v3\n");
+      await assert.rejects(
+        registeredEvents["session.compacting"]({}, ctxMock),
+        /state\.toon|missing required field/,
+      );
+      rmSync(malformedDir, { recursive: true, force: true });
+      const beforeFailedCycleCount = sentMessages.length;
+      await registeredEvents["session_compact"]({}, ctxMock);
+      assert.equal(sentMessages.length, beforeFailedCycleCount, "Failed compaction clears stale pending state");
 
       // Test inert behavior (empty candidates)
       const emptyTempDir = mkdtempSync(join(tmpdir(), "omp-gsd-empty-"));
@@ -1005,7 +1030,7 @@ test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
       const outside = join(root, "outside.md");
       writeFileSync(outside, '---\nname: gsd-beta\ndescription: "Outside"\n---\n');
       symlinkSync(outside, join(root, "skills", "gsd-beta", "SKILL.md"));
-      assert.throws(() => discoverSkillCatalog(root), /regular SKILL\.md|outside .*skills/);
+      assert.throws(() => discoverSkillCatalog(root), /regular SKILL\.md|outside .*skills|symlink rejected/);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -1116,12 +1141,12 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
     assert.deepEqual(loggedErrors, []);
 
     const nodeFs = require("node:fs");
-    const realReadFileSync = nodeFs.readFileSync;
+    const realOpenSync = nodeFs.openSync;
     const masterPath = join(realpathSync(ROOT), "skills", "gsd", "SKILL.md");
     try {
-      nodeFs.readFileSync = function(filePath, ...args) {
+      nodeFs.openSync = function(filePath, ...args) {
         if (filePath === masterPath) throw new Error("forced bootstrap read failure");
-        return realReadFileSync.call(this, filePath, ...args);
+        return realOpenSync.call(this, filePath, ...args);
       };
       await events.session_switch({}, { cwd: workspace });
       await events.session_switch({}, { cwd: workspace });
@@ -1132,7 +1157,7 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
       assert.match(failedPolicy.systemPrompt[1], /gsd:system-policy:v1/);
       assert.match(failedPolicy.systemPrompt[1], /\[GSD bootstrap unavailable\]/);
     } finally {
-      nodeFs.readFileSync = realReadFileSync;
+      nodeFs.openSync = realOpenSync;
     }
 
     await events.session_start({}, { cwd: workspace });
@@ -1771,6 +1796,146 @@ test("auto-compact also ignores a retained v2 terminal state without migration",
     assert.throws(() => readStateFile(statePath), /legacy phase must be active/);
     assert.deepEqual(detectCandidates(temporary), []);
     assert.equal(readFileSync(statePath, "utf8"), legacyBytes);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("candidate discovery is bounded and does not migrate legacy authority", () => {
+  const temporary = mkdtempSync(join(tmpdir(), "gsd-candidate-bounds-"));
+  try {
+    const scratch = join(temporary, ".scratch");
+    const legacyDir = join(scratch, "legacy-active");
+    mkdirSync(legacyDir, { recursive: true });
+    writeFileSync(join(legacyDir, "plan.md"), "# Plan\n");
+    const legacy = {
+      schema: "v2",
+      feature: "legacy-active",
+      phase: "paused",
+      next_action: "start/continue task",
+      plan_path: ".scratch/legacy-active/plan.md",
+      plan_sha256: "e".repeat(64),
+      base_ref: "main",
+      wip_branch: "wip/legacy-active",
+      last_green_task: "none",
+      last_green_commit: "none",
+      reviewer_model: "openai-codex/gpt-5.5:high",
+      review_round: "none",
+      blocking_fingerprint: "none",
+      reviewed_commit: "none",
+      progress_status: "none",
+      autosync: "none",
+      ponytail_level: "none",
+      cleanup_preference: "none",
+      checkpoint_revision: "4",
+    };
+    const legacyBytes = Object.entries(legacy).map(([key, value]) => `${key}:${value}`).join("\n") + "\n";
+    const legacyStatePath = join(legacyDir, "state.toon");
+    writeFileSync(legacyStatePath, legacyBytes);
+
+    assert.deepEqual(detectCandidates(temporary), ["legacy-active"]);
+    assert.equal(readFileSync(legacyStatePath, "utf8"), legacyBytes, "Discovery must remain read-only");
+
+    const oversizedDir = join(scratch, "oversized-state");
+    mkdirSync(oversizedDir);
+    writeFileSync(join(oversizedDir, "plan.md"), "# Plan\n");
+    const oversizedState = {
+      schema: "v3",
+      feature: "oversized-state",
+      phase: "executing",
+      next_action: "x".repeat(70 * 1024),
+      plan_path: ".scratch/oversized-state/plan.md",
+      plan_sha256: "a".repeat(64),
+      base_ref: "main",
+      wip_branch: "wip/oversized-state",
+      last_green_task: "none",
+      last_green_commit: "none",
+      autosync: "none",
+      ponytail_level: "none",
+      cleanup_preference: "none",
+      checkpoint_revision: "1",
+    };
+    writeFileSync(
+      join(oversizedDir, "state.toon"),
+      Object.entries(oversizedState).map(([key, value]) => `${key}:${value}`).join("\n") + "\n",
+    );
+    assert.throws(() => detectCandidates(temporary), /state\.toon.*size limit|65536 bytes/i);
+    rmSync(oversizedDir, { recursive: true, force: true });
+
+    for (let index = 0; index < 2048; index += 1) {
+      mkdirSync(join(scratch, `extra-${index}`));
+    }
+    assert.throws(() => detectCandidates(temporary), /\.scratch.*entry limit|2048 entries/i);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("skill catalog stays inside GSD root and has bounded inputs", () => {
+  const writeCatalogSkill = (root, name, description, body, hidden = false) => {
+    const directory = join(root, "skills", name);
+    mkdirSync(directory, { recursive: true });
+    writeFileSync(
+      join(directory, "SKILL.md"),
+      `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n${hidden ? "hide: true\n" : ""}triggers: test\nproduces: []\nconsumes: []\n---\n\n${body}\n`,
+    );
+  };
+
+  const externalRoot = mkdtempSync(join(tmpdir(), "gsd-external-skills-"));
+  const symlinkRoot = mkdtempSync(join(tmpdir(), "gsd-symlink-root-"));
+  const boundedRoot = mkdtempSync(join(tmpdir(), "gsd-bounded-skills-"));
+  const countRoot = mkdtempSync(join(tmpdir(), "gsd-counted-skills-"));
+  try {
+    writeCatalogSkill(externalRoot, "gsd", "Hidden", "# Hidden", true);
+    writeCatalogSkill(externalRoot, "gsd-tdd", "Visible", "# Visible");
+    symlinkSync(join(externalRoot, "skills"), join(symlinkRoot, "skills"), "dir");
+    assert.throws(() => discoverSkillCatalog(symlinkRoot), /skills.*symlink|outside GSD_ROOT/i);
+    assert.throws(() => createBootstrap(symlinkRoot), /skills.*symlink|outside GSD_ROOT/i);
+
+    writeCatalogSkill(boundedRoot, "gsd", "Hidden", "# Hidden", true);
+    writeCatalogSkill(boundedRoot, "gsd-large", "Large", "x".repeat(140 * 1024));
+    assert.throws(() => discoverSkillCatalog(boundedRoot), /SKILL\.md.*size limit|131072 bytes/i);
+
+    writeCatalogSkill(countRoot, "gsd", "Hidden", "# Hidden", true);
+    for (let index = 0; index < 129; index += 1) {
+      writeCatalogSkill(countRoot, `gsd-s${index}`, `Skill ${index}`, `# Skill ${index}`);
+    }
+    assert.throws(() => discoverSkillCatalog(countRoot), /skill.*entry limit|128 entries/i);
+  } finally {
+    rmSync(externalRoot, { recursive: true, force: true });
+    rmSync(symlinkRoot, { recursive: true, force: true });
+    rmSync(boundedRoot, { recursive: true, force: true });
+    rmSync(countRoot, { recursive: true, force: true });
+  }
+});
+
+test("readStateFile binds authority to its feature directory", () => {
+  const temporary = mkdtempSync(join(tmpdir(), "gsd-state-directory-binding-"));
+  try {
+    const featureDir = join(temporary, ".scratch", "expected-feature");
+    mkdirSync(featureDir, { recursive: true });
+    writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
+    const mismatchedState = {
+      schema: "v3",
+      feature: "other-feature",
+      phase: "executing",
+      next_action: "start/continue task",
+      plan_path: ".scratch/other-feature/plan.md",
+      plan_sha256: "a".repeat(64),
+      base_ref: "main",
+      wip_branch: "wip/other-feature",
+      last_green_task: "none",
+      last_green_commit: "none",
+      autosync: "none",
+      ponytail_level: "none",
+      cleanup_preference: "none",
+      checkpoint_revision: "1",
+    };
+    writeFileSync(
+      join(featureDir, "state.toon"),
+      Object.entries(mismatchedState).map(([key, value]) => `${key}:${value}`).join("\n") + "\n",
+    );
+    assert.throws(() => readStateFile(join(featureDir, "state.toon")), /featureDir basename|feature mismatch/i);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }

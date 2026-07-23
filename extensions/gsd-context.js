@@ -96,6 +96,11 @@ Stop immediately on any malformed or ambiguous state, or if the intent is unrela
 
 const STATE_SCHEMA = 'v3';
 const STATE_FILE = 'state.toon';
+const STATE_FILE_MAX_BYTES = 64 * 1024;
+const SKILL_FILE_MAX_BYTES = 128 * 1024;
+const SCRATCH_ENTRY_LIMIT = 2048;
+const FEATURE_ENTRY_LIMIT = 128;
+const SKILL_ENTRY_LIMIT = 128;
 const ACTIVE_STATE_PHASES = Object.freeze([
   'draft',
   'approved',
@@ -215,6 +220,98 @@ function requireScalar(value, field) {
     throw new Error(`state.toon malformed: ${field} contains invalid characters`);
   }
   return value;
+}
+
+function readBoundedRegularText(filePath, maxBytes, label, expectedRoot = null) {
+  let lst;
+  try {
+    lst = fs.lstatSync(filePath);
+  } catch (error) {
+    throw new Error(`${label}: cannot inspect file (${error.message})`);
+  }
+  if (lst.isSymbolicLink()) throw new Error(`${label}: symlink rejected`);
+  if (!lst.isFile()) throw new Error(`${label}: expected a regular file`);
+  if (lst.size > maxBytes) {
+    throw new Error(`${label}: exceeds size limit of ${maxBytes} bytes`);
+  }
+
+  const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0);
+  let fd;
+  try {
+    fd = fs.openSync(filePath, flags);
+    const opened = fs.fstatSync(fd);
+    if (!opened.isFile()) throw new Error(`${label}: expected a regular file`);
+    if (opened.dev !== lst.dev || opened.ino !== lst.ino) {
+      throw new Error(`${label}: file identity changed before open`);
+    }
+    if (opened.size > maxBytes) {
+      throw new Error(`${label}: exceeds size limit of ${maxBytes} bytes`);
+    }
+
+    const realFile = fs.realpathSync(filePath);
+    if (expectedRoot && !isInside(expectedRoot, realFile)) {
+      throw new Error(`${label}: resolved outside ${expectedRoot}`);
+    }
+    const current = fs.statSync(realFile);
+    if (current.dev !== opened.dev || current.ino !== opened.ino) {
+      throw new Error(`${label}: file identity changed during validation`);
+    }
+
+    const capacity = Math.min(maxBytes + 1, opened.size + 1);
+    const buffer = Buffer.allocUnsafe(Math.max(1, capacity));
+    let total = 0;
+    while (total < buffer.length) {
+      const bytesRead = fs.readSync(fd, buffer, total, buffer.length - total, null);
+      if (bytesRead === 0) break;
+      total += bytesRead;
+    }
+    if (total > maxBytes) {
+      throw new Error(`${label}: exceeds size limit of ${maxBytes} bytes`);
+    }
+
+    const afterRead = fs.fstatSync(fd);
+    if (
+      afterRead.dev !== opened.dev ||
+      afterRead.ino !== opened.ino ||
+      afterRead.size !== opened.size ||
+      afterRead.mtimeMs !== opened.mtimeMs ||
+      afterRead.ctimeMs !== opened.ctimeMs
+    ) {
+      throw new Error(`${label}: file changed during read`);
+    }
+    return buffer.subarray(0, total).toString('utf8');
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith(`${label}:`)) throw error;
+    throw new Error(`${label}: cannot read file (${error.message})`);
+  } finally {
+    if (fd !== undefined) {
+      try { fs.closeSync(fd); } catch { /* ignore */ }
+    }
+  }
+}
+
+function readDirectoryEntriesBounded(directory, limit, label) {
+  let handle;
+  const entries = [];
+  try {
+    handle = fs.opendirSync(directory);
+    while (true) {
+      const entry = handle.readSync();
+      if (!entry) break;
+      if (entries.length >= limit) {
+        throw new Error(`${label}: entry limit of ${limit} entries exceeded`);
+      }
+      entries.push(entry);
+    }
+    return entries;
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith(`${label}:`)) throw error;
+    throw new Error(`${label}: cannot enumerate directory (${error.message})`);
+  } finally {
+    if (handle) {
+      try { handle.closeSync(); } catch { /* ignore */ }
+    }
+  }
 }
 
 function parseStateFields(content, label, fieldOrder, fieldSet) {
@@ -550,41 +647,48 @@ function parseLegacyCompletedState(content, label) {
   return validateCommonState(legacy, label);
 }
 
-function readStateFileInternal(statePath, allowLegacyCompleted) {
-  let lst;
-  try {
-    lst = fs.lstatSync(statePath);
-  } catch {
-    throw new Error(`${statePath}: missing state.toon`);
+function readStateFileInternal(statePath, allowLegacyCompleted, migrateLegacy = true) {
+  if (typeof statePath !== 'string' || path.basename(statePath) !== STATE_FILE) {
+    throw new Error(`${statePath}: expected ${STATE_FILE}`);
   }
-  if (lst.isSymbolicLink()) {
-    throw new Error(`${statePath}: symlink state.toon rejected`);
-  }
-  if (!lst.isFile()) {
-    throw new Error(`${statePath}: state.toon must be a regular file`);
-  }
-  const content = fs.readFileSync(statePath, 'utf8');
+  const featureMeta = resolveFeatureDirectory(path.dirname(statePath));
+  const resolvedStatePath = path.join(featureMeta.absolute, STATE_FILE);
+  const content = readBoundedRegularText(
+    resolvedStatePath,
+    STATE_FILE_MAX_BYTES,
+    resolvedStatePath,
+    featureMeta.absolute,
+  );
+  const bindFeature = (state) => {
+    if (state.feature !== featureMeta.feature) {
+      throw new Error(
+        `${resolvedStatePath}: featureDir basename/state.feature mismatch: ${featureMeta.feature} != ${state.feature}`,
+      );
+    }
+    return state;
+  };
+
   if (allowLegacyCompleted) {
-    const completed = parseLegacyCompletedState(content, statePath);
-    if (completed) return completed;
+    const completed = parseLegacyCompletedState(content, resolvedStatePath);
+    if (completed) return bindFeature(completed);
   }
   if (/^schema:v1(?:\r?\n|$)/.test(content)) {
-    const migrated = parseLegacyV1State(content, statePath);
-    return writeStateAtomic(path.dirname(statePath), migrated);
+    const migrated = bindFeature(parseLegacyV1State(content, resolvedStatePath));
+    return migrateLegacy ? writeStateAtomic(featureMeta.absolute, migrated) : migrated;
   }
   if (/^schema:v2(?:\r?\n|$)/.test(content)) {
-    const migrated = parseLegacyV2State(content, statePath);
-    return writeStateAtomic(path.dirname(statePath), migrated);
+    const migrated = bindFeature(parseLegacyV2State(content, resolvedStatePath));
+    return migrateLegacy ? writeStateAtomic(featureMeta.absolute, migrated) : migrated;
   }
-  return parseState(content, statePath);
+  return bindFeature(parseState(content, resolvedStatePath));
 }
 
 function readStateFile(statePath) {
-  return readStateFileInternal(statePath, false);
+  return readStateFileInternal(statePath, false, true);
 }
 
 function readCandidateStateFile(statePath) {
-  return readStateFileInternal(statePath, true);
+  return readStateFileInternal(statePath, true, false);
 }
 
 function sanitizeStateError(error, label = 'state.toon') {
@@ -603,13 +707,15 @@ function sanitizeStateError(error, label = 'state.toon') {
   return new Error(`${label}: ${cleaned}`);
 }
 
+
 function resolveFeatureDirectory(featureDir, expectedFeature = null) {
   if (typeof featureDir !== 'string' || featureDir === '') {
     throw new Error('featureDir is required');
   }
+  const absolute = path.resolve(featureDir);
   let lst;
   try {
-    lst = fs.lstatSync(featureDir);
+    lst = fs.lstatSync(absolute);
   } catch {
     throw new Error(`featureDir does not exist: ${featureDir}`);
   }
@@ -620,7 +726,6 @@ function resolveFeatureDirectory(featureDir, expectedFeature = null) {
     throw new Error(`featureDir must be a directory: ${featureDir}`);
   }
 
-  const absolute = path.resolve(featureDir);
   const base = path.basename(absolute);
   if (!FEATURE_RE.test(base) || Buffer.byteLength(base, 'utf8') > 255) {
     throw new Error(`featureDir basename is not a safe feature slug: ${base}`);
@@ -642,11 +747,41 @@ function resolveFeatureDirectory(featureDir, expectedFeature = null) {
   if (!parentLst.isDirectory() || path.basename(parent) !== '.scratch') {
     throw new Error(`featureDir must be a real directory under .scratch: ${featureDir}`);
   }
-  if (path.basename(path.resolve(parent)) !== '.scratch') {
+
+  let scratchDir;
+  let realFeatureDir;
+  try {
+    scratchDir = fs.realpathSync(parent);
+    realFeatureDir = fs.realpathSync(absolute);
+  } catch (error) {
+    throw new Error(`featureDir cannot resolve real path: ${featureDir} (${error.message})`);
+  }
+  if (path.basename(scratchDir) !== '.scratch' || !isInside(scratchDir, realFeatureDir)) {
     throw new Error(`featureDir escapes .scratch: ${featureDir}`);
   }
+  const realParent = path.dirname(realFeatureDir);
+  if (realParent !== scratchDir) {
+    throw new Error(`featureDir must be a direct child of .scratch: ${featureDir}`);
+  }
 
-  return { absolute, feature: base, scratchDir: path.resolve(parent) };
+  let realParentStat;
+  let realFeatureStat;
+  try {
+    realParentStat = fs.statSync(scratchDir);
+    realFeatureStat = fs.statSync(realFeatureDir);
+  } catch (error) {
+    throw new Error(`featureDir cannot validate identity: ${featureDir} (${error.message})`);
+  }
+  if (
+    realParentStat.dev !== parentLst.dev ||
+    realParentStat.ino !== parentLst.ino ||
+    realFeatureStat.dev !== lst.dev ||
+    realFeatureStat.ino !== lst.ino
+  ) {
+    throw new Error(`featureDir identity changed during validation: ${featureDir}`);
+  }
+
+  return { absolute: realFeatureDir, feature: base, scratchDir };
 }
 
 function writeStateAtomic(featureDir, input) {
@@ -659,6 +794,9 @@ function writeStateAtomic(featureDir, input) {
     }
   }
   const body = serializeState(state);
+  if (Buffer.byteLength(body, 'utf8') > STATE_FILE_MAX_BYTES) {
+    throw new Error(`state.toon exceeds size limit of ${STATE_FILE_MAX_BYTES} bytes`);
+  }
   const target = path.join(absolute, STATE_FILE);
   const temp = path.join(absolute, `.${STATE_FILE}.${process.pid}.${Date.now()}.tmp`);
 
@@ -722,19 +860,28 @@ function writeStateAtomic(featureDir, input) {
 }
 
 function detectCandidates(cwd) {
-  const scratchDir = path.join(cwd, '.scratch');
-  if (!fs.existsSync(scratchDir)) return [];
+  const requestedScratchDir = path.join(cwd, '.scratch');
+  if (!fs.existsSync(requestedScratchDir)) return [];
+
+  let scratchLst;
+  let scratchDir;
   try {
-    const scratchLst = fs.lstatSync(scratchDir);
+    scratchLst = fs.lstatSync(requestedScratchDir);
     if (scratchLst.isSymbolicLink() || !scratchLst.isDirectory()) return [];
+    scratchDir = fs.realpathSync(requestedScratchDir);
+    const current = fs.statSync(scratchDir);
+    if (current.dev !== scratchLst.dev || current.ino !== scratchLst.ino) {
+      throw new Error(`${requestedScratchDir}: directory identity changed during validation`);
+    }
   } catch {
     return [];
   }
 
   let entries;
   try {
-    entries = fs.readdirSync(scratchDir, { withFileTypes: true });
-  } catch {
+    entries = readDirectoryEntriesBounded(scratchDir, SCRATCH_ENTRY_LIMIT, scratchDir);
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('entry limit')) throw error;
     return [];
   }
 
@@ -755,8 +902,13 @@ function detectCandidates(cwd) {
 
     let subEntries;
     try {
-      subEntries = fs.readdirSync(featureMeta.absolute, { withFileTypes: true });
-    } catch {
+      subEntries = readDirectoryEntriesBounded(
+        featureMeta.absolute,
+        FEATURE_ENTRY_LIMIT,
+        featureMeta.absolute,
+      );
+    } catch (error) {
+      if (error instanceof Error && error.message.includes('entry limit')) throw error;
       continue;
     }
 
@@ -859,7 +1011,7 @@ function isInside(parent, child) {
   return relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative));
 }
 
-function discoverSkillCatalog(gsdRoot) {
+function resolveGsdRoots(gsdRoot) {
   validateGsdRoot(gsdRoot);
   let realRoot;
   try {
@@ -867,19 +1019,39 @@ function discoverSkillCatalog(gsdRoot) {
   } catch (error) {
     throw new Error(`${gsdRoot}: cannot resolve GSD_ROOT (${error.message})`);
   }
+
   const skillsRoot = path.join(realRoot, 'skills');
+  let skillsStat;
+  try {
+    skillsStat = fs.lstatSync(skillsRoot);
+  } catch (error) {
+    throw new Error(`${skillsRoot}: cannot resolve skills directory (${error.message})`);
+  }
+  if (skillsStat.isSymbolicLink()) {
+    throw new Error(`${skillsRoot}: symlink skills directory rejected`);
+  }
+  if (!skillsStat.isDirectory()) {
+    throw new Error(`${skillsRoot}: skills directory must be a directory`);
+  }
+
   let realSkillsRoot;
   try {
     realSkillsRoot = fs.realpathSync(skillsRoot);
   } catch (error) {
     throw new Error(`${skillsRoot}: cannot resolve skills directory (${error.message})`);
   }
+  if (!isInside(realRoot, realSkillsRoot)) {
+    throw new Error(`${skillsRoot}: resolved outside GSD_ROOT ${realRoot}`);
+  }
+  return { realRoot, realSkillsRoot };
+}
 
+function discoverSkillCatalogAt(realSkillsRoot) {
   let entries;
   try {
-    entries = fs.readdirSync(realSkillsRoot, { withFileTypes: true });
+    entries = readDirectoryEntriesBounded(realSkillsRoot, SKILL_ENTRY_LIMIT, realSkillsRoot);
   } catch (error) {
-    throw new Error(`${realSkillsRoot}: cannot enumerate skills (${error.message})`);
+    throw new Error(`${realSkillsRoot}: ${error.message}`);
   }
   entries = entries
     .filter((entry) => entry.isDirectory() && /^gsd(?:-[a-z0-9]+)*$/.test(entry.name))
@@ -892,19 +1064,19 @@ function discoverSkillCatalog(gsdRoot) {
   const seen = new Set();
   for (const entry of entries) {
     const skillFile = path.join(realSkillsRoot, entry.name, 'SKILL.md');
-    let stat;
+    let realSkillFile;
     try {
-      stat = fs.lstatSync(skillFile);
+      realSkillFile = fs.realpathSync(skillFile);
     } catch (error) {
       throw new Error(`${skillFile}: missing SKILL.md (${error.message})`);
     }
-    if (!stat.isFile()) throw new Error(`${skillFile}: expected a regular SKILL.md`);
-
-    const realSkillFile = fs.realpathSync(skillFile);
-    if (!isInside(realSkillsRoot, realSkillFile)) {
-      throw new Error(`${skillFile}: resolved outside ${realSkillsRoot}`);
-    }
-    const metadata = parseSkillMetadata(fs.readFileSync(realSkillFile, 'utf8'), realSkillFile);
+    const skillContent = readBoundedRegularText(
+      skillFile,
+      SKILL_FILE_MAX_BYTES,
+      skillFile,
+      realSkillsRoot,
+    );
+    const metadata = parseSkillMetadata(skillContent, realSkillFile);
     if (seen.has(metadata.name)) throw new Error(`${realSkillFile}: duplicate skill name ${metadata.name}`);
     seen.add(metadata.name);
     if (metadata.name !== entry.name) {
@@ -918,21 +1090,25 @@ function discoverSkillCatalog(gsdRoot) {
   return catalog;
 }
 
+function discoverSkillCatalog(gsdRoot) {
+  const { realSkillsRoot } = resolveGsdRoots(gsdRoot);
+  return discoverSkillCatalogAt(realSkillsRoot);
+}
+
 function createBootstrap(gsdRoot) {
-  validateGsdRoot(gsdRoot);
-  const realRoot = fs.realpathSync(gsdRoot);
-  const masterPath = path.join(realRoot, 'skills', 'gsd', 'SKILL.md');
-  let masterContent;
-  try {
-    masterContent = fs.readFileSync(masterPath, 'utf8');
-  } catch (error) {
-    throw new Error(`${masterPath}: cannot read master SKILL.md (${error.message})`);
-  }
+  const { realRoot, realSkillsRoot } = resolveGsdRoots(gsdRoot);
+  const masterPath = path.join(realSkillsRoot, 'gsd', 'SKILL.md');
+  const masterContent = readBoundedRegularText(
+    masterPath,
+    SKILL_FILE_MAX_BYTES,
+    masterPath,
+    realSkillsRoot,
+  );
   const masterMetadata = parseSkillMetadata(masterContent, masterPath);
   if (masterMetadata.name !== 'gsd' || !masterMetadata.hidden) {
     throw new Error(`${masterPath}: master skill must be named gsd with hide: true`);
   }
-  const catalog = discoverSkillCatalog(realRoot);
+  const catalog = discoverSkillCatalogAt(realSkillsRoot);
   const rows = catalog.map((row) => `- ${JSON.stringify(row)}`).join('\n');
   return `<GSD_BOOTSTRAP>
 ${BOOTSTRAP_MARKER}
@@ -1012,6 +1188,7 @@ function gsdContextExtension(pi) {
   for (const eventName of ['session_start', 'session_switch', 'session_branch', 'session_tree']) {
     pi.on(eventName, async () => {
       rebuildBootstrap();
+      pendingCapsule = null;
       capsuleQueuedForNextTurn = false;
     });
   }
@@ -1023,12 +1200,15 @@ function gsdContextExtension(pi) {
   pi.on('session_shutdown', async () => {
     bootstrap = null;
     bootstrapError = null;
+    pendingCapsule = null;
     capsuleQueuedForNextTurn = false;
     injectBootstrap = false;
     lastLoggedBootstrapError = null;
   });
 
   pi.on('before_agent_start', async (event) => {
+    // OMP drains its hidden nextTurn queue immediately before this event
+    // (AgentSession prompt setup), so this is the actual consumption boundary.
     capsuleQueuedForNextTurn = false;
     if (!injectBootstrap || (!bootstrap && !bootstrapError)) return undefined;
     const systemPrompt = Array.isArray(event.systemPrompt) ? event.systemPrompt : [];
@@ -1059,6 +1239,7 @@ function gsdContextExtension(pi) {
   });
 
   pi.on('session.compacting', async (_event, ctx) => {
+    pendingCapsule = null;
     const features = detectCandidates(ctx?.cwd || process.cwd());
     if (features.length === 0) {
       pendingCapsule = null;
