@@ -1182,9 +1182,9 @@ done
 preflight_legacy_agent_target "$LEGACY_EXEC_TARGET" "$LEGACY_EXEC_SOURCE" "gsd-executor.md" "executor" "LEGACY_EXEC_ACTION" "LEGACY_EXEC_LINK_TARGET"
 preflight_legacy_agent_target "$LEGACY_REVIEW_TARGET" "$LEGACY_REVIEW_SOURCE" "gsd-reviewer.md" "reviewer" "LEGACY_REVIEW_ACTION" "LEGACY_REVIEW_LINK_TARGET"
 preflight_managed_target "$EXT_TARGET" "$EXT_SOURCE" "EXT" "*/extensions/gsd-context.js"
+sync_managed_target "$EXT_TARGET" "$EXT_SOURCE" "EXT" "*/extensions/gsd-context.js"
 remove_preflighted_legacy_agent "$LEGACY_EXEC_TARGET" "executor" "LEGACY_EXEC_ACTION" "LEGACY_EXEC_LINK_TARGET"
 remove_preflighted_legacy_agent "$LEGACY_REVIEW_TARGET" "reviewer" "LEGACY_REVIEW_ACTION" "LEGACY_REVIEW_LINK_TARGET"
-sync_managed_target "$EXT_TARGET" "$EXT_SOURCE" "EXT" "*/extensions/gsd-context.js"
 
 if [ -L "$OMP_COMMANDS_DIR" ]; then
   printf "  warn: preserving legacy command: commands path %s is a symlink.\n" "$OMP_COMMANDS_DIR" >&2
@@ -1200,7 +1200,19 @@ if [ -d "${HOME}/.agents/skills" ]; then
     if resolved_target="$(cd -P "$link" 2>/dev/null && pwd -P)"; then
       canonical_repo="$(cd -P "$REPO" 2>/dev/null && pwd -P)"
       if [[ "$resolved_target" == "$canonical_repo"/skills/gsd* ]]; then
-        rm -f "$link"
+        if [ "${GSD_TEST_SEAM_LEGACY_SKILL_REPLACE:-}" = "regular" ]; then
+          rm -f -- "$link"
+          printf "raced legacy skill content\n" > "$link"
+        fi
+
+        current_resolved=""
+        if [ -L "$link" ] \
+          && current_resolved="$(cd -P "$link" 2>/dev/null && pwd -P)" \
+          && [ "$current_resolved" = "$resolved_target" ]; then
+          rm -f -- "$link"
+        else
+          printf "  warn: preserving legacy skill %s: target changed after validation.\n" "$link" >&2
+        fi
       fi
     fi
   done

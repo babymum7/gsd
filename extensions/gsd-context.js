@@ -663,9 +663,19 @@ function writeStateAtomic(featureDir, input) {
   const temp = path.join(absolute, `.${STATE_FILE}.${process.pid}.${Date.now()}.tmp`);
 
   let fd;
+  let ownsTemp = false;
+  let tempIdentity = null;
   try {
     try {
-      fd = fs.openSync(temp, 'w', 0o644);
+      const flags =
+        fs.constants.O_WRONLY |
+        fs.constants.O_CREAT |
+        fs.constants.O_EXCL |
+        (fs.constants.O_NOFOLLOW ?? 0);
+      fd = fs.openSync(temp, flags, 0o644);
+      const opened = fs.fstatSync(fd);
+      tempIdentity = { dev: opened.dev, ino: opened.ino };
+      ownsTemp = true;
       fs.writeSync(fd, body, 0, 'utf8');
       fs.fsyncSync(fd);
     } finally {
@@ -675,6 +685,8 @@ function writeStateAtomic(featureDir, input) {
     }
 
     fs.renameSync(temp, target);
+    ownsTemp = false;
+    tempIdentity = null;
 
     try {
       const dirFd = fs.openSync(absolute, 'r');
@@ -696,9 +708,14 @@ function writeStateAtomic(featureDir, input) {
     return readBack;
   } catch (error) {
     try {
-      if (fs.existsSync(temp)) fs.unlinkSync(temp);
+      if (ownsTemp && tempIdentity) {
+        const current = fs.lstatSync(temp);
+        if (current.isFile() && current.dev === tempIdentity.dev && current.ino === tempIdentity.ino) {
+          fs.unlinkSync(temp);
+        }
+      }
     } catch {
-      // best-effort temp cleanup only inside the feature directory
+      // Preserve any path whose identity no longer matches this invocation.
     }
     throw sanitizeStateError(error, 'state.toon');
   }
@@ -942,8 +959,13 @@ function messageText(message) {
   return parts.join('\n');
 }
 
-function messageContainsBootstrap(message) {
-  return messageText(message).includes(BOOTSTRAP_MARKER);
+function messageContainsBootstrap(message, expectedBootstrap) {
+  const text = messageText(message);
+  if (typeof expectedBootstrap === 'string') return text === expectedBootstrap;
+  return (
+    text.startsWith(`<GSD_BOOTSTRAP>\n${BOOTSTRAP_MARKER}\n`) &&
+    text.endsWith('\n</GSD_BOOTSTRAP>')
+  );
 }
 
 function firstNonCompactionSummaryIndex(messages) {
@@ -1016,9 +1038,11 @@ function gsdContextExtension(pi) {
     if (!injectBootstrap) return undefined;
     const payload = bootstrap ?? bootstrapError;
     if (!payload) return undefined;
-    const alreadyPresent = bootstrap
-      ? event.messages.some(messageContainsBootstrap)
-      : event.messages.some((message) => messageText(message).startsWith(BOOTSTRAP_ERROR_PREFIX));
+    const alreadyPresent = event.messages.some((message) =>
+      bootstrap
+        ? messageContainsBootstrap(message, payload)
+        : messageText(message) === payload,
+    );
     if (alreadyPresent) return undefined;
 
     const messages = [...event.messages];

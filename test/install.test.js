@@ -213,6 +213,55 @@ test("installer removes only recognized legacy model-agent links and preserves u
   }
 });
 
+test("installer keeps recognized legacy agent links until extension publication succeeds", () => {
+  const { temporary, home, fakeBin, repo } = makeInstallFixture();
+  for (const command of ["git", "pnpm"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+  try {
+    const agentsDir = join(home, ".omp", "agent", "agents");
+    mkdirSync(agentsDir, { recursive: true });
+    const legacyTarget = join(agentsDir, "gsd-executor.md");
+    const legacySource = join(repo, "agents", "gsd-executor.md");
+    symlinkSync(legacySource, legacyTarget);
+
+    const result = runInstallerAt(repo, home, fakeBin, { GSD_TEST_SEAM_RACE: "regular" });
+    assert.equal(result.status, 1, result.stderr + result.stdout);
+    assert.equal(lstatSync(legacyTarget).isSymbolicLink(), true);
+    assert.equal(readlinkSync(legacyTarget), legacySource);
+
+    const extensionTarget = join(home, ".omp", "agent", "extensions", "gsd-context.js");
+    assert.equal(lstatSync(extensionTarget).isFile(), true);
+    assert.equal(readFileSync(extensionTarget, "utf8").trim(), "raced content");
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("installer preserves a raced replacement of a managed legacy skill link", () => {
+  const { temporary, home, fakeBin, repo } = makeInstallFixture();
+  for (const command of ["git", "pnpm"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+  try {
+    const managedSkill = join(repo, "skills", "gsd-legacy");
+    mkdirSync(managedSkill, { recursive: true });
+    const legacySkillsDir = join(home, ".agents", "skills");
+    mkdirSync(legacySkillsDir, { recursive: true });
+    const legacyLink = join(legacySkillsDir, "gsd-legacy");
+    symlinkSync(managedSkill, legacyLink);
+
+    const result = runInstallerAt(repo, home, fakeBin, {
+      GSD_TEST_SEAM_LEGACY_SKILL_REPLACE: "regular",
+    });
+    assert.equal(result.status, 0, result.stderr + result.stdout);
+    assert.equal(lstatSync(legacyLink).isFile(), true);
+    assert.equal(readFileSync(legacyLink, "utf8"), "raced legacy skill content\n");
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
 test("installer fails before publication on unsafe legacy executor collisions", () => {
   for (const collision of ["regular", "directory", "foreign-link", "live-prior-checkout-link"]) {
     const { temporary, home, fakeBin, repo } = makeInstallFixture();
