@@ -26,11 +26,13 @@ Canonical dispatch authority for the 9 visible GSD skills. Shared semantics live
 | `gsd-to-plan` | owner | Create or finalize canonical `plan.md` with bound Domain Impact after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unapproved plan | Design decisions still open; Nano edits | On approval write `state.toon` and load `gsd-executing-plans` | — |
 | `gsd-executing-plans` | owner | Implement approved plan tasks and owned domain docs inline and sequentially on `wip/<feature>` | Valid approved `plan.md` and bound resumable `state.toon` | No bound plan/state; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
 | `gsd-handoff` | owner | Pause, save, resume, or recover from a valid `state.toon` or compaction capsule | Valid `state.toon` or recovery capsule naming peer owner | Missing/malformed state used to invent work | Load the peer skill named by validated `next_action` | — |
-| `gsd-verify` | owner | Review a diff/PR or prove terminal code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Invent completion without deterministic gates | Planned green path: squash, automatic cleanup, optional retain/archive | — |
+| `gsd-verify` | owner | Review a diff/PR or prove planned or Quick-fix code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; Quick-fix: exact Quick-fix `plan.md`; standalone: supplied diff | Invent completion without deterministic gates | Planned or Quick-fix green path: squash, automatic cleanup, optional retain/archive | — |
 | `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | Non-obvious failure or execution blocker needing evidence | Known single-spot quick fix | Return evidence to execution or architectural cause to `gsd-codebase-architecture` | — |
 | `gsd-codebase-architecture` | owner | Design a named seam or audit/refactor architecture with domain-aligned deep boundaries | Explicit interface/architecture intent or diagnosis-returned architectural cause | Unrelated broad exploration or feature work with no unresolved seam | Selected candidates enter `gsd-brainstorming`; execution evidence returns to its owner | — |
 | `gsd-tdd` | helper | Drive Fast TDD RED→GREEN→refactor at a public seam | Session owner is implementing or repairing observable behavior | Primary skill selection; resource-heavy browser/E2E task loops | Return green/red evidence to session owner | must load when an observable task is selected or repaired |
 | `gsd-domain-modeling` | helper | Maintain current production domain behavior for affected contexts | Domain Impact changes a context or explicit domain-model work is selected | Read-only/Nano work; uncertain or unrelated contexts | Return exact changed domain and AGENTS paths to session owner | must load when Domain Impact is not `none` or explicit domain-model work is selected |
+
+The Quick-fix direct route is owned by the current session owner rather than a tenth visible skill: read the exact injected Ponytail context, write the canonical Quick-fix plan, load `gsd-tdd` for the focused RED→GREEN→refactor loop, then load `gsd-verify` for the Quick-fix WIP gate. Ponytail remains hidden context and never enters the matrix or runtime state.
 
 ## Durable documentation contract
 
@@ -131,7 +133,28 @@ Canonical task parsing uses Expand → Migrate → Contract. The parser is dual-
 
 ### Quick-fix plan exception
 
-A Quick-fix is not a converged feature packet. Its direct fast path may write a minimal UTF-8/LF `plan.md` containing exactly `# Quick-fix Plan`, `## Feature`, `## Base`, and `## Tasks` with one or two task headings, each naming its files and focused check. Only the Quick-fix WIP verifier may consume it. It has no proposal/spec/design source set, no approval binding, and no normal-packet authority. Ordinary packet validation MUST NOT classify it as malformed converged state or dispatch normal execution from it; its special `gsd-verify` gate owns it until landing or a blocker.
+A Quick-fix is not a converged feature packet. Its direct fast path writes a minimal UTF-8/LF `plan.md` with this exact grammar:
+
+```markdown
+# Quick-fix Plan
+## Feature
+`<feature>`
+## Base
+`<base>`
+## Domain Impact
+- **Classification:** <none|change-existing-context|introduce-context|change-context-boundary>
+- **Contexts:** <none|sorted comma-space-separated context slugs>
+- **Documentation:** <none|update-existing|bootstrap-feature-context>
+- **Broad bootstrap:** not-offered
+- **Evidence:** <concrete code/schema/contract evidence>
+## Tasks
+### T1: <short task>
+- **Files:**
+  - `<path>` — <create|modify|delete>: <concise contract intent>
+- **Test:** `<focused command>`
+```
+
+It contains one or two sequential tasks with unique structured paths and a real focused command. The exact five-field `Domain Impact` follows the canonical classification rules: `none` requires concrete no-change evidence, every non-`none` classification owns each `docs/domain/<context>.md` path in the same task as code, and Quick-fix always records `Broad bootstrap: not-offered`. A missing index or requested broad bootstrap exits the bounded route for normal discovery. Only the Quick-fix WIP verifier consumes this plan. It has no proposal/spec/design source set, no approval binding, and no normal-packet authority. Ordinary packet validation MUST NOT classify it as malformed converged state or dispatch normal execution from it; its special `gsd-verify` gate owns it until landing or a blocker.
 
 ### Approval binding
 
@@ -196,7 +219,7 @@ cleanup_preference:none|delete|retain|archive-and-delete
 checkpoint_revision:<positive int>
 ```
 
-Phase-inapplicable values use canonical `none`. Current `schema:v4` parsing rejects blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, Ponytail preference state, and obsolete model or agent rows. On resume only, an exact valid active production `schema:v1`, `schema:v2`, or `schema:v3` record is fully validated then atomically rewritten to canonical `schema:v4`, with obsolete rows discarded and `checkpoint_revision` incremented. All legacy fields, including `ponytail_level` where present, are validated before migration. Malformed, partial, reordered, unknown, non-concrete, or terminal legacy records fail closed unchanged; partial old terminal evidence is discarded and deterministic conformance reruns.
+Phase-inapplicable values use canonical `none`. Current `schema:v4` parsing rejects invalid UTF-8, carriage returns, blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, Ponytail preference state, and obsolete model or agent rows. Exact `schema:v1` and `schema:v2` records migrate only when active; every terminal record in those schemas must fail closed unchanged. Exact active `schema:v3` follows the same validated atomic migration. An exact `schema:v3` `completed-retained` record is the sole terminal compatibility case: candidate discovery validates it but leaves its bytes unchanged and inert, while an explicit `readStateFile` validates and atomically migrates it to canonical `schema:v4`. Every legacy field, including `ponytail_level` where present, is validated before migration, obsolete rows are discarded, and `checkpoint_revision` increments. Malformed, partial, reordered, unknown, or non-concrete legacy records fail closed unchanged; partial old terminal evidence is discarded and deterministic conformance reruns.
 
 ### Atomic write
 

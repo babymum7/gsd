@@ -21,7 +21,8 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 | Mode | Required | Optional | Produced | Missing required |
 | --- | --- | --- | --- | --- |
-| Existing-index affected update | valid `docs/domain/index.md`; every mapped affected shard | `AGENTS.md` | affected shards; canonical AGENTS section | malformed index, missing mapped shard, orphan shard, or any other partial directory fails closed |
+| Preapproval affected mapping | bounded non-`none` Domain Impact | valid index; affected mapped shards; `AGENTS.md` | exact affected paths | ambiguous ownership returns one focused question; malformed supplied documentation fails closed |
+| Existing-index execution update | valid `docs/domain/index.md`; every mapped affected shard | `AGENTS.md` | affected shards; canonical AGENTS section | malformed index, missing mapped shard, orphan shard, or any other partial directory fails closed |
 | Absent-index feature bootstrap | bounded non-`none` Domain Impact | `AGENTS.md` | index; required feature-scoped shards; canonical AGENTS section | ambiguous context ownership returns one pre-approval question or post-approval Spec escalation |
 | Absent-index broad bootstrap | explicit `Broad bootstrap: selected` plus bounded feature impact | `AGENTS.md` | index; required feature shards; additional evidenced context shards; canonical AGENTS section | no explicit selection means feature-scoped bootstrap only |
 
@@ -30,10 +31,10 @@ This skill is the **sole writer** of `docs/domain/index.md`, `docs/domain/<scope
 ## Domain lifecycle
 
 1. Consume exact `Domain Impact`: classification, sorted contexts, documentation action, broad-bootstrap disposition, and evidence. `none` writes nothing and must justify why production semantics are unchanged.
-2. When `docs/domain/index.md` exists, validate the index and all referenced files, then read and update only mapped affected shards. Never offer or suggest a broad codebase/domain scan. A new affected context is allowed only when evidence proves a real boundary change.
+2. When `docs/domain/index.md` exists, validate its grammar and check unrelated mappings only through directory-entry and regular-file metadata; never read unrelated shard bodies. Read and update only mapped affected shards. Never offer or suggest a broad codebase/domain scan. A new affected context is allowed only when evidence proves a real boundary change.
 3. When `docs/domain/index.md` is absent, every non-`none` impact bootstraps the required feature-scoped context docs. Only in this absence case may brainstorming offer a broad bootstrap. `declined` remains a valid choice; declining broad bootstrap never waives or skips required affected-context documentation.
 4. If broad bootstrap is selected, inspect only tracked production code, schemas, contracts, and tests; skip dependencies, generated output, vendored code, nested repositories, and ignored paths. Create only evidenced stable contexts. Broad selection never changes the feature's acceptance scope.
-5. Write target behavior before approval only when certain. During execution, update the same shards to current production behavior in the same task as the implementing code. Never preserve obsolete behavior as history.
+5. Before approval, return the exact affected paths and write no target behavior. A preapproval bootstrap may describe only production behavior already shipped. During execution, update those paths to current production behavior in the same task as the implementing code. Never preserve obsolete behavior as history.
 6. Upsert one `## Domain documentation` section in the applicable `AGENTS.md`: preserve unrelated instructions, replace the existing canonical section when present, and never append a duplicate.
 
 ## Bounded-context rules
@@ -118,4 +119,4 @@ Headings appear exactly in the shown order. Terms are lexicographically sorted. 
 
 ## Tracked-document lifecycle
 
-Return every exact changed path. Creating domain documentation returns `docs/domain/index.md`, each created shard, and `AGENTS.md` when its canonical section changed. Updating returns only affected shards plus `AGENTS.md` if upsert changed it. Pre-approval paths become exact structured plan file intents; post-approval changes commit in the same owning task as code. Never create a generic documentation-only task or drop a required domain write.
+Return every exact changed or reserved path. Creating domain documentation returns `docs/domain/index.md`, each created shard, and `AGENTS.md` when its canonical section changed. Updating returns only affected shards plus `AGENTS.md` if upsert changed it. Before approval, path reservation writes no target behavior; any created prose describes only current production. Reserved paths become exact structured plan file intents, and post-approval changes commit in the same owning task as code. Never create a generic documentation-only task or drop a required domain write.

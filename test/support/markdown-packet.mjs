@@ -73,6 +73,20 @@ function validatePathsField(fieldValue, fieldLabel) {
     .map(([, pathValue]) => validateRepositoryPath(pathValue, fieldLabel));
 }
 
+function parseBacktickedCommand(value, label) {
+  const exact = requiredExact(value, label);
+  const isBackticked = exact.startsWith("`") && exact.endsWith("`") && !exact.slice(1, -1).includes("`");
+  if (!isBackticked) {
+    fail(`${label} must be one fully backticked nonempty command`);
+  }
+  const command = exact.slice(1, -1);
+  if (!command || command !== command.trim()) {
+    fail(`${label} must be one fully backticked nonempty concrete command`);
+  }
+  if (VAGUE.test(command)) fail(`${label} must not be vague`);
+  return command;
+}
+
 
 function validateTitle(content, title) {
   const headings = [...content.matchAll(/^# (.+)$/gm)].map(([, heading]) => heading);
@@ -452,19 +466,8 @@ function parseTasks(content, criteria) {
     if (!testMatch || !statusMatch) {
       fail("fields must end with Test, Status");
     }
-    const testValue = requiredExact(testMatch[1], `${id} Test`);
+    const test = parseBacktickedCommand(testMatch[1], `${id} Test`);
     const status = requiredExact(statusMatch[1], `${id} Status`);
-    const isBackticked = testValue.startsWith("`") && testValue.endsWith("`") && !testValue.slice(1, -1).includes("`");
-    if (!isBackticked) {
-      fail(`${id} Test must be one fully backticked nonempty command or none`);
-    }
-    const test = testValue.slice(1, -1);
-    if (!test || test !== test.trim()) {
-      fail(`${id} Test must be one fully backticked nonempty command or none`);
-    }
-    if (VAGUE.test(test)) {
-      fail(`${id} Test must not be vague`);
-    }
     if (!VALID_TASK_STATUSES.has(status)) {
       fail(`${id} has invalid status`);
     }
@@ -535,6 +538,89 @@ function parseTasks(content, criteria) {
   const formats = new Set(tasks.map((task) => task.format));
   if (formats.size !== 1) fail("Tasks must use one task grammar consistently");
   return { tasks, taskFormat: tasks[0].format };
+}
+
+function parseQuickFixTasks(content) {
+  const lines = section(content, "Tasks", true).split("\n");
+  if (lines.some((line) => line.trim() === "")) {
+    fail("Quick-fix Tasks must not contain blank or whitespace lines");
+  }
+  const starts = [];
+  for (let index = 0; index < lines.length; index++) {
+    if (/^### T[1-9]\d*: /.test(lines[index])) starts.push(index);
+  }
+  if (starts.length < 1 || starts.length > 2 || starts[0] !== 0) {
+    fail("Quick-fix Tasks must contain one or two sequential task blocks");
+  }
+
+  const tasks = [];
+  const ownedPaths = new Set();
+  for (let blockIndex = 0; blockIndex < starts.length; blockIndex++) {
+    const end = starts[blockIndex + 1] ?? lines.length;
+    const block = lines.slice(starts[blockIndex], end);
+    const heading = block[0]?.match(/^### (T([1-9]\d*)): (.+)$/);
+    if (!heading || Number(heading[2]) !== blockIndex + 1) {
+      fail("Quick-fix task IDs must be sequential");
+    }
+    const [, id, , rawTitle] = heading;
+    const title = requiredExact(rawTitle, `${id} title`);
+    if (block[1] !== "- **Files:**") {
+      fail(`${id} fields must be exactly ordered: Files, Test`);
+    }
+
+    const fileIntents = [];
+    let cursor = 2;
+    while (cursor < block.length && !block[cursor].startsWith("- **Test:**")) {
+      const entry = block[cursor].match(/^  - `([^`]+)` — (create|modify|delete): (.+)$/);
+      if (!entry) {
+        fail(`${id} Files entry must contain a backticked path, create|modify|delete operation, and intent`);
+      }
+      const [, rawPath, operation, rawIntent] = entry;
+      const pathValue = validateRepositoryPath(rawPath, `${id} Files`);
+      const intent = requiredExact(rawIntent, `${id} Files intent`);
+      if (VAGUE.test(intent)) fail(`${id} Files intent must not be vague`);
+      if (ownedPaths.has(pathValue)) fail(`Quick-fix Tasks contain duplicate path: ${pathValue}`);
+      ownedPaths.add(pathValue);
+      fileIntents.push({ path: pathValue, operation, intent });
+      cursor++;
+    }
+    if (fileIntents.length === 0 || cursor + 1 !== block.length) {
+      fail(`${id} fields must be exactly ordered: Files, Test`);
+    }
+    const testMatch = block[cursor].match(/^- \*\*Test:\*\* (.+)$/);
+    if (!testMatch) fail(`${id} fields must be exactly ordered: Files, Test`);
+    const test = parseBacktickedCommand(testMatch[1], `${id} Test`);
+    if (test === "none") fail(`${id} Test must be a focused command`);
+    tasks.push({ id, title, fileIntents, files: fileIntents.map(({ path }) => path), test });
+  }
+  return { tasks, ownedPaths };
+}
+
+export function parseQuickFixPlan(files) {
+  if (typeof files !== "object" || files === null || Array.isArray(files) || Object.prototype.toString.call(files) !== "[object Object]") {
+    fail("files must be a plain mapping");
+  }
+  const ownKeys = Reflect.ownKeys(files);
+  if (ownKeys.length !== 1 || ownKeys[0] !== "plan.md") {
+    fail("files mapping must contain exactly plan.md");
+  }
+  const plan = canonicalSource(files["plan.md"], "plan.md");
+  validateTitle(plan, "Quick-fix Plan");
+  validateSections(plan, ["Feature", "Base", "Domain Impact", "Tasks"]);
+  const feature = parseFeature(plan);
+  const base = parseBase(plan);
+  const domainImpact = parseDomainImpact(plan);
+  if (domainImpact.broadBootstrap !== "not-offered") {
+    fail("Quick-fix Domain Impact Broad bootstrap must be not-offered");
+  }
+  const { tasks, ownedPaths } = parseQuickFixTasks(plan);
+  if (domainImpact.classification !== "none") {
+    for (const context of domainImpact.contexts) {
+      const shard = `docs/domain/${context}.md`;
+      if (!ownedPaths.has(shard)) fail(`Quick-fix plan must own affected domain shard: ${shard}`);
+    }
+  }
+  return { feature, base, domainImpact, tasks };
 }
 
 function parseDecisions(content) {

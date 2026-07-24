@@ -23,7 +23,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 | Standalone review | — | Markdown packet context | — | — |
 | Planned WIP gate | `plan.md`; bound `state.toon` | authorized ledger | `state.toon`; authorized ledger | Stop before review or merge as Spec escalation |
 | Milestone WIP gate | Planned state; authoritative ledger | — | `state.toon`; milestone ledger lifecycle state | Missing source/binding is Spec escalation; missing ledger evidence is a Blocker |
-| Quick-fix WIP gate | `plan.md` | Markdown packet absent by design | `state.toon` | Recover the real quick-fix plan; never fabricate it |
+| Quick-fix WIP gate | exact Quick-fix `plan.md` | affected domain shards; `AGENTS.md` | `state.toon` | Missing or malformed Quick-fix grammar blocks; recover the real plan and never fabricate it |
 
 ## Planned and milestone WIP gate
 
@@ -49,7 +49,7 @@ Standalone review is read-only and has no branch, result, or merge authority. Re
 
 ## Quick-fix WIP gate
 
-Quick fixes have minimal approved `plan.md` but no full feature packet. Run code-quality, focused behavior, whole-branch build where available, and applicable E2E before squash/cleanup sequence.
+Quick fixes have the exact minimal `plan.md` grammar from `REFERENCE.md`, not a full feature packet. Parse its exact five-field `Domain Impact` before review. `none` requires concrete evidence that no term, invariant, workflow, outcome, relationship, policy, or bounded-context meaning changed. Every non-`none` classification requires each affected shard in the same Quick-fix task as code, and `Broad bootstrap` must always be `not-offered`; a missing index or requested broad bootstrap exits Quick-fix for normal discovery. Compare affected domain prose with production code, schemas, contracts, and tests; missing, obsolete, future, or unrelated prose is domain drift and blocks completion as a deterministic Blocker. Then run code-quality, the recorded focused behavior command, whole-branch build where available, and applicable E2E before the normal squash/cleanup sequence.
 
 ## Contextual disclosure
 

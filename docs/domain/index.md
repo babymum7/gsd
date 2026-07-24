@@ -4,4 +4,4 @@
 
 | Scope | File | Purpose |
 | --- | --- | --- |
-| gsd | `gsd.md` | GSD artifact, activation, context-harvest, and milestone vocabulary. |
+| gsd | `gsd.md` | GSD delivery lifecycle, artifact authority, Domain Impact, resume, verification, and milestone ownership. |

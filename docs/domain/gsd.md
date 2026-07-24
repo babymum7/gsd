@@ -32,9 +32,14 @@ Own request classification, feature convergence, immutable plan approval, ordere
 ## Invariants
 
 - Exactly one visible process owner controls a lifecycle transition at a time.
+- A known bounded behavioral fix is owned directly by the session owner; Ponytail remains hidden and is loaded only from its exact injected context path.
 - Approved `plan.md` bytes remain immutable; runtime state only binds and reports them.
+- State authority is valid only as fatal-decoded UTF-8 with LF line endings; invalid bytes and carriage returns fail closed unchanged.
+- Retained `schema:v3` stays inert and byte-identical during candidate discovery but migrates atomically on an explicit read after full validation.
 - Every converged feature records Domain Impact, including a concrete justification for `none`.
+- Every Quick-fix records the exact five-field Domain Impact; semantic fixes own affected shards and no-impact fixes carry concrete evidence.
 - Semantic code and affected domain docs share one owning task and agree at each green checkpoint.
+- Before approval, affected domain paths may be reserved but domain prose never describes unshipped target behavior.
 - A broad domain bootstrap is never offered when `docs/domain/index.md` exists.
 - Terminal evidence applies only to the unchanged commit on which it ran.
 
@@ -42,16 +47,22 @@ Own request classification, feature convergence, immutable plan approval, ordere
 
 ### Deliver a feature
 
-1. Classify intent and converge acceptance behavior plus Domain Impact.
+1. Classify intent, converge acceptance behavior plus Domain Impact, and reserve affected documentation paths without publishing future semantics.
 2. Write and approve one canonical plan, then bind it in `schema:v4` state.
 3. Execute ordered tasks with Fast TDD and green checkpoints.
 4. Prove terminal conformance, run Deferred Slow E2E, squash to base, and clean transient state.
 
 ### Resume active work
+1. Fatally decode LF-only state bytes, then validate the schema, plan hash/path, Git identity, green checkpoint, and current tree.
+2. Keep retained `schema:v3` inert during candidate discovery; migrate it only on an explicit read after full validation.
+3. Rebuild exactly one active task or terminal slice from canonical sources.
+4. Continue the recorded owner action without replaying prior lifecycle work.
 
-1. Validate the state schema, plan hash/path, Git identity, green checkpoint, and current tree.
-2. Rebuild exactly one active task or terminal slice from canonical sources.
-3. Continue the recorded owner action without replaying prior lifecycle work.
+### Deliver a bounded quick fix
+
+1. The session owner reads the exact injected hidden Ponytail context path and records the exact Quick-fix plan, including Domain Impact and one or two structured tasks with focused checks.
+2. Implement through Fast TDD and update every affected domain shard in the same task as semantic code.
+3. Block terminal completion when Domain Impact is contradictory or current production prose drifts from the fix.
 
 ### Escalate a quick fix
 
@@ -63,6 +74,7 @@ Own request classification, feature convergence, immutable plan approval, ordere
 | Command or event | Actor | Outcome |
 | --- | --- | --- |
 | Approve and execute | User | Canonical plan bytes are bound and ordered execution starts. |
+| Fix bounded behavior | Session Owner | Quick-fix Domain Impact and structured task ownership govern Fast TDD and domain-drift verification. |
 | Continue active feature | User | Validated state selects one resumable owner action. |
 | Domain drift detected | Session Owner | Completion is blocked until code and affected shards agree. |
 | Green terminal conformance | Session Owner | Deferred Slow E2E becomes eligible on unchanged bytes. |
@@ -107,10 +119,30 @@ None.
 
 ### P-gsd-7: Keep production domain documentation aligned
 
-- **Policy:** Every feature records Domain Impact; affected shards describe current production behavior and change in the same task as semantic code.
-- **Reason:** Domain knowledge remains useful to people and future agents only when it cannot drift behind production authority.
+- **Policy:** Every feature records Domain Impact; before approval, reserved paths and any bootstrap prose remain current-production-only, and affected shards change in the same task as semantic code after that behavior exists.
+- **Reason:** Separating target authority in the plan from shipped domain meaning prevents abandoned or pending work from becoming false production documentation.
 
 ### P-gsd-8: Clean transient feature artifacts after green merge
 
 - **Policy:** Delete feature scratch after a green merge unless retain or archive-and-delete was selected.
 - **Reason:** Exact ownership removes completed runtime evidence without touching neighboring sessions.
+
+### P-gsd-9: Keep Quick-fix semantics explicit
+
+- **Policy:** Every Quick-fix records canonical Domain Impact and `Broad bootstrap: not-offered`; `none` carries concrete evidence, while semantic fixes own and verify each affected current-production shard with code. A missing domain index or requested broad bootstrap exits the bounded route for normal discovery.
+- **Reason:** A smaller delivery path must not bypass the production meaning and drift guarantees applied to converged features.
+
+### P-gsd-10: Route hidden context without visible dispatch
+
+- **Policy:** The session owner owns bounded Quick-fix delivery and reads Ponytail only from the exact extension-injected context path before Fast TDD and the Quick-fix verification gate.
+- **Reason:** Exact injection keeps conservative context reachable without making it a visible owner, catalog route, or persisted preference.
+
+### P-gsd-11: Reject noncanonical state bytes
+
+- **Policy:** State reads use fatal UTF-8 decoding and reject every carriage return rather than normalizing malformed authority.
+- **Reason:** Resume must never continue from bytes whose meaning changed during lossy decoding or line-ending repair.
+
+### P-gsd-12: Separate retained-v3 discovery from explicit migration
+
+- **Policy:** Candidate discovery leaves exact retained `schema:v3` bytes inert and unchanged; only an explicit validated state read may migrate that record atomically to `schema:v4`.
+- **Reason:** Terminal history must not compete for resume selection, while explicit cleanup or inspection retains the supported compatibility path.

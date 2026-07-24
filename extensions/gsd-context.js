@@ -1,8 +1,10 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { TextDecoder } from 'node:util';
 
 const EXTENSION_FILE = fileURLToPath(import.meta.url);
+const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
 
 const BOOTSTRAP_MARKER = 'gsd:session-bootstrap:v2';
 const BOOTSTRAP_ERROR_PREFIX = '[GSD bootstrap unavailable]';
@@ -295,7 +297,7 @@ function readBoundedRegularText(filePath, maxBytes, label, expectedRoot = null) 
     ) {
       throw new Error(`${label}: file changed during read`);
     }
-    return buffer.subarray(0, total).toString('utf8');
+    return UTF8_DECODER.decode(buffer.subarray(0, total));
   } catch (error) {
     if (error instanceof Error && error.message.startsWith(`${label}:`)) throw error;
     throw new Error(`${label}: cannot read file (${error.message})`);
@@ -334,13 +336,15 @@ function parseStateFields(content, label, fieldOrder, fieldSet) {
   if (typeof content !== 'string') {
     throw new Error(`${label}: content must be text`);
   }
-  const normalized = content.replace(/\r\n/g, '\n');
-  if (normalized === '' || normalized.includes('\0')) {
+  if (content.includes('\r')) {
+    throw new Error(`${label}: state must use LF line endings; carriage return rejected`);
+  }
+  if (content === '' || content.includes('\0')) {
     throw new Error(`${label}: malformed empty or binary content`);
   }
-  const lines = normalized.endsWith('\n')
-    ? normalized.slice(0, -1).split('\n')
-    : normalized.split('\n');
+  const lines = content.endsWith('\n')
+    ? content.slice(0, -1).split('\n')
+    : content.split('\n');
   if (lines.length === 0 || (lines.length === 1 && lines[0] === '')) {
     throw new Error(`${label}: malformed empty content`);
   }
@@ -1147,7 +1151,7 @@ function resolveGsdRoots(gsdRoot) {
   return { realRoot, realSkillsRoot };
 }
 
-function discoverSkillCatalogAt(realSkillsRoot) {
+function discoverSkillsAt(realSkillsRoot) {
   let entries;
   try {
     entries = readDirectoryEntriesBounded(realSkillsRoot, SKILL_ENTRY_LIMIT, realSkillsRoot);
@@ -1162,6 +1166,7 @@ function discoverSkillCatalogAt(realSkillsRoot) {
   }
 
   const catalog = [];
+  const hidden = new Map();
   const seen = new Set();
   for (const entry of entries) {
     const skillFile = path.join(realSkillsRoot, entry.name, 'SKILL.md');
@@ -1183,12 +1188,18 @@ function discoverSkillCatalogAt(realSkillsRoot) {
     if (metadata.name !== entry.name) {
       throw new Error(`${realSkillFile}: name ${metadata.name} must match directory ${entry.name}`);
     }
-    if (!metadata.hidden) {
+    if (metadata.hidden) {
+      hidden.set(metadata.name, realSkillFile);
+    } else {
       catalog.push({ name: metadata.name, description: metadata.description, skillPath: realSkillFile });
     }
   }
   if (catalog.length === 0) throw new Error(`${realSkillsRoot}: visible GSD skill catalog is empty`);
-  return catalog;
+  return { catalog, hidden };
+}
+
+function discoverSkillCatalogAt(realSkillsRoot) {
+  return discoverSkillsAt(realSkillsRoot).catalog;
 }
 
 function discoverSkillCatalog(gsdRoot) {
@@ -1209,11 +1220,16 @@ function createBootstrap(gsdRoot) {
   if (masterMetadata.name !== 'gsd' || !masterMetadata.hidden) {
     throw new Error(`${masterPath}: master skill must be named gsd with hide: true`);
   }
-  const catalog = discoverSkillCatalogAt(realSkillsRoot);
+  const { catalog, hidden } = discoverSkillsAt(realSkillsRoot);
+  const ponytailContextPath = hidden.get('gsd-ponytail');
+  if (!ponytailContextPath) {
+    throw new Error(`${path.join(realSkillsRoot, 'gsd-ponytail', 'SKILL.md')}: hidden Ponytail context is required`);
+  }
   const rows = catalog.map((row) => `- ${JSON.stringify(row)}`).join('\n');
   return `<GSD_BOOTSTRAP>
 ${BOOTSTRAP_MARKER}
 GSD_ROOT: ${JSON.stringify(realRoot)}
+PONYTAIL_CONTEXT_PATH: ${JSON.stringify(ponytailContextPath)}
 The hidden gsd master bootstrap below is already loaded. Do not load it again.
 
 ${frontmatterBody(masterContent, masterPath)}

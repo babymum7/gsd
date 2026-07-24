@@ -5,8 +5,8 @@ import nodeFs from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  bindApprovedSources, parseMarkdownPacket, rejectLegacyPreapprovalFiles, sha256,
-  verifyApprovedSources, validateSectionEdges,
+  bindApprovedSources, parseMarkdownPacket, parseQuickFixPlan, rejectLegacyPreapprovalFiles,
+  sha256, verifyApprovedSources, validateSectionEdges,
 } from "./support/markdown-packet.mjs";
 import {
   parseActivationResponse, responseMatchesFixture, validateActivationTarget, validateFixtureSet,
@@ -232,6 +232,73 @@ test("domain-impact packet grammar is mandatory with bound legacy completion", (
     ),
     /fields must be exactly ordered/i,
   );
+});
+
+test("Quick-fix Domain Impact grammar is exact and domain-owned", () => {
+  const quickFixPlan = [
+    "# Quick-fix Plan",
+    "## Feature",
+    "`fix-header`",
+    "## Base",
+    "`main`",
+    "## Domain Impact",
+    "- **Classification:** none",
+    "- **Contexts:** none",
+    "- **Documentation:** none",
+    "- **Broad bootstrap:** not-offered",
+    "- **Evidence:** Header normalization already belongs to the documented request contract.",
+    "## Tasks",
+    "### T1: Correct header behavior",
+    "- **Files:**",
+    "  - `src/header.js` — modify: correct header normalization at the public API",
+    "- **Test:** `node --test test/header.test.js`",
+  ].join("\n");
+
+  const parsed = parseQuickFixPlan({ "plan.md": quickFixPlan });
+  assert.equal(parsed.feature, "fix-header");
+  assert.equal(parsed.tasks.length, 1);
+  assert.deepEqual(parsed.domainImpact, {
+    classification: "none",
+    contexts: [],
+    documentation: "none",
+    broadBootstrap: "not-offered",
+    evidence: "Header normalization already belongs to the documented request contract.",
+  });
+
+  assert.throws(
+    () => parseQuickFixPlan({ "plan.md": quickFixPlan.replace(/## Domain Impact[\s\S]*?(?=## Tasks)/, "") }),
+    /Domain Impact|sections must be exactly ordered/i,
+  );
+  assert.throws(
+    () => parseQuickFixPlan({ "plan.md": quickFixPlan.replace("Contexts:** none", "Contexts:** gsd") }),
+    /classification none requires Contexts and Documentation to be none/i,
+  );
+  assert.throws(
+    () => parseQuickFixPlan({ "plan.md": quickFixPlan.replace("Broad bootstrap:** not-offered", "Broad bootstrap:** selected") }),
+    /Quick-fix.*Broad bootstrap.*not-offered/i,
+  );
+
+  const impactedWithoutShard = quickFixPlan
+    .replace("Classification:** none", "Classification:** change-existing-context")
+    .replace("Contexts:** none", "Contexts:** gsd")
+    .replace("Documentation:** none", "Documentation:** update-existing");
+  assert.throws(
+    () => parseQuickFixPlan({ "plan.md": impactedWithoutShard }),
+    /must own affected domain shard: docs\/domain\/gsd\.md/i,
+  );
+  const impacted = impactedWithoutShard.replace(
+    "- **Test:**",
+    "  - `docs/domain/gsd.md` — modify: align current Quick-fix production semantics\n- **Test:**",
+  );
+  assert.equal(parseQuickFixPlan({ "plan.md": impacted }).domainImpact.classification, "change-existing-context");
+
+  const reference = read("skills/gsd/REFERENCE.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  assert.match(reference, /# Quick-fix Plan[\s\S]{0,240}## Domain Impact[\s\S]{0,360}## Tasks/);
+  assert.match(reference, /Quick-fix always records `Broad bootstrap: not-offered`/);
+  assert.match(verify, /`Broad bootstrap` must always be `not-offered`/);
+  assert.match(verify, /Quick-fix[\s\S]{0,500}exact five-field `Domain Impact`/i);
+  assert.match(verify, /Quick-fix[\s\S]{0,800}domain drift[\s\S]{0,100}(?:blocks|Blocker)/i);
 });
 
 test("planner single-writes structured task file intents", () => {
@@ -1069,6 +1136,17 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
   assert.match(master, /all-`done`, fail closed/);
 });
 
+test("retained v3 migration prose matches explicit-read behavior", () => {
+  const reference = read("skills/gsd/REFERENCE.md");
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+  const domain = read("docs/domain/gsd.md");
+
+  assert.match(reference, /`schema:v1` and `schema:v2`[\s\S]{0,220}active[\s\S]{0,180}terminal[\s\S]{0,100}fail closed/i);
+  assert.match(reference, /`schema:v3` `completed-retained`[\s\S]{0,220}candidate discovery[\s\S]{0,180}unchanged[\s\S]{0,200}explicit `readStateFile`[\s\S]{0,160}migrat/i);
+  assert.match(handoff, /v1\/v2 terminal[\s\S]{0,180}v3 `completed-retained`[\s\S]{0,220}explicit read[\s\S]{0,140}migrat/i);
+  assert.match(domain, /retained `schema:v3`[\s\S]{0,180}candidate discovery[\s\S]{0,180}explicit read/i);
+});
+
 test("master and visible skills declare automatic lazy activation", () => {
   const master = read("skills/gsd/SKILL.md");
   assert.match(master, /^description: "Session bootstrap injected by the GSD OMP extension;/m);
@@ -1099,6 +1177,15 @@ test("master and visible skills declare automatic lazy activation", () => {
 
   assert.match(read("skills/gsd-domain-modeling/SKILL.md"), /## Domain lifecycle[\s\S]*## Markdown contracts/);
   assert.match(read("skills/gsd-codebase-architecture/SKILL.md"), /## Vocabulary[\s\S]*## Domain-aligned architecture[\s\S]*## Seam discipline/);
+});
+
+test("domain model index summarizes the gsd lifecycle responsibility", () => {
+  const index = read("docs/domain/index.md");
+  const purpose = index.match(/^\| gsd \| `gsd\.md` \| (.+) \|$/m)?.[1];
+  assert.ok(purpose, "gsd scope purpose must exist");
+  for (const term of ["delivery lifecycle", "artifact authority", "Domain Impact", "resume", "verification", "milestone ownership"]) {
+    assert.match(purpose, new RegExp(term, "i"));
+  }
 });
 
 test("domain model has exactly one writer", () => {
@@ -1136,6 +1223,18 @@ test("domain impact is enforced across the feature lifecycle", () => {
   assert.match(agents, /production code, schemas, contracts, and tests are authoritative/i);
   assert.match(agents, /No domain impact[\s\S]{0,100}justification/i);
   assert.match(reference, /existing `docs\/domain\/index\.md` suppresses[\s\S]{0,120}broad/i);
+});
+
+test("domain modeling keeps preapproval writes current-only and reads affected shards only", () => {
+  const brainstorm = read("skills/gsd-brainstorming/SKILL.md");
+  const modeler = read("skills/gsd-domain-modeling/SKILL.md");
+  const planner = read("skills/gsd-to-plan/SKILL.md");
+
+  assert.doesNotMatch(modeler, /Write target behavior before approval/i);
+  assert.match(modeler, /Before approval[\s\S]{0,180}return[\s\S]{0,120}exact affected paths[\s\S]{0,180}write no target behavior/i);
+  assert.match(modeler, /unrelated mappings[\s\S]{0,180}metadata[\s\S]{0,180}never read unrelated shard bodies/i);
+  assert.match(brainstorm, /Before approval[\s\S]{0,200}exact affected paths[\s\S]{0,160}writes no future behavior/i);
+  assert.match(planner, /reserved[\s\S]{0,120}domain-documentation paths[\s\S]{0,180}plan owns target behavior/i);
 });
 
 test("domain model satisfies its deterministic Markdown invariants", () => {
@@ -1281,7 +1380,8 @@ test("T2 schema:v4 state.toon contract and skill derivation", () => {
   assert.match(currentStateBlock[0], /phase:draft\|approved\|executing\|paused\|verifying\|repair\|merged-cleanup-pending\|completed-retained/);
   assert.match(currentStateBlock[0], /checkpoint_revision/);
   assert.match(currentStateBlock[0], /cleanup_preference:none\|delete\|retain\|archive-and-delete/);
-  assert.match(reference, /exact valid active production `schema:v1`, `schema:v2`, or `schema:v3`[\s\S]*atomically rewritten to canonical `schema:v4`/);
+  assert.match(reference, /Exact `schema:v1` and `schema:v2` records migrate only when active/);
+  assert.match(reference, /`schema:v3` `completed-retained`[\s\S]{0,240}explicit `readStateFile`[\s\S]{0,160}migrates it to canonical `schema:v4`/);
   assert.match(reference, /Validate `phase` against the fixed schema enum/);
   assert.match(handoff, /Reject an unknown `phase`; preserve an opaque `next_action`/);
   assert.doesNotMatch(reference, /opaque state `phase`|opaque `phase`/);
@@ -1297,7 +1397,8 @@ test("T2 schema:v4 state.toon contract and skill derivation", () => {
   assert.match(handoff, /Write atomic `\.scratch\/<feature>\/state\.toon`/);
   assert.match(handoff, /Active skills are derived from `phase` and `next_action`/);
   assert.match(handoff, /Never serialize a `reload` manifest/);
-  assert.match(handoff, /schema:v1`, `schema:v2`, and `schema:v3`[\s\S]*rewritten to `schema:v4`/);
+  assert.match(handoff, /Exact active v1, v2, and v3 records migrate atomically/);
+  assert.match(handoff, /v1\/v2 terminal records fail closed unchanged/);
   assert.match(planner, /atomically write canonical `schema:v4` `state\.toon`/);
   assert.match(execution, /validated task slice/);
   assert.match(execution, /Do not write task-attempt TOON files/);
@@ -1477,6 +1578,7 @@ test("compaction recovery capsule byte identity and drift protection", async () 
       if (p === scratchDir && opts?.withFileTypes) {
         return [
           ...res,
+
           {
             name: overlongName,
             isDirectory: () => true,
@@ -1537,6 +1639,17 @@ test("AC-1: Ponytail is hidden level-free context", () => {
   assert.match(ponytail, /smallest complete path/i);
   assert.match(ponytail, /enter the normal GSD lifecycle/i);
   assert.doesNotMatch(ponytail, /ponytail_level|Invocation modes|Role:\s*(?:owner|helper)|explicit_level|auto_scope|lite\/full\/ultra/i);
+});
+
+test("Quick-fix owner uses the injected hidden context and deterministic gates", () => {
+  const master = read("skills/gsd/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+
+  assert.match(master, /PONYTAIL_CONTEXT_PATH/);
+  assert.match(master, /session owner[\s\S]{0,220}bounded behavioral fix[\s\S]{0,220}PONYTAIL_CONTEXT_PATH/i);
+  assert.match(master, /PONYTAIL_CONTEXT_PATH[\s\S]{0,300}gsd-tdd[\s\S]{0,240}gsd-verify/i);
+  assert.match(reference, /\| `gsd-verify` \| owner \|[^|\n]*Quick-fix[^|\n]*\|[^|\n]*Quick-fix `plan\.md`[^|\n]*\|/i);
+  assert.match(reference, /Quick-fix[\s\S]{0,300}session owner[\s\S]{0,300}gsd-tdd[\s\S]{0,300}gsd-verify/i);
 });
 
 test("AC-2: Installation documentation distinguishes relocation from in-place edits", () => {

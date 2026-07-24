@@ -65,13 +65,15 @@ A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active 
 | You say | Primary behavior |
 |---|---|
 | “Fix this typo” | Direct Nano edit; no scratch, branch, commit, or GSD skill. |
-| “Fix this small behavioral bug” | Minimal quick-fix lifecycle using hidden Ponytail context; no mode or saved preference. |
+| “Fix this small behavioral bug” | Session-owned Quick-fix with exact Domain Impact, hidden Ponytail context, Fast TDD, domain-drift verification, and no saved Ponytail preference. |
 | “Review this diff” | Standalone read-only review; no merge mechanics. |
 | “Why does X crash?” | Feedback-loop-first diagnosis with `gsd-diagnosing-bugs`. |
 | “Design the public interface for X” | Named-seam mode in `gsd-codebase-architecture`. |
 | “Audit the architecture” | Scoped audit mode in `gsd-codebase-architecture`. |
 | “Pause and save progress” | Validated `state.toon` checkpoint through `gsd-handoff`. |
 | “Continue the active feature” | Validated resume through `gsd-handoff`. |
+
+For that Quick-fix route, the current session owner reads the exact hidden context path injected by the extension, writes the canonical Quick-fix plan, runs `gsd-tdd`, and hands the unchanged green WIP to `gsd-verify`. Ponytail remains absent from the visible catalog and runtime state.
 
 Missing consumed artifacts do not trigger improvisation. The selected skill returns control to automatic selection or the recorded active owner with an actionable stop or transition.
 

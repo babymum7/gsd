@@ -989,6 +989,7 @@ test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
     const root = makeRoot();
     try {
       writeSkill(root, "gsd", "Hidden bootstrap", "# Hidden Bootstrap\nAlready loaded.", "hide: true\n");
+      writeSkill(root, "gsd-ponytail", "Hidden bounded context", "# Ponytail\nContext only.", "hide: true\n");
       writeSkill(root, "gsd-tdd", "TDD helper", "# Test-Driven Development\nFull TDD body.");
       writeSkill(root, "gsd-diagnosing-bugs", "Bug diagnosis", "# Diagnosing Bugs\nFull diagnosis body.");
 
@@ -996,6 +997,7 @@ test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
       assert.deepEqual(catalog.map(({ name }) => name), ["gsd-diagnosing-bugs", "gsd-tdd"]);
       assert.ok(catalog.every(({ skillPath }) => isAbsolute(skillPath)));
       assert.ok(catalog.every(({ skillPath }) => realpathSync(skillPath).startsWith(realpathSync(join(root, "skills")))));
+      assert.equal(catalog.some(({ name }) => name === "gsd-ponytail"), false);
 
       const bootstrap = createBootstrap(root);
       assert.match(bootstrap, /^<GSD_BOOTSTRAP>\ngsd:session-bootstrap:v2\n/);
@@ -1003,6 +1005,10 @@ test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
       assert.match(bootstrap, /"name":"gsd-diagnosing-bugs"/);
       assert.ok(bootstrap.indexOf('"name":"gsd-diagnosing-bugs"') < bootstrap.indexOf('"name":"gsd-tdd"'));
       assert.doesNotMatch(bootstrap, /# Diagnosing Bugs|# Test-Driven Development/);
+      const ponytailPath = realpathSync(join(root, "skills", "gsd-ponytail", "SKILL.md"));
+      assert.equal(bootstrap.includes(`PONYTAIL_CONTEXT_PATH: ${JSON.stringify(ponytailPath)}`), true);
+      assert.doesNotMatch(bootstrap, /"name":"gsd-ponytail"/);
+      assert.doesNotMatch(bootstrap, /# Ponytail|Context only\./);
       assert.match(bootstrap, /<\/GSD_BOOTSTRAP>$/);
       assert.equal(messageContainsBootstrap({ role: "user", content: bootstrap, timestamp: 1 }), true);
       assert.equal(messageContainsBootstrap({ role: "user", content: "ordinary prompt", timestamp: 1 }), false);
@@ -1030,6 +1036,24 @@ test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
       writeFileSync(outside, '---\nname: gsd-beta\ndescription: "Outside"\n---\n');
       symlinkSync(outside, join(root, "skills", "gsd-beta", "SKILL.md"));
       assert.throws(() => discoverSkillCatalog(root), /regular SKILL\.md|outside .*skills|symlink rejected/);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  await t.test("requires Ponytail to remain hidden before injecting its context path", () => {
+    const root = makeRoot();
+    try {
+      writeSkill(root, "gsd", "Hidden bootstrap", "# Bootstrap", "hide: true\n");
+      writeSkill(root, "gsd-alpha", "Alpha", "# Alpha");
+      assert.throws(() => createBootstrap(root), /hidden Ponytail context is required/);
+
+      writeSkill(root, "gsd-ponytail", "Ponytail context", "# Ponytail");
+      assert.throws(() => createBootstrap(root), /hidden Ponytail context is required/);
+
+      writeSkill(root, "gsd-ponytail", "Ponytail context", "# Ponytail", "hide: true\n");
+      const expected = realpathSync(join(root, "skills", "gsd-ponytail", "SKILL.md"));
+      assert.equal(createBootstrap(root).includes(`PONYTAIL_CONTEXT_PATH: ${JSON.stringify(expected)}`), true);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -1274,6 +1298,22 @@ test("state.toon lifecycle checkpoint contract", async () => {
     assert.equal(written.feature, "demo-feature");
     assert.equal(readFileSync(statePath, "utf8"), serializeState(baseFields));
     assert.deepEqual(readStateFile(statePath), validateState(baseFields));
+
+    const canonicalBytes = Buffer.from(serializeState(baseFields), "utf8");
+    const crlfBytes = Buffer.from(serializeState(baseFields).replaceAll("\n", "\r\n"), "utf8");
+    assert.throws(() => parseState(crlfBytes.toString("utf8")), /LF|carriage return/i);
+    writeFileSync(statePath, crlfBytes);
+    assert.throws(() => readStateFile(statePath), /LF|carriage return/i);
+    assert.deepEqual(readFileSync(statePath), crlfBytes, "CRLF state bytes must remain unchanged");
+
+    const invalidUtf8Bytes = Buffer.from(canonicalBytes);
+    const nextActionOffset = invalidUtf8Bytes.indexOf(Buffer.from("start/continue task"));
+    assert.notEqual(nextActionOffset, -1);
+    invalidUtf8Bytes[nextActionOffset] = 0xff;
+    writeFileSync(statePath, invalidUtf8Bytes);
+    assert.throws(() => readStateFile(statePath), /UTF-8|decode|encoded data/i);
+    assert.deepEqual(readFileSync(statePath), invalidUtf8Bytes, "invalid UTF-8 state bytes must remain unchanged");
+    writeStateAtomic(featureDir, baseFields);
 
     // A predictable pre-existing temp symlink must never be followed or removed.
     const collisionFeature = "collision-probe";
