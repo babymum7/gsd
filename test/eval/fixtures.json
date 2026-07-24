@@ -136,14 +136,6 @@
     "expectedPrimarySkill": "gsd-domain-modeling"
   },
   {
-    "id": "lavish-report",
-    "state": "clean repo; no .scratch/ directory",
-    "prompt": "render this architecture comparison as a lavish visual report",
-    "decision": "ordinary-routing",
-    "expectedAction": "direct",
-    "expectedPrimarySkill": null
-  },
-  {
     "id": "milestone-ledger-recovery",
     "state": "fresh clone; .scratch/ is absent; origin/wip/oauth-rollout is absent; docs/gsd/oauth-rollout/milestones.md has one first pending row and matching base",
     "prompt": "continue the oauth-rollout milestone",

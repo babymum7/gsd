@@ -58,12 +58,6 @@ TOON remains runtime-only: the single atomic `state.toon` snapshot. Runtime reco
 
 Every observable task loads `gsd-tdd` and uses a Fast TDD Check for RED before implementation, GREEN after implementation, and refactor after green. Browser, GUI, external network, long-lived server, large fixture, and material-cost checks never run in the implementation loop. The current top-level session owner implements and repairs each ordered task inline and sequentially; GSD dispatches no child implementation, repair, diagnosis, architecture, or verification work. Task boundaries use focused green evidence kept only in reporting/transcripts. Planning adds the smallest real fast public seam when none exists; observable behavior never uses `none`.
 
-### Planning Prototype Session
-
-A Planning Prototype Session is an optional pre-approval Lavish session built from a completed draft plan for any feature type. After every complete draft plan, the single post-plan action surface offers approve and execute, `Build prototype with Lavish`, revise, and pause/save together. Choosing `Build prototype with Lavish` is launch consent and causes no second confirmation. Lavish annotations return to `gsd-to-plan`, may revise and revalidate the draft, and may promote selected stable assets under `.scratch/<feature>/prototype/` with relative links from plan Context or Decisions. Prototype sessions and artifacts never become implementation evidence or terminal acceptance. After approval, a prototype request is Spec escalation, not an execution or terminal gate. Separately, Terminal Visual Review is an optional post-review pre-E2E inspection of actual completed implementation evidence; it is not a planning prototype and never uses mocks or draft artifacts as acceptance evidence.
-
-Promoted prototype references used by implementation must be bound to the applicable task `Artifacts` block. They guide layout, states, tokens, responsiveness, API shape, CLI flow, or other named fidelity requirements, but never replace plan scope authority or current-commit Terminal Visual Review evidence. The task slice opens every bound reference before source edits.
-
 ### Packet grammar
 
 All fields use exact headings, exact field labels, canonical field order, UTF-8, LF, and no blank leading/trailing lines. Reject missing, duplicate, malformed, unknown, empty, vague, or reordered required fields. Never normalize, infer, or repair source values.
@@ -105,7 +99,6 @@ null
 - **Satisfies:** AC-1
 - **Files:**
   - `<path>` — <create|modify|delete>: <concise contract intent>
-- **Artifacts:** none
 - **Test:** `<focused command or none>`
 - **Status:** pending
 ```
@@ -120,7 +113,7 @@ Decisions is exact `None.` or sequential D blocks:
 
 An AC ID is a positive sequential integer. Only `active` criteria execute; a replacement receives a new ID while the former criterion is `superseded`. Outcome, Action, and Expected must independently name a concrete behavior, operation, and observable result. `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid. Every active AC has exactly one matching Interfaces row. A lower seam is valid only with a concrete reason that the higher production boundary is absent or cannot deterministically isolate the criterion. Task IDs are positive sequential integers in heading order. Every active AC appears exactly once across non-superseded task `Satisfies` fields. Every task owns at least one exact repository-relative path and one concrete focused check. Observable behavior always receives a fast public seam; never use `none` for observable behavior.
 
-Canonical task parsing uses Expand → Migrate → Contract. The parser is dual-read for structured blocks and exact already-approved legacy path-only blocks, while `gsd-to-plan` is single-write and newly approves only structured blocks. Remove the legacy reader only after no active bound legacy plan remains. Structured `Files` entries require a unique safe repository-relative path, one `create|modify|delete` operation, and concise non-vague intent. `Artifacts` is exact `none` or unique exact paths under `.scratch/<feature>/prototype/`, each with a non-vague reference role and concrete fidelity requirements; approval validates every reference exists and is readable.
+Canonical task parsing uses Expand → Migrate → Contract. The parser is dual-read for structured blocks and exact already-approved legacy path-only blocks, while `gsd-to-plan` is single-write and newly approves only structured blocks. Remove the legacy reader only after no active bound legacy plan remains. Structured `Files` entries require a unique safe repository-relative path, one `create|modify|delete` operation, and concise non-vague intent.
 
 ### Quick-fix plan exception
 
@@ -190,7 +183,7 @@ cleanup_preference:none|delete|retain|archive-and-delete
 checkpoint_revision:<positive int>
 ```
 
-Phase-inapplicable values use canonical `none`. Current `schema:v3` parsing rejects blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, and obsolete model, agent, or review-progress rows. Numbered handoffs, task attempts, reload manifests, and result markers have no authority. On resume only, an exact valid active production `schema:v1` or `schema:v2` record is fully validated then atomically rewritten to canonical `schema:v3`, with obsolete rows discarded and `checkpoint_revision` incremented. Malformed, partial, reordered, unknown, non-concrete, or terminal legacy records fail closed unchanged; partial old terminal evidence is discarded and deterministic conformance reruns.
+Phase-inapplicable values use canonical `none`. Current `schema:v3` parsing rejects blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, and obsolete model or agent rows. Numbered handoffs, task attempts, reload manifests, and result markers have no authority. On resume only, an exact valid active production `schema:v1` or `schema:v2` record is fully validated then atomically rewritten to canonical `schema:v3`, with obsolete rows discarded and `checkpoint_revision` incremented. Malformed, partial, reordered, unknown, non-concrete, or terminal legacy records fail closed unchanged; partial old terminal evidence is discarded and deterministic conformance reruns.
 
 ### Atomic write
 
@@ -205,10 +198,9 @@ Persist only:
 - green task commit (`last_green_task` / `last_green_commit`)
 - pause or automatic context pressure (`phase=paused`)
 - terminal entry, repair, or current-commit conformance (`phase=verifying|repair`)
-- Terminal Visual Review capture sequence, repair confirmation/cutoff/digest, and visual acceptance encoded only through `phase` plus opaque `next_action`
 - merged cleanup (`phase=merged-cleanup-pending|completed-retained`)
 
-Do not write active-task, numbered-history, reload-manifest, or persistent identity checkpoints. The session owner rebuilds complete task or terminal slices from canonical plan/state/Git and required prototype references. Structured slices preserve ordered file paths, operations, intents, applicable AC/Decision constraints, artifact paths, roles, and fidelity requirements; every reference is validated and opened before edits. Exact already-approved legacy task blocks remain readable only through their bound feature completion.
+Do not write active-task, numbered-history, reload-manifest, or persistent identity checkpoints. The session owner rebuilds complete task or terminal slices from canonical plan/state/Git. Structured slices preserve ordered file paths, operations, intents, and applicable AC/Decision constraints. Exact already-approved legacy task blocks remain readable only through their bound feature completion.
 
 ### Plan digest checks
 
@@ -219,7 +211,7 @@ Calculate and bind SHA-256 at approval, then compare it only at execution resume
 Active helpers are derived, never stored as a reload manifest:
 
 - `start/continue task`: `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`; implementation and repair remain session-owner inline.
-- `enter terminal verification/repair`: `gsd-verify` and `gsd-handoff`; opaque `next_action` resumes deterministic conformance, optional capture-only direct Lavish CLI sessions, repair confirmation, visual acceptance, or Deferred Slow E2E without new state keys.
+- `enter terminal verification/repair`: `gsd-verify` and `gsd-handoff`; opaque `next_action` resumes deterministic conformance or Deferred Slow E2E without new state keys.
 - `Discussion/Spec-escalation`: `gsd-handoff`.
 - Conditional: `gsd-ponytail` for `ponytail_level=lite|full|ultra`; inline codebase-design/domain-modeling complete before checkpoint.
 
@@ -300,23 +292,17 @@ Apply this matrix only before non-direct lifecycle work. Strictly validate every
 
 ## Post-approval pipeline contract
 
-After approval, the top-level owner runs sequential tasks with Fast TDD RED→GREEN→refactor, commits green checkpoints, and dispatches no child lifecycle work. `Tn+1` requires committed green `Tn`. Mutations and Deferred Slow E2E never overlap; direct Lavish transport may remain open while the main agent stays interactive.
+After approval, the top-level owner runs sequential tasks with Fast TDD RED→GREEN→refactor, commits green checkpoints, and dispatches no child lifecycle work. `Tn+1` requires committed green `Tn`. Mutations and Deferred Slow E2E never overlap.
 
 After green checks, `gsd-verify` proves deterministic cumulative conformance on the unchanged commit: exact binding, one task/interface mapping per active AC, owned paths, plan-ordered diffs, decisions/invariants/non-goals, and focused evidence. Only malformed binding, ownership/coverage mismatch, explicit contract contradiction, unresolved change, or a red deterministic check blocks.
 
-Conformance precedes Terminal Visual Review. Planning prototypes use `bun "$GSD_ROOT/tools/lavish/src/cli.ts" prototype "$HTML_FILE"`; terminal live-app review uses `bun "$GSD_ROOT/tools/lavish/src/cli.ts" app "$URL"`. Retain the returned `SESSION_ID` and exact initial cursors. Before reporting that feedback is monitored, start `bun "$GSD_ROOT/tools/lavish/src/cli.ts" poll "$SESSION_ID" --after 0 --after-reply 0` as a completion-aware foreground wait or harness-native tracked background job; a blind detached process is not evidence of an attached wake path. Keep the main session interactive while the tracked poll waits.
-
-Queue changes remain private and do not complete the poll. Send now returns the ordered committed batch with attachment metadata and next cursors. After handling it, publish the browser-visible result and reattach atomically with `bun "$GSD_ROOT/tools/lavish/src/cli.ts" poll "$SESSION_ID" --after "$CURSOR" --after-reply "$REPLY_CURSOR" --agent-reply "$AGENT_REPLY"`. Never claim continued monitoring between poll completion and that re-entry. `feedback "$SESSION_ID"` is complete audit history, not the wake path. Keep the typed session open across feedback rounds and end the session explicitly.
-
-Feedback and image attachments are machine-local `.lavish/` evidence and never scope, acceptance, interface, invariant, design, or merge authority.
-
-When an attached poll returns pending feedback, summarize it and offer `Start fixing`/`Continue feedback`; `Start fixing` binds the pending cursor and digest. The session owner repairs only the frozen confirmed in-scope set, reruns Fast TDD/conformance, and refreshes visual evidence. `Continue feedback` reattaches polling without source mutation. Zero pending plus conformance offers `Accept visual result`/`Continue feedback`, without `Start fixing`. Deferred Slow E2E runs only after current conformance, no pending feedback, and explicit visual acceptance when selected. Source changes invalidate conformance and acceptance. Green unchanged bytes then enter one-squash merge and cleanup.
+Deferred Slow E2E runs only after current-commit conformance. Source changes invalidate conformance. Green unchanged bytes then enter one-squash merge and cleanup.
 
 ## Git/base/WIP/scratch mechanics
 
 For branch-backed writes, first require a Git work tree. `plan.md` records the base before `wip/<feature>` is created. The feature branch is `wip/<feature>` and never self-references as base. Keep `.scratch/` machine-local and git-ignored; portable sync, where intentionally requested, is an explicit pathspec operation and remains runtime-only. Review diffs exclude scratch. Before squash, verify base, WIP, upstream, and reviewed non-scratch tree against the recorded runtime binding; any mismatch blocks merge. Nano and read-only work are completely git-free.
 
-Cross-machine sync carries the committed WIP branch and exact `.scratch/<feature>/` packet (`plan.md`, `state.toon`, and promoted prototype references). `.lavish/sessions/` and `.lavish/profiles/` are machine-local runtime evidence and are never included in portable handoff. Dirty non-scratch paths still require an explicit named snapshot decision. On resume, the session owner rehydrates from the bound schema-v3 state, exact plan bytes/hash, base/WIP, last green task/commit, current tree, and required artifacts. Portable sync never sweeps unrelated dirty paths or treats prototype artifacts as authority. When a direct Lavish session is required and its local directory is missing, fail closed and return to the source machine.
+Cross-machine sync carries the committed WIP branch and exact `.scratch/<feature>/` packet (`plan.md` and `state.toon`). Dirty non-scratch paths still require an explicit named snapshot decision. On resume, the session owner rehydrates from the bound schema-v3 state, exact plan bytes/hash, base/WIP, last green task/commit, current tree, and required artifacts. Portable sync never sweeps unrelated dirty paths.
 
 ## Feature cleanup
 
@@ -328,8 +314,7 @@ Before final terminal review/squash, the user may explicitly select retain or ar
 
 - **delete (default):** after the green squash, remove `.scratch/<feature>/`.
 - **retain:** keep `.scratch/<feature>/` and set `phase=completed-retained` with `next_action=none`.
-- **archive-and-delete:** materialize the feature archive under `docs/gsd/<feature>/archive/` before final terminal conformance/squash, include those files in the same reviewed squash, then remove `.scratch/<feature>/` after publication; never create a post-squash or post-merge documentation-only commit. Archive promoted prototype references needed by relative links when selected. The canonical `docs/gsd/<feature>/archive/plan.md` and `docs/gsd/<feature>/archive/implementation.md` destinations are terminal-cleanup-owned lifecycle paths included in changed-path ownership proof; every other changed path must be task-owned.
-Final green cleanup ends the recorded Lavish session and removes only its exact `.lavish/sessions/<session-id>/` directory after `lstat` inspection. Missing session data is a no-op; symlinks, non-directories, another session, or the persistent project profile are never followed or deleted.
+- **archive-and-delete:** materialize the feature archive under `docs/gsd/<feature>/archive/` before final terminal conformance/squash, include those files in the same reviewed squash, then remove `.scratch/<feature>/` after publication; never create a post-squash or post-merge documentation-only commit. The canonical `docs/gsd/<feature>/archive/plan.md` and `docs/gsd/<feature>/archive/implementation.md` destinations are terminal-cleanup-owned lifecycle paths included in changed-path ownership proof; every other changed path must be task-owned.
 
 ### Feature archive contract
 
@@ -338,16 +323,13 @@ Archive output is non-authoritative historical reference. During the active cycl
 When archive-and-delete is selected:
 1. Copy the exact approved `.scratch/<feature>/plan.md` bytes to `docs/gsd/<feature>/archive/plan.md`.
 2. Write `docs/gsd/<feature>/archive/implementation.md` summarizing the feature outcome, changed paths, acceptance outcomes, and verification evidence.
-3. Do not copy legacy handoffs, immutable attempts, `result.toon`, or other rejected runtime history. Promoted prototype references may be archived only when needed by relative links.
+3. Do not copy legacy handoffs, immutable attempts, `result.toon`, or other rejected runtime history.
 4. If either archive destination already exists, fail closed and preserve prior content; never overwrite.
 5. Materialize and review the archive before squash so it lands in the same green one-feature/one-squash commit with the implementation; never create a second documentation commit after squash.
 6. After publication, delete `.scratch/<feature>/` as with ordinary delete disposition.
 
 Existing one-squash branch cleanup and scratch cleanup contracts remain intact.
 
-## Lavish opt-in gate taxonomy
-
-Lavish is optional and never launches automatically. Offer or launch only when: (1) a substantial completed reviewable deliverable exists, the flow is not mid-conversation, and browser annotation adds real value; (2) the user chooses `Build prototype with Lavish` on the post-plan surface, which is launch consent; or (3) after current-commit deterministic conformance, Terminal Visual Review is offered for every UI/UX plan and eligible substantial non-UI work, and the user selects `Visualize completed work with Lavish`. Ordinary post-approval task progress has no visual offer. Planning prototypes never satisfy terminal evidence.
 
 ## Contextual disclosure templates
 
@@ -356,9 +338,8 @@ Pre-approval post-plan action surface:
 ```text
 Next steps (reply with number or text):
 1. Approve and execute
-2. Build prototype with Lavish
-3. Revise the plan
-4. Pause & save progress
+2. Revise the plan
+3. Pause & save progress
 ```
 
 Directly selected skills use natural-language actions:

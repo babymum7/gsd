@@ -1264,7 +1264,6 @@ test("state.toon lifecycle checkpoint contract", async () => {
 
   // Legacy runtime artifacts never parse as state authority
   assert.throws(() => parseState("schema:v1\nmode:execution\nphase:task-active\n"), /legacy|unsupported|phase|unknown/i);
-  assert.throws(() => parseState("schema:v1\nmanual_ui_review:on\n"), /legacy|unknown|manual_ui_review/i);
 
   // Atomic write + read-back validation
   const tempDir = mkdtempSync(join(tmpdir(), "gsd-state-"));

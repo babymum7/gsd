@@ -32,23 +32,23 @@ Write atomic `.scratch/<feature>/state.toon` per [../gsd/REFERENCE.md](../gsd/RE
 
 Active skills are derived from `phase` and `next_action` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Skill derivation from phase and next_action. Never serialize a `reload` manifest. Master (`gsd`) is present from bootstrap.
 
-Scratch is machine-local by default. Portable resume follows [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics and never makes scratch or prototype references authoritative.
+Scratch is machine-local by default. Portable resume follows [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics and never makes scratch authoritative.
 
 ## Runtime preferences
 
-Known preference fields on `state.toon` are unique scalars: `autosync` accepts only `none|on|off`; `ponytail_level` accepts only `none|lite|full|ultra`; `cleanup_preference` accepts only `none|delete|retain|archive-and-delete`. Omission uses canonical `none` (autosync unset, Ponytail inactive, cleanup defaults to delete after green merge). Reject legacy settings tables and visual-specific state rows. Inline codebase-design/domain-modeling complete before checkpoint; plan outputs are not resumable execution modes. Malformed, duplicate, or invalid known values fail closed.
+Known preference fields on `state.toon` are unique scalars: `autosync` accepts only `none|on|off`; `ponytail_level` accepts only `none|lite|full|ultra`; `cleanup_preference` accepts only `none|delete|retain|archive-and-delete`. Omission uses canonical `none` (autosync unset, Ponytail inactive, cleanup defaults to delete after green merge). Reject legacy settings tables. Inline codebase-design/domain-modeling complete before checkpoint; plan outputs are not resumable execution modes. Malformed, duplicate, or invalid known values fail closed.
 
 ## Portable and autosync
 
 At the first user-requested pause with a remote and `autosync=none`, ask once: `no`→`off`, `always`→`on`, one-time `yes` leaves `none`. `on` syncs only at user-requested pause/portable handoff or a clean completed-task boundary; dirty and context-pressure checkpoints stay local.
 
-Cross-machine handoff may snapshot only explicitly approved dirty non-scratch paths, then sync committed WIP plus exact feature `plan.md`, `state.toon`, and promoted prototype refs to `origin/wip/<feature>`. Never sweep unrelated paths. `.lavish/sessions/` and `.lavish/profiles/` are machine-local runtime data and are never included. Tracked browser session handles are runtime-only, never serialized in `state.toon`, and non-portable. Without a remote, cross-machine resume is unavailable.
+Cross-machine handoff may snapshot only explicitly approved dirty non-scratch paths, then sync committed WIP plus exact feature `plan.md` and `state.toon` to `origin/wip/<feature>`. Never sweep unrelated paths. Without a remote, cross-machine resume is unavailable.
 
 ## Resume
 
 Without a supplied path, discover active candidates via [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Candidate discovery; numbered history and result markers have no authority. Load master once, validate state, and execute `next_action` without circular re-entry, capsule execution, or duplicated action. Reject an unknown `phase`; preserve an opaque `next_action` only when structurally valid. Malformed state fails closed; invalid, missing, or changed plan is Spec escalation. Never reconstruct from dirty files, plan status, conversation, or legacy pre-approval TOON.
 
-A valid Execution resume verifies `schema:v3`, plan hash/path, base/WIP, last green task/commit, current tree, and every required plan reference, then rebuilds the active slice. Opaque `next_action` may encode a direct Lavish session ID, delivery cursor, reply cursor, tracked-poll completion/re-entry status, repair confirmation/cutoff/digest, or current-commit visual acceptance. Resume validates the local session directory, both cursors, and whether polling must be reattached before repair, acceptance, E2E, or merge; a missing machine-local session during a feedback stage fails closed. These stages add no state keys.
+A valid Execution resume verifies `schema:v3`, plan hash/path, base/WIP, last green task/commit, and current tree, then rebuilds the active slice. Resume validates whether verification must be continued before repair, E2E, or merge. These stages add no state keys.
 
 For `Milestone ledger recovery`, use only the ledger selected by automatic active-state detection. Report the first pending milestone slug and goal, then load `gsd-brainstorming` for reconstruction. Do not create scratch, mutate ledger bytes, detail later rows, mark completion, start execution, or authorize merge.
 

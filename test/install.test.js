@@ -29,38 +29,27 @@ function makeHomeSandbox() {
   return { temporary, home, fakeBin };
 }
 
-function populateInstallRepo(repo, { withDist = false } = {}) {
-  const lavish = join(repo, "tools", "lavish");
-  mkdirSync(join(lavish, "src"), { recursive: true });
+function populateInstallRepo(repo) {
+  mkdirSync(repo, { recursive: true });
   copyFileSync(join(ROOT, "install.sh"), join(repo, "install.sh"));
   mkdirSync(join(repo, "extensions"), { recursive: true });
   copyFileSync(join(ROOT, "extensions", "gsd-context.js"), join(repo, "extensions", "gsd-context.js"));
   copyFileSync(join(ROOT, "VERSION"), join(repo, "VERSION"));
-  writeFileSync(
-    join(lavish, "package.json"),
-    '{\"name\":\"@gsd/lavish-fixture\",\"scripts\":{\"build\":\"bun build src/cli.ts --target bun --outdir dist\"}}\\n',
-  );
-  writeFileSync(join(lavish, "src", "cli.ts"), 'console.log(\"fixture\");\\n');
-  if (withDist) {
-    mkdirSync(join(lavish, "dist"), { recursive: true });
-    writeExecutable(join(lavish, "dist", "cli.js"), "#!/usr/bin/env bun\\n");
-  }
-  return lavish;
 }
 
 /**
  * Clone a minimal install-capable repo tree into a temp dir so install.sh's
  * REPO resolves to the fixture (not the live checkout).
  */
-function makeInstallFixture({ withDist = false, repoName = "repo" } = {}) {
+function makeInstallFixture({ repoName = "repo" } = {}) {
   const temporary = mkdtempSync(join(tmpdir(), "gsd-install-repo-"));
   const home = join(temporary, "home");
   const fakeBin = join(temporary, "bin");
   const repo = join(temporary, repoName);
   mkdirSync(home);
   mkdirSync(fakeBin);
-  const lavish = populateInstallRepo(repo, { withDist });
-  return { temporary, home, fakeBin, repo, lavish };
+  populateInstallRepo(repo);
+  return { temporary, home, fakeBin, repo };
 }
 
 function runInstallerAt(repo, home, fakeBin, extraEnv = {}) {
@@ -80,19 +69,6 @@ function runInstaller(home, fakeBin) {
   return runInstallerAt(ROOT, home, fakeBin);
 }
 
-function installFakeBun(fakeBin, logPath, { exitCode = 0 } = {}) {
-  writeExecutable(
-    join(fakeBin, "bun"),
-    `#!/bin/sh
-printf '%s\\n' "$*" >> ${JSON.stringify(logPath)}
-if [ ${exitCode} -ne 0 ]; then exit ${exitCode}; fi
-mkdir -p dist
-printf '#!/usr/bin/env bun\\n' > dist/cli.js
-chmod 755 dist/cli.js
-exit 0
-`,
-  );
-}
 
 function legacyManagedCommand(root, version = "v1") {
   const escaped = root.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -128,7 +104,6 @@ test("installer publishes only the extension and is idempotent", () => {
     assert.match(first.stdout, /Source checkout:/);
     assert.match(first.stdout, /OMP extension symlink:/);
     assert.doesNotMatch(first.stdout, /executor agent|reviewer agent/i);
-    assert.match(first.stdout, /Lavish:/);
     assert.match(first.stdout, /start a new OMP session/);
 
     const second = runInstaller(home, fakeBin);
@@ -415,123 +390,19 @@ test("portable mktemp templates end in X", () => {
   assert.doesNotMatch(installer, /mktemp [^\n]*XXXXXX\.[A-Za-z]/);
 });
 
-test("installer builds and registers the tracked Bun Lavish CLI idempotently", () => {
-  const { temporary, home, fakeBin, repo, lavish } = makeInstallFixture();
-  const bunLog = join(temporary, "bun.log");
-  const gitLog = join(temporary, "git.log");
-  installFakeBun(fakeBin, bunLog);
-  writeExecutable(
-    join(fakeBin, "git"),
-    `#!/bin/sh
-printf '%s\n' "$*" >> ${JSON.stringify(gitLog)}
-exit 1
-`,
-  );
-
-  try {
-    const first = runInstallerAt(repo, home, fakeBin);
-    assert.equal(first.status, 0, first.stderr + first.stdout);
-    const extensionTarget = join(home, ".omp", "agent", "extensions", "gsd-context.js");
-    const lavishTarget = join(home, ".omp", "agent", "bin", "lavish");
-    assert.ok(lstatSync(extensionTarget).isSymbolicLink());
-    assert.ok(lstatSync(lavishTarget).isSymbolicLink());
-    assert.equal(readlinkSync(lavishTarget), join(lavish, "dist", "cli.js"));
-    assert.equal(lstatSync(join(lavish, "dist", "cli.js")).isFile(), true);
-    assert.match(readFileSync(bunLog, "utf8"), /run build/);
-    assert.equal(existsSync(gitLog), false, "installer must not invoke git for internal Lavish");
-    assert.match(first.stdout, /building internal lavish CLI with Bun/);
-    assert.match(first.stdout, /Lavish: ready at/);
-
-    const second = runInstallerAt(repo, home, fakeBin);
-    assert.equal(second.status, 0, second.stderr + second.stdout);
-    assert.equal(readlinkSync(lavishTarget), join(lavish, "dist", "cli.js"));
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test("published Lavish bundle respawns its built daemon entrypoint", () => {
-  const temporary = mkdtempSync(join(tmpdir(), "gsd-lavish-bundle-"));
-  const dist = join(temporary, "dist");
-  const project = join(temporary, "project");
-  mkdirSync(project);
-  try {
-    const build = spawnSync(
-      "bun",
-      [
-        "build",
-        join(ROOT, "tools", "lavish", "src", "cli.ts"),
-        "--target",
-        "bun",
-        "--outdir",
-        dist,
-      ],
-      { encoding: "utf8" },
-    );
-    assert.equal(build.status, 0, build.stderr + build.stdout);
-    const bundledCli = join(dist, "cli.js");
-    const run = spawnSync("bun", [bundledCli, "app", "http://fixture.test"], {
-      cwd: project,
-      encoding: "utf8",
-      env: {
-        ...process.env,
-        LAVISH_PROJECT_ROOT: project,
-        LAVISH_BROWSER: join(temporary, "missing-browser"),
-        LAVISH_DAEMON_TIMEOUT_MS: "1000",
-        XDG_STATE_HOME: join(temporary, "state"),
-      },
-    });
-    assert.equal(run.status, 1, run.stderr + run.stdout);
-    assert.match(run.stdout, /configured browser does not exist/);
-    assert.doesNotMatch(run.stdout, /timed out starting|dist\/cli\.ts/);
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test("installer never refreshes an external Lavish repository", () => {
-  const installer = readFileSync(join(ROOT, "install.sh"), "utf8");
-  assert.doesNotMatch(installer, /submodule update|lavish-axi|pnpm|cli\.mjs/i);
-  assert.match(installer, /tools\/lavish/);
-  assert.match(installer, /bun run build/);
-  assert.equal(existsSync(join(ROOT, ".gitmodules")), false);
-});
-
-test("installer preserves extension registration when the optional Lavish build fails", () => {
-  const { temporary, home, fakeBin, repo } = makeInstallFixture();
-  installFakeBun(fakeBin, join(temporary, "bun.log"), { exitCode: 1 });
-  writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
-  try {
-    const result = runInstallerAt(repo, home, fakeBin);
-    assert.equal(result.status, 0, result.stderr + result.stdout);
-    const extensionTarget = join(home, ".omp", "agent", "extensions", "gsd-context.js");
-    const lavishTarget = join(home, ".omp", "agent", "bin", "lavish");
-    assert.ok(lstatSync(extensionTarget).isSymbolicLink());
-    assertPathAbsent(lavishTarget);
-    assert.match(result.stdout + result.stderr, /internal lavish build failed|lavish unavailable/i);
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test("README documents the internal direct Lavish tool", () => {
+test("README documents the direct extension installer", () => {
   const readme = readFileSync(join(ROOT, "README.md"), "utf8");
   assert.match(readme, /bash install\.sh/);
-  assert.match(readme, /tracked Bun (?:tool|source) in `tools\/lavish`/);
-  assert.match(readme, /bun tools\/lavish\/src\/cli\.ts prototype/);
-  assert.match(readme, /bun tools\/lavish\/src\/cli\.ts app/);
-  assert.match(readme, /poll <session-id>/);
-  assert.match(readme, /Interact passes native events through/);
-  assert.match(readme, /current-viewport, and dragged-region images/);
-  assert.match(readme, /Queue drafts remain private[\s\S]*Send now/);
-  assert.doesNotMatch(readme, /open --url|open --file/);
-  assert.doesNotMatch(readme, /tools\/lavish-axi|git submodule|pnpm|\.gsd-lavish/);
   assert.match(readme, /~|\.omp\/agent\/extensions\/gsd-context\.js/);
   assert.match(readme, /extensions\/gsd-context\.js/);
   assert.match(readme, /no wrapper/i);
   assert.match(readme, /collision/i);
   assert.match(readme, /start a new OMP session/i);
 });
+
+
+
+
 
 test("T4: extension-only fresh install, repeat, and stale relocation", () => {
   const { temporary, home, fakeBin, repo } = makeInstallFixture();

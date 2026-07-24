@@ -15,10 +15,6 @@ OMP_TARGET="${OMP_COMMANDS_DIR}/gsd.md"
 OMP_EXTENSIONS_DIR="${OMP_AGENT_DIR}/extensions"
 EXT_TARGET="${OMP_EXTENSIONS_DIR}/gsd-context.js"
 EXT_SOURCE="${REPO}/extensions/gsd-context.js"
-OMP_BIN_DIR="${OMP_AGENT_DIR}/bin"
-LAVISH_TARGET="${OMP_BIN_DIR}/lavish"
-LAVISH_DIR="${REPO}/tools/lavish"
-LAVISH_SOURCE="${LAVISH_DIR}/dist/cli.js"
 
 OMP_AGENTS_DIR="${OMP_AGENT_DIR}/agents"
 LEGACY_EXEC_TARGET="${OMP_AGENTS_DIR}/gsd-executor.md"
@@ -1167,25 +1163,7 @@ sync_managed_target() {
   fi
 }
 
-# --- Build the tracked internal Lavish CLI; never fetch external source. ---
-LAVISH_READY=0
-LAVISH_STATE="lavish unavailable — install Bun and re-run bash install.sh"
-if [ -f "$LAVISH_DIR/package.json" ] && command -v bun >/dev/null 2>&1; then
-  echo "  building internal lavish CLI with Bun..."
-  if (cd "$LAVISH_DIR" && bun run build >/dev/null 2>&1) \
-    && [ -f "$LAVISH_SOURCE" ] && [ ! -L "$LAVISH_SOURCE" ]; then
-    chmod u+x "$LAVISH_SOURCE"
-    LAVISH_READY=1
-    LAVISH_STATE="ready at $LAVISH_TARGET"
-  else
-    echo "  warn: internal lavish build failed — direct browser review is unavailable." >&2
-  fi
-fi
-
 REGISTRATION_PARENTS=("$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR" "$OMP_AGENTS_DIR")
-if [ "$LAVISH_READY" -eq 1 ]; then
-  REGISTRATION_PARENTS+=("$OMP_BIN_DIR")
-fi
 # Extension parents and the optional legacy-agents parent must be real directories.
 for p in "${REGISTRATION_PARENTS[@]}"; do
   check_p="$p"
@@ -1205,13 +1183,7 @@ done
 preflight_legacy_agent_target "$LEGACY_EXEC_TARGET" "$LEGACY_EXEC_SOURCE" "gsd-executor.md" "executor" "LEGACY_EXEC_ACTION" "LEGACY_EXEC_LINK_TARGET"
 preflight_legacy_agent_target "$LEGACY_REVIEW_TARGET" "$LEGACY_REVIEW_SOURCE" "gsd-reviewer.md" "reviewer" "LEGACY_REVIEW_ACTION" "LEGACY_REVIEW_LINK_TARGET"
 preflight_managed_target "$EXT_TARGET" "$EXT_SOURCE" "EXT" "*/extensions/gsd-context.js"
-if [ "$LAVISH_READY" -eq 1 ]; then
-  preflight_managed_target "$LAVISH_TARGET" "$LAVISH_SOURCE" "LAVISH" "*/tools/lavish/dist/cli.js"
-fi
 sync_managed_target "$EXT_TARGET" "$EXT_SOURCE" "EXT" "*/extensions/gsd-context.js"
-if [ "$LAVISH_READY" -eq 1 ]; then
-  sync_managed_target "$LAVISH_TARGET" "$LAVISH_SOURCE" "LAVISH" "*/tools/lavish/dist/cli.js"
-fi
 remove_preflighted_legacy_agent "$LEGACY_EXEC_TARGET" "executor" "LEGACY_EXEC_ACTION" "LEGACY_EXEC_LINK_TARGET"
 remove_preflighted_legacy_agent "$LEGACY_REVIEW_TARGET" "reviewer" "LEGACY_REVIEW_ACTION" "LEGACY_REVIEW_LINK_TARGET"
 
@@ -1247,10 +1219,7 @@ if [ -d "${HOME}/.agents/skills" ]; then
   done
 fi
 
-# Lavish is regular tracked source. Installation performs no Git submodule or
-# external package-manager refresh.
 printf "\nGSD installation complete\n"
 printf "  Source checkout: %s\n" "$REPO"
 printf "  OMP extension symlink: %s -> %s\n" "$EXT_TARGET" "$EXT_SOURCE"
-printf "  Lavish: %s\n" "$LAVISH_STATE"
 printf "  Next: start a new OMP session to load the extension.\n"

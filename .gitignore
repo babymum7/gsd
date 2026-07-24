@@ -6,9 +6,6 @@ dist/
 # Scratch workspace (GSD feature artifacts)
 .scratch/
 
-# Lavish review artifacts
-.lavish/
-
 # OS files
 .DS_Store
 Thumbs.db

@@ -179,7 +179,6 @@ const LEGACY_V2_STATE_FIELD_SET = new Set(LEGACY_V2_STATE_FIELD_ORDER);
 const LEGACY_V1_STATE_FIELD_SET = new Set(LEGACY_V1_STATE_FIELD_ORDER);
 const LEGACY_STATE_KEYS = new Set([
   'mode',
-  'manual_ui_review',
   'executor_model',
   'reviewer_model',
   'review_round',

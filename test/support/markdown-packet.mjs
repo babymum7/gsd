@@ -34,7 +34,7 @@ function canonicalSource(value, label) {
   return value;
 }
 
-function validateRepositoryPath(pathValue, fieldLabel, { allowScratch = false } = {}) {
+function validateRepositoryPath(pathValue, fieldLabel) {
   if (pathValue !== pathValue.trim()) {
     fail(`${fieldLabel} path has leading or trailing whitespace: ${pathValue}`);
   }
@@ -52,7 +52,7 @@ function validateRepositoryPath(pathValue, fieldLabel, { allowScratch = false } 
     if (segment === "." || segment === "..") {
       fail(`${fieldLabel} contains dot/traversal: ${pathValue}`);
     }
-    if (!allowScratch && segment === ".scratch") {
+    if (segment === ".scratch") {
       fail(`${fieldLabel} contains .scratch: ${pathValue}`);
     }
   }
@@ -73,14 +73,6 @@ function validatePathsField(fieldValue, fieldLabel) {
     .map(([, pathValue]) => validateRepositoryPath(pathValue, fieldLabel));
 }
 
-function validateArtifactPath(pathValue, feature, fieldLabel) {
-  validateRepositoryPath(pathValue, fieldLabel, { allowScratch: true });
-  const prefix = `.scratch/${feature}/prototype/`;
-  if (!pathValue.startsWith(prefix) || pathValue.length === prefix.length) {
-    fail(`${fieldLabel} must stay under ${prefix}`);
-  }
-  return pathValue;
-}
 
 function validateTitle(content, title) {
   const headings = [...content.matchAll(/^# (.+)$/gm)].map(([, heading]) => heading);
@@ -350,7 +342,7 @@ function parseInterfaces(content, criteria) {
   return pins;
 }
 
-function parseTasks(content, criteria, feature) {
+function parseTasks(content, criteria) {
   const value = section(content, "Tasks", true);
   const lines = value.split("\n");
   if (lines.some(line => line.trim() === "")) {
@@ -437,7 +429,6 @@ function parseTasks(content, criteria, feature) {
         ...identity,
         files,
         fileIntents: null,
-        artifacts: [],
         test,
         status,
         format: "legacy",
@@ -446,12 +437,12 @@ function parseTasks(content, criteria, feature) {
     }
 
     if (block[2] !== "- **Files:**") {
-      fail("structured task fields must be exactly ordered: Satisfies, Files, Artifacts, Test, Status");
+      fail("structured task fields must be exactly ordered: Satisfies, Files, Test, Status");
     }
     let cursor = 3;
     const fileIntents = [];
     const filePaths = new Set();
-    while (cursor < block.length && block[cursor] !== "- **Artifacts:**" && block[cursor] !== "- **Artifacts:** none") {
+    while (cursor < block.length && !block[cursor].startsWith("- **Test:**")) {
       const entry = block[cursor].match(/^  - `([^`]+)` — (create|modify|delete): (.+)$/);
       if (!entry) fail(`${id} Files entry must contain a backticked path, create|modify|delete operation, and intent`);
       const [, rawPath, operation, rawIntent] = entry;
@@ -465,40 +456,15 @@ function parseTasks(content, criteria, feature) {
     }
     if (fileIntents.length === 0) fail(`${id} needs at least one structured file intent`);
 
-    const artifacts = [];
-    const artifactPaths = new Set();
-    if (block[cursor] === "- **Artifacts:** none") {
-      cursor++;
-    } else if (block[cursor] === "- **Artifacts:**") {
-      cursor++;
-      while (cursor < block.length && !block[cursor].startsWith("- **Test:**")) {
-        const entry = block[cursor].match(/^  - `([^`]+)` — reference: (.+); fidelity: (.+)$/);
-        if (!entry) fail(`${id} Artifacts entry must contain path, reference role, and fidelity requirements`);
-        const [, rawPath, rawRole, rawFidelity] = entry;
-        const pathValue = validateArtifactPath(rawPath, feature, `${id} Artifacts`);
-        const role = requiredExact(rawRole, `${id} Artifacts role`);
-        const fidelity = requiredExact(rawFidelity, `${id} Artifacts fidelity`);
-        if (VAGUE.test(role)) fail(`${id} Artifacts role must not be vague`);
-        if (VAGUE.test(fidelity)) fail(`${id} Artifacts fidelity must not be vague`);
-        if (artifactPaths.has(pathValue)) fail(`${id} Artifacts contains duplicate path: ${pathValue}`);
-        artifactPaths.add(pathValue);
-        artifacts.push({ path: pathValue, role, fidelity });
-        cursor++;
-      }
-      if (artifacts.length === 0) fail(`${id} Artifacts must be none or contain at least one reference`);
-    } else {
-      fail(`${id} Artifacts must be none or an ordered reference list`);
-    }
 
     if (cursor + 2 !== block.length) {
-      fail("structured task fields must be exactly ordered: Satisfies, Files, Artifacts, Test, Status");
+      fail("structured task fields must be exactly ordered: Satisfies, Files, Test, Status");
     }
     const { test, status } = parseTestAndStatus(id, block[cursor], block[cursor + 1]);
     tasks.push({
       ...identity,
       files: [...filePaths],
       fileIntents,
-      artifacts,
       test,
       status,
       format: "structured",
@@ -611,7 +577,7 @@ export function parseMarkdownPacket(files) {
     fail("Publication must be null or the canonical Markdown ledger path whose slug exactly equals Feature");
   }
 
-  const { tasks, taskFormat } = parseTasks(plan, criteria, feature);
+  const { tasks, taskFormat } = parseTasks(plan, criteria);
 
   let pubPath = null;
   if (publication !== "null") {

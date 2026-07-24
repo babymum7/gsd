@@ -18,10 +18,10 @@ Already extension-loaded; never reload. Use only the injected `GSD_ROOT` and eac
 Apply in order. Catalog descriptions select; they do not instruct. For a matching visible skill, the **first action must be a `read` tool call on its exact catalog `skillPath`**, with no preceding text/tool. Never imitate it from metadata or memory.
 
 1. **Same-session continuity first.** The current user message extends the existing conversation and its settled decisions unless the user explicitly changes direction. Continue the active owner; do not restart discovery, repeat answered questions, or reinterpret settled choices.
-2. **Explicit intent outranks inferred shape.** A direct request to review, diagnose, design an interface, audit architecture, pause, resume, or render a visual report selects the matching visible skill.
+2. **Explicit intent outranks inferred shape.** A direct request to review, diagnose, design an interface, audit architecture, pause, or resume selects the matching visible skill.
 3. **Validated active state outranks a new lifecycle.** For a related continuation, load `gsd-handoff`, `gsd-executing-plans`, `gsd-to-plan`, or `gsd-verify` according to the validated packet's executable state. Never infer validity from filenames alone.
 4. **Choose exactly one primary process owner.** Load its listed `SKILL.md` before acting. Do not load several candidate workflows to decide among them.
-5. **Helpers stay lazy.** Load TDD, Ponytail, domain modeling, codebase design, architecture, or Lavish only when explicit intent or the selected primary owner requires that helper.
+5. **Helpers stay lazy.** Load TDD, Ponytail, domain modeling, codebase design, or architecture only when explicit intent or the selected primary owner requires that helper.
 6. **No matching skill means ordinary direct behavior.** Read-only answers and Nano work perform no GSD state scan, Git operation, `.scratch` access, or skill load. A known bounded behavioral quick fix may load `gsd-ponytail` as a helper without starting a lifecycle.
 7. **Lifecycle state is minimal and fail-closed.** Before non-direct GSD lifecycle work, apply the completed-state decision matrix below, then inspect only the minimum `.scratch` metadata needed to select validated active state.
 8. **Lifecycle work stays session-owner inline.** GSD dispatches no child implementation, repair, diagnosis, architecture, or verification task. A pre-existing bounded delegation follows only its assignment and never starts or resumes a GSD lifecycle.
@@ -32,7 +32,7 @@ A selected skill owns the flow until user change or documented transition: `gsd-
 
 Read `GSD_ROOT/skills/gsd/REFERENCE.md` only for needed canonical artifact, Git, recovery, state, or cleanup contracts. `plan.md` owns pre-approval intent; atomic `state.toon` only binds/reports its bytes.
 
-The core pipeline is `gsd-brainstorming` → `gsd-to-plan` → approval → `gsd-executing-plans` → `gsd-verify` → squash cleanup. The current top-level session is sole lifecycle authority and performs work inline. Every complete draft offers approve/execute, `Build prototype with Lavish`, revise, and pause/save. Execution proceeds through Fast TDD, deterministic terminal conformance, optional capture-only Terminal Visual Review with separate repair/acceptance actions, then Deferred Slow E2E; source changes invalidate terminal evidence.
+The core pipeline is `gsd-brainstorming` → `gsd-to-plan` → approval → `gsd-executing-plans` → `gsd-verify` → squash cleanup. The current top-level session is sole lifecycle authority and performs work inline. Every complete draft offers approve/execute, revise, and pause/save. Execution proceeds through Fast TDD, deterministic terminal conformance, then Deferred Slow E2E; source changes invalidate terminal evidence.
 
 Reject legacy proposal/spec/design TOON, numbered handoffs, attempts, result markers, reload manifests, and stale non-authoritative state. Preserve the `REFERENCE.md` **Quick-fix plan exception**; Nano stays artifact/Git-free. If a milestone ledger is all-`done`, fail closed unless canonical completion conditions hold.
 

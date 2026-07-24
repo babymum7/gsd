@@ -22,7 +22,6 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 |---|---|---|---|---|
 | Initial converged creation | — | `state.toon`; `docs/gsd/<feature>/milestones.md` | `plan.md`; `state.toon` | — |
 | Resume/finalize | `plan.md` | `state.toon`; `docs/gsd/<feature>/milestones.md` | `plan.md`; `state.toon` | Stop and load `gsd-brainstorming` to recover the missing contract before recreating `plan.md`; never synthesize a contract or read legacy pre-approval TOON |
-| Prototype feedback revision | `plan.md` | Lavish annotations; prototype refs | `plan.md`; `state.toon` | Missing draft plan stops; never invent prototype authority |
 
 ## Intake
 
@@ -32,9 +31,9 @@ Accept returned pre-approval domain paths only from `gsd-domain-modeling` conver
 
 ## Write plan.md
 
-Write `.scratch/<feature>/plan.md` exactly from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Packet grammar. This skill is the sole writer. Use the canonical section order, concrete Outcome/Action/Expected criteria, ordered Decisions, one public interface pin per active criterion, optional Publication, and structured tasks with unique path operation/intents, optional bound prototype references, focused checks, and pending status.
+Write `.scratch/<feature>/plan.md` exactly from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Packet grammar. This skill is the sole writer. Use the canonical section order, concrete Outcome/Action/Expected criteria, ordered Decisions, one public interface pin per active criterion, optional Publication, and structured tasks with unique path operation/intents, focused checks, and pending status.
 
-Tasks are sequential `T1`…`TN`; order encodes dependencies. Every active AC occurs exactly once across tasks. A task spanning ACs requires identical seam, test path, and lower-seam reason. Every referenced prototype path must stay under `.scratch/<feature>/prototype/`, exist and be readable, and include role plus concrete fidelity requirements; prototype evidence never becomes scope authority.
+Tasks are sequential `T1`…`TN`; order encodes dependencies. Every active AC occurs exactly once across tasks. A task spanning ACs requires identical seam, test path, and lower-seam reason.
 
 Plan complete observable behavior, not layers. Use Expand → Migrate → Contract only when callers cannot migrate atomically and Contract has a completed caller/reference inventory. Pin the highest deterministic fast public seam. Never use `none` for observable behavior; add the smallest real fast seam when needed. `none` is only for mechanically verified non-behavioral work. Browser/GUI, external-network, long-lived, large-fixture, and material-cost checks are Deferred Slow E2E, not focused task checks. Any vague check, unowned or duplicate AC/path, missing reference, or unresolved decision returns to Discussion.
 
@@ -45,19 +44,10 @@ The parser dual-reads structured and legacy task blocks so exact already-approve
 Present exactly one post-plan action surface for every complete draft plan and every feature type:
 
 1. Approve and execute
-2. Build prototype with Lavish
-3. Revise the plan
-4. Pause & save progress
+2. Revise the plan
+3. Pause & save progress
 
-Choosing `Build prototype with Lavish` is launch consent and causes no second confirmation. The session owner materializes the feature-appropriate prototype under `.scratch/<feature>/prototype/`, then invokes the internal tool directly with `bun "$GSD_ROOT/tools/lavish/src/cli.ts" prototype "$HTML_FILE"`. Retain the returned `SESSION_ID` and initial cursors. Before reporting that prototype feedback is monitored, attach the exact completion-aware `bun "$GSD_ROOT/tools/lavish/src/cli.ts" poll "$SESSION_ID" --after 0 --after-reply 0` command as a foreground wait or harness-native tracked background job.
-
-Queue operations do not wake the poll. When Send now completes it, consume the ordered batch, return the result to the planning conversation, and publish the agent response while reattaching with `bun "$GSD_ROOT/tools/lavish/src/cli.ts" poll "$SESSION_ID" --after "$CURSOR" --after-reply "$REPLY_CURSOR" --agent-reply "$AGENT_REPLY"`. Never claim monitoring between completion and re-entry. Keep the same prototype session open across revision rounds; `feedback "$SESSION_ID"` is audit history only. End it with the matching `end` command when prototype review is complete.
-
-Do not load a bridge skill. If Bun, Chromium, or the CLI is unavailable before a session opens, degrade without blocking planning. Annotations return here, update and revalidate the draft, and may promote selected stable assets under `.scratch/<feature>/prototype/` with relative links from Context or Decisions. Prototype sessions and artifacts never become execution authority or Terminal Visual Review evidence. After approval, a prototype request is Spec escalation, not an execution or terminal gate.
-
-After prototype feedback, every promoted reference used by implementation is bound in the applicable task `Artifacts` block with role and fidelity requirements. Before presenting approval, validate all referenced paths stay under `.scratch/<feature>/prototype/`, exist and are readable. Prototype artifacts guide implementation but never become scope authority, acceptance evidence, or a replacement for current-commit Terminal Visual Review.
-
-This is the last planning prompt: Approve and execute ends planning; no later planning menu, approval confirmation, or generic Lavish visual-review offer appears. Scratch cleanup defaults to automatic delete after green merge; retain or archive-and-delete only when explicitly selected before final review, and that choice never reopens planning or any other menu.
+This is the last planning prompt: Approve and execute ends planning; no later planning menu or approval confirmation appears. Scratch cleanup defaults to automatic delete after green merge; retain or archive-and-delete only when explicitly selected before final review, and that choice never reopens planning or any other menu.
 
 On approval, immediately load `gsd-handoff` in `Execution state write` mode and atomically write canonical `schema:v3` `state.toon` with plan path/hash, `phase=approved`, no completed task, base/WIP identity, canonical preferences, checkpoint revision, and `next_action` set to `start/continue task`. Read it back and verify the binding before execution. A fresh approval after Spec escalation supersedes older binding state by atomic overwrite; there is no numbered handoff history. Never leave partial state bytes. Then load `gsd-executing-plans` without another prompt.
 ## Contextual disclosure
