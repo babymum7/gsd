@@ -10,7 +10,7 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
 - Do-not-load: known single-spot quick fix
-- Transition: return evidence to the session-owner execution flow, or hand architectural cause to `gsd-improve-codebase-architecture`
+- Transition: return evidence to the session-owner execution flow, or hand an architectural cause to `gsd-codebase-architecture`
 
 # Diagnosing Bugs
 
@@ -52,7 +52,7 @@ Write the regression test **before** the fix — but only if a **correct seam** 
 - [ ] Throwaway harnesses and prototypes are deleted.
 - [ ] The commit message records the confirmed hypothesis and root cause.
 
-In standalone diagnosis only, ask what would have prevented the bug. An architectural cause may transition to `gsd-improve-codebase-architecture` after the fix. In Execution-blocker mode, ask no post-mortem question; the session owner returns immediately to `gsd-executing-plans` with fixed repro evidence, preserves `explicit_level`, clears `auto_scope`, and writes no repair-round runtime field. A load-bearing AC/interface/invariant ambiguity is Spec escalation, not a diagnosis guess. Diagnosis is always performed inline in the current top-level session.
+In standalone diagnosis only, ask what would have prevented the bug. An architectural cause may transition to `gsd-codebase-architecture` after the fix. In Execution-blocker mode, ask no post-mortem question; the session owner returns immediately to `gsd-executing-plans` with fixed repro evidence and writes no repair-round or helper-preference runtime field. A load-bearing AC/interface/invariant ambiguity is Spec escalation, not a diagnosis guess. Diagnosis is always performed inline in the current top-level session.
 
 ## Optional context signal
 Diagnosis harvest is optional and bounded to the minimized bug path. Reuse only the prompt/trace, reproduction, hypotheses, and code/docs already relevant to the diagnosis; never widen into a repository glossary/decision scan or create missing scaffolds. Trigger `gsd-domain-modeling` only if that evidence reveals a recurring project-specific term or explicit decision/rationale signal. Generic error vocabulary, a one-off identifier, implementation detail, and code shape without rationale are no-op. Diagnosis never writes domain artifacts itself.

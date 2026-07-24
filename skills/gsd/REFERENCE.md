@@ -18,31 +18,37 @@ Choose mode from explicit intent and entry context first. Artifact presence alon
 
 ## Visible skill mandatory-use matrix
 
-Canonical dispatch authority for the 11 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill. Helper rows with a true Helper-when condition must load and cannot be skipped.
+Canonical dispatch authority for the 9 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill. Helper rows with a true Helper-when condition must load and cannot be skipped.
 
 | Skill | Role | Intent | Prerequisites | Do-not-load | Transition | Helper-when |
 | --- | --- | --- | --- | --- | --- | --- |
-| `gsd-brainstorming` | owner | Resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance contract | Explicit design intent or load-bearing Spec-gap return | Read-only questions, pure mechanical edits, known single-spot quick fix | On convergence load `gsd-to-plan` | — |
-| `gsd-to-plan` | owner | Create or finalize the canonical `plan.md` after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unapproved plan | Design decisions still open; Nano edits | On approval write `state.toon` and load `gsd-executing-plans` | — |
-| `gsd-executing-plans` | owner | Implement approved plan tasks inline and sequentially on `wip/<feature>` with Fast TDD and session-owner repair | Valid approved `plan.md` and bound resumable `state.toon` | No bound plan/state; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
+| `gsd-brainstorming` | owner | Resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract | Explicit design intent or load-bearing Spec-gap return | Read-only questions, pure mechanical edits, known single-spot quick fix | On convergence load `gsd-to-plan` | — |
+| `gsd-to-plan` | owner | Create or finalize canonical `plan.md` with bound Domain Impact after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unapproved plan | Design decisions still open; Nano edits | On approval write `state.toon` and load `gsd-executing-plans` | — |
+| `gsd-executing-plans` | owner | Implement approved plan tasks and owned domain docs inline and sequentially on `wip/<feature>` | Valid approved `plan.md` and bound resumable `state.toon` | No bound plan/state; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
 | `gsd-handoff` | owner | Pause, save, resume, or recover from a valid `state.toon` or compaction capsule | Valid `state.toon` or recovery capsule naming peer owner | Missing/malformed state used to invent work | Load the peer skill named by validated `next_action` | — |
-| `gsd-verify` | owner | Standalone diff/PR review or terminal planned/quick-fix deterministic conformance then slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Invent completion without deterministic gates | Planned green path: squash, automatic cleanup, optional retain/archive | — |
-| `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | Non-obvious failure or execution blocker needing evidence | Known single-spot quick fix | Return evidence to session-owner execution or hand an architecture cause to `gsd-improve-codebase-architecture` | — |
-| `gsd-improve-codebase-architecture` | owner | Audit or refactor architecture, or deepen candidates after diagnosis names an architectural cause | Explicit architecture intent or diagnosis-returned architectural cause | One named interface design without architecture scope | Return recommendations into discussion/plan ownership | — |
-| `gsd-ponytail` | helper | Run a known-scope behavioral quick fix or apply explicit ponytail preference level | Real known single-spot behavioral scope or explicit lite/full/ultra/normal preference | Non-trivial new behavior needing brainstorming; Nano work | Return to the normal GSD lifecycle or escalate to `gsd-brainstorming` when scope expands | must load when a known-scope quick fix is active or an explicit lite/full/ultra/normal preference is set (including normal/stop clearing state); cannot be skipped while that condition holds |
+| `gsd-verify` | owner | Review a diff/PR or prove terminal code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Invent completion without deterministic gates | Planned green path: squash, automatic cleanup, optional retain/archive | — |
+| `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | Non-obvious failure or execution blocker needing evidence | Known single-spot quick fix | Return evidence to execution or architectural cause to `gsd-codebase-architecture` | — |
+| `gsd-codebase-architecture` | owner | Design a named seam or audit/refactor architecture with domain-aligned deep boundaries | Explicit interface/architecture intent or diagnosis-returned architectural cause | Unrelated broad exploration or feature work with no unresolved seam | Selected candidates enter `gsd-brainstorming`; execution evidence returns to its owner | — |
 | `gsd-tdd` | helper | Drive Fast TDD RED→GREEN→refactor at a public seam | Session owner is implementing or repairing observable behavior | Primary skill selection; resource-heavy browser/E2E task loops | Return green/red evidence to session owner | must load when an observable task is selected or repaired |
-| `gsd-domain-modeling` | helper | Write durable domain terms/decisions from certain bounded evidence | Certain project-specific term or evidenced architectural decision | Proactive repository scans; uncertain candidates | Return exact changed domain paths to session owner | must load when a durable domain candidate is certain |
-| `gsd-codebase-design` | helper | Design one named module interface, seam, or deep-module boundary inline | Named module/interface target from session owner or explicit request | System-wide architecture audit | Return design result to session owner | must load when designing one named module interface or seam |
+| `gsd-domain-modeling` | helper | Maintain current production domain behavior for affected contexts | Domain Impact changes a context or explicit domain-model work is selected | Read-only/Nano work; uncertain or unrelated contexts | Return exact changed domain and AGENTS paths to session owner | must load when Domain Impact is not `none` or explicit domain-model work is selected |
 
 ## Durable documentation contract
 
 Git-tracked knowledge intended for both people and agents is strict Markdown under `docs/`; TOON is never used for durable prose or human-approved goals.
 
-- `docs/domain/index.md` is a small bounded-context index; `docs/domain/<scope>.md` shards hold durable glossary terms and architectural decisions. Shard by stable bounded context, never by feature. `gsd-domain-modeling` owns the exact schema and is the sole writer.
+- `docs/domain/index.md` is a small bounded-context index; `docs/domain/<scope>.md` shards describe current production terms, actors, invariants, workflows, outcomes, relationships, and policies. Shard by stable bounded context, never by feature. They are not implementation plans or architecture journals. `gsd-domain-modeling` owns the exact schema and is the sole writer.
 - `docs/gsd/<feature>/milestones.md` is the human-reviewable milestone contract and lifecycle ledger. Its goals are approved authority; its status column is controlled by terminal verification.
 - `docs/gsd/<feature>/archive/plan.md` and `docs/gsd/<feature>/archive/implementation.md` are optional historical reference only. They never become execution authority and never reopen a completed feature.
 
 Runtime-only `state.toon` stays TOON under `.scratch/`. A format is authoritative by its declared role and canonical path, never by extension alone.
+
+### Domain lifecycle
+
+Every converged feature records a mandatory `Domain Impact`. `classification=none` requires `contexts=none`, `documentation=none`, and concrete evidence. A semantic change names every affected context and binds its exact domain-documentation paths to the same plan tasks that own the code change.
+
+When `docs/domain/index.md` exists, validate it and read only shards mapped to affected contexts. An existing `docs/domain/index.md` suppresses every broad codebase/domain bootstrap prompt; do not offer or suggest one. When the index is absent, semantic work must bootstrap the feature-scoped context documentation. Only then offer one independent broad-bootstrap decision; `declined` never waives the required feature-scoped write.
+
+Domain docs describe current production behavior after the task, while the plan records target behavior before it. Existing docs are navigation hints; production code, schemas, contracts, and tests are authoritative on conflict. Drift is a blocker until code and affected shards agree. `gsd-domain-modeling` also upserts one canonical `## Domain documentation` section in the applicable `AGENTS.md`, preserving unrelated instructions and never duplicating the section.
 
 ## Canonical Markdown contract
 
@@ -74,6 +80,12 @@ All fields use exact headings, exact field labels, canonical field order, UTF-8,
 <one concrete outcome>
 ## Context
 <bounded context>
+## Domain Impact
+- **Classification:** <none|change-existing-context|introduce-context|change-context-boundary>
+- **Contexts:** <none|sorted comma-space-separated context slugs>
+- **Documentation:** <none|update-existing|bootstrap-feature-context>
+- **Broad bootstrap:** <not-offered|declined|selected>
+- **Evidence:** <concrete code/schema/contract evidence>
 ## Scope
 - <included behavior>
 ## Acceptance Criteria
@@ -111,9 +123,11 @@ Decisions is exact `None.` or sequential D blocks:
 - **Rationale:** <value>
 ```
 
-An AC ID is a positive sequential integer. Only `active` criteria execute; a replacement receives a new ID while the former criterion is `superseded`. Outcome, Action, and Expected must independently name a concrete behavior, operation, and observable result. `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid. Every active AC has exactly one matching Interfaces row. A lower seam is valid only with a concrete reason that the higher production boundary is absent or cannot deterministically isolate the criterion. Task IDs are positive sequential integers in heading order. Every active AC appears exactly once across non-superseded task `Satisfies` fields. Every task owns at least one exact repository-relative path and one concrete focused check. Observable behavior always receives a fast public seam; never use `none` for observable behavior.
+An AC ID is a positive sequential integer. Only `active` criteria execute; a replacement receives a new ID while the former criterion is `superseded`. Outcome, Action, and Expected must independently name a concrete behavior, operation, and observable result. `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid. `Domain Impact` uses the exact five fields above. `none` requires no contexts or documentation; every other classification requires sorted affected context slugs and a documentation update, while `introduce-context` requires `bootstrap-feature-context`. Broad bootstrap is an independent decision and is `not-offered` whenever the domain index exists. Every active AC has exactly one matching Interfaces row. A lower seam is valid only with a concrete reason that the higher production boundary is absent or cannot deterministically isolate the criterion. Task IDs are positive sequential integers in heading order. Every active AC appears exactly once across non-superseded task `Satisfies` fields. Every task owns at least one exact repository-relative path and one focused command; `none` is valid only for truly non-observable mechanical work.
 
 Canonical task parsing uses Expand → Migrate → Contract. The parser is dual-read for structured blocks and exact already-approved legacy path-only blocks, while `gsd-to-plan` is single-write and newly approves only structured blocks. Remove the legacy reader only after no active bound legacy plan remains. Structured `Files` entries require a unique safe repository-relative path, one `create|modify|delete` operation, and concise non-vague intent.
+
+`gsd-to-plan` single-writes and newly approves only plans containing canonical `Domain Impact`; the parser accepts that grammar for new bindings. Exact already-bound pre-Domain-Impact plan bytes may be dual-read only after their recorded SHA-256 binding matches; missing Domain Impact is never accepted for a new binding, and malformed new Domain Impact never falls back to legacy grammar.
 
 ### Quick-fix plan exception
 
@@ -121,7 +135,7 @@ A Quick-fix is not a converged feature packet. Its direct fast path may write a 
 
 ### Approval binding
 
-`gsd-to-plan` validates canonical structured `plan.md`, prints its task/AC summary, calculates SHA-256, and presents the single post-plan action surface. Approval records feature, exact plan path/hash, base/WIP identity, no completed task, canonical preferences, and checkpoint revision in atomic `schema:v3` `state.toon`, then reads it back before loading `gsd-executing-plans`. A fresh approval after Spec escalation atomically supersedes the older binding. Full semantic parse and binding checks run only at approval, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use the retained validated slice.
+`gsd-to-plan` validates canonical structured `plan.md`, prints its task/AC/Domain Impact summary, calculates SHA-256, and presents the single post-plan action surface. Approval records feature, exact plan path/hash, base/WIP identity, no completed task, canonical preferences, and checkpoint revision in atomic `schema:v4` `state.toon`, then reads it back before loading `gsd-executing-plans`. A fresh approval after Spec escalation atomically supersedes the older binding. Full semantic parse and binding checks run only at approval, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use the retained validated slice.
 
 No model, agent, or persistent session identity participates in approval. The current top-level session is the sole lifecycle authority; a later session assumes that role only through canonical rehydration.
 
@@ -167,7 +181,7 @@ The status transition or deletion is part of the reviewed WIP diff and lands onl
 Exactly one current `.scratch/<feature>/state.toon` owns resume discovery. It is a fixed-schema UTF-8/LF scalar record with canonical field order:
 
 ```toon
-schema:v3
+schema:v4
 feature:<feature-slug>
 phase:draft|approved|executing|paused|verifying|repair|merged-cleanup-pending|completed-retained
 next_action:<opaque next action or none>
@@ -178,12 +192,11 @@ wip_branch:wip/<feature>|none
 last_green_task:T<n>|none
 last_green_commit:<40-hex>|none
 autosync:none|on|off
-ponytail_level:none|lite|full|ultra
 cleanup_preference:none|delete|retain|archive-and-delete
 checkpoint_revision:<positive int>
 ```
 
-Phase-inapplicable values use canonical `none`. Current `schema:v3` parsing rejects blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, and obsolete model or agent rows. Numbered handoffs, task attempts, reload manifests, and result markers have no authority. On resume only, an exact valid active production `schema:v1` or `schema:v2` record is fully validated then atomically rewritten to canonical `schema:v3`, with obsolete rows discarded and `checkpoint_revision` incremented. Malformed, partial, reordered, unknown, non-concrete, or terminal legacy records fail closed unchanged; partial old terminal evidence is discarded and deterministic conformance reruns.
+Phase-inapplicable values use canonical `none`. Current `schema:v4` parsing rejects blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, Ponytail preference state, and obsolete model or agent rows. On resume only, an exact valid active production `schema:v1`, `schema:v2`, or `schema:v3` record is fully validated then atomically rewritten to canonical `schema:v4`, with obsolete rows discarded and `checkpoint_revision` incremented. All legacy fields, including `ponytail_level` where present, are validated before migration. Malformed, partial, reordered, unknown, non-concrete, or terminal legacy records fail closed unchanged; partial old terminal evidence is discarded and deterministic conformance reruns.
 
 ### Atomic write
 
@@ -213,9 +226,9 @@ Active helpers are derived, never stored as a reload manifest:
 - `start/continue task`: `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`; implementation and repair remain session-owner inline.
 - `enter terminal verification/repair`: `gsd-verify` and `gsd-handoff`; opaque `next_action` resumes deterministic conformance or Deferred Slow E2E without new state keys.
 - `Discussion/Spec-escalation`: `gsd-handoff`.
-- Conditional: `gsd-ponytail` for `ponytail_level=lite|full|ultra`; inline codebase-design/domain-modeling complete before checkpoint.
+- Conditional: `gsd-domain-modeling` completes mandatory affected-context documentation before checkpoint.
 
-Master (`gsd`) is already present from bootstrap and is never listed as a derived reload skill. Recovery must never load master recursively or execute the capsule again.
+Master (`gsd`) is already present from bootstrap and is never listed as a derived reload skill. Hidden Ponytail context has no runtime mode or preference state. Recovery must never load master recursively or execute the capsule again.
 
 ### Candidate discovery
 
@@ -302,7 +315,7 @@ Deferred Slow E2E runs only after current-commit conformance. Source changes inv
 
 For branch-backed writes, first require a Git work tree. `plan.md` records the base before `wip/<feature>` is created. The feature branch is `wip/<feature>` and never self-references as base. Keep `.scratch/` machine-local and git-ignored; portable sync, where intentionally requested, is an explicit pathspec operation and remains runtime-only. Review diffs exclude scratch. Before squash, verify base, WIP, upstream, and reviewed non-scratch tree against the recorded runtime binding; any mismatch blocks merge. Nano and read-only work are completely git-free.
 
-Cross-machine sync carries the committed WIP branch and exact `.scratch/<feature>/` packet (`plan.md` and `state.toon`). Dirty non-scratch paths still require an explicit named snapshot decision. On resume, the session owner rehydrates from the bound schema-v3 state, exact plan bytes/hash, base/WIP, last green task/commit, current tree, and required artifacts. Portable sync never sweeps unrelated dirty paths.
+Cross-machine sync carries the committed WIP branch and exact `.scratch/<feature>/` packet (`plan.md` and `state.toon`). Dirty non-scratch paths still require an explicit named snapshot decision. On resume, the session owner rehydrates from the bound schema-v4 state, exact plan bytes/hash, base/WIP, last green task/commit, current tree, and required artifacts. Portable sync never sweeps unrelated dirty paths.
 
 ## Feature cleanup
 

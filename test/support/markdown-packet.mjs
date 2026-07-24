@@ -151,6 +151,67 @@ function parseContext(content) {
   return text;
 }
 
+const DOMAIN_CLASSIFICATIONS = new Set([
+  "none",
+  "change-existing-context",
+  "introduce-context",
+  "change-context-boundary",
+]);
+const DOMAIN_DOCUMENTATION = new Set(["none", "update-existing", "bootstrap-feature-context"]);
+const BROAD_BOOTSTRAP = new Set(["not-offered", "declined", "selected"]);
+
+function parseDomainImpact(content) {
+  const fields = orderedFields(section(content, "Domain Impact"), [
+    "Classification",
+    "Contexts",
+    "Documentation",
+    "Broad bootstrap",
+    "Evidence",
+  ]);
+  const classification = fields.Classification;
+  if (!DOMAIN_CLASSIFICATIONS.has(classification)) {
+    fail("Domain Impact Classification is invalid");
+  }
+
+  const rawContexts = fields.Contexts;
+  let contexts = [];
+  if (rawContexts !== "none") {
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*(?:, [a-z0-9]+(?:-[a-z0-9]+)*)*$/.test(rawContexts)) {
+      fail("Domain Impact Contexts must be none or comma-space-separated lowercase slugs");
+    }
+    contexts = rawContexts.split(", ");
+    if (new Set(contexts).size !== contexts.length) fail("Domain Impact Contexts must be unique");
+    if (contexts.join("|") !== [...contexts].sort().join("|")) {
+      fail("Domain Impact Contexts must be sorted");
+    }
+  }
+
+  const documentation = fields.Documentation;
+  if (!DOMAIN_DOCUMENTATION.has(documentation)) {
+    fail("Domain Impact Documentation is invalid");
+  }
+  const broadBootstrap = fields["Broad bootstrap"];
+  if (!BROAD_BOOTSTRAP.has(broadBootstrap)) {
+    fail("Domain Impact Broad bootstrap is invalid");
+  }
+  const evidence = fields.Evidence;
+  if (VAGUE.test(evidence)) fail("Domain Impact Evidence must be concrete");
+
+  if (classification === "none") {
+    if (contexts.length !== 0 || documentation !== "none") {
+      fail("Domain Impact classification none requires Contexts and Documentation to be none");
+    }
+  } else {
+    if (contexts.length === 0) fail("Domain-changing work requires at least one affected context");
+    if (documentation === "none") fail("Domain-changing work requires domain documentation");
+    if (classification === "introduce-context" && documentation !== "bootstrap-feature-context") {
+      fail("introduce-context requires bootstrap-feature-context documentation");
+    }
+  }
+
+  return { classification, contexts, documentation, broadBootstrap, evidence };
+}
+
 function parseScope(content) {
   const value = section(content, "Scope");
   const lines = value.split("\n");
@@ -532,12 +593,12 @@ export function sha256(bytes) {
   return createHash("sha256").update(bytes).digest("hex");
 }
 
-export function parseMarkdownPacket(files) {
+function parseMarkdownPacketInternal(files, { allowBoundLegacyDomainImpact = false } = {}) {
   if (typeof files !== "object" || files === null || Array.isArray(files) || Object.prototype.toString.call(files) !== "[object Object]") {
     fail("files must be a plain mapping");
   }
   const ownKeys = Reflect.ownKeys(files);
-  if (ownKeys.some((k) => typeof k === "string" && ["proposal.md", "spec.md", "design.md"].includes(k))) {
+  if (ownKeys.some((key) => typeof key === "string" && ["proposal.md", "spec.md", "design.md"].includes(key))) {
     fail("legacy multi-file state is not allowed");
   }
   if (ownKeys.length !== 1 || ownKeys[0] !== "plan.md") {
@@ -545,11 +606,16 @@ export function parseMarkdownPacket(files) {
   }
   const plan = canonicalSource(files["plan.md"], "plan.md");
   validateTitle(plan, "Plan");
+  const hasDomainImpact = /^## Domain Impact$/m.test(plan);
+  if (!hasDomainImpact && !allowBoundLegacyDomainImpact) {
+    fail("missing Domain Impact section");
+  }
   validateSections(plan, [
     "Feature",
     "Base",
     "Summary",
     "Context",
+    ...(hasDomainImpact ? ["Domain Impact"] : []),
     "Scope",
     "Acceptance Criteria",
     "Decisions",
@@ -557,13 +623,14 @@ export function parseMarkdownPacket(files) {
     "Non-goals",
     "Interfaces",
     "Publication",
-    "Tasks"
+    "Tasks",
   ]);
 
   const feature = parseFeature(plan);
   parseBase(plan);
   parseSummary(plan);
   parseContext(plan);
+  const domainImpact = hasDomainImpact ? parseDomainImpact(plan) : null;
   parseScope(plan);
 
   const criteria = parseCriteria(plan);
@@ -593,10 +660,8 @@ export function parseMarkdownPacket(files) {
           fail(`unowned or mismatched milestone ledger path is not allowed: ${file}`);
         }
       }
-      if (task.status !== "superseded") {
-        if (pubPath !== null && file === pubPath) {
-          pubPathCount++;
-        }
+      if (task.status !== "superseded" && pubPath !== null && file === pubPath) {
+        pubPathCount++;
       }
     }
   }
@@ -605,13 +670,12 @@ export function parseMarkdownPacket(files) {
     fail(`non-null publication path must occur exactly once across non-superseded tasks, but found ${pubPathCount}`);
   }
 
-  // For each non-superseded task satisfying multiple ACs, require all pinned seam/path/lower-reason triples identical
   for (const task of tasks) {
     if (task.status !== "superseded" && task.satisfies.length > 1) {
       const firstAc = task.satisfies[0];
       const firstPin = interfaces.get(firstAc);
-      for (let i = 1; i < task.satisfies.length; i++) {
-        const currentAc = task.satisfies[i];
+      for (let index = 1; index < task.satisfies.length; index++) {
+        const currentAc = task.satisfies[index];
         const currentPin = interfaces.get(currentAc);
         if (
           firstPin.seam !== currentPin.seam ||
@@ -632,24 +696,55 @@ export function parseMarkdownPacket(files) {
     }
   }
   const active = criteria.filter((criterion) => criterion.state === "active").map((criterion) => criterion.id);
-  if (active.some((criterion) => coverage.get(criterion) !== 1)) fail("plan must cover every active criterion exactly once");
+  if (active.some((criterion) => coverage.get(criterion) !== 1)) {
+    fail("plan must cover every active criterion exactly once");
+  }
 
-  return { feature, criteria, interfaces, invariants, nonGoals, tasks, taskFormat, decisions };
+  return {
+    feature,
+    domainImpact,
+    criteria,
+    interfaces,
+    invariants,
+    nonGoals,
+    tasks,
+    taskFormat,
+    decisions,
+  };
+}
+
+export function parseMarkdownPacket(files) {
+  return parseMarkdownPacketInternal(files);
+}
+
+function sourceHashes(files) {
+  if (typeof files !== "object" || files === null || Array.isArray(files) || Object.prototype.toString.call(files) !== "[object Object]") {
+    fail("files must be a plain mapping");
+  }
+  const ownKeys = Reflect.ownKeys(files);
+  if (ownKeys.length !== 1 || ownKeys[0] !== "plan.md" || typeof files["plan.md"] !== "string") {
+    fail("files mapping must contain exactly plan.md");
+  }
+  return { "plan.md": sha256(files["plan.md"]) };
 }
 
 export function bindApprovedSources(files) {
   parseMarkdownPacket(files);
-  return { "plan.md": sha256(files["plan.md"]) };
+  return sourceHashes(files);
 }
 
 export function verifyApprovedSources(files, binding) {
-  const current = bindApprovedSources(files);
+  const current = sourceHashes(files);
+  if (typeof binding !== "object" || binding === null || Array.isArray(binding)) {
+    fail("binding must be a plain mapping");
+  }
   const expectedNames = Object.keys(binding).sort();
   const currentNames = Object.keys(current).sort();
   if (expectedNames.join("|") !== currentNames.join("|")) fail("source set changed after approval");
   for (const name of expectedNames) {
     if (binding[name] !== current[name]) fail(`${name} hash mismatch after approval`);
   }
+  parseMarkdownPacketInternal(files, { allowBoundLegacyDomainImpact: true });
   return current;
 }
 

@@ -29,10 +29,10 @@ Rules that keep it safe:
 
 - **Duplication** → extract function/class.
 - **Long methods** → break into private helpers (tests stay on the public interface).
-- **Shallow module** (interface ≈ implementation complexity) → combine or deepen: push behavior behind a smaller interface so callers learn less and get more (see `gsd-codebase-design` — depth, leverage).
+- **Shallow module** (interface ≈ implementation complexity) → combine or deepen: push behavior behind a smaller interface so callers learn less and get more (see `gsd-codebase-architecture` — depth, leverage).
 - **Feature envy** → move logic to where the data lives.
 - **Primitive obsession** → introduce a value object.
-- **Leaky seam** → relocate the seam so behavior can vary without editing call sites (`gsd-codebase-design` — seam, adapter).
+- **Leaky seam** → relocate the seam so behavior can vary without editing call sites (`gsd-codebase-architecture` — seam, adapter).
 - **Existing code** the new code reveals as problematic.
 
 ## Example
@@ -70,7 +70,7 @@ Tests untouched, still green. `cartTotal` is private to the module; the public i
 
 Refactoring is done when the smell is gone, not when the code is maximally clever.
 
-- **Stop at "no duplication, small interface, tests survive."** Deepening past that is speculative abstraction — the thing ponytail/YAGNI warns against.
+- **Stop at "no duplication, small interface, tests survive."** Deepening past that is speculative abstraction; apply the hidden Ponytail/YAGNI context rather than adding ceremony.
 - **Don't gold-plate.** A helper used once, an interface with one implementation, a config knob nobody asked for — these add interface without leverage. Shallow the other direction.
-- **Don't reopen settled design.** Settled terms and decisions in the relevant `docs/domain/<scope>.md` shard are not refactor targets; a genuine structural rethink is a `gsd-improve-codebase-architecture` candidate, not a step in this loop.
+- **Don't reopen settled design.** Settled terms and production invariants in the relevant `docs/domain/<scope>.md` shard are not refactor targets; a genuine structural rethink is a `gsd-codebase-architecture` candidate, not a step in this loop.
 - **Time-box it.** If a refactor balloons past the task's scope, note it as a deepening candidate and move on — don't stall the tracer bullet.

@@ -5,8 +5,8 @@ import nodeFs from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
-  bindApprovedSources, parseMarkdownPacket, rejectLegacyPreapprovalFiles, verifyApprovedSources,
-  validateSectionEdges,
+  bindApprovedSources, parseMarkdownPacket, rejectLegacyPreapprovalFiles, sha256,
+  verifyApprovedSources, validateSectionEdges,
 } from "./support/markdown-packet.mjs";
 import {
   parseActivationResponse, responseMatchesFixture, validateActivationTarget, validateFixtureSet,
@@ -69,6 +69,8 @@ function parseAgentFrontmatter(content, label) {
 const skillNames = () => readdirSync(SKILLS, { withFileTypes: true })
   .filter((entry) => entry.isDirectory() && entry.name.startsWith("gsd") && existsSync(join(SKILLS, entry.name, "SKILL.md")))
   .map((entry) => entry.name);
+const visibleSkillNames = () => skillNames().filter((name) =>
+  parseAgentFrontmatter(read(`skills/${name}/SKILL.md`), name).hide !== true);
 const filesUnder = (directory) => readdirSync(directory, { withFileTypes: true })
   .flatMap((entry) => {
     const path = join(directory, entry.name);
@@ -78,7 +80,50 @@ const filesUnder = (directory) => readdirSync(directory, { withFileTypes: true }
 const markdownFiles = (directory) => filesUnder(directory)
   .filter((path) => path.endsWith(".md"));
 const canonicalPacket = () => ({
-  "plan.md": "# Plan\n## Feature\n`canonical-fixture`\n## Base\n`main`\n## Summary\nValidate Markdown plan.\n## Context\nA tracked inline fixture.\n## Scope\n- Validate plan\n## Acceptance Criteria\n### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n## Decisions\nNone.\n## Invariants\n- **I-1:** Approved source bytes remain immutable.\n## Non-goals\n- **NG-1:** Runtime TOON is not edited by the parser.\n## Interfaces\n| Criterion | Seam | Path | Lower-seam reason |\n| --- | --- | --- | --- |\n| AC-1 | parser | `test/skills.test.js` | none |\n## Publication\nnull\n## Tasks\n### T1: Parse plan\n- **Satisfies:** AC-1\n- **Files:** `test/skills.test.js`\n- **Test:** `node --test test/skills.test.js`\n- **Status:** pending\n",
+  "plan.md": [
+    "# Plan",
+    "## Feature",
+    "`canonical-fixture`",
+    "## Base",
+    "`main`",
+    "## Summary",
+    "Validate Markdown plan.",
+    "## Context",
+    "A tracked inline fixture.",
+    "## Domain Impact",
+    "- **Classification:** none",
+    "- **Contexts:** none",
+    "- **Documentation:** none",
+    "- **Broad bootstrap:** not-offered",
+    "- **Evidence:** Parser-only fixture changes no production domain behavior.",
+    "## Scope",
+    "- Validate plan",
+    "## Acceptance Criteria",
+    "### AC-1: Plan parses",
+    "- **State:** active",
+    "- **Outcome:** A valid plan becomes an execution contract.",
+    "- **Action:** Parse the approved Markdown plan.",
+    "- **Expected:** Return the matching feature and acceptance criterion.",
+    "## Decisions",
+    "None.",
+    "## Invariants",
+    "- **I-1:** Approved source bytes remain immutable.",
+    "## Non-goals",
+    "- **NG-1:** Runtime TOON is not edited by the parser.",
+    "## Interfaces",
+    "| Criterion | Seam | Path | Lower-seam reason |",
+    "| --- | --- | --- | --- |",
+    "| AC-1 | parser | `test/skills.test.js` | none |",
+    "## Publication",
+    "null",
+    "## Tasks",
+    "### T1: Parse plan",
+    "- **Satisfies:** AC-1",
+    "- **Files:** `test/skills.test.js`",
+    "- **Test:** `node --test test/skills.test.js`",
+    "- **Status:** pending",
+    "",
+  ].join("\n"),
 });
 
 const structuredPacket = () => {
@@ -117,6 +162,78 @@ test("structured task file intents parse deterministically", () => {
   }
 });
 
+test("domain-impact packet grammar is mandatory with bound legacy completion", () => {
+  const canonical = canonicalPacket();
+  const parsed = parseMarkdownPacket(canonical);
+  assert.deepEqual(parsed.domainImpact, {
+    classification: "none",
+    contexts: [],
+    documentation: "none",
+    broadBootstrap: "not-offered",
+    evidence: "Parser-only fixture changes no production domain behavior.",
+  });
+
+  const changedPlan = canonical["plan.md"]
+    .replace("Classification:** none", "Classification:** change-existing-context")
+    .replace("Contexts:** none", "Contexts:** billing, orders")
+    .replace("Documentation:** none", "Documentation:** update-existing")
+    .replace("Broad bootstrap:** not-offered", "Broad bootstrap:** selected");
+  assert.deepEqual(parseMarkdownPacket({ "plan.md": changedPlan }).domainImpact, {
+    classification: "change-existing-context",
+    contexts: ["billing", "orders"],
+    documentation: "update-existing",
+    broadBootstrap: "selected",
+    evidence: "Parser-only fixture changes no production domain behavior.",
+  });
+  assert.throws(
+    () => parseMarkdownPacket({
+      "plan.md": canonical["plan.md"].replace("Contexts:** none", "Contexts:** gsd"),
+    }),
+    /classification none requires Contexts and Documentation to be none/i,
+  );
+  assert.throws(
+    () => parseMarkdownPacket({
+      "plan.md": canonical["plan.md"]
+        .replace("Classification:** none", "Classification:** change-existing-context")
+        .replace("Contexts:** none", "Contexts:** gsd"),
+    }),
+    /requires domain documentation/i,
+  );
+  assert.throws(
+    () => parseMarkdownPacket({
+      "plan.md": changedPlan
+        .replace("change-existing-context", "introduce-context")
+        .replace("update-existing", "update-existing"),
+    }),
+    /introduce-context requires bootstrap-feature-context/i,
+  );
+
+  const legacyPlan = canonical["plan.md"].replace(
+    "## Domain Impact\n- **Classification:** none\n- **Contexts:** none\n- **Documentation:** none\n- **Broad bootstrap:** not-offered\n- **Evidence:** Parser-only fixture changes no production domain behavior.\n",
+    "",
+  );
+  const legacyFiles = { "plan.md": legacyPlan };
+  const legacyBinding = { "plan.md": sha256(legacyPlan) };
+  assert.throws(() => bindApprovedSources(legacyFiles), /Domain Impact|section/i);
+  assert.deepEqual(verifyApprovedSources(legacyFiles, legacyBinding), legacyBinding);
+  assert.throws(
+    () => verifyApprovedSources({ "plan.md": `${legacyPlan}\n` }, legacyBinding),
+    /hash mismatch/i,
+  );
+
+  const malformedNew = canonical["plan.md"].replace(
+    "- **Evidence:** Parser-only fixture changes no production domain behavior.\n",
+    "",
+  );
+  assert.throws(
+    () => verifyApprovedSources(
+      { "plan.md": malformedNew },
+      { "plan.md": sha256(malformedNew) },
+    ),
+    /fields must be exactly ordered/i,
+  );
+});
+
 test("planner single-writes structured task file intents", () => {
   const planner = read("skills/gsd-to-plan/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
@@ -139,8 +256,8 @@ test("session owner is sole lifecycle authority without model agents", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const verify = read("skills/gsd-verify/SKILL.md");
   const handoff = read("skills/gsd-handoff/SKILL.md");
-  const designTwice = read("skills/gsd-codebase-design/DESIGN-IT-TWICE.md");
-  const designSkill = read("skills/gsd-codebase-design/SKILL.md");
+  const designTwice = read("skills/gsd-codebase-architecture/DESIGN-IT-TWICE.md");
+  const designSkill = read("skills/gsd-codebase-architecture/SKILL.md");
   const ponytail = read("skills/gsd-ponytail/SKILL.md");
 
   for (const [path, body] of corpus) {
@@ -150,18 +267,17 @@ test("session owner is sole lifecycle authority without model agents", () => {
       path,
     );
   }
-  assert.match(reference, /schema:v3[\s\S]*session owner/i);
-  assert.match(handoff, /schema:v3[\s\S]*session owner/i);
+  assert.match(reference, /schema:v4[\s\S]*session owner/i);
+  assert.match(handoff, /schema:v4[\s\S]*session owner/i);
   assert.match(reference, /sole lifecycle authority/i);
   assert.match(verify, /plan hash[\s\S]*every active AC[\s\S]*changed path[\s\S]*task diffs in plan order/i);
   assert.match(verify, /malformed binding[\s\S]*ownership\/coverage mismatch[\s\S]*contract contradiction[\s\S]*red deterministic check/i);
   assert.match(verify, /Deferred Slow E2E/i);
   assert.doesNotMatch(designTwice, /sub-?agents?|`task`/i);
-  assert.match(designTwice, /three separate self-contained inline design passes/i);
-  assert.match(designSkill, /three sequential inline design passes/i);
-  assert.doesNotMatch(designSkill, /at least two interfaces/i);
-  assert.match(ponytail, /ponytail_level:<value>/);
-  assert.doesNotMatch(ponytail, /settings\[\]|ponytail_level,/);
+  assert.match(designTwice, /three self-contained shapes/i);
+  assert.match(designSkill, /DESIGN-IT-TWICE\.md/);
+  assert.match(ponytail, /^hide: true$/m);
+  assert.doesNotMatch(ponytail, /ponytail_level|Invocation modes|explicit_level|auto_scope|lite\/full\/ultra/i);
 });
 
 test("every GSD skill has complete matching frontmatter", () => {
@@ -600,7 +716,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   const leadingBlankContext = files["plan.md"].replace("## Context\nA", "## Context\n\nA");
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": leadingBlankContext }), /Context section must not have leading blank/);
   // Context trailing blank
-  const trailingBlankContext = files["plan.md"].replace("A tracked inline fixture.\n## Scope", "A tracked inline fixture.\n\n## Scope");
+  const trailingBlankContext = files["plan.md"].replace("A tracked inline fixture.\n## Domain Impact", "A tracked inline fixture.\n\n## Domain Impact");
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": trailingBlankContext }), /Context section must not have trailing blank/);
 
   // Scope leading blank
@@ -938,7 +1054,7 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
   assert.match(reference, /Quick-fix plan exception/);
   assert.match(master, /Quick-fix plan exception/);
   assert.match(verify, /malformed binding[\s\S]*red deterministic check blocks/i);
-  assert.match(planner, /atomically write canonical `schema:v3` `state\.toon`/);
+  assert.match(planner, /atomically write canonical `schema:v4` `state\.toon`/);
   assert.doesNotMatch(execution, /^produces: \[[^\n]*plan\.md/m);
   assert.match(execution, /ledger byte-for-byte read-only throughout the per-task loop/);
   assert.match(verify, /final milestone deletes the ledger/);
@@ -981,9 +1097,8 @@ test("master and visible skills declare automatic lazy activation", () => {
     assert.doesNotMatch(skill, standaloneCommand, `${name} standalone command syntax`);
   }
 
-  assert.match(read("skills/gsd-domain-modeling/SKILL.md"), /## Scaling boundary[\s\S]*## Decision capture/);
-  assert.match(read("skills/gsd-codebase-design/SKILL.md"), /## Deep vs shallow[\s\S]*## Designing for testability/);
-  assert.match(read("skills/gsd-improve-codebase-architecture/SKILL.md"), /## 1\. Explore[\s\S]*## 3\. Grilling loop/);
+  assert.match(read("skills/gsd-domain-modeling/SKILL.md"), /## Domain lifecycle[\s\S]*## Markdown contracts/);
+  assert.match(read("skills/gsd-codebase-architecture/SKILL.md"), /## Vocabulary[\s\S]*## Domain-aligned architecture[\s\S]*## Seam discipline/);
 });
 
 test("domain model has exactly one writer", () => {
@@ -994,6 +1109,33 @@ test("domain model has exactly one writer", () => {
   assert.deepEqual(writers, ["gsd-domain-modeling"]);
   const modeler = read("skills/gsd-domain-modeling/SKILL.md");
   assert.match(modeler, /orphan shard, or any other partial directory fails closed/);
+});
+
+test("domain impact is enforced across the feature lifecycle", () => {
+  const brainstorm = read("skills/gsd-brainstorming/SKILL.md");
+  const modeler = read("skills/gsd-domain-modeling/SKILL.md");
+  const planner = read("skills/gsd-to-plan/SKILL.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const agents = read("AGENTS.md");
+
+  for (const body of [brainstorm, modeler, planner, execution, verify, reference]) {
+    assert.match(body, /Domain Impact/);
+  }
+  assert.match(brainstorm, /When `docs\/domain\/index\.md` exists[\s\S]{0,220}do not (?:offer|suggest)[\s\S]{0,120}broad/i);
+  assert.match(brainstorm, /read only[\s\S]{0,100}affected[\s\S]{0,100}(?:context|shard)/i);
+  assert.match(brainstorm, /When `docs\/domain\/index\.md` is absent[\s\S]{0,240}feature-scoped[\s\S]{0,160}broad/i);
+  assert.match(modeler, /Declining broad bootstrap never (?:waives|skips)[\s\S]{0,120}required/i);
+  assert.match(planner, /Classification[\s\S]*Contexts[\s\S]*Documentation[\s\S]*Broad bootstrap[\s\S]*Evidence/);
+  assert.match(planner, /bind[\s\S]{0,160}exact[\s\S]{0,120}domain-documentation paths/i);
+  assert.match(execution, /same owning task[\s\S]{0,180}code[\s\S]{0,120}domain documentation/i);
+  assert.match(execution, /target domain behavior[\s\S]{0,160}current production behavior/i);
+  assert.match(verify, /domain drift[\s\S]{0,160}(?:blocks|Blocker)/i);
+  assert.equal(agents.match(/^## Domain documentation$/gm)?.length, 1);
+  assert.match(agents, /production code, schemas, contracts, and tests are authoritative/i);
+  assert.match(agents, /No domain impact[\s\S]{0,100}justification/i);
+  assert.match(reference, /existing `docs\/domain\/index\.md` suppresses[\s\S]{0,120}broad/i);
 });
 
 test("domain model satisfies its deterministic Markdown invariants", () => {
@@ -1013,6 +1155,17 @@ test("domain model satisfies its deterministic Markdown invariants", () => {
     .sort();
   assert.deepEqual(scopeRows.map(({ file }) => file), shardFiles);
 
+  const requiredHeadings = [
+    "Scope",
+    "Purpose and responsibilities",
+    "Terms",
+    "Actors",
+    "Invariants",
+    "Workflows and state transitions",
+    "Commands, events, and outcomes",
+    "Context relationships",
+    "Domain policies",
+  ];
   for (const { scope, file, purpose } of scopeRows) {
     assert.ok(purpose, `${scope} purpose is required`);
     assert.equal(file, `${scope}.md`, `${scope} shard name`);
@@ -1022,25 +1175,17 @@ test("domain model satisfies its deterministic Markdown invariants", () => {
     assert.doesNotMatch(shard, /\r/);
     assert.match(shard, /^# Domain Scope\n/);
     assert.equal(shard.match(/^## Scope\n\n`([^`]+)`$/m)?.[1], scope);
-    assert.match(shard, /^## Terms$/m);
-    assert.match(shard, /^## Decisions$/m);
+    assert.deepEqual(
+      [...shard.matchAll(/^## (.+)$/gm)].map((match) => match[1]),
+      requiredHeadings,
+      `${scope} production-domain headings`,
+    );
+    assert.doesNotMatch(shard, /^## Decisions$/m);
 
     const termRows = [...shard.matchAll(/^\| ([^|]+) \| ([^|]+) \| ([^|]+) \|$/gm)]
       .map(([, term]) => term.trim())
-      .filter((term) => !["Term", "---"].includes(term));
-    assert.deepEqual(termRows, [...termRows].sort(), `${scope} terms must be sorted`);
-
-    const decisions = [...shard.matchAll(/^### D-([a-z0-9-]+)-(\d+): (.+)$/gm)];
-    assert.ok(
-      decisions.every(([, decisionScope, , title]) => decisionScope === scope && title.trim()),
-      `${scope} decision headings`,
-    );
-    assert.deepEqual(
-      decisions.map(([, , ordinal]) => Number(ordinal)),
-      decisions.map((_, index_) => index_ + 1),
-      `${scope} decision IDs`,
-    );
-    assert.ok(termRows.length + decisions.length > 0, `${scope} shard cannot be empty`);
+      .filter((term) => !["Term", "Command or event", "---"].includes(term));
+    assert.ok(termRows.length > 0, `${scope} shard must describe current domain behavior`);
   }
 });
 
@@ -1107,9 +1252,9 @@ test("T1 session-owner execution contract and lifecycle roles", () => {
   assert.match(execution, /Task `Tn\+1` begins only from the committed green checkpoint of `Tn`/);
   assert.match(execution, /Source mutations never overlap task\/repair or Deferred Slow E2E/i);
   assert.match(verify, /No free-form critique or model-generated verdict is terminal authority/);
-  assert.match(domain, /### D-gsd-3: Make the session owner the sole lifecycle authority/);
-  assert.match(domain, /### D-gsd-4: Converge only through deterministic blockers/);
-  assert.match(domain, /### D-gsd-5: Rehydrate authority from canonical sources/);
+  assert.match(domain, /### P-gsd-3: Make the session owner the sole lifecycle authority/);
+  assert.match(domain, /### P-gsd-4: Converge only through deterministic blockers/);
+  assert.match(domain, /### P-gsd-5: Rehydrate authority from canonical sources/);
   assert.match(readme, /## Session-owner authority/);
   assert.equal(existsSync(join(ROOT, "agents", "gsd-executor.md")), false);
   assert.equal(existsSync(join(ROOT, "agents", "gsd-reviewer.md")), false);
@@ -1121,7 +1266,7 @@ test("T1 session-owner execution contract and lifecycle roles", () => {
   assert.match(execution, /never rewrite approved Markdown/);
 });
 
-test("T2 schema:v3 state.toon contract and skill derivation", () => {
+test("T2 schema:v4 state.toon contract and skill derivation", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const handoff = read("skills/gsd-handoff/SKILL.md");
   const master = read("skills/gsd/SKILL.md");
@@ -1130,13 +1275,13 @@ test("T2 schema:v3 state.toon contract and skill derivation", () => {
   const verify = read("skills/gsd-verify/SKILL.md");
 
   assert.match(reference, /## Runtime state contract/);
-  const currentStateBlock = reference.match(/```toon\nschema:v3\n[\s\S]*?\n```/);
-  assert.ok(currentStateBlock, "REFERENCE must contain canonical schema:v3");
-  assert.doesNotMatch(currentStateBlock[0], /model|agent|review/);
+  const currentStateBlock = reference.match(/```toon\nschema:v4\n[\s\S]*?\n```/);
+  assert.ok(currentStateBlock, "REFERENCE must contain canonical schema:v4");
+  assert.doesNotMatch(currentStateBlock[0], /model|agent|review|ponytail/);
   assert.match(currentStateBlock[0], /phase:draft\|approved\|executing\|paused\|verifying\|repair\|merged-cleanup-pending\|completed-retained/);
   assert.match(currentStateBlock[0], /checkpoint_revision/);
   assert.match(currentStateBlock[0], /cleanup_preference:none\|delete\|retain\|archive-and-delete/);
-  assert.match(reference, /exact valid active production `schema:v1` or `schema:v2`[\s\S]*atomically rewritten to canonical `schema:v3`/);
+  assert.match(reference, /exact valid active production `schema:v1`, `schema:v2`, or `schema:v3`[\s\S]*atomically rewritten to canonical `schema:v4`/);
   assert.match(reference, /Validate `phase` against the fixed schema enum/);
   assert.match(handoff, /Reject an unknown `phase`; preserve an opaque `next_action`/);
   assert.doesNotMatch(reference, /opaque state `phase`|opaque `phase`/);
@@ -1152,8 +1297,8 @@ test("T2 schema:v3 state.toon contract and skill derivation", () => {
   assert.match(handoff, /Write atomic `\.scratch\/<feature>\/state\.toon`/);
   assert.match(handoff, /Active skills are derived from `phase` and `next_action`/);
   assert.match(handoff, /Never serialize a `reload` manifest/);
-  assert.match(handoff, /schema:v1` and `schema:v2`[\s\S]*rewritten to `schema:v3`/);
-  assert.match(planner, /atomically write canonical `schema:v3` `state\.toon`/);
+  assert.match(handoff, /schema:v1`, `schema:v2`, and `schema:v3`[\s\S]*rewritten to `schema:v4`/);
+  assert.match(planner, /atomically write canonical `schema:v4` `state\.toon`/);
   assert.match(execution, /validated task slice/);
   assert.match(execution, /Do not write task-attempt TOON files/);
   assert.match(verify, /phase=merged-cleanup-pending|merged-cleanup-pending/);
@@ -1385,24 +1530,13 @@ test("compaction recovery capsule byte identity and drift protection", async () 
   }
 });
 
-test("AC-1: Ponytail lifecycle escalation and no reduced-scope completion", () => {
+test("AC-1: Ponytail is hidden level-free context", () => {
   const ponytail = read("skills/gsd-ponytail/SKILL.md");
-  const domain = read("docs/domain/gsd.md");
-
-  // Require normal GSD lifecycle escalation and forbid reduced-scope completion in ponytail skill
-  assert.match(ponytail, /return to the normal GSD lifecycle/i);
-  assert.match(ponytail, /never ship a reduced subset as complete/i);
-  assert.doesNotMatch(ponytail, /Ship the lazy version \+ question it/i);
-
-  // Assert scope-expands transition row as one exact anchored line
-  assert.match(ponytail, /^\| Scope expansion \| `event=scope-expands;explicit_level=<current>;auto_scope=<scope>` \| `explicit_level=<current>;auto_scope=none` \| `none` \| `gsd-brainstorming` \| `none` \| `n\/a` \|$/m);
-  assert.doesNotMatch(ponytail, /event=scope-expands.*auto_scope=<scope>.*explicit_level=none/i);
-  assert.doesNotMatch(ponytail, /event=scope-expands.*auto_scope=<scope>.*auto_scope=quick-fix/i);
-
-  // Require same in domain decision D-gsd-2
-  assert.match(domain, /### D-gsd-2: Escalate work that stops being a quick fix/i);
-  assert.match(domain, /Clear bounded quick-fix scope and return to the normal lifecycle when requested work becomes complex or expands beyond known scope/i);
-  assert.match(domain, /silently reducing requested scope bypasses/i);
+  const frontmatter = parseAgentFrontmatter(ponytail, "gsd-ponytail");
+  assert.equal(frontmatter.hide, true);
+  assert.match(ponytail, /smallest complete path/i);
+  assert.match(ponytail, /enter the normal GSD lifecycle/i);
+  assert.doesNotMatch(ponytail, /ponytail_level|Invocation modes|Role:\s*(?:owner|helper)|explicit_level|auto_scope|lite\/full\/ultra/i);
 });
 
 test("AC-2: Installation documentation distinguishes relocation from in-place edits", () => {
@@ -1503,17 +1637,14 @@ test("AC-2 repair: task repair stays session-owner-inline without terminal verif
 
 test("AC-3: Visible skill dispatch is deterministic", () => {
   const reference = read("skills/gsd/REFERENCE.md");
-  const visible = skillNames().filter((name) => name !== "gsd").sort();
-  assert.equal(visible.length, 11, "exactly 11 visible GSD skills");
+  const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
+  assert.equal(visible.length, 9, "exactly 9 visible GSD skills");
 
-  // Canonical matrix section with machine-parseable rows
   const section = reference.match(
     /## Visible skill mandatory-use matrix\n+([\s\S]*?)(?:\n## |\n### |\n*$)/,
   );
   assert.ok(section, "REFERENCE must define ## Visible skill mandatory-use matrix");
   const body = section[1];
-
-  // Header: exact columns
   assert.match(
     body,
     /^\| Skill \| Role \| Intent \| Prerequisites \| Do-not-load \| Transition \| Helper-when \|\n\| --- \| --- \| --- \| --- \| --- \| --- \| --- \|/m,
@@ -1531,14 +1662,9 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
     helperWhen: m[7].trim(),
   }));
 
-  assert.equal(rows.length, 11, "matrix must have exactly 11 rows");
-  assert.deepEqual(
-    rows.map((r) => r.skill).sort(),
-    visible,
-    "matrix skills must be exactly the 11 visible skills, one each",
-  );
-  // uniqueness
-  assert.equal(new Set(rows.map((r) => r.skill)).size, 11, "no multiply mapped skill");
+  assert.equal(rows.length, 9, "matrix must have exactly 9 rows");
+  assert.deepEqual(rows.map((row) => row.skill).sort(), visible);
+  assert.equal(new Set(rows.map((row) => row.skill)).size, 9, "no multiply mapped skill");
 
   const vague = /\b(as needed|if useful|when appropriate|sometimes|maybe|etc\.?|TBD|TODO)\b/i;
   const helpers = [];
@@ -1547,44 +1673,27 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
     assert.ok(row.prerequisites && row.prerequisites !== "", `${row.skill} prerequisites`);
     assert.ok(row.doNotLoad && row.doNotLoad !== "", `${row.skill} do-not-load`);
     assert.ok(row.transition && row.transition !== "—" && row.transition.length > 3, `${row.skill} transition`);
-    assert.doesNotMatch(row.intent, vague, `${row.skill} intent not vague`);
-    assert.doesNotMatch(row.prerequisites, vague, `${row.skill} prerequisites not vague`);
-    assert.doesNotMatch(row.doNotLoad, vague, `${row.skill} do-not-load not vague`);
-    assert.doesNotMatch(row.transition, vague, `${row.skill} transition not vague`);
-
+    for (const field of [row.intent, row.prerequisites, row.doNotLoad, row.transition]) {
+      assert.doesNotMatch(field, vague, `${row.skill} field not vague`);
+    }
     if (row.role === "helper") {
       helpers.push(row.skill);
       assert.notEqual(row.helperWhen, "—", `${row.skill} helper-when required`);
-      assert.ok(row.helperWhen.length > 8, `${row.skill} helper-when exact`);
-      assert.doesNotMatch(row.helperWhen, vague, `${row.skill} helper-when not vague`);
-      assert.match(
-        row.helperWhen,
-        /must load|required when|active if and only if|load when/i,
-        `${row.skill} helper condition is mandatory, not optional`,
-      );
+      assert.match(row.helperWhen, /must load|required when|active if and only if|load when/i);
     } else {
       assert.equal(row.helperWhen, "—", `${row.skill} owner has empty helper-when marker`);
     }
 
-    // Each visible skill file must point at the matrix and restate role/transition concisely
     const skillMd = read(`skills/${row.skill}/SKILL.md`);
     assert.match(skillMd, /Visible skill mandatory-use matrix/);
     assert.match(skillMd, new RegExp(`Role:\\s*${row.role}`));
     assert.match(skillMd, /Do-not-load:/i);
     assert.match(skillMd, /Transition:/i);
-    if (row.role === "helper") {
-      assert.match(skillMd, /Helper-when:/i);
-      assert.match(skillMd, /cannot be skipped|must load|required when/i);
-    }
+    if (row.role === "helper") assert.match(skillMd, /Helper-when:/i);
   }
 
-  // Known helpers must be present and mandatory under condition
-  for (const helper of ["gsd-tdd", "gsd-domain-modeling", "gsd-codebase-design"]) {
-    assert.ok(helpers.includes(helper), `${helper} mapped as helper`);
-  }
-
-  // Reject unmapped skill by construction (already exact set equality)
-  // Reject vague matrix-wide language
+  assert.deepEqual(helpers.sort(), ["gsd-domain-modeling", "gsd-tdd"]);
+  assert.doesNotMatch(body, /gsd-ponytail|gsd-codebase-design|gsd-improve-codebase-architecture/);
   assert.doesNotMatch(body, vague);
 });
 
@@ -1593,8 +1702,8 @@ test("AC-4: Concision preserves semantic parity", () => {
   const MAX_BOOTSTRAP_WORDS = 900;
   const MAX_REFERENCE_WORDS = 4800;
   const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
-  const visible = skillNames().filter((name) => name !== "gsd").sort();
-  assert.equal(visible.length, 11);
+  const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
+  assert.equal(visible.length, 9);
   const total = visible.reduce(
     (count, name) => count + wordCount(read(`skills/${name}/SKILL.md`)),
     0,
@@ -1613,7 +1722,7 @@ test("AC-4: Concision preserves semantic parity", () => {
   assert.match(handoff, /REFERENCE\.md[^.\n]*§ Runtime state contract/);
   assert.match(verify, /REFERENCE\.md[^.\n]*§ Post-approval pipeline contract/);
   assert.doesNotMatch(planner, /```md\n# Plan/);
-  assert.doesNotMatch(handoff, /schema:v3\nfeature:/);
+  assert.doesNotMatch(handoff, /schema:v4\nfeature:/);
   assert.match(reference, /### Fast TDD and task-loop constraints/);
   assert.match(reference, /deterministic cumulative conformance/);
   assert.match(execution, /Every observable task loads `gsd-tdd`/);
@@ -1638,77 +1747,58 @@ test("AC-4 repair: session-owner inline task repair forbids terminal re-entry", 
 
 
 
-test("AC-4 repair: ponytail is helper with no lifecycle ownership", () => {
+test("AC-4 repair: ponytail is hidden and absent from runtime dispatch", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const ponytail = read("skills/gsd-ponytail/SKILL.md");
-  const section = reference.match(
-    /## Visible skill mandatory-use matrix\n+([\s\S]*?)(?:\n## |\n### |\n*$)/,
-  );
-  assert.ok(section);
-  const row = [...section[1].matchAll(
-    /^\| `(gsd-[a-z0-9-]+)` \| (owner|helper) \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$/gm,
-  )].find((m) => m[1] === "gsd-ponytail");
-  assert.ok(row, "matrix must include gsd-ponytail");
-  assert.equal(row[2], "helper", "gsd-ponytail is helper, not a primary lifecycle owner");
-  assert.match(row[7], /must load|required when|active if and only if|load when/i);
-  assert.doesNotMatch(row[3], /\bowner\b/i);
-
-  // Skill restates helper / no primary lifecycle ownership
-  assert.match(ponytail, /Role:\s*helper/);
-  assert.match(ponytail, /Helper-when:/i);
-  assert.match(ponytail, /Do not select the primary lifecycle|never select(?:s)? the primary lifecycle|does not replace the primary lifecycle/i);
-  assert.match(ponytail, /return to the normal GSD lifecycle/);
+  assert.equal(parseAgentFrontmatter(ponytail, "gsd-ponytail").hide, true);
+  assert.doesNotMatch(reference, /`gsd-ponytail`/);
+  assert.doesNotMatch(ponytail, /Visible skill mandatory-use matrix|Helper-when:|ponytail_level/);
 });
 
-test("AC-4 repair: ponytail preference autofire and handoff state", () => {
+test("AC-4 repair: ponytail carries no modes or persisted preference", () => {
   const ponytail = read("skills/gsd-ponytail/SKILL.md");
-  const modes = ponytail.match(/## Invocation modes\n+([\s\S]*?)(?:\n## |\n*$)/);
-  assert.ok(modes);
-  assert.match(modes[1], /Quick-fix auto-fire/);
-  assert.match(modes[1], /Explicit session toggle/);
-  assert.match(ponytail, /explicit_level` is exactly `none\|lite\|full\|ultra`/);
-  assert.match(ponytail, /auto_scope` is exactly `none\|quick-fix`/);
-  assert.match(ponytail, /ponytail_level:<level>/);
-  assert.match(ponytail, /ponytail_level:none/);
-  assert.match(ponytail, /scalar `ponytail_level:<value>`/);
-  assert.doesNotMatch(ponytail, /ponytail_level,<level>|row=ponytail_level/);
-  assert.match(ponytail, /\*\*lite\*\*/);
-  assert.match(ponytail, /\*\*full\*\*/);
-  assert.match(ponytail, /\*\*ultra\*\*/);
+  const reference = read("skills/gsd/REFERENCE.md");
+  assert.doesNotMatch(ponytail, /## Invocation modes|explicit_level|auto_scope|ponytail_level|lite\/full\/ultra/i);
+  const currentStateBlock = reference.match(/```toon\nschema:v4\n[\s\S]*?\n```/);
+  assert.ok(currentStateBlock);
+  assert.doesNotMatch(currentStateBlock[0], /ponytail/i);
 });
 
-test("AC-4 repair: domain-modeling exact Markdown schema", () => {
+test("AC-4 repair: domain-modeling exact production schema", () => {
   const domain = read("skills/gsd-domain-modeling/SKILL.md");
   assert.match(domain, /## Markdown contracts/);
   assert.match(domain, /# Domain Model/);
   assert.match(domain, /## Scopes/);
   assert.match(domain, /\| Scope \| File \| Purpose \|/);
   assert.match(domain, /# Domain Scope/);
-  assert.match(domain, /## Terms/);
-  assert.match(domain, /\| Term \| Definition \| Avoid \|/);
-  assert.match(domain, /## Decisions/);
-  assert.match(domain, /D-<scope>-N|D-<scope>-N/);
-  assert.match(domain, /\*\*Decision:\*\*/);
-  assert.match(domain, /\*\*Rationale:\*\*/);
-  assert.match(domain, /Empty `Terms` or `Decisions` may contain exactly `None\.`/);
+  for (const heading of [
+    "Purpose and responsibilities",
+    "Terms",
+    "Actors",
+    "Invariants",
+    "Workflows and state transitions",
+    "Commands, events, and outcomes",
+    "Context relationships",
+    "Domain policies",
+  ]) {
+    assert.match(domain, new RegExp(`## ${heading}`));
+  }
+  assert.doesNotMatch(domain, /^## Decisions$/m);
+  assert.match(domain, /current production behavior/i);
   assert.match(domain, /sole writer/i);
   assert.match(domain, /orphan shard, or any other partial directory fails closed/);
-  assert.match(domain, /## Scaling boundary/);
-  assert.match(domain, /## Decision capture/);
-  assert.match(domain, /hard to reverse/);
-  assert.match(domain, /## Conservative context harvest|## Ambiguity by phase/);
+  assert.match(domain, /## Domain lifecycle/);
 });
 
-test("AC-4 repair: codebase-design vocabulary and deepening", () => {
-  const skill = read("skills/gsd-codebase-design/SKILL.md");
-  assert.match(skill, /## Glossary/);
+test("AC-4 repair: unified architecture vocabulary and deepening", () => {
+  const skill = read("skills/gsd-codebase-architecture/SKILL.md");
+  assert.match(skill, /## Vocabulary/);
   assert.match(skill, /deep module|Deep module/i);
-  assert.match(skill, /## Deep vs shallow/);
-  assert.match(skill, /## Designing for testability/);
-  assert.match(skill, /## Going deeper|design it twice|Design it twice|design-it-twice/i);
-  assert.match(skill, /## Principles|information hiding|Information hiding/i);
-  assert.match(skill, /## Rejected framings|shallow module/i);
-  assert.match(skill, /Role:\s*helper/);
+  assert.match(skill, /## Domain-aligned architecture/);
+  assert.match(skill, /## Seam discipline/);
+  assert.match(skill, /DESIGN-IT-TWICE\.md/);
+  assert.match(skill, /information hiding|complexity hidden/i);
+  assert.match(skill, /Role:\s*owner/);
 });
 
 test("AC-4 repair: diagnosing-bugs red-capable flow", () => {
@@ -1723,19 +1813,18 @@ test("AC-4 repair: diagnosing-bugs red-capable flow", () => {
   assert.match(skill, /## Phase 6 — Cleanup \+ post-mortem|## Phase 6 — Cleanup/);
   assert.match(skill, /regression test/);
   assert.match(skill, /\[DEBUG-/);
-  assert.match(skill, /gsd-improve-codebase-architecture/);
+  assert.match(skill, /gsd-codebase-architecture/);
   // disclosure pair for AC-4 cross-ref
   assert.match(skill, /^[ ]{0,3}## Contextual disclosure.*\[\.\.\/gsd\/REFERENCE\.md\]\(\.\.\/gsd\/REFERENCE\.md\).*§ Contextual disclosure templates.*\r?\n[ ]{0,3}```/m);
 });
 
-test("AC-4 repair: architecture candidates selection gate", () => {
-  const skill = read("skills/gsd-improve-codebase-architecture/SKILL.md");
-  assert.match(skill, /## 1\. Explore/);
-  assert.match(skill, /## 2\. Present candidates/);
-  assert.match(skill, /## 3\. Grilling loop/);
-  assert.match(skill, /ask the user to pick one|user pick|user selects?|user selection/i);
-  assert.match(skill, /Present candidates in the terminal/i);
-  assert.match(skill, /^[ ]{0,3}## Contextual disclosure.*\[\.\.\/gsd\/REFERENCE\.md\]\(\.\.\/gsd\/REFERENCE\.md\).*§ Contextual disclosure templates.*\r?\n[ ]{0,3}```/m);
+test("AC-4 repair: unified architecture candidates selection gate", () => {
+  const skill = read("skills/gsd-codebase-architecture/SKILL.md");
+  assert.match(skill, /## Explore and design/);
+  assert.match(skill, /## Candidate contract/);
+  assert.match(skill, /ask the user to select one/i);
+  assert.match(skill, /present ranked candidates/i);
+  assert.match(skill, /Post-diagnosis architecture/);
 });
 
 test("AC-4 repair: brainstorming modes harvest and stress-test", () => {
@@ -1754,21 +1843,11 @@ test("AC-4 repair: brainstorming modes harvest and stress-test", () => {
   assert.match(skill, /Role:\s*owner/);
 });
 
-test("AC-4 repair: codebase-design Adapter and Leverage definitions", () => {
-  const skill = read("skills/gsd-codebase-design/SKILL.md");
-  // Exact shared vocabulary — role-at-seam Adapter, not vague thin translation
-  assert.match(
-    skill,
-    /\*\*Adapter\*\* — a concrete thing that satisfies an interface at a seam\. Describes \*role\* \(what slot it fills\), not substance \(what's inside\)\./,
-  );
-  // Exact Leverage definition — capability per unit interface across call sites/tests
-  assert.match(
-    skill,
-    /\*\*Leverage\*\* — what callers get from depth: more capability per unit of interface they learn\. One implementation pays back across N call sites and M tests\./,
-  );
-  // Reject shallow redefinitions that replace the shared contract
+test("AC-4 repair: unified architecture Adapter and Leverage definitions", () => {
+  const skill = read("skills/gsd-codebase-architecture/SKILL.md");
+  assert.match(skill, /\*\*Adapter\*\* — concrete implementation occupying a seam; a role/);
+  assert.match(skill, /\*\*Leverage\*\* — capability reused across callers and tests per unit of interface learned/);
   assert.doesNotMatch(skill, /\*\*Adapter\*\* — thin translation at a boundary without leaking internals/);
-  assert.doesNotMatch(skill, /\*\*Leverage\*\* — change amplification through a deep interface/);
 });
 
 test("AC-4 repair: diagnosing no-red-loop blocker vs access ask", () => {
@@ -1791,46 +1870,24 @@ test("AC-4 repair: diagnosing no-red-loop blocker vs access ask", () => {
   );
 });
 
-test("AC-4 repair: ponytail Helper-when includes normal clearing", () => {
-  const reference = read("skills/gsd/REFERENCE.md");
-  const ponytail = read("skills/gsd-ponytail/SKILL.md");
-  const section = reference.match(
-    /## Visible skill mandatory-use matrix\n+([\s\S]*?)(?:\n## |\n### |\n*$)/,
-  );
-  assert.ok(section);
-  const row = [...section[1].matchAll(
-    /^\| `(gsd-[a-z0-9-]+)` \| (owner|helper) \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \| ([^|]+) \|$/gm,
-  )].find((m) => m[1] === "gsd-ponytail");
-  assert.ok(row);
-  assert.equal(row[2], "helper");
-  // Helper-when must mandatorily cover normal/stop clearing-state load, not only lite/full/ultra
-  assert.match(row[7], /\bnormal\b/i);
-  assert.match(row[7], /must load|required when|active if and only if|load when/i);
-  assert.match(row[7], /lite|full|ultra/i);
-  // Skill dispatch stays aligned
-  assert.match(ponytail, /Helper-when:[\s\S]{0,200}\bnormal\b/i);
-  assert.match(ponytail, /event=stop;explicit_level=<current>;auto_scope=<scope>/);
-  assert.match(ponytail, /Ponytail: none — normal mode\./);
+test("AC-4 repair: existing domain index suppresses broad bootstrap", () => {
+  const brainstorm = read("skills/gsd-brainstorming/SKILL.md");
+  const architecture = read("skills/gsd-codebase-architecture/SKILL.md");
+  const modeler = read("skills/gsd-domain-modeling/SKILL.md");
+  for (const body of [brainstorm, architecture, modeler]) {
+    assert.match(body, /When `docs\/domain\/index\.md` exists[\s\S]{0,240}(?:do not|never)[\s\S]{0,80}(?:offer|suggest)[\s\S]{0,80}broad/i);
+  }
+  assert.match(modeler, /When `docs\/domain\/index\.md` is absent[\s\S]{0,280}broad/i);
 });
 
-test("AC-4 repair: codebase-design Implementation and seam principles", () => {
-  const skill = read("skills/gsd-codebase-design/SKILL.md");
-  assert.match(
-    skill,
-    /\*\*Implementation\*\* — what's inside a module, its body of code\. Distinct from \*\*Adapter\*\*/,
-  );
-  assert.match(
-    skill,
-    /\*\*Depth\*\* — leverage at the interface: the amount of behaviour a caller \(or test\) can exercise per unit of interface/i,
-  );
-  assert.match(skill, /Depth is a property of the interface, not the implementation/i);
-  assert.match(skill, /The deletion test/i);
-  assert.match(skill, /If complexity vanishes, it was a pass-through|complexity reappears across N callers/i);
-  assert.match(skill, /One adapter means a hypothetical seam\. Two adapters means a real one/i);
-  assert.match(skill, /Internal seams vs external seams/i);
-  assert.match(skill, /Don't expose internal seams at the external interface|Don't expose internal/i);
-  assert.match(skill, /Tests assert on observable outcomes through the interface, not internal state/i);
-  assert.match(skill, /survive internal refactors|testing past the interface/i);
+test("AC-4 repair: unified architecture implementation and seam principles", () => {
+  const skill = read("skills/gsd-codebase-architecture/SKILL.md");
+  assert.match(skill, /\*\*Implementation\*\* — behavior hidden inside a module/);
+  assert.match(skill, /\*\*Depth\*\* — behavior and complexity hidden per unit of caller knowledge/);
+  assert.match(skill, /deletion test/i);
+  assert.match(skill, /One production adapter alone is a hypothetical seam/i);
+  assert.match(skill, /Keep internal test seams private/i);
+  assert.match(skill, /Tests observe the public interface and survive internal refactors/i);
 });
 
 test("AC-4 repair: session-owner task repair does not enter terminal verification", () => {
@@ -1842,56 +1899,26 @@ test("AC-4 repair: session-owner task repair does not enter terminal verificatio
   assert.doesNotMatch(execution, /re-enters review|re-enter review|gsdReviewer/);
 });
 
-test("AC-4 repair: architecture Explore friction and domain ambiguity", () => {
-  const skill = read("skills/gsd-improve-codebase-architecture/SKILL.md");
-  assert.match(skill, /## 1\. Explore/);
-  // Exact friction definition examples
-  assert.match(
-    skill,
-    /Note friction such as one concept bouncing across shallow modules, leaky seams, call-site coupling hidden by extracted pure functions, or behavior that cannot be tested through a stable interface/i,
-  );
-  // Pre-approval domain ambiguity: one focused question, no write
-  assert.match(
-    skill,
-    /Before approval[\s\S]{0,160}one[- ]focused[- ]question[\s\S]{0,80}no[- ]write/i,
-  );
-  // Post-approval: Spec escalation or skip
-  assert.match(
-    skill,
-    /(?:Inside approved execution|After approval|post-approval)[\s\S]{0,200}Spec escalation[\s\S]{0,120}skip/i,
-  );
+test("AC-4 repair: architecture Explore friction and domain boundaries", () => {
+  const skill = read("skills/gsd-codebase-architecture/SKILL.md");
+  assert.match(skill, /## Explore and design/);
+  assert.match(skill, /duplicated policy, concepts bouncing across shallow modules, leaky seams, wrong dependency direction/i);
+  assert.match(skill, /bounded context is a semantic and language boundary/i);
+  assert.match(skill, /Inside approved execution[\s\S]{0,260}Spec-escalation blocker/i);
 });
 
-test("AC-4 repair: codebase-design targetless guard and rejected framings", () => {
-  const skill = read("skills/gsd-codebase-design/SKILL.md");
+test("AC-4 repair: architecture targetless guard and framework discipline", () => {
+  const skill = read("skills/gsd-codebase-architecture/SKILL.md");
   assert.match(skill, /Invocation guard/i);
-  assert.match(
-    skill,
-    /If no module, interface, or area is supplied, stop and ask one focused target question/i,
-  );
-  assert.match(skill, /never survey the repository or invent a target/i);
-  assert.match(skill, /## Rejected framings/);
-  assert.match(
-    skill,
-    /Depth as ratio of implementation-lines to interface-lines/i,
-  );
-  assert.match(
-    skill,
-    /"Interface" as the TypeScript `interface` keyword or a class's public methods/i,
-  );
-  assert.match(skill, /"Boundary"[^.\n]*bounded context|overloaded with DDD's bounded context/i);
+  assert.match(skill, /ask one focused target question; never survey the repository to invent a target/i);
+  assert.match(skill, /Keep domain\/application policy independent/i);
+  assert.match(skill, /Do not wrap stable framework APIs merely to appear framework-neutral/i);
 });
 
 test("AC-4 repair: architecture candidate enums exact", () => {
-  const skill = read("skills/gsd-improve-codebase-architecture/SKILL.md");
-  assert.match(
-    skill,
-    /recommendation strength \(`Strong`\/`Worth exploring`\/`Speculative`\)/i,
-  );
-  assert.match(
-    skill,
-    /dependency category \(`in-process`\/`local-substitutable`\/`remote but owned`\/`true external`\)/i,
-  );
+  const skill = read("skills/gsd-codebase-architecture/SKILL.md");
+  assert.match(skill, /recommendation strength: `Strong`, `Worth exploring`, or `Speculative`/i);
+  assert.match(skill, /`in-process`, `local-substitutable`, `remote but owned`, or `true external`/i);
 });
 
 test("AC-4 repair: session-owner task-repair evidence grammar", () => {

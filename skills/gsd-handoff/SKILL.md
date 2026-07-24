@@ -28,7 +28,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 ## Write
 
-Write atomic `.scratch/<feature>/state.toon` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Runtime state contract: same-directory temp, fsync, rename, directory fsync where supported, then validated readback. Approval first writes `phase=approved`. Canonical `schema:v3` gives the session owner only lifecycle, plan/Git binding, green checkpoint, preferences, and revision. On resume, exact valid active production `schema:v1` and `schema:v2` records are fully validated then atomically rewritten to `schema:v3`; malformed or terminal legacy state fails closed unchanged.
+Write atomic `.scratch/<feature>/state.toon` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Runtime state contract: same-directory temp, fsync, rename, directory fsync where supported, then validated readback. Approval first writes `phase=approved`. Canonical `schema:v4` gives the session owner only lifecycle, plan/Git binding, green checkpoint, runtime preferences, and revision. On resume, exact valid active production `schema:v1`, `schema:v2`, and `schema:v3` records are fully validated then atomically rewritten to `schema:v4`; malformed or terminal legacy state fails closed unchanged.
 
 Active skills are derived from `phase` and `next_action` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Skill derivation from phase and next_action. Never serialize a `reload` manifest. Master (`gsd`) is present from bootstrap.
 
@@ -36,7 +36,7 @@ Scratch is machine-local by default. Portable resume follows [../gsd/REFERENCE.m
 
 ## Runtime preferences
 
-Known preference fields on `state.toon` are unique scalars: `autosync` accepts only `none|on|off`; `ponytail_level` accepts only `none|lite|full|ultra`; `cleanup_preference` accepts only `none|delete|retain|archive-and-delete`. Omission uses canonical `none` (autosync unset, Ponytail inactive, cleanup defaults to delete after green merge). Reject legacy settings tables. Inline codebase-design/domain-modeling complete before checkpoint; plan outputs are not resumable execution modes. Malformed, duplicate, or invalid known values fail closed.
+Known preference fields on `state.toon` are unique scalars: `autosync` accepts only `none|on|off`; `cleanup_preference` accepts only `none|delete|retain|archive-and-delete`. Omission uses canonical `none` (autosync unset and cleanup defaults to delete after green merge). Ponytail has no runtime mode or persisted field. Reject legacy settings tables. Mandatory domain-modeling output completes before checkpoint; plan outputs are not resumable execution modes. Malformed, duplicate, or invalid known values fail closed.
 
 ## Portable and autosync
 
@@ -48,7 +48,7 @@ Cross-machine handoff may snapshot only explicitly approved dirty non-scratch pa
 
 Without a supplied path, discover active candidates via [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Candidate discovery; numbered history and result markers have no authority. Load master once, validate state, and execute `next_action` without circular re-entry, capsule execution, or duplicated action. Reject an unknown `phase`; preserve an opaque `next_action` only when structurally valid. Malformed state fails closed; invalid, missing, or changed plan is Spec escalation. Never reconstruct from dirty files, plan status, conversation, or legacy pre-approval TOON.
 
-A valid Execution resume verifies `schema:v3`, plan hash/path, base/WIP, last green task/commit, and current tree, then rebuilds the active slice. Resume validates whether verification must be continued before repair, E2E, or merge. These stages add no state keys.
+A valid Execution resume verifies `schema:v4`, plan hash/path, base/WIP, last green task/commit, and current tree, then rebuilds the active slice including `Domain Impact`. Exact bound pre-Domain-Impact plans are accepted only after their recorded hash matches. Resume validates whether verification must continue before repair, E2E, or merge. These stages add no state keys.
 
 For `Milestone ledger recovery`, use only the ledger selected by automatic active-state detection. Report the first pending milestone slug and goal, then load `gsd-brainstorming` for reconstruction. Do not create scratch, mutate ledger bytes, detail later rows, mark completion, start execution, or authorize merge.
 

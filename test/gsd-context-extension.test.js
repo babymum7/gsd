@@ -27,7 +27,7 @@ import gsdContextExtension, {
 const FIXTURE_PLAN_SHA = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
 function writeActiveStateFixture(featureDir, feature, overrides = {}) {
   writeStateAtomic(featureDir, {
-    schema: "v3",
+    schema: "v4",
     feature,
     phase: "executing",
     next_action: "start/continue task",
@@ -38,7 +38,6 @@ function writeActiveStateFixture(featureDir, feature, overrides = {}) {
     last_green_task: "none",
     last_green_commit: "none",
     autosync: "none",
-    ponytail_level: "none",
     cleanup_preference: "none",
     checkpoint_revision: "1",
     ...overrides,
@@ -1189,7 +1188,7 @@ test("state.toon lifecycle checkpoint contract", async () => {
 
   const PLAN_SHA = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
   const baseFields = {
-    schema: "v3",
+    schema: "v4",
     feature: "demo-feature",
     phase: "executing",
     next_action: "start/continue task",
@@ -1200,7 +1199,6 @@ test("state.toon lifecycle checkpoint contract", async () => {
     last_green_task: "T1",
     last_green_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
     autosync: "none",
-    ponytail_level: "none",
     cleanup_preference: "none",
     checkpoint_revision: "1",
   };
@@ -1253,7 +1251,7 @@ test("state.toon lifecycle checkpoint contract", async () => {
   );
 
   // Malformed schema / unknown keys / partial rows fail closed
-  assert.throws(() => parseState("schema:v3\nfeature:demo-feature\n"), /schema|missing required field/i);
+  assert.throws(() => parseState("schema:v4\nfeature:demo-feature\n"), /schema|missing required field/i);
   assert.throws(() => parseState(serialize({ ...baseFields, extra_key: "nope" })), /unknown|extra|key/i);
   assert.throws(() => parseState("schema:v1\nfeature:\n"), /empty|malformed|feature/i);
   assert.throws(() => parseState(serialize({ ...baseFields, phase: "task-active" })), /phase/i);
@@ -1318,7 +1316,7 @@ test("state.toon lifecycle checkpoint contract", async () => {
     rmSync(symDir, { recursive: true, force: true });
 
     // Partial / truncated body fails closed
-    writeFileSync(join(featureDir, "state.toon"), "schema:v3\nfeature:demo-feature\nphase:execut");
+    writeFileSync(join(featureDir, "state.toon"), "schema:v4\nfeature:demo-feature\nphase:execut");
     assert.throws(() => readStateFile(statePath), /malformed|incomplete|phase|required/i);
     // Restore a valid checkpoint after the partial-write probe.
     writeStateAtomic(featureDir, baseFields);
@@ -1500,7 +1498,7 @@ test("atomic state writes survive feature-directory swaps", () => {
 
 test("plan_path and wip_branch must match state.feature on read/validate", () => {
   const base = {
-    schema: "v3",
+    schema: "v4",
     feature: "demo-feature",
     phase: "executing",
     next_action: "start/continue task",
@@ -1511,7 +1509,6 @@ test("plan_path and wip_branch must match state.feature on read/validate", () =>
     last_green_task: "none",
     last_green_commit: "none",
     autosync: "none",
-    ponytail_level: "none",
     cleanup_preference: "none",
     checkpoint_revision: "1",
   };
@@ -1553,7 +1550,7 @@ test("plan_path and wip_branch must match state.feature on read/validate", () =>
 
 test("session-owner state schema omits every model and review binding", () => {
   const state = {
-    schema: "v3",
+    schema: "v4",
     feature: "demo-feature",
     phase: "approved",
     next_action: "start/continue task",
@@ -1564,15 +1561,14 @@ test("session-owner state schema omits every model and review binding", () => {
     last_green_task: "none",
     last_green_commit: "none",
     autosync: "none",
-    ponytail_level: "none",
     cleanup_preference: "none",
     checkpoint_revision: "1",
   };
 
   const serialized = serializeState(state);
-  assert.equal(validateState(state).schema, "v3");
-  assert.equal(parseState(serialized).schema, "v3");
-  assert.doesNotMatch(serialized, /^(?:executor_model|reviewer_model|review_round|blocking_fingerprint|reviewed_commit|progress_status):/m);
+  assert.equal(validateState(state).schema, "v4");
+  assert.equal(parseState(serialized).schema, "v4");
+  assert.doesNotMatch(serialized, /^(?:executor_model|reviewer_model|review_round|blocking_fingerprint|reviewed_commit|progress_status|ponytail_level):/m);
 });
 
 test("exact valid v1 state migrates atomically before resume", () => {
@@ -1610,9 +1606,9 @@ test("exact valid v1 state migrates atomically before resume", () => {
     );
 
     const migrated = readStateFile(statePath);
-    assert.equal(migrated.schema, "v3");
+    assert.equal(migrated.schema, "v4");
     assert.equal(migrated.checkpoint_revision, "8");
-    for (const key of ["executor_model", "reviewer_model", "review_round", "blocking_fingerprint", "reviewed_commit", "progress_status"]) {
+    for (const key of ["executor_model", "reviewer_model", "review_round", "blocking_fingerprint", "reviewed_commit", "progress_status", "ponytail_level"]) {
       assert.equal(Object.hasOwn(migrated, key), false, key);
     }
     assert.equal(readFileSync(statePath, "utf8"), serializeState(migrated));
@@ -1654,11 +1650,11 @@ test("exact valid v2 state migrates atomically before resume", () => {
     writeFileSync(statePath, legacyBytes);
 
     const migrated = readStateFile(statePath);
-    assert.equal(migrated.schema, "v3");
+    assert.equal(migrated.schema, "v4");
     assert.equal(migrated.checkpoint_revision, "10");
     assert.equal(migrated.last_green_task, "T2");
     assert.equal(migrated.autosync, "off");
-    assert.equal(migrated.ponytail_level, "lite");
+    assert.equal(Object.hasOwn(migrated, "ponytail_level"), false);
     assert.equal(migrated.cleanup_preference, "retain");
     for (const key of ["reviewer_model", "review_round", "blocking_fingerprint", "reviewed_commit", "progress_status"]) {
       assert.equal(Object.hasOwn(migrated, key), false, key);
@@ -1709,6 +1705,7 @@ test("legacy v2 migration rejects malformed or terminal records without changing
       canonical.replace("review_round:none", "unknown_field:nope\nreview_round:none"),
       canonical.replace("review_round:none", "reviewer_model:second-reviewer\nreview_round:none"),
       canonical.replace("reviewer_model:openai-codex/gpt-5.5:high", "reviewer_model:none"),
+      canonical.replace("ponytail_level:none", "ponytail_level:turbo"),
       serializeLegacy({
         ...legacy,
         phase: "completed-retained",
@@ -1769,6 +1766,7 @@ test("legacy v1 migration rejects invalid or terminal records without changing b
       canonical.replace("review_round:none", "reviewer_model:second-reviewer\nreview_round:none"),
       canonical.replace("reviewer_model:openai-codex/gpt-5.5:high", "reviewer_model:none"),
       canonical.replace("executor_model:xai-oauth/grok-4.5", "executor_model:none"),
+      canonical.replace("ponytail_level:none", "ponytail_level:turbo"),
       serializeLegacy({
         ...legacy,
         phase: "completed-retained",
@@ -1863,6 +1861,45 @@ test("auto-compact also ignores a retained v2 terminal state without migration",
     assert.throws(() => readStateFile(statePath), /legacy phase must be active/);
     assert.deepEqual(detectCandidates(temporary), []);
     assert.equal(readFileSync(statePath, "utf8"), legacyBytes);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("candidate discovery leaves retained v3 inert until explicit migration", () => {
+  const temporary = mkdtempSync(join(tmpdir(), "gsd-state-retained-v3-"));
+  try {
+    const featureDir = join(temporary, ".scratch", "retained-v3");
+    mkdirSync(featureDir, { recursive: true });
+    writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
+    const statePath = join(featureDir, "state.toon");
+    const legacyBytes = [
+      "schema:v3",
+      "feature:retained-v3",
+      "phase:completed-retained",
+      "next_action:none",
+      "plan_path:.scratch/retained-v3/plan.md",
+      `plan_sha256:${"e".repeat(64)}`,
+      "base_ref:main",
+      "wip_branch:wip/retained-v3",
+      "last_green_task:T2",
+      `last_green_commit:${"b".repeat(40)}`,
+      "autosync:none",
+      "ponytail_level:full",
+      "cleanup_preference:retain",
+      "checkpoint_revision:9",
+      "",
+    ].join("\n");
+    writeFileSync(statePath, legacyBytes);
+
+    assert.deepEqual(detectCandidates(temporary), []);
+    assert.equal(readFileSync(statePath, "utf8"), legacyBytes);
+
+    const migrated = readStateFile(statePath);
+    assert.equal(migrated.schema, "v4");
+    assert.equal(migrated.checkpoint_revision, "10");
+    assert.equal(Object.hasOwn(migrated, "ponytail_level"), false);
+    assert.doesNotMatch(readFileSync(statePath, "utf8"), /ponytail_level/);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
@@ -2005,5 +2042,53 @@ test("readStateFile binds authority to its feature directory", () => {
     assert.throws(() => readStateFile(join(featureDir, "state.toon")), /featureDir basename|feature mismatch/i);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("schema v4 and hidden architecture catalog cutover", () => {
+  const catalogNames = discoverSkillCatalog(ROOT).map(({ name }) => name);
+  assert.ok(catalogNames.includes("gsd-codebase-architecture"));
+  assert.ok(!catalogNames.includes("gsd-codebase-design"));
+  assert.ok(!catalogNames.includes("gsd-improve-codebase-architecture"));
+  assert.ok(!catalogNames.includes("gsd-ponytail"));
+
+  const tmp = mkdtempSync(join(tmpdir(), "gsd-schema-v4-"));
+  try {
+    const featureDir = join(tmp, ".scratch", "demo");
+    mkdirSync(featureDir, { recursive: true });
+    const statePath = join(featureDir, "state.toon");
+    const legacyV3 = [
+      "schema:v3",
+      "feature:demo",
+      "phase:executing",
+      "next_action:start/continue task",
+      "plan_path:.scratch/demo/plan.md",
+      `plan_sha256:${FIXTURE_PLAN_SHA}`,
+      "base_ref:main",
+      "wip_branch:wip/demo",
+      "last_green_task:none",
+      "last_green_commit:none",
+      "autosync:off",
+      "ponytail_level:lite",
+      "cleanup_preference:retain",
+      "checkpoint_revision:7",
+      "",
+    ].join("\n");
+    writeFileSync(statePath, legacyV3);
+
+    const migrated = readStateFile(statePath);
+    assert.equal(migrated.schema, "v4");
+    assert.equal(migrated.autosync, "off");
+    assert.equal(migrated.cleanup_preference, "retain");
+    assert.equal(migrated.checkpoint_revision, "8");
+    assert.equal(Object.hasOwn(migrated, "ponytail_level"), false);
+    assert.doesNotMatch(readFileSync(statePath, "utf8"), /ponytail_level/);
+
+    const invalidLegacy = legacyV3.replace("ponytail_level:lite", "ponytail_level:turbo");
+    writeFileSync(statePath, invalidLegacy);
+    assert.throws(() => readStateFile(statePath), /ponytail_level/);
+    assert.equal(readFileSync(statePath, "utf8"), invalidLegacy);
+  } finally {
+    rmSync(tmp, { recursive: true, force: true });
   }
 });

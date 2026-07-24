@@ -53,27 +53,35 @@ flowchart LR
     V -.load-bearing plan gap.-> B
 ```
 
-1. **Discovery.** `gsd-brainstorming` explores only relevant code, exposes risks and missing decisions, and converges on the smallest sufficient contract. Large work is split into independently deliverable milestones.
-2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with observable acceptance criteria, structured file operations and intents, interfaces, focused checks, and a SHA-256 binding. The single post-plan action surface offers approve and execute, revise, and pause/save. Approval writes atomic `schema:v3` `.scratch/<feature>/state.toon`.
-3. **Execution.** The current top-level session owner uses `gsd-executing-plans` to select `T1..TN` in order, rebuild each complete validated task slice, load `gsd-tdd` for observable work, perform Fast TDD Checks inline (RED→GREEN→refactor; no browser/resource-heavy task loops), commit each green checkpoint, and update `state.toon`. GSD dispatches no implementation, repair, diagnosis, architecture, or verification child task and never overlaps lifecycle work.
-4. **Verification.** `gsd-verify` deterministically checks the exact plan/state binding, active-criterion/interface/task coverage, changed-path ownership, plan-ordered task diffs, explicit decisions/invariants/non-goals, and current-commit focused-check evidence. Only malformed binding, ownership/coverage mismatch, explicit contract contradiction, unresolved change, or a red deterministic check blocks.
+1. **Discovery.** `gsd-brainstorming` explores only relevant code, exposes risks and missing decisions, and converges on the smallest sufficient contract. Every feature classifies `Domain Impact`. When `docs/domain/index.md` exists, only affected mapped contexts are read and no broad domain scan is offered. When it is absent, semantic work bootstraps the feature context and may independently offer a broad bootstrap.
+2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with exact Domain Impact, observable acceptance criteria, structured file operations and intents, interfaces, focused checks, and a SHA-256 binding. Domain paths belong to the same task as semantic code. The single post-plan action surface offers approve and execute, revise, and pause/save. Approval writes atomic `schema:v4` `.scratch/<feature>/state.toon`.
+3. **Execution.** The current top-level session owner uses `gsd-executing-plans` to select `T1..TN` in order, rebuild each complete validated task slice, load `gsd-tdd` for observable work, perform Fast TDD Checks inline (RED→GREEN→refactor; no browser/resource-heavy task loops), update affected domain docs to current production behavior in the same owning task, commit each green checkpoint, and update `state.toon`. GSD dispatches no child lifecycle task and never overlaps lifecycle work.
+4. **Verification.** `gsd-verify` deterministically checks the exact plan/state binding, active-criterion/interface/task coverage, changed-path ownership, Domain Impact, code/domain drift, plan-ordered task diffs, explicit decisions/invariants/non-goals, and current-commit focused-check evidence. Only deterministic contract failures block.
 5. **E2E gates.** Current-commit session-owner verification precedes Deferred Slow E2E.
 
-A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active feature” validates `schema:v3`, the exact plan path/hash, base/WIP identity, last green task/commit, and current tree before rebuilding one active task or terminal slice. Malformed, ambiguous, or mismatched authority stops instead of reconstructing scope from memory.
+A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active feature” validates `schema:v4`, the exact plan path/hash, base/WIP identity, last green task/commit, and current tree before rebuilding one active task or terminal slice. Malformed, ambiguous, or mismatched authority stops instead of reconstructing scope from memory.
 ## Other intent-driven behavior
 
 | You say | Primary behavior |
 |---|---|
 | “Fix this typo” | Direct Nano edit; no scratch, branch, commit, or GSD skill. |
-| “Fix this small behavioral bug” | Minimal quick-fix lifecycle with Ponytail discipline. |
+| “Fix this small behavioral bug” | Minimal quick-fix lifecycle using hidden Ponytail context; no mode or saved preference. |
 | “Review this diff” | Standalone read-only review; no merge mechanics. |
 | “Why does X crash?” | Feedback-loop-first diagnosis with `gsd-diagnosing-bugs`. |
-| “Design the public interface for X” | Interface and module design with `gsd-codebase-design`. |
-| “Audit the architecture” | Deepening scan with `gsd-improve-codebase-architecture`. |
+| “Design the public interface for X” | Named-seam mode in `gsd-codebase-architecture`. |
+| “Audit the architecture” | Scoped audit mode in `gsd-codebase-architecture`. |
 | “Pause and save progress” | Validated `state.toon` checkpoint through `gsd-handoff`. |
 | “Continue the active feature” | Validated resume through `gsd-handoff`. |
 
 Missing consumed artifacts do not trigger improvisation. The selected skill returns control to automatic selection or the recorded active owner with an actionable stop or transition.
+
+## Domain-aligned delivery
+
+`docs/domain/index.md` maps stable production contexts to shards. Shards describe current terms, actors, invariants, workflows, commands/events/outcomes, context relationships, and policies—not package layouts, refactor journals, or future designs. Production code, schemas, contracts, and tests remain authoritative when documentation drifts.
+
+Every converged plan includes `Domain Impact`. Semantic code and its affected domain shards land in the same owning task; `gsd-verify` blocks completion on drift. If the index already exists, the workflow reads only affected mapped shards and never suggests a broad codebase/domain scan. A broad bootstrap is an optional decision only while creating the first index; declining it never skips mandatory feature-scoped documentation. The canonical `## Domain documentation` section in `AGENTS.md` gives future coding agents the same constraints.
+
+`gsd-codebase-architecture` aligns backend and frontend boundaries to these production contexts while keeping domain/application policy framework-independent and adapters idiomatic. A context is not automatically a service, package, page, database, or deployment unit.
 
 ## Session-owner authority
 
@@ -98,11 +106,10 @@ skills/
 ├── gsd-verify/                       # deterministic conformance and acceptance gate
 ├── gsd-handoff/                      # pause, recovery, and portable resume
 ├── gsd-tdd/                          # mandatory Fast TDD RED→GREEN→refactor for observable tasks
-├── gsd-ponytail/                     # YAGNI ladder
+├── gsd-ponytail/                     # hidden level-free YAGNI context
 ├── gsd-diagnosing-bugs/              # hard-bug diagnosis loop
-├── gsd-domain-modeling/              # bounded-context documentation
-├── gsd-codebase-design/              # deep modules and interface design
-└── gsd-improve-codebase-architecture/# architecture audit
+├── gsd-domain-modeling/              # current bounded-context documentation
+└── gsd-codebase-architecture/         # named seams and scoped architecture audits
 ```
 
 ## Verification

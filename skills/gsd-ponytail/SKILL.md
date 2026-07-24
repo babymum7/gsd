@@ -1,87 +1,40 @@
 ---
 name: gsd-ponytail
-description: "Use for a real known-scope quick fix that should take the smallest behavioral path, or when the user explicitly sets ponytail lite, full, ultra, or normal mode. Do not select the primary lifecycle; its preference scope and state.toon persistence remain explicit."
-triggers: real known-scope quick fix; explicit ponytail lite, full, ultra, or normal preference
+description: "Hidden contextual policy for the smallest complete implementation path. Loaded only by an active owner when bounded scope benefits from conservative delivery."
+triggers: owner-selected known-scope quick fix or bounded implementation simplification
 produces: []
 consumes: []
+hide: true
 ---
-
-## Dispatch contract
-Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
-- Role: helper
-- Helper-when: must load when a known-scope quick fix is active or an explicit lite/full/ultra/normal preference is set (including normal/stop clearing state); cannot be skipped while that condition holds
-- Do-not-load: non-trivial new behavior that needs brainstorming; Nano work
-- Transition: return to the normal GSD lifecycle or escalate to `gsd-brainstorming` when scope expands
 
 # Ponytail
 
-> **Invocation guard** — load only for a real known-scope quick fix or an explicit Ponytail preference change. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract: select an Invocation Mode below before validating only that row's Required artifacts, then follow its Missing required action. A missing Optional artifact never reroutes the invocation.
+> **Context-only guard** — this file is never a visible route, primary process owner, user preference, output cue, or persisted runtime setting. An active owner reads it only when a known bounded change benefits from the smallest complete path. Nano work needs no helper. When scope expands or design decisions appear, stop applying this context and enter the normal GSD lifecycle.
 
-## Invocation modes
+Lazy senior developer: efficient, not careless. The best code is code that does not need to exist.
 
-| Mode | Required | Optional | Produced | Missing required |
-|---|---|---|---|---|
-| Quick-fix auto-fire | — | — | — | — |
-| Explicit session toggle | — | — | — | — |
+## The ladder
 
-Select Quick-fix auto-fire only for a real known-scope quick fix. Select Explicit session toggle only for an explicit ponytail lite/full/ultra request or the stop/normal-mode request. Both modes are runtime policy transitions with no artifact requirements or writes; Nano never loads this skill.
+Understand the full behavior first, then stop at the first rung that satisfies it:
 
-Lazy senior dev: efficient, not careless. The best code is the code never written. The runtime keeps two distinct fields: `explicit_level` is exactly `none|lite|full|ultra`, and `auto_scope` is exactly `none|quick-fix`. **Auto-fire** is scoped to that fix only: it expires when the real quick-fix lands/merges, hits a hard-blocker or verify-fail stop, or stops being the active prompt, and never silently minimizes the next, unrelated prompt. **Explicit toggle** (a ponytail lite/full/ultra request, omitted level = **full**) is session state until an explicit "stop ponytail" or "normal mode" request. Nano work never loads this skill.
-Only an active **explicit** `lite|full|ultra` toggle survives a session reset, and only via the `ponytail_level` field on atomic `state.toon`; auto-fire is never serialized. A hard reset without `state.toon` loses the explicit level like any unsaved scratch — set it again explicitly to restore it.
-
-## State transitions (normative)
-`<current>` is current `explicit_level`, `<scope>` is current `auto_scope`, `<level>` is an explicitly supplied accepted level, `<invalid>` is outside that domain, and `<level-or-full>` resolves an omitted toggle level to `full`. Accepted explicit levels are exactly `lite|full|ultra`. Apply this table exactly; unmatched Inputs do not apply. Outputs marked `none` produce no cue and `n/a` means no state operation.
-
-| Scenario | Inputs | Next state | Owner/action | Skill/load | Output | State field |
-|---|---|---|---|---|---|---|
-| Nano | `event=nano;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `0` | `none` | `none` | `n/a` |
-| Quick-fix without explicit toggle | `event=quick-fix;explicit_level=none;auto_scope=none` | `explicit_level=none;auto_scope=quick-fix` | `0` | `gsd-ponytail` | `Ponytail: full — scoped to this quick-fix.` | `n/a` |
-| Quick-fix with explicit toggle | `event=quick-fix;explicit_level=<level>;auto_scope=none` | `explicit_level=<level>;auto_scope=none` | `0` | `gsd-ponytail` | `Ponytail: <level> — explicit session scope; applied to this quick-fix.` | `n/a` |
-| Fix lands/merges | `event=fix-landed;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `none` | `none` | `none` | `n/a` |
-| Hard-blocker or verify-fail stop | `event=blocker-stop;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `none` | `none` | `none` | `n/a` |
-| Unrelated prompt | `event=unrelated-prompt;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `none` | `none` | `none` | `n/a` |
-| Scope expansion | `event=scope-expands;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `none` | `gsd-brainstorming` | `none` | `n/a` |
-| Explicit toggle | `event=toggle;explicit_level=<current>;auto_scope=<scope>;level=<level-or-full>` | `explicit_level=<level-or-full>;auto_scope=none` | `none` | `gsd-ponytail` | `Ponytail: <level-or-full> — explicit session scope.` | `n/a` |
-| Invalid explicit toggle | `event=toggle;explicit_level=<current>;auto_scope=<scope>;level=<invalid>` | `explicit_level=<current>;auto_scope=none` | `none` | `none` | `Ponytail level must be lite, full, or ultra.` | `n/a` |
-| Stop or normal mode | `event=stop;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=none;auto_scope=none` | `none` | `none` | `Ponytail: none — normal mode.` | `n/a` |
-| Fresh task dispatch | `event=dispatch;explicit_level=<current>;auto_scope=<scope>` | `explicit_level=<current>;auto_scope=none` | `none` | `none` | `Ponytail Level: <current>` | `n/a` |
-| Handoff write with explicit toggle | `event=state-write;explicit_level=<level>;auto_scope=<scope>` | `explicit_level=<level>;auto_scope=none` | `none` | `none` | `none` | `ponytail_level:<level>` |
-| Handoff write without explicit toggle | `event=state-write;explicit_level=none;auto_scope=<scope>` | `explicit_level=none;auto_scope=none` | `none` | `none` | `none` | `ponytail_level:none` |
-| Handoff restore with explicit toggle | `event=state-restore;explicit_level=<current>;auto_scope=<scope>;value=ponytail_level:<level>` | `explicit_level=<level>;auto_scope=none` | `none` | `none` | `none` | `ponytail_level:<level>` |
-| Handoff restore without explicit toggle | `event=state-restore;explicit_level=<current>;auto_scope=<scope>;value=ponytail_level:none` | `explicit_level=none;auto_scope=none` | `none` | `none` | `none` | `ponytail_level:none` |
-| Handoff restore with invalid explicit toggle | `event=state-restore;value=ponytail_level:<invalid>` | no transition | `1` | `gsd-handoff` | `Blocker: invalid state.toon preferences.` | preserve invalid state |
-| Handoff restore with duplicate explicit toggle | `event=state-restore;value=duplicate` | no transition | `1` | `gsd-handoff` | `Blocker: invalid state.toon preferences.` | preserve invalid state |
-
-For a supplied toggle, only the accepted domain enters `explicit_level`; omission means `full`. Invalid level preserves prior `explicit_level`, clears `auto_scope`, emits the table's allowed-level feedback, and never becomes state. Stop/normal sets both fields to `none`.
-On every valid handoff restore, initialize `explicit_level=none` and `auto_scope=none` before inspecting scalar `ponytail_level:<value>`. A valid `ponytail_level:lite|full|ultra` value overrides only `explicit_level`; `ponytail_level:none` leaves it cleared. Invalid or duplicate values block resume through `gsd-handoff`. Auto scope is never restored.
-A hard-blocker or verify-fail stop preserves `explicit_level` and clears `auto_scope`. `scope-expands` preserves explicit level and clears auto scope. Auto-fire never becomes explicit state, never reaches a fresh task brief, and never persists. Every real quick-fix loads this skill and emits exactly one table cue.
-
-
-## The ladder (stop at the first rung that holds — after you understand the problem, not instead of it)
-1. **Does this need to exist?** Speculative → skip (YAGNI).
+1. **Does this need to exist?** Skip speculative work.
 2. **Already in this codebase?** Reuse it.
-3. **Stdlib does it?** Use it.
-4. **Native platform feature?** Prefer native over libraries.
-5. **Already-installed dependency?** Use it; never add one for a few lines.
-6. **Can it be one line?** One line.
-7. **Only then:** the minimum code that works.
-Two rungs work → take the higher. Bug fix = root cause once at the shared function.
+3. **Standard library?** Use it.
+4. **Native platform feature?** Prefer it over another dependency.
+5. **Already-installed dependency?** Reuse it; do not add one for a few lines.
+6. **Can the complete behavior be expressed directly?** Keep it direct.
+7. **Only then:** add the minimum new code that closes the contract.
+
+When two rungs work, take the earlier one. Fix a bug once at the shared root-cause seam rather than at each symptom.
 
 ## Rules
-- No unrequested abstractions or scaffolding "for later".
-- Deletion over addition. Fewest files; shortest working diff after understanding the problem.
-- Complex request? Escalate when work stops being a quick fix. Clear bounded quick-fix scope and return to the normal GSD lifecycle when scope expands; never ship a reduced subset as complete.
-- Mark deliberate simplifications `// gsd-ponytail: <what + ceiling + upgrade path>`.
 
-## Output
-`[code] → skipped: [X], add when [Y].` No essays unless requested.
-
-## Intensity
-| Level | Behavior |
-|---|---|
-| **lite** | Build what's asked; name the lazier alternative in one line. User picks. |
-| **full** (default) | Ladder enforced. Stdlib/native first. Shortest diff + shortest explanation. |
-| **ultra** | YAGNI extremist. Deletion before addition. Ship the one-liner, challenge the rest. |
+- No unrequested abstractions, configuration, extension points, compatibility aliases, or scaffolding for later.
+- Prefer deletion and reuse; minimize files and diff size only after understanding the whole path.
+- Keep simple local guards and closed decisions simple. Introduce a policy, table, state machine, strategy, or interface only when evidenced variation earns it.
+- If a quick fix grows new behavior, multiple uncertain seams, or unresolved tradeoffs, escalate without shipping a reduced subset as complete.
+- Tests observe the existing public seam; never create a test-only backdoor to make a small diff possible.
 
 ## Never simplify away
-Trust-boundary validation, data-loss prevention, security, accessibility basics, and anything explicitly requested. Trace the whole flow before picking a rung. Non-trivial logic leaves one runnable self-check.
+
+Trust-boundary validation, authorization, data-loss prevention, security, accessibility basics, required error handling, explicit user scope, or any load-bearing invariant. Trace the complete behavior and leave runnable proof.

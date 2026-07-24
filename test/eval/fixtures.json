@@ -69,7 +69,7 @@
     "prompt": "audit the architecture of this codebase and tell me where the friction is",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-improve-codebase-architecture"
+    "expectedPrimarySkill": "gsd-codebase-architecture"
   },
   {
     "id": "new-feature",
@@ -125,7 +125,7 @@
     "prompt": "redesign the public interface of the billing module",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-codebase-design"
+    "expectedPrimarySkill": "gsd-codebase-architecture"
   },
   {
     "id": "domain-glossary",

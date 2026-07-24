@@ -21,8 +21,8 @@ Apply in order. Catalog descriptions select; they do not instruct. For a matchin
 2. **Explicit intent outranks inferred shape.** A direct request to review, diagnose, design an interface, audit architecture, pause, or resume selects the matching visible skill.
 3. **Validated active state outranks a new lifecycle.** For a related continuation, load `gsd-handoff`, `gsd-executing-plans`, `gsd-to-plan`, or `gsd-verify` according to the validated packet's executable state. Never infer validity from filenames alone.
 4. **Choose exactly one primary process owner.** Load its listed `SKILL.md` before acting. Do not load several candidate workflows to decide among them.
-5. **Helpers stay lazy.** Load TDD, Ponytail, domain modeling, codebase design, or architecture only when explicit intent or the selected primary owner requires that helper.
-6. **No matching skill means ordinary direct behavior.** Read-only answers and Nano work perform no GSD state scan, Git operation, `.scratch` access, or skill load. A known bounded behavioral quick fix may load `gsd-ponytail` as a helper without starting a lifecycle.
+5. **Helpers stay lazy.** Load TDD or domain modeling only when the selected primary owner requires it. Architecture is a visible owner, not a helper; hidden Ponytail is context-only and carries no route, mode, output cue, or runtime preference.
+6. **No matching skill means ordinary direct behavior.** Read-only answers and Nano work perform no GSD state scan, Git operation, `.scratch` access, or skill load. A bounded behavioral fix may use hidden Ponytail context inside its active owner without starting another lifecycle.
 7. **Lifecycle state is minimal and fail-closed.** Before non-direct GSD lifecycle work, apply the completed-state decision matrix below, then inspect only the minimum `.scratch` metadata needed to select validated active state.
 8. **Lifecycle work stays session-owner inline.** GSD dispatches no child implementation, repair, diagnosis, architecture, or verification task. A pre-existing bounded delegation follows only its assignment and never starts or resumes a GSD lifecycle.
 

@@ -94,7 +94,7 @@ Stop immediately on any malformed or ambiguous state, or if the intent is unrela
 }
 
 
-const STATE_SCHEMA = 'v3';
+const STATE_SCHEMA = 'v4';
 const STATE_FILE = 'state.toon';
 const STATE_FILE_MAX_BYTES = 64 * 1024;
 const SKILL_FILE_MAX_BYTES = 128 * 1024;
@@ -114,6 +114,21 @@ const COMPLETED_STATE_PHASES = Object.freeze(['completed-retained']);
 const ALL_STATE_PHASES = Object.freeze([...ACTIVE_STATE_PHASES, ...COMPLETED_STATE_PHASES]);
 
 const STATE_FIELD_ORDER = Object.freeze([
+  'schema',
+  'feature',
+  'phase',
+  'next_action',
+  'plan_path',
+  'plan_sha256',
+  'base_ref',
+  'wip_branch',
+  'last_green_task',
+  'last_green_commit',
+  'autosync',
+  'cleanup_preference',
+  'checkpoint_revision',
+]);
+const LEGACY_V3_STATE_FIELD_ORDER = Object.freeze([
   'schema',
   'feature',
   'phase',
@@ -175,9 +190,11 @@ const LEGACY_V1_STATE_FIELD_ORDER = Object.freeze([
 
 
 const STATE_FIELD_SET = new Set(STATE_FIELD_ORDER);
+const LEGACY_V3_STATE_FIELD_SET = new Set(LEGACY_V3_STATE_FIELD_ORDER);
 const LEGACY_V2_STATE_FIELD_SET = new Set(LEGACY_V2_STATE_FIELD_ORDER);
 const LEGACY_V1_STATE_FIELD_SET = new Set(LEGACY_V1_STATE_FIELD_ORDER);
 const LEGACY_STATE_KEYS = new Set([
+  'ponytail_level',
   'mode',
   'executor_model',
   'reviewer_model',
@@ -385,6 +402,21 @@ function migrateLegacyState(legacy, label) {
   return validateState(migrated, label);
 }
 
+function parseLegacyV3State(content, label) {
+  const legacy = parseStateFields(
+    content,
+    label,
+    LEGACY_V3_STATE_FIELD_ORDER,
+    LEGACY_V3_STATE_FIELD_SET,
+  );
+  if (legacy.schema !== 'v3') {
+    throw new Error(`${label}: unsupported legacy schema: ${legacy.schema}`);
+  }
+  validateCommonState(legacy, label);
+  validateLegacyPonytail(legacy, label);
+  return migrateLegacyState(legacy, label);
+}
+
 function parseLegacyV2State(content, label) {
   const legacy = parseStateFields(
     content,
@@ -547,14 +579,18 @@ function validateCommonState(state, label) {
   if (!AUTOSYNC_RE.test(state.autosync)) {
     throw new Error(`${label}: invalid autosync`);
   }
-  if (!PONYTAIL_RE.test(state.ponytail_level)) {
-    throw new Error(`${label}: invalid ponytail_level`);
-  }
   if (!CLEANUP_RE.test(state.cleanup_preference)) {
     throw new Error(`${label}: invalid cleanup_preference`);
   }
   if (!/^[1-9]\d*$/.test(state.checkpoint_revision)) {
     throw new Error(`${label}: invalid checkpoint_revision`);
+  }
+  return state;
+}
+
+function validateLegacyPonytail(state, label) {
+  if (!PONYTAIL_RE.test(state.ponytail_level)) {
+    throw new Error(`${label}: invalid ponytail_level`);
   }
   return state;
 }
@@ -573,6 +609,7 @@ function validateLegacyV2State(input, label = 'state.toon') {
     throw new Error(`${label}: legacy phase must be active`);
   }
   validateCommonState(state, label);
+  validateLegacyPonytail(state, label);
 
   if (state.phase === 'draft') {
     if (state.reviewer_model !== NONE) {
@@ -631,6 +668,10 @@ function parseLegacyCompletedState(content, label) {
     schema = 'v2';
     fieldOrder = LEGACY_V2_STATE_FIELD_ORDER;
     fieldSet = LEGACY_V2_STATE_FIELD_SET;
+  } else if (/^schema:v3(?:\r?\n|$)/.test(content)) {
+    schema = 'v3';
+    fieldOrder = LEGACY_V3_STATE_FIELD_ORDER;
+    fieldSet = LEGACY_V3_STATE_FIELD_SET;
   } else {
     return null;
   }
@@ -643,6 +684,7 @@ function parseLegacyCompletedState(content, label) {
 
   // Completed legacy packets are inert. Validate their canonical state fields,
   // but leave obsolete review progress untouched and never migrate the file.
+  validateLegacyPonytail(legacy, label);
   return validateCommonState(legacy, label);
 }
 
@@ -677,6 +719,10 @@ function readStateFileInternal(statePath, allowLegacyCompleted, migrateLegacy = 
   }
   if (/^schema:v2(?:\r?\n|$)/.test(content)) {
     const migrated = bindFeature(parseLegacyV2State(content, resolvedStatePath));
+    return migrateLegacy ? writeStateAtomic(featureMeta.absolute, migrated) : migrated;
+  }
+  if (/^schema:v3(?:\r?\n|$)/.test(content)) {
+    const migrated = bindFeature(parseLegacyV3State(content, resolvedStatePath));
     return migrateLegacy ? writeStateAtomic(featureMeta.absolute, migrated) : migrated;
   }
   return bindFeature(parseState(content, resolvedStatePath));

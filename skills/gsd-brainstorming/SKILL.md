@@ -23,7 +23,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 | New behavior discovery | explicit non-trivial behavior intent | relevant code/docs/domain context | converged conversational contract | ask one target question only when the target itself is missing |
 | Supplied design stress-test | supplied proposal or design claims | relevant implementation seams | sharpened conversational contract | ask for the missing proposal |
 | Spec-gap revision | exact blocker and affected acceptance/interface/invariant | current plan and evidence | revised conversational contract | preserve the blocker and stop |
-| Selected architecture candidate | user-selected candidate | audit evidence and bounded area | converged candidate contract | return to `gsd-improve-codebase-architecture` for candidate selection |
+| Selected architecture candidate | user-selected candidate | audit evidence and bounded area | converged candidate contract | return to `gsd-codebase-architecture` for candidate selection |
 
 ## Scope discipline
 
@@ -45,17 +45,16 @@ Convergence fixes behavior before planning. Every active acceptance criterion mu
 
 Pin exactly one existing public test seam per active criterion before convergence. Prefer the highest deterministic existing **fast** boundary that observes production behavior: local public module, contract, or in-process CLI/API harness first. A Fast TDD Check is required for observable criteria: no browser or GUI, external network, long-lived server, large fixture, or material machine cost during implementation. If no fast public seam exists, the contract must explicitly add the smallest real fast public seam as product work. Never approve a source-text assertion, private helper probe, duplicated implementation, test-only backdoor, or resource-heavy browser/E2E seam as the implementation-task acceptance boundary.
 
-## Conservative context harvest
+## Conservative context harvest and Domain Impact
 
-Domain context is lazy and evidence-gated:
+Domain impact is mandatory for every converged feature:
 
-1. Reuse evidence already needed for the selected design. Generic vocabulary, one-off identifiers, code shape without rationale, reversible preferences, and missing docs are no-op.
-2. A candidate exists only for a recurring project-specific term or an explicit architectural decision with evidenced rationale. Only then read `docs/domain/index.md` and the minimum relevant mapped shards.
-3. Load `gsd-domain-modeling` as the sole writer only for a certain candidate. Before approval, material ambiguity about meaning, ownership, or tradeoffs asks one focused question and writes nothing. Certain pre-approval writes return exact changed paths for task ownership in the eventual plan.
-4. A hard-to-reverse, surprising decision with a real tradeoff and evidenced rationale may become a domain decision. Reversible preferences do not.
-5. After approval, this skill is no longer the owner: load-bearing ambiguity returns through the session owner's execution spec-gap transition; non-load-bearing documentation ambiguity is skipped.
-
-Missing `docs/domain/index.md` is normal. Check related existing decisions before proposing a new one.
+1. Classify it as exactly `none`, `change-existing-context`, `introduce-context`, or `change-context-boundary`. Record sorted affected context slugs, required documentation action, broad-bootstrap disposition, and concrete code/schema/contract evidence. `none` is valid only when the evidence shows no production semantics, terms, invariants, workflow, outcome, relationship, or policy changes.
+2. When `docs/domain/index.md` exists, validate it and read only mapped shards for the affected contexts. Do not offer or suggest a broad codebase/domain scan. Existing unrelated contexts stay unread.
+3. When `docs/domain/index.md` is absent and the feature changes production semantics, feature-scoped context bootstrap is mandatory. After bounding that required context, offer one independent broad-bootstrap choice. If declined, still load `gsd-domain-modeling` for the required feature-scoped context; declining broad bootstrap never skips affected-context documentation.
+4. Reuse only evidence already needed for the selected design. Generic vocabulary, one-off identifiers, reversible preferences, and code shape without production meaning are no-op. Existing docs are navigation hints, not authority over production code, schemas, contracts, or tests.
+5. Load `gsd-domain-modeling` as sole writer for every non-`none` classification. Before approval, material ambiguity about meaning, ownership, or a boundary asks one focused question and writes nothing. Certain writes return exact paths so the eventual plan can bind them to the owning code task.
+6. After approval, load-bearing ambiguity returns through the session owner's Spec-gap transition. Non-load-bearing prose uncertainty never widens scope, but required current-behavior documentation remains part of the owning task.
 
 ## Large-feature decomposition
 
