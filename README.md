@@ -100,6 +100,10 @@ The current top-level session is the sole lifecycle authority. It interprets the
 ```text
 extensions/
 └── gsd-context.js                    # only runtime entry point
+lib/
+└── gsd-contract.mjs                 # executable full-plan and Quick-fix grammar
+tools/
+└── gsd-contract.mjs                 # thin agent-facing validator CLI
 skills/
 ├── gsd/                              # hidden session bootstrap + canonical reference
 ├── gsd-brainstorming/                # discovery and requirements convergence
@@ -113,6 +117,28 @@ skills/
 ├── gsd-domain-modeling/              # current bounded-context documentation
 └── gsd-codebase-architecture/         # named seams and scoped architecture audits
 ```
+
+## Plan contract validation
+
+The lifecycle validates actual plan authority through one production parser. New full plans use:
+
+```bash
+node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md
+```
+
+Execution resume, terminal entry, and pre-squash bind the same command to approved bytes:
+
+```bash
+node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex>
+```
+
+Quick fixes select their distinct grammar:
+
+```bash
+node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md
+```
+
+Successful validation emits minimal deterministic TOON with the plan kind, feature, SHA-256, and task count. Artifact failures emit structured TOON on stdout and exit 1; invalid invocations exit 2. The validator reads only a bounded real `.scratch/<feature>/plan.md` and never mutates plan, state, domain, or Git data.
 
 ## Verification
 

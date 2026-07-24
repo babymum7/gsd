@@ -13,6 +13,7 @@ Own request classification, feature convergence, immutable plan approval, ordere
 | Term | Definition | Avoid |
 | --- | --- | --- |
 | Artifact Contract | The rule classifying repository artifacts per Invocation Mode as Required, Optional, Produced, or Fallback. | flat mandatory dependency list |
+| Contract Validator | The executable production seam that validates canonical, bound-legacy, and Quick-fix plan authority without mutating it. | test-only parser, prose-only validation |
 | Context Harvest | Scope-bounded domain inspection: existing indexes limit reads to affected mapped contexts, while an absent index permits required feature bootstrap plus one optional broad-bootstrap decision. | routine broad codebase scan |
 | Deferred Slow E2E | A resource-heavy feature journey run only after current-commit deterministic conformance. | task-loop check |
 | Domain Impact | The mandatory plan classification binding semantic change evidence, affected contexts, documentation action, and broad-bootstrap disposition. | optional documentation note |
@@ -35,6 +36,8 @@ Own request classification, feature convergence, immutable plan approval, ordere
 - A known bounded behavioral fix is owned directly by the session owner; Ponytail remains hidden and is loaded only from its exact injected context path.
 - Approved `plan.md` bytes remain immutable; runtime state only binds and reports them.
 - State authority is valid only as fatal-decoded UTF-8 with LF line endings; invalid bytes and carriage returns fail closed unchanged.
+- Exact retained v1/v2 terminal records are structurally recognized during candidate discovery only to remain inert and byte-identical; an explicit read rejects them fail closed unchanged.
+- Full-plan approval, execution resume, terminal entry, pre-squash, and Quick-fix verification use the production Contract Validator before consuming plan authority.
 - Retained `schema:v3` stays inert and byte-identical during candidate discovery but migrates atomically on an explicit read after full validation.
 - Every converged feature records Domain Impact, including a concrete justification for `none`.
 - Every Quick-fix records the exact five-field Domain Impact; semantic fixes own affected shards and no-impact fixes carry concrete evidence.
@@ -48,21 +51,22 @@ Own request classification, feature convergence, immutable plan approval, ordere
 ### Deliver a feature
 
 1. Classify intent, converge acceptance behavior plus Domain Impact, and reserve affected documentation paths without publishing future semantics.
-2. Write and approve one canonical plan, then bind it in `schema:v4` state.
+2. Validate the canonical plan through the Contract Validator, approve its exact SHA-256, then bind it in `schema:v4` state.
 3. Execute ordered tasks with Fast TDD and green checkpoints.
 4. Prove terminal conformance, run Deferred Slow E2E, squash to base, and clean transient state.
 
 ### Resume active work
 1. Fatally decode LF-only state bytes, then validate the schema, plan hash/path, Git identity, green checkpoint, and current tree.
-2. Keep retained `schema:v3` inert during candidate discovery; migrate it only on an explicit read after full validation.
+2. Validate the exact bound plan through the Contract Validator. Retained v1/v2 terminal records remain inert during candidate discovery and fail closed on explicit read; retained v3 migrates only on an explicit validated read.
 3. Rebuild exactly one active task or terminal slice from canonical sources.
 4. Continue the recorded owner action without replaying prior lifecycle work.
 
 ### Deliver a bounded quick fix
 
 1. The session owner reads the exact injected hidden Ponytail context path and records the exact Quick-fix plan, including Domain Impact and one or two structured tasks with focused checks.
-2. Implement through Fast TDD and update every affected domain shard in the same task as semantic code.
-3. Block terminal completion when Domain Impact is contradictory or current production prose drifts from the fix.
+2. Validate the exact Quick-fix grammar through the Contract Validator before consuming its tasks.
+3. Implement through Fast TDD and update every affected domain shard in the same task as semantic code.
+4. Block terminal completion when Domain Impact is contradictory or current production prose drifts from the fix.
 
 ### Escalate a quick fix
 
@@ -74,6 +78,7 @@ Own request classification, feature convergence, immutable plan approval, ordere
 | Command or event | Actor | Outcome |
 | --- | --- | --- |
 | Approve and execute | User | Canonical plan bytes are bound and ordered execution starts. |
+| Validate plan authority | Session Owner | Canonical plan bytes and grammar are accepted with an exact hash or rejected without mutation. |
 | Fix bounded behavior | Session Owner | Quick-fix Domain Impact and structured task ownership govern Fast TDD and domain-drift verification. |
 | Continue active feature | User | Validated state selects one resumable owner action. |
 | Domain drift detected | Session Owner | Completion is blocked until code and affected shards agree. |
@@ -146,3 +151,8 @@ None.
 
 - **Policy:** Candidate discovery leaves exact retained `schema:v3` bytes inert and unchanged; only an explicit validated state read may migrate that record atomically to `schema:v4`.
 - **Reason:** Terminal history must not compete for resume selection, while explicit cleanup or inspection retains the supported compatibility path.
+
+### P-gsd-13: Centralize executable plan validation
+
+- **Policy:** Every full-plan approval, execution resume, terminal entry, pre-squash guard, and Quick-fix verification uses the production Contract Validator; exact bound legacy grammar is available only after its SHA-256 matches.
+- **Reason:** One executable seam keeps artifact authority, failure modes, and compatibility behavior consistent across lifecycle owners and repository tests.

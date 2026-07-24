@@ -156,9 +156,25 @@ A Quick-fix is not a converged feature packet. Its direct fast path writes a min
 
 It contains one or two sequential tasks with unique structured paths and a real focused command. The exact five-field `Domain Impact` follows the canonical classification rules: `none` requires concrete no-change evidence, every non-`none` classification owns each `docs/domain/<context>.md` path in the same task as code, and Quick-fix always records `Broad bootstrap: not-offered`. A missing index or requested broad bootstrap exits the bounded route for normal discovery. Only the Quick-fix WIP verifier consumes this plan. It has no proposal/spec/design source set, no approval binding, and no normal-packet authority. Ordinary packet validation MUST NOT classify it as malformed converged state or dispatch normal execution from it; its special `gsd-verify` gate owns it until landing or a blocker.
 
+### Executable contract validator
+
+`lib/gsd-contract.mjs` is the single executable Markdown grammar. Repository tests import it directly; lifecycle owners use its thin agent-facing CLI:
+
+```text
+node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md
+node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex>
+node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md
+```
+
+The first command validates a new canonical full plan and returns its exact SHA-256. The second checks the hash before enabling the exact bound pre-Domain-Impact compatibility reader; a missing or mismatched hash never falls back. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/` directory; symlinks, escaped paths, feature-directory mismatch, malformed grammar, and changed bytes fail closed without mutation.
+
+Success emits only deterministic scalar TOON fields `status`, `kind`, `feature`, `sha256`, and `tasks`. Structured actionable failures also use TOON on stdout: artifact failures exit 1, usage failures exit 2, and help exits 0. No command writes plan, state, domain, or Git data.
+
 ### Approval binding
 
 `gsd-to-plan` validates canonical structured `plan.md`, prints its task/AC/Domain Impact summary, calculates SHA-256, and presents the single post-plan action surface. Approval records feature, exact plan path/hash, base/WIP identity, no completed task, canonical preferences, and checkpoint revision in atomic `schema:v4` `state.toon`, then reads it back before loading `gsd-executing-plans`. A fresh approval after Spec escalation atomically supersedes the older binding. Full semantic parse and binding checks run only at approval, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use the retained validated slice.
+
+The executable validator runs at new-plan approval without `--expected-sha256`; resume, execution entry, terminal entry, and pre-squash use the bound-hash form. Quick-fix verification uses `validate-quick-fix`.
 
 No model, agent, or persistent session identity participates in approval. The current top-level session is the sole lifecycle authority; a later session assumes that role only through canonical rehydration.
 
@@ -219,7 +235,9 @@ cleanup_preference:none|delete|retain|archive-and-delete
 checkpoint_revision:<positive int>
 ```
 
-Phase-inapplicable values use canonical `none`. Current `schema:v4` parsing rejects invalid UTF-8, carriage returns, blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, Ponytail preference state, and obsolete model or agent rows. Exact `schema:v1` and `schema:v2` records migrate only when active; every terminal record in those schemas must fail closed unchanged. Exact active `schema:v3` follows the same validated atomic migration. An exact `schema:v3` `completed-retained` record is the sole terminal compatibility case: candidate discovery validates it but leaves its bytes unchanged and inert, while an explicit `readStateFile` validates and atomically migrates it to canonical `schema:v4`. Every legacy field, including `ponytail_level` where present, is validated before migration, obsolete rows are discarded, and `checkpoint_revision` increments. Malformed, partial, reordered, unknown, or non-concrete legacy records fail closed unchanged; partial old terminal evidence is discarded and deterministic conformance reruns.
+Phase-inapplicable values use canonical `none`. Current `schema:v4` parsing rejects invalid UTF-8, carriage returns, blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, Ponytail preference state, and obsolete model or agent rows. Exact active `schema:v1`, `schema:v2`, and `schema:v3` records migrate only after full validation. Explicit reads and resume reject every v1/v2 terminal record fail closed and byte-identical. An exact `schema:v3` `completed-retained` record is the sole terminal explicit-read compatibility case: candidate discovery leaves it inert, while an explicit `readStateFile` validates and atomically migrates it to canonical `schema:v4`. Every legacy field, including `ponytail_level` where present, is validated before migration, obsolete rows are discarded, and `checkpoint_revision` increments. Malformed, partial, reordered, unknown, or non-concrete legacy records fail closed unchanged; partial old terminal evidence is discarded and deterministic conformance reruns.
+
+Exact v1/v2 `completed-retained` records are structurally recognized during candidate discovery only so they can remain inert, byte-identical, and excluded from active candidates. This is not terminal read compatibility: an explicit `readStateFile` rejects v1/v2 terminal records unchanged. Retained v3 remains the sole terminal case that an explicit validated read can migrate.
 
 ### Atomic write
 

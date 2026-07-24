@@ -27,6 +27,8 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 Perform one full parse and binding check at execution entry or resume: validate canonical `schema:v4` and `.scratch/<feature>/plan.md` under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Canonical Markdown contract. Reject legacy proposal/spec/design files, numbered handoffs, attempts, reload manifests, and result markers. At ordinary task selection consume the retained validated task slice; repeat full parsing only at resume, terminal entry, and pre-squash. Never reconstruct scope from memory.
 
+At execution entry or resume run `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256>` before building the retained slice. Exit 0 must report the matching feature and bound hash. Exit 1 is malformed or mismatched authority and therefore Spec escalation; exit 2 corrects only the invocation. Do not invoke unbound validation on an approved plan.
+
 Dual-read exact already-approved hash-bound legacy task blocks only to finish their binding. An exact pre-Domain-Impact plan is readable only after its recorded hash matches; malformed new fields never fall back. Execution never creates or approves legacy grammar.
 
 Select the next task in strict heading order from bound state and Git evidence, never mutable plan Status. Work on approved `wip/<feature>` and follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics. Runtime state cannot modify intent; missing, invalid, altered, or additional `plan.md` is Spec escalation. Never rewrite the approved Markdown plan.

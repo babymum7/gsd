@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 import {
   bindApprovedSources, parseMarkdownPacket, parseQuickFixPlan, rejectLegacyPreapprovalFiles,
   sha256, verifyApprovedSources, validateSectionEdges,
-} from "./support/markdown-packet.mjs";
+} from "../lib/gsd-contract.mjs";
 import {
   parseActivationResponse, responseMatchesFixture, validateActivationTarget, validateFixtureSet,
 } from "./eval/activation-eval-contract.mjs";
@@ -1136,15 +1136,15 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
   assert.match(master, /all-`done`, fail closed/);
 });
 
-test("retained v3 migration prose matches explicit-read behavior", () => {
+test("legacy terminal prose matches discovery and explicit-read behavior", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const handoff = read("skills/gsd-handoff/SKILL.md");
   const domain = read("docs/domain/gsd.md");
 
-  assert.match(reference, /`schema:v1` and `schema:v2`[\s\S]{0,220}active[\s\S]{0,180}terminal[\s\S]{0,100}fail closed/i);
-  assert.match(reference, /`schema:v3` `completed-retained`[\s\S]{0,220}candidate discovery[\s\S]{0,180}unchanged[\s\S]{0,200}explicit `readStateFile`[\s\S]{0,160}migrat/i);
-  assert.match(handoff, /v1\/v2 terminal[\s\S]{0,180}v3 `completed-retained`[\s\S]{0,220}explicit read[\s\S]{0,140}migrat/i);
-  assert.match(domain, /retained `schema:v3`[\s\S]{0,180}candidate discovery[\s\S]{0,180}explicit read/i);
+  assert.match(reference, /Exact active `schema:v1`, `schema:v2`, and `schema:v3` records migrate only after full validation/);
+  assert.match(reference, /Exact v1\/v2 `completed-retained` records[\s\S]{0,220}candidate discovery[\s\S]{0,180}explicit `readStateFile` rejects[\s\S]{0,160}Retained v3 remains the sole terminal case/i);
+  assert.match(handoff, /v1\/v2 terminal records fail closed unchanged[\s\S]{0,180}v3 `completed-retained` compatibility case[\s\S]{0,220}candidate discovery[\s\S]{0,180}explicit read validates and migrates/i);
+  assert.match(domain, /retained v1\/v2 terminal records remain inert[\s\S]{0,180}fail closed on explicit read[\s\S]{0,180}retained v3 migrates only on an explicit validated read/i);
 });
 
 test("master and visible skills declare automatic lazy activation", () => {
@@ -1380,8 +1380,8 @@ test("T2 schema:v4 state.toon contract and skill derivation", () => {
   assert.match(currentStateBlock[0], /phase:draft\|approved\|executing\|paused\|verifying\|repair\|merged-cleanup-pending\|completed-retained/);
   assert.match(currentStateBlock[0], /checkpoint_revision/);
   assert.match(currentStateBlock[0], /cleanup_preference:none\|delete\|retain\|archive-and-delete/);
-  assert.match(reference, /Exact `schema:v1` and `schema:v2` records migrate only when active/);
-  assert.match(reference, /`schema:v3` `completed-retained`[\s\S]{0,240}explicit `readStateFile`[\s\S]{0,160}migrates it to canonical `schema:v4`/);
+  assert.match(reference, /Exact active `schema:v1`, `schema:v2`, and `schema:v3` records migrate only after full validation/);
+  assert.match(reference, /`schema:v3` `completed-retained` record is the sole terminal explicit-read compatibility case[\s\S]{0,180}candidate discovery[\s\S]{0,180}explicit `readStateFile`[\s\S]{0,160}migrates it to canonical `schema:v4`/);
   assert.match(reference, /Validate `phase` against the fixed schema enum/);
   assert.match(handoff, /Reject an unknown `phase`; preserve an opaque `next_action`/);
   assert.doesNotMatch(reference, /opaque state `phase`|opaque `phase`/);

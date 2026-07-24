@@ -29,6 +29,8 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 At terminal entry, validate canonical `schema:v4`, exact plan hash/binding, base/WIP identity, last green checkpoint, current tree, and required artifacts; rebuild the terminal slice including `Domain Impact`. An exact bound pre-Domain-Impact plan is accepted only after its recorded hash matches. Changed plan bytes, malformed new grammar, feature mismatch, missing artifact, or Git drift is Spec escalation. Repeat the digest guard before squash.
 
+At terminal entry and again before squash run `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256>`. Exit 0 must report the bound feature and hash before cumulative proof continues; exit 1 blocks as Spec escalation, while exit 2 corrects only the invocation. Never use the unbound form after approval.
+
 After all tasks and Fast TDD Checks are green, the session owner performs deterministic cumulative conformance before Deferred Slow E2E:
 
 1. Prove every active AC maps exactly once to one completed task and one public interface pin; every changed path is task-owned. Read task diffs in plan order against explicit Decisions, invariants, non-goals, file intents, and focused-check evidence on the unchanged current commit.
@@ -50,6 +52,8 @@ Standalone review is read-only and has no branch, result, or merge authority. Re
 ## Quick-fix WIP gate
 
 Quick fixes have the exact minimal `plan.md` grammar from `REFERENCE.md`, not a full feature packet. Parse its exact five-field `Domain Impact` before review. `none` requires concrete evidence that no term, invariant, workflow, outcome, relationship, policy, or bounded-context meaning changed. Every non-`none` classification requires each affected shard in the same Quick-fix task as code, and `Broad bootstrap` must always be `not-offered`; a missing index or requested broad bootstrap exits Quick-fix for normal discovery. Compare affected domain prose with production code, schemas, contracts, and tests; missing, obsolete, future, or unrelated prose is domain drift and blocks completion as a deterministic Blocker. Then run code-quality, the recorded focused behavior command, whole-branch build where available, and applicable E2E before the normal squash/cleanup sequence.
+
+Before reviewing a Quick-fix run `node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md`. Exit 0 must report `kind: quick-fix` and the matching feature; exit 1 blocks malformed Quick-fix authority, while exit 2 corrects only the invocation.
 
 ## Contextual disclosure
 
