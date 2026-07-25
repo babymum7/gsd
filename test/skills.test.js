@@ -2230,6 +2230,15 @@ test("an executing owner amends the plan in place instead of blocking", () => {
   assert.match(reference, /exits 1[\s\S]{0,140}not as a lifecycle stop/);
   assert.doesNotMatch(reference, /mismatched hash fails closed/);
 
+  // The revalidation command must match the packet grammar. A Quick-fix `plan.md`
+  // exits 1 under `validate-plan` ("top-level heading must be exactly # Plan"), so
+  // naming only that command turns a legal Quick-fix amendment into a false blocker.
+  const amendment = reference.match(/### Plan amendment\n[\s\S]*?(?=\n### )/)[0];
+  assert.match(amendment, /validate-plan/);
+  assert.match(amendment, /validate-quick-fix/);
+  assert.match(amendment, /grammar/i);
+  assert.match(domain, /validate-quick-fix/);
+
   // Uncertainty asks one question; it never becomes a stop.
   for (const body of [reference, execution]) {
     assert.match(body, /ask one question/i);

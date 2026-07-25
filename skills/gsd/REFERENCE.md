@@ -189,7 +189,7 @@ node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --ex
 node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md
 ```
 
-The first command validates a new canonical full plan and returns its exact SHA-256; it also revalidates an amendment before rebinding. The second requires the bytes to match an approved hash, so a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/` directory; symlinks, escaped paths, feature mismatch, and malformed grammar fail closed.
+The first command validates a new canonical full plan and returns its exact SHA-256; it also revalidates a full-plan amendment before rebinding. The second requires the bytes to match an approved hash, so a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/` directory; symlinks, escaped paths, feature mismatch, and malformed grammar fail closed.
 
 Success emits only deterministic scalar TOON fields `status`, `kind`, `feature`, `sha256`, and `tasks`. Structured actionable failures also use TOON on stdout: artifact failures exit 1, usage failures exit 2, and help exits 0. No command writes plan, state, domain, or Git data.
 
@@ -292,17 +292,13 @@ Persist only:
 
 Do not write active-task, numbered-history, reload-manifest, or persistent identity checkpoints. The session owner rebuilds complete task or terminal slices from canonical plan/state/Git. Structured slices preserve ordered file paths, operations, intents, and applicable AC/Decision constraints.
 
-### Plan digest checks
-
-Bind SHA-256 at approval, then compare it at execution resume, terminal entry, and pre-squash. A mismatch means the bytes moved: resolve it through § Plan amendment. Only a missing, unreadable, or malformed-grammar `plan.md` fails closed.
-
 ### Plan amendment
 
-An approved `plan.md` stays amendable while executing. Its owner edits it in place, revalidates with `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md`, and rebinds the returned hash into `state.toon` with an incremented `checkpoint_revision`. No branch closes and no fresh feature opens.
-- Bookkeeping amendments are self-service: recording a file the task touches, correcting a path or intent, splitting or reordering pending tasks, or sharpening wording that does not move acceptance.
-- Material amendments ask one question first, then proceed with the chosen option: changing an active criterion's Outcome/Action/Expected, weakening an invariant or non-goal, changing `Domain Impact`, replacing an interface pin, or rewriting a completed task's record. Ask before rebinding, never instead of it.
-- A mismatch the owner cannot account for asks one question naming the affected sections; the answer selects rebind or restore.
-- Uncertainty is always one question with a recommended default, never a stop, escalation, or new plan.
+A bound-hash mismatch means the bytes moved, never a stop; only a missing, unreadable, or malformed-grammar `plan.md` fails closed. An approved `plan.md` stays amendable while executing: its owner edits it in place, revalidates unbound with its grammar's validator (`validate-plan`, or `validate-quick-fix` for a Quick-fix), and rebinds the returned hash into `state.toon` with an incremented `checkpoint_revision`. The wrong command reports a grammar error, not a blocker. No branch closes and no fresh feature opens.
+- Bookkeeping amendments are self-service: recording a file the task touches, fixing a path or intent, splitting or reordering pending tasks, or sharpening wording that leaves acceptance intact.
+- Material amendments ask one question first, then proceed with the chosen option: changing an active criterion's Outcome/Action/Expected, weakening an invariant or non-goal, changing `Domain Impact`, replacing an interface pin, or rewriting a completed task's record. Ask before rebinding, not instead.
+- A mismatch the owner cannot account for asks one question naming the affected sections; the answer picks rebind or restore.
+- Uncertainty is one question with a recommended default, never a stop, escalation, or new plan.
 
 ### Skill derivation from phase and next_action
 
