@@ -29,7 +29,7 @@ A selected skill owns the flow until user change or documented transition: `gsd-
 
 ## Canonical authority
 
-Read `GSD_ROOT/skills/gsd/REFERENCE.md` only for needed canonical artifact, Git, recovery, state, or cleanup contracts. `plan.md` owns pre-approval intent; atomic `state.toon` only binds/reports its bytes.
+Read `GSD_ROOT/skills/gsd/REFERENCE.md` only for needed canonical artifact, Git, recovery, state, or cleanup contracts. `plan.md` owns intent and stays amendable while executing; atomic `state.toon` only binds/reports its current bytes.
 
 The core pipeline is `gsd-brainstorming` → `gsd-to-plan` → approval → `gsd-executing-plans` → `gsd-verify` → squash cleanup. The current top-level session is sole lifecycle authority and performs work inline. Every complete draft offers approve/execute, revise, and pause/save. Execution proceeds through Fast TDD, deterministic terminal conformance, then Deferred Slow E2E; source changes invalidate terminal evidence.
 

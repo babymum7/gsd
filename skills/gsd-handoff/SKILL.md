@@ -20,9 +20,9 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
 | Pre-plan state write | — | Markdown packet | `state.toon` | — |
-| Execution state write | `plan.md` | milestone ledger | `state.toon` | Missing or drifted plan is Spec escalation; never invent execution state or a binding |
+| Execution state write | `plan.md` | milestone ledger | `state.toon` | Missing or malformed plan is Spec escalation; never invent execution state or a binding |
 | Pre-plan resume | `state.toon` | Markdown packet | — | Return once to state detection; preserve explicit intent |
-| Execution resume | `state.toon`; `plan.md` | milestone ledger | — | Recover only from valid runtime state and bound plan.md; plan drift is Spec escalation |
+| Execution resume | `state.toon`; `plan.md` | milestone ledger | — | Recover only from valid runtime state and a valid `plan.md`; a drifted hash rebinds under § Plan amendment |
 | Milestone ledger recovery | authoritative ledger selected by automatic active-state detection | — | — | Missing/malformed/base-mismatched ledger fails closed; never invent work |
 
 ## Write
@@ -54,10 +54,10 @@ Cross-machine handoff may snapshot only explicitly approved dirty non-scratch pa
 Without a supplied path, discover active candidates via [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Candidate discovery; numbered history and result markers have no authority.
 - Master is already loaded from bootstrap and is never reloaded: validate state, then load the peer owner named by `next_action` and execute it without circular re-entry, capsule execution, or duplicated action.
 - Reject an unknown `phase`; preserve an opaque `next_action` only when structurally valid.
-- Malformed state fails closed; invalid, missing, or changed plan is Spec escalation.
+- Malformed state fails closed, and a missing or malformed-grammar plan is Spec escalation. A plan whose bytes moved is not drift to stop on: revalidate and rebind it under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment, asking one question only when the change is material or unaccounted for.
 - Never reconstruct from dirty files, plan status, conversation, or legacy pre-approval TOON.
 
-For every Execution resume, run `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256>` after state validation and before deriving the peer owner. Exit 0 must report the same feature and hash; exit 1 is Spec escalation, while exit 2 corrects only the invocation.
+For every Execution resume, run `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256>` after state validation and before deriving the peer owner. Exit 0 must report the same feature and hash; exit 1 on malformed grammar is Spec escalation, while a hash mismatch alone rebinds under § Plan amendment. Exit 2 corrects only the invocation.
 
 A valid Execution resume verifies `schema:v4`, plan hash/path, base/WIP, last green task/commit, and current tree, then rebuilds the active slice including `Domain Impact`. Resume validates whether verification must continue before repair, E2E, or merge. These stages add no state keys.
 

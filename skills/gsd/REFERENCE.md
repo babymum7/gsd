@@ -56,7 +56,7 @@ Domain docs describe current production behavior after the task, while the plan 
 
 ### Authority
 
-The sole pre-approval human/agent contract is the canonical UTF-8/LF `plan.md` in `.scratch/<feature>/`, written only by `gsd-to-plan`.
+The sole pre-approval human/agent contract is the canonical UTF-8/LF `plan.md` in `.scratch/<feature>/`, created by `gsd-to-plan` and amended in place by its executing owner.
 
 The `plan.md` is the only authority for intent, acceptance, task order, seams, files, and focused checks. Any legacy `proposal.md`, `spec.md`, or `design.md` is rejected and stops automatic selection with a Spec escalation. Root or scratch `proposal.toon`, `spec.toon`, `design.toon`, and `plan.toon` are stale non-authoritative files: never derive scope, recovery, acceptance, or task order from them. A detected legacy packet stops automatic selection with a Spec escalation.
 
@@ -189,7 +189,7 @@ node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --ex
 node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md
 ```
 
-The first command validates a new canonical full plan and returns its exact SHA-256. The second additionally requires the source bytes to match an already-approved hash; a missing or mismatched hash fails closed. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/` directory; symlinks, escaped paths, feature-directory mismatch, malformed grammar, and changed bytes fail closed without mutation.
+The first command validates a new canonical full plan and returns its exact SHA-256; it also revalidates an amendment before rebinding. The second requires the bytes to match an approved hash, so a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/` directory; symlinks, escaped paths, feature mismatch, and malformed grammar fail closed.
 
 Success emits only deterministic scalar TOON fields `status`, `kind`, `feature`, `sha256`, and `tasks`. Structured actionable failures also use TOON on stdout: artifact failures exit 1, usage failures exit 2, and help exits 0. No command writes plan, state, domain, or Git data.
 
@@ -200,7 +200,7 @@ Success emits only deterministic scalar TOON fields `status`, `kind`, `feature`,
 - A fresh approval after Spec escalation atomically supersedes the older binding.
 - Full semantic parse and binding checks run only at approval, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use the retained validated slice.
 
-The executable validator runs at new-plan approval without `--expected-sha256`; resume, execution entry, terminal entry, and pre-squash use the bound-hash form. Quick-fix verification uses `validate-quick-fix`.
+The executable validator runs without `--expected-sha256` at new-plan approval and when revalidating an amendment before rebinding; resume, execution entry, terminal entry, and pre-squash use the bound-hash form. Quick-fix verification uses `validate-quick-fix`.
 
 No model, agent, or persistent session identity participates in approval. The current top-level session is the sole lifecycle authority; a later session assumes that role only through canonical rehydration.
 
@@ -294,7 +294,15 @@ Do not write active-task, numbered-history, reload-manifest, or persistent ident
 
 ### Plan digest checks
 
-Calculate and bind SHA-256 at approval, then compare it only at execution resume, terminal entry, and pre-squash. Approved plan digest mismatch at those boundaries fails closed as Spec escalation.
+Bind SHA-256 at approval, then compare it at execution resume, terminal entry, and pre-squash. A mismatch means the bytes moved: resolve it through § Plan amendment. Only a missing, unreadable, or malformed-grammar `plan.md` fails closed.
+
+### Plan amendment
+
+An approved `plan.md` stays amendable while executing. Its owner edits it in place, revalidates with `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md`, and rebinds the returned hash into `state.toon` with an incremented `checkpoint_revision`. No branch closes and no fresh feature opens.
+- Bookkeeping amendments are self-service: recording a file the task touches, correcting a path or intent, splitting or reordering pending tasks, or sharpening wording that does not move acceptance.
+- Material amendments ask one question first, then proceed with the chosen option: changing an active criterion's Outcome/Action/Expected, weakening an invariant or non-goal, changing `Domain Impact`, replacing an interface pin, or rewriting a completed task's record. Ask before rebinding, never instead of it.
+- A mismatch the owner cannot account for asks one question naming the affected sections; the answer selects rebind or restore.
+- Uncertainty is always one question with a recommended default, never a stop, escalation, or new plan.
 
 ### Skill derivation from phase and next_action
 

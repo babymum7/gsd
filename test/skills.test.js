@@ -1186,7 +1186,7 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
     assert.match(skill, /plan\.md|Markdown/i);
     assert.match(skill, /hash|SHA-256|binding/i);
   }
-  assert.match(execution, /never rewrite the approved Markdown plan/i);
+  assert.match(execution, /amend `\.scratch\/<feature>\/plan\.md` under § Plan amendment, revalidate, rebind/i);
   assert.match(handoff, /Write atomic `\.scratch\/<feature>\/state\.toon`/i);
   assert.match(tdd, /focused test seam from the approved Markdown plan/);
   assert.match(tdd, /consume the exact validated task slice and relevant pinned sections/);
@@ -1435,7 +1435,7 @@ test("T1 session-owner execution contract and lifecycle roles", () => {
   assert.match(execution, /RED before implementation, GREEN after implementation, then refactor after green/);
   assert.match(execution, /rerun only checks invalidated by the repair/);
   assert.match(execution, /Reject legacy proposal\/spec\/design files/);
-  assert.match(execution, /never rewrite approved Markdown/);
+  assert.match(execution, /an amended plan is rebound in that same write/);
 });
 
 test("T2 schema:v4 state.toon contract and skill derivation", () => {
@@ -2196,4 +2196,44 @@ test("terminal conformance has no model-capacity or fan-out path", () => {
   assert.match(verify, /every changed path is task-owned/);
   assert.match(verify, /task diffs in plan order/);
   assert.match(verify, /focused-check evidence on the unchanged current commit/);
+});
+
+test("an executing owner amends the plan in place instead of blocking", () => {
+  const reference = read("skills/gsd/REFERENCE.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+  const planner = read("skills/gsd-to-plan/SKILL.md");
+  const domain = read("docs/domain/gsd.md");
+
+  // Amending an approved plan mid-execution is a normal move: revalidate the new
+  // bytes and rebind the hash. Only unparseable or missing authority still stops.
+  assert.match(reference, /### Plan amendment/);
+  assert.match(reference, /amend[\s\S]{0,200}revalidate[\s\S]{0,120}rebind/i);
+  assert.doesNotMatch(reference, /digest mismatch at those boundaries fails closed as Spec escalation/);
+  assert.match(execution, /amend/i);
+  assert.doesNotMatch(execution, /Never rewrite the approved Markdown plan/);
+  assert.doesNotMatch(execution, /altered, or additional `plan\.md` is Spec escalation/);
+  assert.doesNotMatch(verify, /Changed plan bytes, malformed new grammar/);
+  assert.match(verify, /changed plan bytes revalidate and rebind/i);
+  assert.doesNotMatch(handoff, /invalid, missing, or changed plan is Spec escalation/);
+  assert.match(handoff, /rebind/i);
+  assert.match(planner, /sole writer of the initial|sole writer at creation/i);
+
+  // Self-service vs ask: routine bookkeeping needs no prompt, material changes and
+  // drift the owner cannot account for ask one question and still never stop.
+  assert.match(reference, /Bookkeeping amendments are self-service/);
+  assert.match(reference, /Material amendments ask one question first/);
+  assert.match(reference, /cannot account for asks one question/);
+  assert.doesNotMatch(reference, /amendment[^.\n]{0,80}requires (?:a )?fresh approval/i);
+  // A bound-hash exit 1 reports moved bytes, not a lifecycle stop.
+  assert.match(reference, /exits 1[\s\S]{0,140}not as a lifecycle stop/);
+  assert.doesNotMatch(reference, /mismatched hash fails closed/);
+
+  // Uncertainty asks one question; it never becomes a stop.
+  for (const body of [reference, execution]) {
+    assert.match(body, /ask one question/i);
+  }
+  assert.doesNotMatch(domain, /Approved `plan\.md` bytes remain immutable/);
+  assert.match(domain, /amend/i);
 });

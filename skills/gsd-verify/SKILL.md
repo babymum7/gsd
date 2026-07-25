@@ -20,15 +20,17 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
 | Standalone review | — | Markdown packet context | — | — |
-| Planned WIP gate | `plan.md`; bound `state.toon` | authorized ledger | `state.toon`; authorized ledger | Stop before review or merge as Spec escalation |
+| Planned WIP gate | `plan.md`; bound `state.toon` | authorized ledger | `state.toon`; authorized ledger; amended `plan.md` | Stop before review or merge only when `plan.md` or `state.toon` is missing or malformed |
 | Milestone WIP gate | Planned state; authoritative ledger | — | `state.toon`; milestone ledger lifecycle state | Missing source/binding is Spec escalation; missing ledger evidence is a Blocker |
 | Quick-fix WIP gate | exact Quick-fix `plan.md` | affected domain shards; `AGENTS.md` | `state.toon` | Missing or malformed Quick-fix grammar blocks; recover the real plan and never fabricate it |
 
 ## Planned and milestone WIP gate
 
-At terminal entry, validate canonical `schema:v4`, exact plan hash/binding, base/WIP identity, last green checkpoint, current tree, and required artifacts; rebuild the terminal slice including `Domain Impact`. Changed plan bytes, malformed new grammar, feature mismatch, missing artifact, or Git drift is Spec escalation. Repeat the digest guard before squash.
+At terminal entry, validate canonical `schema:v4`, exact plan hash/binding, base/WIP identity, last green checkpoint, current tree, and required artifacts; rebuild the terminal slice including `Domain Impact`. Malformed new grammar, feature mismatch, missing artifact, or Git drift is Spec escalation. Repeat the digest guard before squash.
 
-At terminal entry and again before squash run `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256>`. Exit 0 must report the bound feature and hash before cumulative proof continues; exit 1 blocks as Spec escalation, while exit 2 corrects only the invocation. Never use the unbound form after approval.
+Terminal entry never blocks on the plan having moved: changed plan bytes revalidate and rebind under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment, then conformance proves the amended plan on the unchanged commit. Amend here only to record what the work actually did; a material change or drift the owner cannot account for asks one question first. Rebinding after the pre-squash guard requires rerunning that guard.
+
+At terminal entry and again before squash run `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256>`. Exit 0 must report the bound feature and hash before cumulative proof continues; exit 1 on malformed grammar blocks as Spec escalation, while a hash mismatch alone routes to § Plan amendment. Exit 2 corrects only the invocation. Never use the unbound form except to revalidate an amendment before rebinding.
 
 After all tasks and Fast TDD Checks are green, the session owner performs deterministic cumulative conformance before Deferred Slow E2E:
 

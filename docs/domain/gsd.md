@@ -6,7 +6,7 @@
 
 ## Purpose and responsibilities
 
-Own request classification, feature convergence, immutable plan approval, ordered implementation, deterministic verification, resumable state, merge, and cleanup for GSD delivery.
+Own request classification, feature convergence, plan approval and in-flight amendment, ordered implementation, deterministic verification, resumable state, merge, and cleanup for GSD delivery.
 
 ## Terms
 
@@ -34,7 +34,8 @@ Own request classification, feature convergence, immutable plan approval, ordere
 
 - Exactly one visible process owner controls a lifecycle transition at a time.
 - A known bounded behavioral fix is owned directly by the session owner; Ponytail remains hidden and is loaded only from its exact injected context path.
-- Approved `plan.md` bytes remain immutable; runtime state only binds and reports them.
+- An approved `plan.md` stays amendable while its feature executes: the executing owner amends it in place, revalidates, and rebinds the returned hash, so runtime state always reports the current bytes rather than freezing the first ones.
+- A plan amendment never closes the feature or opens a new one; a material change or an unaccounted-for hash mismatch asks one question and then proceeds with the chosen option.
 - State authority is valid only as fatal-decoded UTF-8 with LF line endings; invalid bytes and carriage returns fail closed unchanged.
 - Malformed state fails closed only for intent naming its `.scratch/<feature>/` directory or continuing the lifecycle; because the bytes cannot be parsed, that directory name is the only trusted relatedness signal.
 - Exact retained v1/v2 terminal records are structurally recognized during candidate discovery only to remain inert and byte-identical; an explicit read rejects them fail closed unchanged.
@@ -157,3 +158,8 @@ None.
 
 - **Policy:** Every full-plan approval, execution resume, terminal entry, pre-squash guard, and Quick-fix verification uses the production Contract Validator; structured tasks and canonical Domain Impact are required in every path, bound or unbound.
 - **Reason:** One executable seam keeps artifact authority, failure modes, and compatibility behavior consistent across lifecycle owners and repository tests.
+
+### P-gsd-14: Amend an executing plan instead of blocking it
+
+- **Policy:** While a feature executes, its owner amends `.scratch/<feature>/plan.md` in place, revalidates, and rebinds the hash. Bookkeeping amendments proceed without a prompt; a material change to acceptance, an invariant, a non-goal, `Domain Impact`, an interface pin, or a completed task's record asks one question and then proceeds with the chosen option, as does a hash mismatch the owner cannot account for. Only a missing or malformed-grammar plan still fails closed.
+- **Reason:** Discovering that a plan is incomplete is normal execution evidence, so recording it must cost one revalidation rather than closing the feature and reapproving a near-identical plan.
