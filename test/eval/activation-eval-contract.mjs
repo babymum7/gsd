@@ -13,6 +13,45 @@ const ALLOWED_DECISIONS = new Set([
   ...STOPPING_DECISIONS,
 ]);
 const ALLOWED_ACTIONS = new Set(["load", "direct", "stop"]);
+const HTTP_DEFAULT_MODEL = "gpt-4o-mini";
+const OMP_DEFAULT_MODELS = ["gemini-3.6-flash", "gpt-5.6-luna"];
+
+// A bearer key is one way to reach a model; the local omp binary is another, and it
+// already holds credentials. The keyless local binary is preferred so an ambient
+// OPENAI_API_KEY cannot silently bill an HTTP endpoint; `GSD_EVAL_BACKEND=http|omp`
+// forces one explicitly. Only a backend with no usable credential skips the eval.
+export function selectEvalBackend(env = {}, ompPath = null) {
+  const models = String(env.GSD_EVAL_MODEL ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
+  const key = env.GSD_EVAL_KEY || env.OPENAI_API_KEY;
+  const command = typeof ompPath === "string" && ompPath ? ompPath : null;
+  const forced = String(env.GSD_EVAL_BACKEND ?? "").trim();
+  if (forced && forced !== "http" && forced !== "omp") {
+    return { kind: "skip", models, detail: `unsupported GSD_EVAL_BACKEND ${forced}` };
+  }
+  const http = () => ({
+    kind: "http",
+    key,
+    baseUrl: String(env.GSD_EVAL_URL || "https://api.openai.com/v1").replace(/\/+$/, ""),
+    models: models.length ? models : [HTTP_DEFAULT_MODEL],
+  });
+  const omp = () => ({
+    kind: "omp",
+    command,
+    models: models.length ? models : [...OMP_DEFAULT_MODELS],
+  });
+  if (forced === "http") {
+    return key ? http() : { kind: "skip", models, detail: "GSD_EVAL_BACKEND=http needs GSD_EVAL_KEY" };
+  }
+  if (forced === "omp") {
+    return command ? omp() : { kind: "skip", models, detail: "GSD_EVAL_BACKEND=omp needs the omp binary" };
+  }
+  if (command) return omp();
+  if (key) return http();
+  return { kind: "skip", models, detail: "no omp binary and no GSD_EVAL_KEY" };
+}
 
 function isPlainObject(value) {
   return value !== null && typeof value === "object" && !Array.isArray(value);

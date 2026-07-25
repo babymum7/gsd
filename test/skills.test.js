@@ -9,7 +9,8 @@ import {
   sha256, verifyApprovedSources, validateSectionEdges,
 } from "../lib/gsd-contract.mjs";
 import {
-  parseActivationResponse, responseMatchesFixture, validateActivationTarget, validateFixtureSet,
+  parseActivationResponse, responseMatchesFixture, selectEvalBackend, validateActivationTarget,
+  validateFixtureSet,
 } from "./eval/activation-eval-contract.mjs";
 import gsdContextExtension, { CAPSULE_TEMPLATE } from "../extensions/gsd-context.js";
 
@@ -1620,8 +1621,56 @@ test("activation fixtures and response parser enforce lazy primary-skill selecti
   assert.equal(byId.get("result-malformed-with-active").decision, "fail-closed");
   assert.match(evalRunner, /createBootstrap\(repoRoot\)/);
   assert.match(evalRunner, /discoverSkillCatalog\(repoRoot\)/);
-  assert.doesNotMatch(evalRunner, /REFERENCE\.md|route|trace|--mode/);
+  // The runner pins the stable text transport; it never parses omp's JSON event stream.
+  assert.doesNotMatch(evalRunner, /REFERENCE\.md|route|trace/);
+  assert.match(evalRunner, /--mode", "text|--mode text/);
+  assert.doesNotMatch(evalRunner, /--mode", "json|message_end|assistantMessageEvent/);
   assert.match(master, /Completed-state decision matrix|completed-state decision matrix/i);
+});
+
+test("the activation evaluator runs keyless through the local omp CLI", () => {
+  // A bearer key is not the way to reach a model here: the local omp binary already
+  // holds credentials, so it is preferred and an ambient OPENAI_API_KEY cannot silently
+  // bill an HTTP endpoint. `GSD_EVAL_BACKEND` is the explicit override.
+  const ambientKey = selectEvalBackend({ OPENAI_API_KEY: "sk-ambient" }, "/usr/bin/omp");
+  assert.equal(ambientKey.kind, "omp");
+  assert.equal(ambientKey.command, "/usr/bin/omp");
+  assert.deepEqual(ambientKey.models, ["gemini-3.6-flash", "gpt-5.6-luna"]);
+
+  const keyless = selectEvalBackend({}, "/usr/bin/omp");
+  assert.equal(keyless.kind, "omp");
+  assert.deepEqual(keyless.models, ["gemini-3.6-flash", "gpt-5.6-luna"]);
+
+  // No binary falls back to a bearer key; forcing http uses it even when omp exists.
+  assert.equal(selectEvalBackend({ GSD_EVAL_KEY: "sk-test" }, null).kind, "http");
+  const forcedHttp = selectEvalBackend({ GSD_EVAL_KEY: "sk-test", GSD_EVAL_BACKEND: "http" }, "/usr/bin/omp");
+  assert.equal(forcedHttp.kind, "http");
+  assert.deepEqual(forcedHttp.models, ["gpt-4o-mini"]);
+
+  // An explicit model list overrides the defaults on either backend.
+  assert.deepEqual(
+    selectEvalBackend({ GSD_EVAL_MODEL: " gemini-3.6-flash , gpt-5.6-luna " }, "/usr/bin/omp").models,
+    ["gemini-3.6-flash", "gpt-5.6-luna"],
+  );
+  assert.deepEqual(
+    selectEvalBackend({ GSD_EVAL_KEY: "sk-test", GSD_EVAL_MODEL: "gpt-4.1" }, null).models,
+    ["gpt-4.1"],
+  );
+
+  // A backend without its credential skips instead of pretending to run.
+  assert.equal(selectEvalBackend({}, null).kind, "skip");
+  assert.equal(selectEvalBackend({ GSD_EVAL_BACKEND: "http" }, "/usr/bin/omp").kind, "skip");
+  assert.equal(selectEvalBackend({ GSD_EVAL_KEY: "sk-test", GSD_EVAL_BACKEND: "omp" }, null).kind, "skip");
+
+  // Each model reports its own result, so one model cannot mask the other's failure.
+  const runner = read("test/eval/activation-eval.mjs");
+  assert.match(runner, /\$\{model\}(?::|\|)\$\{fixture\.id\}|\$\{fixture\.id\}(?::|\|)\$\{model\}/);
+  // The omp run is isolated: no repo cwd, discovered extensions, skills, rules, tools, or session.
+  for (const flag of [
+    "--cwd", "--no-extensions", "--no-skills", "--no-rules", "--no-tools", "--no-session", "--system-prompt",
+  ]) {
+    assert.ok(runner.includes(flag), `omp eval run must pass ${flag}`);
+  }
 });
 
 test("compaction recovery capsule byte identity and drift protection", async () => {
