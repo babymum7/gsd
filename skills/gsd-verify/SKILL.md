@@ -1,7 +1,6 @@
 ---
 name: gsd-verify
-description: "Use for an explicit diff or PR review, or as the terminal gate for planned and quick-fix GSD work. Standalone review is read-only; planned verification owns acceptance, squash merge, state cleanup, and optional archive."
-triggers: explicit diff or PR review; terminal planned gate; quick-fix gate
+description: "Use for an explicit diff or PR review, or as the terminal gate for planned and quick-fix GSD work."
 produces: [docs/gsd/<feature>/milestones.md, docs/gsd/<feature>/archive/plan.md, docs/gsd/<feature>/archive/implementation.md, state.toon]
 consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md, docs/gsd/<feature>/milestones.md]
 ---
@@ -27,7 +26,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 ## Planned and milestone WIP gate
 
-At terminal entry, validate canonical `schema:v4`, exact plan hash/binding, base/WIP identity, last green checkpoint, current tree, and required artifacts; rebuild the terminal slice including `Domain Impact`. An exact bound pre-Domain-Impact plan is accepted only after its recorded hash matches. Changed plan bytes, malformed new grammar, feature mismatch, missing artifact, or Git drift is Spec escalation. Repeat the digest guard before squash.
+At terminal entry, validate canonical `schema:v4`, exact plan hash/binding, base/WIP identity, last green checkpoint, current tree, and required artifacts; rebuild the terminal slice including `Domain Impact`. Changed plan bytes, malformed new grammar, feature mismatch, missing artifact, or Git drift is Spec escalation. Repeat the digest guard before squash.
 
 At terminal entry and again before squash run `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256>`. Exit 0 must report the bound feature and hash before cumulative proof continues; exit 1 blocks as Spec escalation, while exit 2 corrects only the invocation. Never use the unbound form after approval.
 
@@ -51,7 +50,13 @@ Standalone review is read-only and has no branch, result, or merge authority. Re
 
 ## Quick-fix WIP gate
 
-Quick fixes have the exact minimal `plan.md` grammar from `REFERENCE.md`, not a full feature packet. Parse its exact five-field `Domain Impact` before review. `none` requires concrete evidence that no term, invariant, workflow, outcome, relationship, policy, or bounded-context meaning changed. Every non-`none` classification requires each affected shard in the same Quick-fix task as code, and `Broad bootstrap` must always be `not-offered`; a missing index or requested broad bootstrap exits Quick-fix for normal discovery. Compare affected domain prose with production code, schemas, contracts, and tests; missing, obsolete, future, or unrelated prose is domain drift and blocks completion as a deterministic Blocker. Then run code-quality, the recorded focused behavior command, whole-branch build where available, and applicable E2E before the normal squash/cleanup sequence.
+Quick fixes have the exact minimal `plan.md` grammar from `REFERENCE.md`, not a full feature packet.
+- Parse its exact five-field `Domain Impact` before review.
+- `none` requires concrete evidence that no term, invariant, workflow, outcome, relationship, policy, or bounded-context meaning changed.
+- Every non-`none` classification requires exactly one semantic-code task owning each affected shard, and `Broad bootstrap` must always be `not-offered`.
+- An absent domain index keeps the fix bounded and bootstraps the feature-scoped shard inline; only an explicitly requested broad bootstrap exits Quick-fix for normal discovery.
+- Compare affected domain prose with production code, schemas, contracts, and tests; missing, obsolete, future, or unrelated prose is domain drift and blocks completion as a deterministic Blocker.
+- Then run code-quality, the recorded focused behavior command, whole-branch build where available, and applicable E2E before the normal squash/cleanup sequence.
 
 Before reviewing a Quick-fix run `node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md`. Exit 0 must report `kind: quick-fix` and the matching feature; exit 1 blocks malformed Quick-fix authority, while exit 2 corrects only the invocation.
 

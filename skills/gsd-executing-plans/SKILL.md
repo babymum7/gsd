@@ -1,7 +1,6 @@
 ---
 name: gsd-executing-plans
-description: "Use when a valid approved GSD plan and resumable state.toon have pending work, including resuming active planned implementation. Do not use without the bound plan artifacts. Composes with gsd-tdd, gsd-diagnosing-bugs, gsd-handoff, and gsd-verify."
-triggers: validated approved plan and state.toon with pending or in-progress work
+description: "Use when a valid approved plan and resumable state.toon have pending work, including resuming active planned implementation."
 produces: [state.toon, docs/gsd/<feature>/milestones.md]
 consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md, docs/gsd/<feature>/milestones.md]
 ---
@@ -29,14 +28,14 @@ Perform one full parse and binding check at execution entry or resume: validate 
 
 At execution entry or resume run `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256>` before building the retained slice. Exit 0 must report the matching feature and bound hash. Exit 1 is malformed or mismatched authority and therefore Spec escalation; exit 2 corrects only the invocation. Do not invoke unbound validation on an approved plan.
 
-Dual-read exact already-approved hash-bound legacy task blocks only to finish their binding. An exact pre-Domain-Impact plan is readable only after its recorded hash matches; malformed new fields never fall back. Execution never creates or approves legacy grammar.
+Execution reads only structured task blocks carrying canonical `Domain Impact`. A path-only task form or missing Domain Impact is malformed authority, not a compatibility case, and execution never creates or approves it.
 
 Select the next task in strict heading order from bound state and Git evidence, never mutable plan Status. Work on approved `wip/<feature>` and follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics. Runtime state cannot modify intent; missing, invalid, altered, or additional `plan.md` is Spec escalation. Never rewrite the approved Markdown plan.
 
 ## Per-task loop
 
 1. Select only the next task in strict heading order and verify every structured file path, operation, intent, active AC, interface pin, focused check, invariant, non-goal, `Domain Impact` field, and source fact from `plan.md`.
-2. Build and retain a validated task slice from the plan: task identity, structured file operations and intents, verbatim active criteria, lossless ordered Decisions, Domain Impact, constraints, targets, focused checks, and safety facts. A "None." decisions block in the plan is represented as an explicit empty decisions marker in the slice. Do not write task-attempt TOON files, status into `plan.md`, or synthetic task briefs. Exact already-approved path-only legacy task blocks remain readable only to finish their bound feature; newly approved plans use the canonical structured form.
+2. Build and retain a validated task slice from the plan: task identity, structured file operations and intents, verbatim active criteria, lossless ordered Decisions, Domain Impact, constraints, targets, focused checks, and safety facts. A "None." decisions block in the plan is represented as an explicit empty decisions marker in the slice. Do not write task-attempt TOON files, status into `plan.md`, or synthetic task briefs.
 3. The current top-level session owner consumes the validated slice and implements or repairs the task inline. GSD dispatches no executor, implementation worker, generic child task, repair task, or parallel lifecycle work. Every observable task loads `gsd-tdd` and performs direct RED before implementation, GREEN after implementation, then refactor after green. Run deterministic local unit, integration, CLI, contract, or fast acceptance checks only; browser, resource-heavy, slow, whole-acceptance, and E2E suites stay outside the task loop.
 4. For non-`none` Domain Impact, the same owning task contains code and its exact affected domain documentation paths. Implement the target domain behavior, then make each shard describe current production behavior; upsert `AGENTS.md` only when its canonical section is missing or stale. Existing docs never override code/schema/contract/test evidence. Missing, obsolete, unrelated, or future-tense domain prose keeps the task red.
 5. The task boundary is green focused evidence, recorded only in reporting and transcripts. A red focused check or explicit self-verification failure re-enters this task's bounded inline repair. First checkpoint `next_action=start/continue task`, repair source-first under `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`, then rerun only checks invalidated by the repair. Load no terminal verifier until every task is green.

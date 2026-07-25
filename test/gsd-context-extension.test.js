@@ -192,7 +192,7 @@ test("capsule extension production API contract", (t) => {
     // Check stable alphabetical sorting (stable slug order)
     const capsule = createCapsule(["feat-z", "feat-a", "feat-m"], ROOT);
     assert.match(capsule, /Active GSD features: feat-a, feat-m, feat-z/);
-    assert.match(capsule, /Stop immediately on any malformed or ambiguous state, or if the intent is unrelated to the active features\./);
+    assert.match(capsule, /Stop immediately on malformed or ambiguous state for the named features\. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing\./);
 
     // Invalid names (paths, spaces, capitals, etc.) should throw
     const invalidFeatures = ["pkg/auth", "dbMigration", "app test", "feat_a", "feat.", "../escape"];
@@ -212,7 +212,7 @@ test("capsule extension production API contract", (t) => {
     // So createCapsule with 6 features does NOT throw, it returns a capsule.
     // But wait! Is there still a candidate count cap check?
     // Let's check: "for over-cap active candidates emit a deterministic bounded ambiguity capsule"
-    // So we don't throw on features.length > 5, but we can verify it contains "and 1 more" and the "Stop immediately" step.
+    // So we don't throw on features.length > 5, but we can verify it contains "and 1 more" and the selection step.
     // Let's update this assertion to test that it returns the ambiguity capsule!
     const ambiguityCapsule = createCapsule(["f-1", "f-2", "f-3", "f-4", "f-5", "f-6"], ROOT);
     assert.match(ambiguityCapsule, /Active GSD features: f-1, f-2, f-3, f-4, f-5 \(and 1 more\)/);
@@ -239,11 +239,11 @@ test("capsule extension production API contract", (t) => {
     }, /path separators or dots are rejected/);
   });
 
-  // 5. Ambiguity/unrelated stop language
-  t.test("proves ambiguity/unrelated stop language exists", () => {
+  // 5. Related-only ambiguity language
+  t.test("proves related-only ambiguity language exists", () => {
     const capsule = createCapsule(["feature-a"], ROOT);
-    const stopLanguage = "Stop immediately on any malformed or ambiguous state, or if the intent is unrelated to the active features.";
-    assert.ok(capsule.includes(stopLanguage), "Stop language missing or mismatch");
+    const relatedOnlyLanguage = "Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing.";
+    assert.ok(capsule.includes(relatedOnlyLanguage), "Related-only ambiguity language missing or mismatch");
   });
 
   // 6. No model-specific wording
@@ -798,8 +798,8 @@ test("T3 Review Fixes detailed behavior", async (t) => {
       }, /GSD_ROOT path length exceeds limit/);
 
       // 4. No rendered output is syntactically partial
-      assert.ok(maxCapsule.endsWith("Stop immediately on any malformed or ambiguous state, or if the intent is unrelated to the active features."), "Output must end with the final sentence");
-      assert.ok(deepCapsule.endsWith("Stop immediately on any malformed or ambiguous state, or if the intent is unrelated to the active features."), "Output must end with the final sentence");
+      assert.ok(maxCapsule.endsWith("Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing."), "Output must end with the final sentence");
+      assert.ok(deepCapsule.endsWith("Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing."), "Output must end with the final sentence");
 
       // 5. Byte count stays within the declared cap (4000 bytes)
       assert.ok(Buffer.byteLength(maxCapsule, 'utf8') <= 4000, "Capsule size must be within the 4000-byte cap");
@@ -891,7 +891,7 @@ Active GSD features: feat-a
 To resume execution, perform direct-root rehydration in this exact order:
 1. Use the already-loaded GSD bootstrap from ${expectedMasterPath}; do not load it again.
 2. Load gsd-handoff from the injected catalog and perform exactly one validated resume.
-Stop immediately on any malformed or ambiguous state, or if the intent is unrelated to the active features.`;
+Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing.`;
 
     assert.equal(capsule, handWrittenExpected, "Capsule must match hand-written expected bytes exactly with literal special characters");
     assert.ok(capsule.includes(expectedMasterPath), "Master path must contain exact literal special characters");
@@ -911,7 +911,7 @@ Stop immediately on any malformed or ambiguous state, or if the intent is unrela
     const normalInstructionBytes = Buffer.byteLength(normalInstruction, "utf8");
     const ambiguityInstructionBytes = Buffer.byteLength(ambiguityInstruction, "utf8");
 
-    assert.equal(fixedTextBytes, 299, "Fixed static text must be exactly 299 UTF-8 bytes");
+    assert.equal(fixedTextBytes, 359, "Fixed static text must be exactly 359 UTF-8 bytes");
     assert.equal(normalInstructionBytes, 84, "Normal instruction must be exactly 84 UTF-8 bytes");
     assert.equal(ambiguityInstructionBytes, 65, "Bounded-Ambiguity instruction must be exactly 65 UTF-8 bytes");
 
@@ -919,26 +919,26 @@ Stop immediately on any malformed or ambiguous state, or if the intent is unrela
     const masterPathBytes = Buffer.byteLength(masterPath, "utf8");
 
     // Worst case totals under maximum 1024-byte path limit:
-    const normalMaxTotal = 299 + 1024 + 84 + 1283;
-    const ambiguityMaxTotal = 299 + 1024 + 65 + 1311;
-    assert.equal(normalMaxTotal, 2690, "Normal mode worst-case total under current maxima must be exactly 2690 bytes");
-    assert.equal(ambiguityMaxTotal, 2699, "Bounded-Ambiguity mode worst-case total under current maxima must be exactly 2699 bytes");
+    const normalMaxTotal = 359 + 1024 + 84 + 1283;
+    const ambiguityMaxTotal = 359 + 1024 + 65 + 1311;
+    assert.equal(normalMaxTotal, 2750, "Normal mode worst-case total under current maxima must be exactly 2750 bytes");
+    assert.equal(ambiguityMaxTotal, 2759, "Bounded-Ambiguity mode worst-case total under current maxima must be exactly 2759 bytes");
 
     const maxSlugs5 = Array.from({ length: 5 }, (_, i) => "a".repeat(253) + "-" + i);
     const capsule5 = createCapsule(maxSlugs5, realRootPath);
     const actualBytes5 = Buffer.byteLength(capsule5, "utf8");
 
-    // Formula calculation for 5 max slugs: 299 (fixed) + masterPathBytes + 84 (normal instruction) + 1283 (max 5 features)
-    const expectedFormulaMax5 = 299 + masterPathBytes + 84 + 1283;
+    // Formula calculation for 5 max slugs: 359 (fixed) + masterPathBytes + 84 (normal instruction) + 1283 (max 5 features)
+    const expectedFormulaMax5 = 359 + masterPathBytes + 84 + 1283;
     assert.equal(actualBytes5, expectedFormulaMax5, "Actual Normal capsule size must equal byte formula calculation exactly");
-    assert.ok(actualBytes5 <= 2690, "Normal mode total must not exceed 2690 bytes");
+    assert.ok(actualBytes5 <= 2750, "Normal mode total must not exceed 2750 bytes");
     assert.ok(actualBytes5 <= 4000, "Normal capsule must be within the 4000-byte cap");
 
     // Formula calculation for 6 max slugs (ambiguity mode with 1-digit omitted count: 5*255 + 4*2 + " (and 1 more)" [13 bytes] = 1296 bytes)
     const maxSlugs6 = [...maxSlugs5, "a".repeat(253) + "-5"];
     const capsule6 = createCapsule(maxSlugs6, realRootPath);
     const actualBytes6 = Buffer.byteLength(capsule6, "utf8");
-    const expectedFormulaMax6 = 299 + masterPathBytes + 65 + 1296;
+    const expectedFormulaMax6 = 359 + masterPathBytes + 65 + 1296;
     assert.equal(actualBytes6, expectedFormulaMax6, "Actual Bounded-Ambiguity capsule size must equal byte formula calculation exactly");
     assert.ok(actualBytes6 <= 4000, "Bounded-Ambiguity capsule must be within the 4000-byte cap");
   });
@@ -955,14 +955,14 @@ test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
     mkdirSync(directory, { recursive: true });
     writeFileSync(
       join(directory, "SKILL.md"),
-      `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n${extra}triggers: test\nproduces: []\nconsumes: []\n---\n\n${body}\n`,
+      `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n${extra}produces: []\nconsumes: []\n---\n\n${body}\n`,
     );
   };
 
   await t.test("parses strict single-line metadata", () => {
     assert.deepEqual(
       parseSkillMetadata(
-        '---\nname: gsd-example\ndescription: "Example activation"\nhide: true\ntriggers: test\n---\n\n# Example\n',
+        '---\nname: gsd-example\ndescription: "Example activation"\nhide: true\n---\n\n# Example\n',
         "/tmp/gsd-example/SKILL.md",
       ),
       { name: "gsd-example", description: "Example activation", hidden: true },
@@ -1027,7 +1027,7 @@ test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
       writeSkill(root, "gsd-beta", "Beta", "# Beta");
       writeFileSync(
         join(root, "skills", "gsd-beta", "SKILL.md"),
-        '---\nname: gsd-wrong\ndescription: "Mismatch"\ntriggers: test\nproduces: []\nconsumes: []\n---\n\n# Mismatch\n',
+        '---\nname: gsd-wrong\ndescription: "Mismatch"\nproduces: []\nconsumes: []\n---\n\n# Mismatch\n',
       );
       assert.throws(() => discoverSkillCatalog(root), /must match directory/);
 
@@ -2021,7 +2021,7 @@ test("skill catalog stays inside GSD root and has bounded inputs", () => {
     mkdirSync(directory, { recursive: true });
     writeFileSync(
       join(directory, "SKILL.md"),
-      `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n${hidden ? "hide: true\n" : ""}triggers: test\nproduces: []\nconsumes: []\n---\n\n${body}\n`,
+      `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n${hidden ? "hide: true\n" : ""}produces: []\nconsumes: []\n---\n\n${body}\n`,
     );
   };
 

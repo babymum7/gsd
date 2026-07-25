@@ -64,7 +64,11 @@ TOON remains runtime-only: the single atomic `state.toon` snapshot. Runtime reco
 
 ### Fast TDD and task-loop constraints
 
-Every observable task loads `gsd-tdd` and uses a Fast TDD Check for RED before implementation, GREEN after implementation, and refactor after green. Browser, GUI, external network, long-lived server, large fixture, and material-cost checks never run in the implementation loop. The current top-level session owner implements and repairs each ordered task inline and sequentially; GSD dispatches no child implementation, repair, diagnosis, architecture, or verification work. Task boundaries use focused green evidence kept only in reporting/transcripts. Planning adds the smallest real fast public seam when none exists; observable behavior never uses `none`.
+Every observable task loads `gsd-tdd` and uses a Fast TDD Check for RED before implementation, GREEN after implementation, and refactor after green.
+- Browser, GUI, external network, long-lived server, large fixture, and material-cost checks never run in the implementation loop.
+- The current top-level session owner implements and repairs each ordered task inline and sequentially; GSD dispatches no child implementation, repair, diagnosis, architecture, or verification work.
+- Task boundaries use focused green evidence kept only in reporting/transcripts.
+- Planning adds the smallest real fast public seam when none exists; observable behavior never uses `none`.
 
 ### Packet grammar
 
@@ -125,11 +129,22 @@ Decisions is exact `None.` or sequential D blocks:
 - **Rationale:** <value>
 ```
 
-An AC ID is a positive sequential integer. Only `active` criteria execute; a replacement receives a new ID while the former criterion is `superseded`. Outcome, Action, and Expected must independently name a concrete behavior, operation, and observable result. `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid. `Domain Impact` uses the exact five fields above. `none` requires no contexts or documentation; every other classification requires sorted affected context slugs and a documentation update, while `introduce-context` requires `bootstrap-feature-context`. Broad bootstrap is an independent decision and is `not-offered` whenever the domain index exists. Every active AC has exactly one matching Interfaces row. A lower seam is valid only with a concrete reason that the higher production boundary is absent or cannot deterministically isolate the criterion. Task IDs are positive sequential integers in heading order. Every active AC appears exactly once across non-superseded task `Satisfies` fields. Every task owns at least one exact repository-relative path and one focused command; `none` is valid only for truly non-observable mechanical work.
+An AC ID is a positive sequential integer.
+- Only `active` criteria execute; a replacement receives a new ID while the former criterion is `superseded`.
+- Outcome, Action, and Expected must independently name a concrete behavior, operation, and observable result.
+- `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid.
+- `Domain Impact` uses the exact five fields above.
+- `none` requires no contexts or documentation; every other classification requires sorted affected context slugs and a documentation update, while `introduce-context` requires `bootstrap-feature-context`.
+- Broad bootstrap is an independent decision and is `not-offered` whenever the domain index exists.
+- Every active AC has exactly one matching Interfaces row.
+- A lower seam is valid only with a concrete reason that the higher production boundary is absent or cannot deterministically isolate the criterion.
+- Task IDs are positive sequential integers in heading order.
+- Every active AC appears exactly once across non-superseded task `Satisfies` fields.
+- Every task owns at least one exact repository-relative path and one focused command; `none` is valid only for truly non-observable mechanical work.
 
-Canonical task parsing uses Expand → Migrate → Contract. The parser is dual-read for structured blocks and exact already-approved legacy path-only blocks, while `gsd-to-plan` is single-write and newly approves only structured blocks. Remove the legacy reader only after no active bound legacy plan remains. Structured `Files` entries require a unique safe repository-relative path, one `create|modify|delete` operation, and concise non-vague intent.
+Canonical task parsing accepts only structured task blocks. Structured `Files` entries require a unique safe repository-relative path, one `create|modify|delete` operation, and concise non-vague intent.
 
-`gsd-to-plan` single-writes and newly approves only plans containing canonical `Domain Impact`; the parser accepts that grammar for new bindings. Exact already-bound pre-Domain-Impact plan bytes may be dual-read only after their recorded SHA-256 binding matches; missing Domain Impact is never accepted for a new binding, and malformed new Domain Impact never falls back to legacy grammar.
+`gsd-to-plan` single-writes and approves only plans containing canonical `Domain Impact`, and the parser accepts exactly that grammar. A plan missing `Domain Impact`, or using the single-line path-only task form, is rejected in every validation path whether or not a recorded SHA-256 binding matches.
 
 ### Quick-fix plan exception
 
@@ -154,7 +169,15 @@ A Quick-fix is not a converged feature packet. Its direct fast path writes a min
 - **Test:** `<focused command>`
 ```
 
-It contains one or two sequential tasks with unique structured paths and a real focused command. The exact five-field `Domain Impact` follows the canonical classification rules: `none` requires concrete no-change evidence, every non-`none` classification owns each `docs/domain/<context>.md` path in the same task as code, and Quick-fix always records `Broad bootstrap: not-offered`. A missing index or requested broad bootstrap exits the bounded route for normal discovery. Only the Quick-fix WIP verifier consumes this plan. It has no proposal/spec/design source set, no approval binding, and no normal-packet authority. Ordinary packet validation MUST NOT classify it as malformed converged state or dispatch normal execution from it; its special `gsd-verify` gate owns it until landing or a blocker.
+It contains one or two sequential tasks with unique structured paths and a real focused command.
+- The exact five-field `Domain Impact` follows the canonical classification rules:
+- `none` requires concrete no-change evidence, every non-`none` classification changes production sources in exactly one task and gives that same task every affected `docs/domain/<context>.md` path, with prose and test paths never counting as the semantic change, and Quick-fix always records `Broad bootstrap: not-offered`.
+- An absent `docs/domain/index.md` keeps Quick-fix bounded:
+- `Broad bootstrap` stays `not-offered` and non-`none` impact bootstraps the feature-scoped shard inline in that same task.
+- Only an explicitly requested broad bootstrap exits the bounded route for normal discovery.
+- Only the Quick-fix WIP verifier consumes this plan.
+- It has no proposal/spec/design source set, no approval binding, and no normal-packet authority.
+- Ordinary packet validation MUST NOT classify it as malformed converged state or dispatch normal execution from it; its special `gsd-verify` gate owns it until landing or a blocker.
 
 ### Executable contract validator
 
@@ -166,13 +189,16 @@ node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --ex
 node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md
 ```
 
-The first command validates a new canonical full plan and returns its exact SHA-256. The second checks the hash before enabling the exact bound pre-Domain-Impact compatibility reader; a missing or mismatched hash never falls back. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/` directory; symlinks, escaped paths, feature-directory mismatch, malformed grammar, and changed bytes fail closed without mutation.
+The first command validates a new canonical full plan and returns its exact SHA-256. The second additionally requires the source bytes to match an already-approved hash; a missing or mismatched hash fails closed. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/` directory; symlinks, escaped paths, feature-directory mismatch, malformed grammar, and changed bytes fail closed without mutation.
 
 Success emits only deterministic scalar TOON fields `status`, `kind`, `feature`, `sha256`, and `tasks`. Structured actionable failures also use TOON on stdout: artifact failures exit 1, usage failures exit 2, and help exits 0. No command writes plan, state, domain, or Git data.
 
 ### Approval binding
 
-`gsd-to-plan` validates canonical structured `plan.md`, prints its task/AC/Domain Impact summary, calculates SHA-256, and presents the single post-plan action surface. Approval records feature, exact plan path/hash, base/WIP identity, no completed task, canonical preferences, and checkpoint revision in atomic `schema:v4` `state.toon`, then reads it back before loading `gsd-executing-plans`. A fresh approval after Spec escalation atomically supersedes the older binding. Full semantic parse and binding checks run only at approval, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use the retained validated slice.
+`gsd-to-plan` validates canonical structured `plan.md`, prints its task/AC/Domain Impact summary, calculates SHA-256, and presents the single post-plan action surface.
+- Approval records feature, exact plan path/hash, base/WIP identity, no completed task, canonical preferences, and checkpoint revision in atomic `schema:v4` `state.toon`, then reads it back before loading `gsd-executing-plans`.
+- A fresh approval after Spec escalation atomically supersedes the older binding.
+- Full semantic parse and binding checks run only at approval, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use the retained validated slice.
 
 The executable validator runs at new-plan approval without `--expected-sha256`; resume, execution entry, terminal entry, and pre-squash use the bound-hash form. Quick-fix verification uses `validate-quick-fix`.
 
@@ -202,7 +228,11 @@ The canonical UTF-8/LF grammar is:
 | M1 | `<milestone-slug>` | <precise user-approved goal> | pending |
 ```
 
-IDs are positive sequential `M1..MN`; slugs are unique lowercase kebab-case; goals are non-empty, concrete single-line text without `|`; status is exactly `pending` or `done`. Feature must equal the directory slug, Base must name the approved base branch, headings and columns are exact, and no extra sections, rows, or columns are allowed. Rows consist of a possibly empty `done` prefix followed by a non-empty `pending` suffix. Creation or convergence-time append preserves every existing row byte-for-byte and adds only new `pending` rows. A ledger with no pending row is a stale lifecycle residual, not a completed canonical ledger.
+IDs are positive sequential `M1..MN`; slugs are unique lowercase kebab-case; goals are non-empty, concrete single-line text without `|`; status is exactly `pending` or `done`.
+- Feature must equal the directory slug, Base must name the approved base branch, headings and columns are exact, and no extra sections, rows, or columns are allowed.
+- Rows consist of a possibly empty `done` prefix followed by a non-empty `pending` suffix.
+- Creation or convergence-time append preserves every existing row byte-for-byte and adds only new `pending` rows.
+- A ledger with no pending row is a stale lifecycle residual, not a completed canonical ledger.
 
 ### Milestone Ledger completion contract
 
@@ -235,7 +265,13 @@ cleanup_preference:none|delete|retain|archive-and-delete
 checkpoint_revision:<positive int>
 ```
 
-Phase-inapplicable values use canonical `none`. Current `schema:v4` parsing rejects invalid UTF-8, carriage returns, blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, Ponytail preference state, and obsolete model or agent rows. Exact active `schema:v1`, `schema:v2`, and `schema:v3` records migrate only after full validation. Explicit reads and resume reject every v1/v2 terminal record fail closed and byte-identical. An exact `schema:v3` `completed-retained` record is the sole terminal explicit-read compatibility case: candidate discovery leaves it inert, while an explicit `readStateFile` validates and atomically migrates it to canonical `schema:v4`. Every legacy field, including `ponytail_level` where present, is validated before migration, obsolete rows are discarded, and `checkpoint_revision` increments. Malformed, partial, reordered, unknown, or non-concrete legacy records fail closed unchanged; partial old terminal evidence is discarded and deterministic conformance reruns.
+Phase-inapplicable values use canonical `none`.
+- Current `schema:v4` parsing rejects invalid UTF-8, carriage returns, blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, Ponytail preference state, and obsolete model or agent rows.
+- Exact active `schema:v1`, `schema:v2`, and `schema:v3` records migrate only after full validation.
+- Explicit reads and resume reject every v1/v2 terminal record fail closed and byte-identical.
+- An exact `schema:v3` `completed-retained` record is the sole terminal explicit-read compatibility case: candidate discovery leaves it inert, while an explicit `readStateFile` validates and atomically migrates it to canonical `schema:v4`.
+- Every legacy field, including `ponytail_level` where present, is validated before migration, obsolete rows are discarded, and `checkpoint_revision` increments.
+- Malformed, partial, reordered, unknown, or non-concrete legacy records fail closed unchanged; partial old terminal evidence is discarded and deterministic conformance reruns.
 
 Exact v1/v2 `completed-retained` records are structurally recognized during candidate discovery only so they can remain inert, byte-identical, and excluded from active candidates. This is not terminal read compatibility: an explicit `readStateFile` rejects v1/v2 terminal records unchanged. Retained v3 remains the sole terminal case that an explicit validated read can migrate.
 
@@ -254,7 +290,7 @@ Persist only:
 - terminal entry, repair, or current-commit conformance (`phase=verifying|repair`)
 - merged cleanup (`phase=merged-cleanup-pending|completed-retained`)
 
-Do not write active-task, numbered-history, reload-manifest, or persistent identity checkpoints. The session owner rebuilds complete task or terminal slices from canonical plan/state/Git. Structured slices preserve ordered file paths, operations, intents, and applicable AC/Decision constraints. Exact already-approved legacy task blocks remain readable only through their bound feature completion.
+Do not write active-task, numbered-history, reload-manifest, or persistent identity checkpoints. The session owner rebuilds complete task or terminal slices from canonical plan/state/Git. Structured slices preserve ordered file paths, operations, intents, and applicable AC/Decision constraints.
 
 ### Plan digest checks
 
@@ -291,7 +327,7 @@ Active GSD features: <features>
 To resume execution, perform direct-root rehydration in this exact order:
 1. Use the already-loaded GSD bootstrap from <GSD_ROOT>/skills/gsd/SKILL.md; do not load it again.
 2. <resume_instruction>
-Stop immediately on any malformed or ambiguous state, or if the intent is unrelated to the active features.
+Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing.
 ```
 
 #### Generic Renderer Protocol
@@ -315,19 +351,11 @@ The canonical renderer is a generic protocol with the following requirements:
    - In Bounded-Ambiguity mode, the `<features>` template field is serialized as the first 5 sorted features joined by `", "`, followed by the exact omitted-count suffix: ` (and <omittedCount> more)` where `<omittedCount>` is `features.length - 5`.
 6. **Exact Instruction Values**:
    - For Normal mode (<= 5 active features), `<resume_instruction>` is:
-    `Load gsd-handoff from the injected catalog and perform exactly one validated resume.` (84 UTF-8 bytes)
+    `Load gsd-handoff from the injected catalog and perform exactly one validated resume.`
    - For Bounded-Ambiguity mode (> 5 active features), `<resume_instruction>` is:
-     `Stop immediately and select exactly one active feature to resume.` (65 UTF-8 bytes)
-7. **Byte-Budget Limits & Accounting**:
-   - Fixed template static text: exactly 299 UTF-8 bytes.
-   - Emitted absolute master path (`<gsdRoot>/skills/gsd/SKILL.md`): maximum 1024 bytes.
-   - Feature slug: maximum 255 bytes per slug.
-   - Displayed candidate count: maximum 5 feature slugs displayed in `<features>`.
-   - Maximum worst-case complete capsule size:
-     - Normal mode (<=5): 299 + 1024 + 84 + 1283 = 2690 bytes.
-     - Bounded-Ambiguity mode (>5): 299 + 1024 + 65 + 1311 = 2699 bytes.
-   - Complete UTF-8 capsule cap: maximum 4000 bytes.
-   - Post-rendering rule: The rendered capsule must be fully formed. If the complete UTF-8 byte count of the rendered capsule exceeds 4000 bytes, the renderer must fail closed and throw an error. No post-render truncation or slicing of root, slug, instruction, or Unicode is permitted.
+     `Stop immediately and select exactly one active feature to resume.`
+7. **Complete-Capsule Fail-Closed Cap**:
+   - A rendered capsule over 4000 bytes fails closed; no truncation or slicing of root, slug, instruction, or Unicode is permitted. The exact per-field arithmetic lives beside `createCapsule` in `extensions/gsd-context.js`.
 
 ### Completed-state and cleanup matrix
 
@@ -335,14 +363,16 @@ Apply this matrix only before non-direct lifecycle work. Strictly validate every
 
 | Condition | Decision | Action |
 |---|---|---|
-| Any state is malformed | `fail-closed` | Stop before skill selection. |
-| Any valid state has `phase=merged-cleanup-pending` | `cleanup-question` | Resume only its existing delete-or-retain decision; the pre-squash archive opportunity is not reopened. |
+| A malformed state's `.scratch/<feature>/` directory name is named by the prompt, or the prompt is generic lifecycle continuation | `fail-closed` | Stop and name that feature. |
+| A malformed state is unrelated to the prompt | `ordinary-routing` | Leave those bytes untouched and continue automatic selection. |
+| A valid `phase=merged-cleanup-pending` state is named by the prompt, or the prompt is lifecycle work | `cleanup-question` | Ask one question resuming only its existing delete-or-retain decision; the pre-squash archive opportunity is not reopened. |
+| A valid `phase=merged-cleanup-pending` state is unrelated to the prompt, including a direct Nano edit | `ordinary-routing` | Continue ordinary direct behavior with no state scan. |
 | Explicit cleanup targets `completed-retained` or residual merged state | `cleanup-only` | Permit cleanup of that named completed packet only. |
 | Resume, implementation, or new-work intent explicitly targets a completed-retained feature | `block-resume` | Stop and report that the feature is completed. |
 | A completed-retained state is unrelated to the prompt, including generic `continue` | `ignore-terminal-record` | Exclude terminal history and continue active-state selection. |
 | No condition above applies | `ordinary-routing` | Continue automatic skill selection. |
 
-`merged-cleanup-pending` is a global crash-recovery gate. Generic `continue` never selects completed-retained terminal history, and terminal state mtimes never compete with active packets.
+Terminal state never blocks unrelated direct work, and uncertain relatedness asks one question instead of stopping. Because malformed bytes cannot be parsed, only the `.scratch/<feature>/` directory name is a trusted relatedness signal; never trust fields read from invalid bytes. Terminal state mtimes never compete with active packets, and generic `continue` never selects them.
 
 ## Post-approval pipeline contract
 

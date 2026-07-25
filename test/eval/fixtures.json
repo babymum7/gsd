@@ -18,7 +18,7 @@
   {
     "id": "obvious-error",
     "state": "clean repo; no .scratch/ directory",
-    "prompt": "tests fail with `TypeError: cfg.retries is undefined` at src/http.js:12 \u2014 fix it",
+    "prompt": "tests fail with `TypeError: cfg.retries is undefined` at src/http.js:12 — fix it",
     "decision": "ordinary-routing",
     "expectedAction": "direct",
     "expectedPrimarySkill": null
@@ -171,8 +171,8 @@
     "id": "result-pending-unrelated",
     "state": ".scratch/oauth-login/state.toon has phase=merged-cleanup-pending; no active packet",
     "prompt": "fix the typo in README.md",
-    "decision": "cleanup-question",
-    "expectedAction": "stop",
+    "decision": "ordinary-routing",
+    "expectedAction": "direct",
     "expectedPrimarySkill": null
   },
   {
@@ -220,6 +220,14 @@
     "state": ".scratch/oauth-login/state.toon has phase=completed-retained residual cleanup; no active packet",
     "prompt": "add a CSV export button",
     "decision": "ignore-terminal-record",
+    "expectedAction": "load",
+    "expectedPrimarySkill": "gsd-brainstorming"
+  },
+  {
+    "id": "result-malformed-unrelated",
+    "state": ".scratch/oauth-login/state.toon is malformed; no active packet",
+    "prompt": "add a CSV export button",
+    "decision": "ordinary-routing",
     "expectedAction": "load",
     "expectedPrimarySkill": "gsd-brainstorming"
   },

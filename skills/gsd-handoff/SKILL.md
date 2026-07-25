@@ -1,7 +1,6 @@
 ---
 name: gsd-handoff
-description: "Use when pausing, saving, resuming, or recovering GSD work from a valid state.toon or compaction capsule. Do not invent work when required state is missing or malformed. Loads peer skill named by validated next_action state."
-triggers: pause, save, resume, continue, compaction recovery, context pressure, or task-completion checkpoint
+description: "Use to pause, save, resume, or recover GSD work from a valid state.toon or compaction capsule."
 produces: [state.toon]
 consumes: [state.toon, plan.md, docs/gsd/<feature>/milestones.md]
 ---
@@ -28,7 +27,11 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 ## Write
 
-Write atomic `.scratch/<feature>/state.toon` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Runtime state contract: same-directory temp, fsync, rename, directory fsync where supported, then validated readback. Approval first writes `phase=approved`. Canonical `schema:v4` gives the session owner only lifecycle, plan/Git binding, green checkpoint, runtime preferences, and revision. Exact active v1, v2, and v3 records migrate atomically after full validation; v1/v2 terminal records fail closed unchanged. The exact v3 `completed-retained` compatibility case remains inert during candidate discovery, while an explicit read validates and migrates it atomically to `schema:v4`.
+Write atomic `.scratch/<feature>/state.toon` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Runtime state contract: same-directory temp, fsync, rename, directory fsync where supported, then validated readback.
+- Approval first writes `phase=approved`.
+- Canonical `schema:v4` gives the session owner only lifecycle, plan/Git binding, green checkpoint, runtime preferences, and revision.
+- Exact active v1, v2, and v3 records migrate atomically after full validation; v1/v2 terminal records fail closed unchanged.
+- The exact v3 `completed-retained` compatibility case remains inert during candidate discovery, while an explicit read validates and migrates it atomically to `schema:v4`.
 
 Exact v1/v2 `completed-retained` records are structurally recognized during candidate discovery only to remain inert and byte-identical; an explicit read rejects them fail closed unchanged. Retained v3 remains the sole terminal record that an explicit validated read migrates.
 
@@ -48,11 +51,15 @@ Cross-machine handoff may snapshot only explicitly approved dirty non-scratch pa
 
 ## Resume
 
-Without a supplied path, discover active candidates via [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Candidate discovery; numbered history and result markers have no authority. Load master once, validate state, and execute `next_action` without circular re-entry, capsule execution, or duplicated action. Reject an unknown `phase`; preserve an opaque `next_action` only when structurally valid. Malformed state fails closed; invalid, missing, or changed plan is Spec escalation. Never reconstruct from dirty files, plan status, conversation, or legacy pre-approval TOON.
+Without a supplied path, discover active candidates via [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Candidate discovery; numbered history and result markers have no authority.
+- Master is already loaded from bootstrap and is never reloaded: validate state, then load the peer owner named by `next_action` and execute it without circular re-entry, capsule execution, or duplicated action.
+- Reject an unknown `phase`; preserve an opaque `next_action` only when structurally valid.
+- Malformed state fails closed; invalid, missing, or changed plan is Spec escalation.
+- Never reconstruct from dirty files, plan status, conversation, or legacy pre-approval TOON.
 
 For every Execution resume, run `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256>` after state validation and before deriving the peer owner. Exit 0 must report the same feature and hash; exit 1 is Spec escalation, while exit 2 corrects only the invocation.
 
-A valid Execution resume verifies `schema:v4`, plan hash/path, base/WIP, last green task/commit, and current tree, then rebuilds the active slice including `Domain Impact`. Exact bound pre-Domain-Impact plans are accepted only after their recorded hash matches. Resume validates whether verification must continue before repair, E2E, or merge. These stages add no state keys.
+A valid Execution resume verifies `schema:v4`, plan hash/path, base/WIP, last green task/commit, and current tree, then rebuilds the active slice including `Domain Impact`. Resume validates whether verification must continue before repair, E2E, or merge. These stages add no state keys.
 
 For `Milestone ledger recovery`, use only the ledger selected by automatic active-state detection. Report the first pending milestone slug and goal, then load `gsd-brainstorming` for reconstruction. Do not create scratch, mutate ledger bytes, detail later rows, mark completion, start execution, or authorize merge.
 

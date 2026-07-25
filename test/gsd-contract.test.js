@@ -99,23 +99,18 @@ test("validate-plan emits deterministic minimal TOON for a canonical plan", () =
   }
 });
 
-test("bound legacy plan is accepted only after its exact hash matches", () => {
-  const plan = canonicalPlan("bound-legacy").replace(
-    /## Domain Impact\n(?:- .+\n){5}/,
-    "",
+test("legacy path-only task grammar is rejected bound and unbound", () => {
+  const plan = canonicalPlan("legacy-task").replace(
+    "- **Files:**\n  - `tools/gsd-contract.mjs` — create: expose canonical plan validation",
+    "- **Files:** `tools/gsd-contract.mjs`",
   );
-  const { workspace, planPath } = makePlanWorkspace("bound-legacy", plan);
+  const { workspace, planPath } = makePlanWorkspace("legacy-task", plan);
   try {
     const hash = createHash("sha256").update(plan).digest("hex");
     const unbound = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], {
       cwd: workspace,
       encoding: "utf8",
     });
-    const mismatched = spawnSync(
-      process.execPath,
-      [CLI, "validate-plan", "--path", planPath, "--expected-sha256", "0".repeat(64)],
-      { cwd: workspace, encoding: "utf8" },
-    );
     const bound = spawnSync(
       process.execPath,
       [CLI, "validate-plan", "--path", planPath, "--expected-sha256", hash],
@@ -124,14 +119,30 @@ test("bound legacy plan is accepted only after its exact hash matches", () => {
 
     assert.equal(unbound.status, 1);
     assert.match(unbound.stdout, /^status: error\ncode: invalid-artifact\n/);
-    assert.match(unbound.stdout, /missing Domain Impact section/);
+    assert.match(unbound.stdout, /structured task fields must be exactly ordered/);
     assert.equal(unbound.stderr, "");
-    assert.equal(mismatched.status, 1);
-    assert.match(mismatched.stdout, /hash mismatch after approval/);
-    assert.equal(mismatched.stderr, "");
-    assert.equal(bound.status, 0, bound.stderr || bound.stdout);
-    assert.match(bound.stdout, /^status: valid\nkind: plan\nfeature: bound-legacy\n/);
-    assert.match(bound.stdout, new RegExp(`sha256: ${hash}`));
+    assert.equal(bound.status, 1);
+    assert.match(bound.stdout, /structured task fields must be exactly ordered/);
+    assert.equal(bound.stderr, "");
+    assert.equal(readFileSync(planPath, "utf8"), plan);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("a plan missing Domain Impact is rejected even when its hash matches", () => {
+  const plan = canonicalPlan("no-impact").replace(/## Domain Impact\n(?:- .+\n){5}/, "");
+  const { workspace, planPath } = makePlanWorkspace("no-impact", plan);
+  try {
+    const hash = createHash("sha256").update(plan).digest("hex");
+    const bound = spawnSync(
+      process.execPath,
+      [CLI, "validate-plan", "--path", planPath, "--expected-sha256", hash],
+      { cwd: workspace, encoding: "utf8" },
+    );
+
+    assert.equal(bound.status, 1);
+    assert.match(bound.stdout, /missing Domain Impact section/);
     assert.equal(bound.stderr, "");
     assert.equal(readFileSync(planPath, "utf8"), plan);
   } finally {
@@ -265,6 +276,92 @@ test("validate-quick-fix enforces its distinct Domain Impact contract", () => {
   } finally {
     rmSync(valid.workspace, { recursive: true, force: true });
     rmSync(invalid.workspace, { recursive: true, force: true });
+  }
+});
+
+test("Quick-fix domain shard ownership is enforced per task, not plan-wide", () => {
+  const semantic = quickFixPlan()
+    .replace("Classification:** none", "Classification:** change-existing-context")
+    .replace("Contexts:** none", "Contexts:** gsd")
+    .replace("Documentation:** none", "Documentation:** update-existing");
+
+  const codeLine = "  - `src/fix.js` \u2014 modify: correct the bounded observable behavior";
+  const shardLine = "  - `docs/domain/gsd.md` \u2014 modify: record the corrected production behavior";
+
+  // One task owns both the code and its affected shard.
+  const sameTask = semantic.replace(codeLine, `${codeLine}\n${shardLine}`);
+  assert.notEqual(sameTask, semantic);
+
+  // The shard is split into a separate trailing task, so no task owns both.
+  const splitTask = semantic.replace(
+    "- **Test:** `node --test test/fix.test.js`\n",
+    `- **Test:** \`node --test test/fix.test.js\`\n### T2: Document the shard\n- **Files:**\n${shardLine}\n- **Test:** \`node --test test/skills.test.js\`\n`,
+  );
+  assert.notEqual(splitTask, semantic);
+
+  // A later task pairs the shard with different code, leaving T1's semantic change
+  // undocumented at its own green checkpoint.
+  const laterCodeTask = semantic.replace(
+    "- **Test:** `node --test test/fix.test.js`\n",
+    `- **Test:** \`node --test test/fix.test.js\`\n### T2: Adjust the caller\n- **Files:**\n  - \`src/caller.js\` \u2014 modify: pass the corrected value through\n${shardLine}\n- **Test:** \`node --test test/caller.test.js\`\n`,
+  );
+  assert.notEqual(laterCodeTask, semantic);
+
+  // The shard rides with prose only, so the semantic change stays undocumented.
+  const proseOnlyTask = semantic.replace(
+    "- **Test:** `node --test test/fix.test.js`\n",
+    `- **Test:** \`node --test test/fix.test.js\`\n### T2: Note the change\n- **Files:**\n  - \`AGENTS.md\` \u2014 modify: record the corrected agent instruction\n${shardLine}\n- **Test:** \`node --test test/skills.test.js\`\n`,
+  );
+  assert.notEqual(proseOnlyTask, semantic);
+
+  // The shard rides with a test-only task while production code lands later, so the
+  // first green checkpoint documents behavior that does not exist yet.
+  const testOnlyTask = semantic
+    .replace(codeLine, `  - \`test/fix.test.js\` \u2014 create: pin the corrected observable behavior\n${shardLine}`)
+    .replace(
+      "- **Test:** `node --test test/fix.test.js`\n",
+      `- **Test:** \`node --test test/fix.test.js\`\n### T2: Correct the source\n- **Files:**\n${codeLine}\n- **Test:** \`node --test test/fix.test.js\`\n`,
+    );
+  assert.notEqual(testOnlyTask, semantic);
+
+  // A trailing task changes more production code, so its own semantic change lands
+  // at a green checkpoint that no shard edit accompanies.
+  const trailingCodeTask = sameTask.replace(
+    "- **Test:** `node --test test/fix.test.js`\n",
+    "- **Test:** `node --test test/fix.test.js`\n### T2: Adjust the caller\n- **Files:**\n  - `src/caller.js` \u2014 modify: pass the corrected value through\n- **Test:** `node --test test/caller.test.js`\n",
+  );
+  assert.notEqual(trailingCodeTask, sameTask);
+
+  const ownership = /must own affected domain shard/;
+  const single = /must change semantic code in exactly one task/;
+  const cases = [
+    { name: "same-task", content: sameTask, status: 0 },
+    { name: "trailing-code-task", content: trailingCodeTask, status: 1, expect: single },
+    { name: "test-only-owner", content: testOnlyTask, status: 1, expect: ownership },
+    { name: "prose-only-owner", content: proseOnlyTask, status: 1, expect: ownership },
+    { name: "split-task", content: splitTask, status: 1, expect: ownership },
+    { name: "later-code-task", content: laterCodeTask, status: 1, expect: single },
+    { name: "unowned", content: semantic, status: 1, expect: ownership },
+  ].map((entry) => ({ ...entry, ...makePlanWorkspace("quick-fix-plan", entry.content) }));
+
+  try {
+    for (const entry of cases) {
+      const result = spawnSync(
+        process.execPath,
+        [CLI, "validate-quick-fix", "--path", entry.planPath],
+        { cwd: entry.workspace, encoding: "utf8" },
+      );
+      assert.equal(result.status, entry.status, `${entry.name}: ${result.stdout}${result.stderr}`);
+      assert.equal(result.stderr, "");
+      if (entry.status === 0) {
+        assert.match(result.stdout, /^status: valid\nkind: quick-fix\n/);
+      } else {
+        assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/);
+        assert.match(result.stdout, entry.expect, entry.name);
+      }
+    }
+  } finally {
+    for (const entry of cases) rmSync(entry.workspace, { recursive: true, force: true });
   }
 });
 

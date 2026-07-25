@@ -1,7 +1,6 @@
 ---
 name: gsd-ponytail
 description: "Hidden contextual policy for the smallest complete implementation path. Loaded only by an active owner when bounded scope benefits from conservative delivery."
-triggers: owner-selected known-scope quick fix or bounded implementation simplification
 produces: []
 consumes: []
 hide: true

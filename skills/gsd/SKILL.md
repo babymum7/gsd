@@ -2,7 +2,6 @@
 name: gsd
 description: "Session bootstrap injected by the GSD OMP extension; establishes lazy skill selection, same-session continuity, and workflow ownership. Do not invoke directly."
 hide: true
-triggers: injected automatically by the GSD OMP extension
 produces: [plan.md, .scratch/<feature>/state.toon, docs/gsd/<feature>/milestones.md, docs/gsd/<feature>/archive/plan.md, docs/gsd/<feature>/archive/implementation.md]
 consumes: [state.toon, plan.md, docs/domain/index.md, docs/domain/<scope>.md, docs/gsd/<feature>/milestones.md]
 ---
@@ -38,24 +37,26 @@ Reject legacy proposal/spec/design TOON, numbered handoffs, attempts, result mar
 
 ## Completed-state decision matrix
 
-Before non-direct lifecycle work, strictly validate every discovered `.scratch/<feature>/state.toon`, then take the first match:
+Before non-direct lifecycle work, validate every discovered `.scratch/<feature>/state.toon`, then take the first match:
 
 | Condition | Decision | Action |
 |---|---|---|
-| Any state is malformed | `fail-closed` | Stop before skill selection. |
-| Any valid state has `phase=merged-cleanup-pending` | `cleanup-question` | Resume only its existing delete-or-retain decision; the pre-squash archive opportunity is not reopened. |
-| Explicit cleanup targets completed-retained or residual merged state | `cleanup-only` | Permit cleanup of that named completed packet only. |
-| Resume, implementation, or new-work intent explicitly targets a completed-retained feature | `block-resume` | Stop and report that the feature is completed. |
-| A completed-retained state is unrelated to the prompt, including generic `continue` | `ignore-terminal-record` | Exclude terminal history and continue active-state selection. |
-| No condition above applies | `ordinary-routing` | Continue automatic skill selection. |
+| Prompt names a malformed state's directory, or is generic lifecycle continuation | `fail-closed` | Stop, naming that feature. |
+| A malformed state is unrelated to the prompt | `ordinary-routing` | Leave those bytes; continue selection. |
+| Prompt names a valid `merged-cleanup-pending` state, or is lifecycle work | `cleanup-question` | Ask one question resuming its delete-or-retain decision; archive stays closed. |
+| That state is unrelated to the prompt | `ordinary-routing` | Continue direct behavior, no state scan. |
+| Explicit cleanup targets completed-retained or residual state | `cleanup-only` | Clean that named packet only. |
+| Resume or new-work intent targets a completed-retained feature | `block-resume` | Stop and report it completed. |
+| A completed-retained state is unrelated, including generic `continue` | `ignore-terminal-record` | Exclude terminal history; select active state. |
+| Nothing above applies | `ordinary-routing` | Continue automatic skill selection. |
 
-`merged-cleanup-pending` globally gates recovery. Generic `continue` ignores completed-retained history; terminal mtimes never compete with active packets.
+Terminal state gates only intent naming it or continuing the lifecycle; unrelated direct work is never blocked, and uncertain relatedness asks one question instead of stopping. Because unparsable bytes are untrustworthy, only the `.scratch/<feature>/` directory name decides relatedness; mtimes never compete with active packets.
 
 ## Recovery ownership
 
 A valid **Compaction Recovery Capsule** authoritatively selects one resume: follow its root/feature and load `gsd-handoff`. **Do not invoke or execute the capsule again, avoiding circular re-entry.**
 
-Malformed/ambiguous state or capsule stops; missing state cannot authorize replacement brainstorming. Unrelated intent preserves active packets and routes normally.
+A malformed or ambiguous state or capsule resolves through the matrix above; missing state cannot authorize replacement brainstorming. Unrelated intent preserves active packets and routes normally.
 
 ## Scope discipline
 

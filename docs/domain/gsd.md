@@ -13,7 +13,7 @@ Own request classification, feature convergence, immutable plan approval, ordere
 | Term | Definition | Avoid |
 | --- | --- | --- |
 | Artifact Contract | The rule classifying repository artifacts per Invocation Mode as Required, Optional, Produced, or Fallback. | flat mandatory dependency list |
-| Contract Validator | The executable production seam that validates canonical, bound-legacy, and Quick-fix plan authority without mutating it. | test-only parser, prose-only validation |
+| Contract Validator | The executable production seam that validates canonical full-plan and Quick-fix plan authority without mutating it. | test-only parser, prose-only validation |
 | Context Harvest | Scope-bounded domain inspection: existing indexes limit reads to affected mapped contexts, while an absent index permits required feature bootstrap plus one optional broad-bootstrap decision. | routine broad codebase scan |
 | Deferred Slow E2E | A resource-heavy feature journey run only after current-commit deterministic conformance. | task-loop check |
 | Domain Impact | The mandatory plan classification binding semantic change evidence, affected contexts, documentation action, and broad-bootstrap disposition. | optional documentation note |
@@ -36,6 +36,7 @@ Own request classification, feature convergence, immutable plan approval, ordere
 - A known bounded behavioral fix is owned directly by the session owner; Ponytail remains hidden and is loaded only from its exact injected context path.
 - Approved `plan.md` bytes remain immutable; runtime state only binds and reports them.
 - State authority is valid only as fatal-decoded UTF-8 with LF line endings; invalid bytes and carriage returns fail closed unchanged.
+- Malformed state fails closed only for intent naming its `.scratch/<feature>/` directory or continuing the lifecycle; because the bytes cannot be parsed, that directory name is the only trusted relatedness signal.
 - Exact retained v1/v2 terminal records are structurally recognized during candidate discovery only to remain inert and byte-identical; an explicit read rejects them fail closed unchanged.
 - Full-plan approval, execution resume, terminal entry, pre-squash, and Quick-fix verification use the production Contract Validator before consuming plan authority.
 - Retained `schema:v3` stays inert and byte-identical during candidate discovery but migrates atomically on an explicit read after full validation.
@@ -129,12 +130,12 @@ None.
 
 ### P-gsd-8: Clean transient feature artifacts after green merge
 
-- **Policy:** Delete feature scratch after a green merge unless retain or archive-and-delete was selected.
-- **Reason:** Exact ownership removes completed runtime evidence without touching neighboring sessions.
+- **Policy:** Delete feature scratch after a green merge unless retain or archive-and-delete was selected. A leftover `merged-cleanup-pending` or malformed packet gates only intent that names its `.scratch/<feature>/` directory or continues the lifecycle; unrelated direct work proceeds untouched, and uncertain relatedness asks one question instead of stopping.
+- **Reason:** Exact ownership removes completed runtime evidence without touching neighboring sessions, and leftover runtime bytes must never block work that does not depend on them.
 
 ### P-gsd-9: Keep Quick-fix semantics explicit
 
-- **Policy:** Every Quick-fix records canonical Domain Impact and `Broad bootstrap: not-offered`; `none` carries concrete evidence, while semantic fixes own and verify each affected current-production shard with code. A missing domain index or requested broad bootstrap exits the bounded route for normal discovery.
+- **Policy:** Every Quick-fix records canonical Domain Impact and `Broad bootstrap: not-offered`; `none` carries concrete evidence, while a semantic fix changes production sources in exactly one task and that same task owns every affected current-production shard, validated per task rather than plan-wide. Prose and test paths never count as that semantic change. An absent domain index keeps the fix bounded, holding `Broad bootstrap: not-offered` while the feature-scoped shard is bootstrapped inline; only an explicitly requested broad bootstrap exits the bounded route for normal discovery.
 - **Reason:** A smaller delivery path must not bypass the production meaning and drift guarantees applied to converged features.
 
 ### P-gsd-10: Route hidden context without visible dispatch
@@ -154,5 +155,5 @@ None.
 
 ### P-gsd-13: Centralize executable plan validation
 
-- **Policy:** Every full-plan approval, execution resume, terminal entry, pre-squash guard, and Quick-fix verification uses the production Contract Validator; exact bound legacy grammar is available only after its SHA-256 matches.
+- **Policy:** Every full-plan approval, execution resume, terminal entry, pre-squash guard, and Quick-fix verification uses the production Contract Validator; structured tasks and canonical Domain Impact are required in every path, bound or unbound.
 - **Reason:** One executable seam keeps artifact authority, failure modes, and compatibility behavior consistent across lifecycle owners and repository tests.

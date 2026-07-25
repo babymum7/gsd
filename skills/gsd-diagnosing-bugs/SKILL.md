@@ -1,7 +1,6 @@
 ---
 name: gsd-diagnosing-bugs
-description: "Use for a non-obvious bug, regression, intermittent failure, performance problem, or failed execution repair that needs root-cause evidence. Do not use for a known single-spot quick fix. The session owner diagnoses inline and returns evidence to execution or architecture."
-triggers: non-obvious bug, regression, intermittent failure, performance problem, or execution blocker
+description: "Use for a non-obvious bug, regression, intermittent failure, performance problem, or failed execution repair needing root-cause evidence."
 produces: []
 consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 ---
@@ -30,7 +29,11 @@ Build a **tight** red-capable pass/fail signal for *this* bug before hypothesizi
 
 **Tighten** the loop: faster, sharper symptom assertion, deterministic (pin time/seed/FS/network). Non-deterministic → raise reproduction rate until debuggable.
 
-**Done when** you can name ONE command (script/test/curl), already run once, that is red-capable (drives the bug path, asserts the user's exact symptom), deterministic, fast, agent-runnable. No red-capable command → no Phase 2, and do not hypothesize without a loop. In standalone diagnosis, STOP and ask one focused question for the missing environment access, captured artifact, or permission for temporary instrumentation. In Execution-blocker diagnosis, ask no question: emit the canonical post-approval Blocker stop naming the exact unavailable access or artifact, and return the blocker evidence to `gsd-executing-plans` as its caller; this stops the current pipeline and does not resume execution. A later validated resume, after the external prerequisite is available, may re-enter diagnosis.
+**Done when** you can name ONE command (script/test/curl), already run once, that is red-capable (drives the bug path, asserts the user's exact symptom), deterministic, fast, agent-runnable.
+- No red-capable command → no Phase 2, and do not hypothesize without a loop.
+- In standalone diagnosis, STOP and ask one focused question for the missing environment access, captured artifact, or permission for temporary instrumentation.
+- In Execution-blocker diagnosis, ask no question: emit the canonical post-approval Blocker stop naming the exact unavailable access or artifact, and return the blocker evidence to `gsd-executing-plans` as its caller; this stops the current pipeline and does not resume execution.
+- A later validated resume, after the external prerequisite is available, may re-enter diagnosis.
 
 ## Phase 2 — Reproduce + minimize
 Run it, watch red. Confirm it's the *user's* failure (not a nearby one) and reproducible. Then shrink to the smallest scenario that still goes red — cut inputs/callers/config one at a time, re-running after each. Done when every remaining element is load-bearing.

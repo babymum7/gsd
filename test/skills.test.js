@@ -119,30 +119,39 @@ const canonicalPacket = () => ({
     "## Tasks",
     "### T1: Parse plan",
     "- **Satisfies:** AC-1",
-    "- **Files:** `test/skills.test.js`",
+    "- **Files:**",
+    "  - `test/skills.test.js` — modify: exercise the canonical parser fixture",
     "- **Test:** `node --test test/skills.test.js`",
     "- **Status:** pending",
     "",
   ].join("\n"),
 });
 
+// Single source of truth for the canonical fixture's Files block. Tests replace
+// against these constants so a drifted literal fails loudly instead of no-oping.
+const FILES_BLOCK = "- **Files:**\n  - `test/skills.test.js` — modify: exercise the canonical parser fixture";
+const filesBlockWith = (...entries) => [FILES_BLOCK, ...entries].join("\n");
+const T1_BLOCK = `### T1: Parse plan\n- **Satisfies:** AC-1\n${FILES_BLOCK}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** pending`;
+const INTERFACE_ROW = "| AC-1 | parser | `test/skills.test.js` | none |";
+const replaceOnce = (source, needle, replacement) => {
+  const count = source.split(needle).length - 1;
+  assert.equal(count, 1, `fixture needle must occur exactly once: ${needle.slice(0, 60)}`);
+  return source.replace(needle, replacement);
+};
+
 const structuredPacket = () => {
   const packet = canonicalPacket();
-  packet["plan.md"] = packet["plan.md"].replace(
-    "### T1: Parse plan\n- **Satisfies:** AC-1\n- **Files:** `test/skills.test.js`\n- **Test:** `node --test test/skills.test.js`\n- **Status:** pending",
-    "### T1: Parse plan\n- **Satisfies:** AC-1\n- **Files:**\n  - `src/new.js` — create: expose the planned public entrypoint\n  - `src/current.js` — modify: enforce the approved behavior contract\n  - `src/obsolete.js` — delete: remove the superseded runtime path\n- **Test:** `node --test test/skills.test.js`\n- **Status:** pending",
+  packet["plan.md"] = replaceOnce(
+    packet["plan.md"],
+    FILES_BLOCK,
+    "- **Files:**\n  - `src/new.js` — create: expose the planned public entrypoint\n  - `src/current.js` — modify: enforce the approved behavior contract\n  - `src/obsolete.js` — delete: remove the superseded runtime path",
   );
   return packet;
 };
 
 test("structured task file intents parse deterministically", () => {
-  const legacy = parseMarkdownPacket(canonicalPacket());
-  assert.equal(legacy.taskFormat, "legacy");
-  assert.equal(legacy.tasks[0].format, "legacy");
-
   const structured = structuredPacket();
   const parsed = parseMarkdownPacket(structured);
-  assert.equal(parsed.taskFormat, "structured");
   assert.deepEqual(parsed.tasks[0].fileIntents, [
     { path: "src/new.js", operation: "create", intent: "expose the planned public entrypoint" },
     { path: "src/current.js", operation: "modify", intent: "enforce the approved behavior contract" },
@@ -162,7 +171,7 @@ test("structured task file intents parse deterministically", () => {
   }
 });
 
-test("domain-impact packet grammar is mandatory with bound legacy completion", () => {
+test("domain-impact packet grammar is mandatory in every validation path", () => {
   const canonical = canonicalPacket();
   const parsed = parseMarkdownPacket(canonical);
   assert.deepEqual(parsed.domainImpact, {
@@ -215,7 +224,7 @@ test("domain-impact packet grammar is mandatory with bound legacy completion", (
   const legacyFiles = { "plan.md": legacyPlan };
   const legacyBinding = { "plan.md": sha256(legacyPlan) };
   assert.throws(() => bindApprovedSources(legacyFiles), /Domain Impact|section/i);
-  assert.deepEqual(verifyApprovedSources(legacyFiles, legacyBinding), legacyBinding);
+  assert.throws(() => verifyApprovedSources(legacyFiles, legacyBinding), /Domain Impact|section/i);
   assert.throws(
     () => verifyApprovedSources({ "plan.md": `${legacyPlan}\n` }, legacyBinding),
     /hash mismatch/i,
@@ -299,6 +308,18 @@ test("Quick-fix Domain Impact grammar is exact and domain-owned", () => {
   assert.match(verify, /`Broad bootstrap` must always be `not-offered`/);
   assert.match(verify, /Quick-fix[\s\S]{0,500}exact five-field `Domain Impact`/i);
   assert.match(verify, /Quick-fix[\s\S]{0,800}domain drift[\s\S]{0,100}(?:blocks|Blocker)/i);
+
+  // AC-5: an absent domain index keeps Quick-fix bounded instead of exiting it.
+  for (const doc of [reference, verify]) {
+    assert.match(doc, /absent (?:`docs\/domain\/index\.md`|domain index) keeps/i);
+    assert.doesNotMatch(doc, /(?:A |a )missing index or requested broad bootstrap exits/);
+    assert.match(doc, /only an explicitly requested broad bootstrap exits/i);
+  }
+
+  // AC-5: resume never reloads the already-injected master bootstrap.
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+  assert.doesNotMatch(handoff, /Load master once/);
+  assert.match(handoff, /never reloaded: validate state, then load the peer owner/);
 });
 
 test("planner single-writes structured task file intents", () => {
@@ -308,9 +329,12 @@ test("planner single-writes structured task file intents", () => {
 
   assert.match(reference, /- \*\*Files:\*\*\n\s+- `<path>` — (?:create\|modify\|delete|<create\|modify\|delete>)/);
   assert.match(planner, /REFERENCE\.md[^.\n]*§ Packet grammar/);
-  assert.match(planner, /newly approve only structured task blocks/i);
-  assert.match(reference, /dual-read[\s\S]*single-write/i);
-  assert.match(execution, /already-approved[\s\S]*legacy task blocks/i);
+  assert.match(planner, /single-writes exactly that grammar/i);
+  assert.match(reference, /accepts only structured task blocks/i);
+  assert.match(reference, /rejected in every validation path/i);
+  assert.match(execution, /reads only structured task blocks/i);
+  assert.doesNotMatch(reference, /dual-read/i);
+  assert.doesNotMatch(execution, /legacy task blocks/i);
 });
 
 test("session owner is sole lifecycle authority without model agents", () => {
@@ -351,10 +375,57 @@ test("every GSD skill has complete matching frontmatter", () => {
   for (const name of skillNames()) {
     const skill = read(`skills/${name}/SKILL.md`);
     assert.match(skill, new RegExp(`^---\\nname: ${name}\\n`, "m"), name);
-    assert.match(skill, /^triggers: .+$/m, `${name} triggers`);
+    assert.doesNotMatch(skill, /^triggers:/m, `${name} carries no dead triggers field`);
     assert.match(skill, /^produces: \[.*\]$/m, `${name} produces`);
     assert.match(skill, /^consumes: \[.*\]$/m, `${name} consumes`);
   }
+});
+
+test("visible catalog descriptions stay within the injected byte budget", () => {
+  // Every visible description is injected once per session, so the sum is a real cost.
+  let total = 0;
+  for (const name of skillNames()) {
+    const skill = read(`skills/${name}/SKILL.md`);
+    if (/^hide: true$/m.test(skill)) continue;
+    const description = JSON.parse(skill.match(/^description: (.+)$/m)[1]);
+    assert.doesNotMatch(description, /^Do not use|\. Do not use for read-only questions/, name);
+    total += Buffer.byteLength(description, "utf8");
+  }
+  assert.ok(total < 1800, `summed visible description bytes must stay under 1800, got ${total}`);
+
+  // AC-6: the renderer byte-accounting spec belongs beside createCapsule, not in
+  // agent-facing prose. Input caps stay because the renderer validates against them.
+  const reference = read("skills/gsd/REFERENCE.md");
+  assert.doesNotMatch(reference, /\d+\s*\+\s*\d+\s*\+\s*\d+\s*\+\s*\d+\s*=/);
+  assert.doesNotMatch(reference, /UTF-8 bytes\)/);
+  assert.doesNotMatch(reference, /Byte-Budget Limits|Caps are a maximum/);
+  assert.match(reference, /A rendered capsule over 4000 bytes fails closed/);
+  assert.match(read("extensions/gsd-context.js"), /2750|2759/);
+  for (const name of skillNames()) {
+    assert.doesNotMatch(read(`skills/${name}/SKILL.md`), /^triggers:/m, `${name} triggers`);
+  }
+});
+
+test("agent-facing skill prose keeps rule lines readable", () => {
+  // AC-7: a single line must not stack many distinct rules. Bullets cost the same
+  // bytes but let an agent apply one rule at a time.
+  const MAX_LINE_CHARS = 600;
+  const offenders = [];
+  const markdown = [];
+  const walk = (dir) => {
+    for (const entry of readdirSync(join(ROOT, dir), { withFileTypes: true })) {
+      if (entry.isDirectory()) walk(`${dir}/${entry.name}`);
+      else if (entry.name.endsWith(".md")) markdown.push(`${dir}/${entry.name}`);
+    }
+  };
+  walk("skills");
+  assert.ok(markdown.length >= skillNames().length, "every skill contributes at least one markdown file");
+  for (const file of markdown) {
+    read(file).split("\n").forEach((line, index) => {
+      if (line.length > MAX_LINE_CHARS) offenders.push(`${file}:${index + 1} (${line.length})`);
+    });
+  }
+  assert.deepEqual(offenders, []);
 });
 
 test("all skill references resolve to installed skills", () => {
@@ -410,12 +481,12 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   
   const publishedPlan = files["plan.md"]
     .replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/milestones.md`")
-    .replace("- **Files:** `test/skills.test.js`", "- **Files:** `test/skills.test.js`, `docs/gsd/canonical-fixture/milestones.md`");
+    .replace(FILES_BLOCK, filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger'));
   assert.doesNotThrow(() => parseMarkdownPacket({ "plan.md": publishedPlan }));
   
   const invalidPubPlan = files["plan.md"]
     .replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/" + ["milestones", ".toon"].join("") + "`")
-    .replace("- **Files:** `test/skills.test.js`", "- **Files:** `test/skills.test.js`, `docs/gsd/canonical-fixture/" + ["milestones", ".toon"].join("") + "`");
+    .replace(FILES_BLOCK, filesBlockWith("  - `docs/gsd/canonical-fixture/" + ["milestones", ".toon"].join("") + "` — modify: reference a runtime ledger path"));
   assert.throws(
     () => parseMarkdownPacket({ "plan.md": invalidPubPlan }),
     /Publication must be null or the canonical Markdown ledger path/,
@@ -424,7 +495,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   // focused Publication cases: null+ledger, wrong feature, no owner, duplicate non-superseded owners, superseded-only owner, and valid exact owner
   // 1. null+ledger
   const nullPlusLedgerPlan = files["plan.md"]
-    .replace("- **Files:** `test/skills.test.js`", "- **Files:** `test/skills.test.js`, `docs/gsd/canonical-fixture/milestones.md`");
+    .replace(FILES_BLOCK, filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger'));
   assert.throws(
     () => parseMarkdownPacket({ "plan.md": nullPlusLedgerPlan }),
     /unowned or mismatched milestone ledger path/
@@ -433,7 +504,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   // 2. wrong feature
   const wrongFeaturePlan = files["plan.md"]
     .replace("## Publication\nnull", "## Publication\n`docs/gsd/wrong-feature/milestones.md`")
-    .replace("- **Files:** `test/skills.test.js`", "- **Files:** `test/skills.test.js`, `docs/gsd/wrong-feature/milestones.md`");
+    .replace(FILES_BLOCK, filesBlockWith("  - `docs/gsd/wrong-feature/milestones.md` — modify: reference a mismatched ledger slug"));
   assert.throws(
     () => parseMarkdownPacket({ "plan.md": wrongFeaturePlan }),
     /Publication must be null or the canonical Markdown ledger path/
@@ -459,8 +530,8 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
       "| AC-1 | parser | `test/skills.test.js` | none |\n| AC-2 | parser | `test/skills.test.js` | none |"
     )
     .replace(
-      "### T1: Parse plan\n- **Satisfies:** AC-1\n- **Files:** `test/skills.test.js`\n- **Test:** `node --test test/skills.test.js`\n- **Status:** pending",
-      "### T1: Parse plan\n- **Satisfies:** AC-1\n- **Files:** `test/skills.test.js`, `docs/gsd/canonical-fixture/milestones.md`\n- **Test:** `node --test test/skills.test.js`\n- **Status:** pending\n### T2: Another task\n- **Satisfies:** AC-2\n- **Files:** `test/skills.test.js`, `docs/gsd/canonical-fixture/milestones.md`\n- **Test:** `node --test test/skills.test.js`\n- **Status:** pending"
+      T1_BLOCK,
+      `### T1: Parse plan\n- **Satisfies:** AC-1\n${filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger')}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** pending\n### T2: Another task\n- **Satisfies:** AC-2\n${filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger')}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** pending`
     );
   assert.throws(
     () => parseMarkdownPacket({ "plan.md": duplicateOwnersPlan }),
@@ -471,8 +542,8 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   const supersededOnlyOwnerPlan = files["plan.md"]
     .replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/milestones.md`")
     .replace(
-      "### T1: Parse plan\n- **Satisfies:** AC-1\n- **Files:** `test/skills.test.js`\n- **Test:** `node --test test/skills.test.js`\n- **Status:** pending",
-      "### T1: Parse plan\n- **Satisfies:** AC-1\n- **Files:** `test/skills.test.js`, `docs/gsd/canonical-fixture/milestones.md`\n- **Test:** `node --test test/skills.test.js`\n- **Status:** superseded\n### T2: Another task\n- **Satisfies:** AC-1\n- **Files:** `test/skills.test.js`\n- **Test:** `node --test test/skills.test.js`\n- **Status:** pending"
+      T1_BLOCK,
+      `### T1: Parse plan\n- **Satisfies:** AC-1\n${filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger')}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** superseded\n### T2: Another task\n- **Satisfies:** AC-1\n${FILES_BLOCK}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** pending`
     );
   assert.throws(
     () => parseMarkdownPacket({ "plan.md": supersededOnlyOwnerPlan }),
@@ -482,7 +553,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   // 6. valid exact owner
   const validExactOwnerPlan = files["plan.md"]
     .replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/milestones.md`")
-    .replace("- **Files:** `test/skills.test.js`", "- **Files:** `test/skills.test.js`, `docs/gsd/canonical-fixture/milestones.md`");
+    .replace(FILES_BLOCK, filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger'));
   assert.doesNotThrow(() => parseMarkdownPacket({ "plan.md": validExactOwnerPlan }));
   // Negative tests for Interfaces parser validations
   assert.throws(() => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("Criterion | Seam | Path | Lower-seam reason", "Criterion | Seam | Path | Lower Reason") }), /Interfaces header is invalid/);
@@ -510,38 +581,38 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
     /Task T1 satisfies multiple ACs but their interface pins/
   );
 
-  // Negative tests for Tasks comma-separated backticked files format
-  assert.throws(() => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("- **Files:** `test/skills.test.js`", "- **Files:** `test/skills.test.js`, unbackticked") }), /Files must be comma-separated/);
+  // Interfaces Path still uses the comma-separated backticked list validator.
+  assert.throws(() => parseMarkdownPacket({ "plan.md": replaceOnce(files["plan.md"], INTERFACE_ROW, "| AC-1 | parser | `test/skills.test.js`, unbackticked | none |") }), /must be comma-separated/);
 
   // Task Files path validator tests
   // 1. absolute
   assert.throws(
-    () => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("- **Files:** `test/skills.test.js`", "- **Files:** `/absolute/path.js`") }),
+    () => parseMarkdownPacket({ "plan.md": replaceOnce(files["plan.md"], FILES_BLOCK, "- **Files:**\n  - `/absolute/path.js` — modify: exercise the path validator") }),
     /must be repository-relative/
   );
   // 2. backslash
   assert.throws(
-    () => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("- **Files:** `test/skills.test.js`", "- **Files:** `some\\\\path.js`") }),
+    () => parseMarkdownPacket({ "plan.md": replaceOnce(files["plan.md"], FILES_BLOCK, "- **Files:**\n  - `some\\\\path.js` — modify: exercise the path validator") }),
     /contains backslash/
   );
   // 3. empty segment
   assert.throws(
-    () => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("- **Files:** `test/skills.test.js`", "- **Files:** `some//path.js`") }),
+    () => parseMarkdownPacket({ "plan.md": replaceOnce(files["plan.md"], FILES_BLOCK, "- **Files:**\n  - `some//path.js` — modify: exercise the path validator") }),
     /contains empty segment/
   );
   // 4. dot/traversal
   assert.throws(
-    () => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("- **Files:** `test/skills.test.js`", "- **Files:** `some/../path.js`") }),
+    () => parseMarkdownPacket({ "plan.md": replaceOnce(files["plan.md"], FILES_BLOCK, "- **Files:**\n  - `some/../path.js` — modify: exercise the path validator") }),
     /contains dot\/traversal/
   );
   // 5. .scratch
   assert.throws(
-    () => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("- **Files:** `test/skills.test.js`", "- **Files:** `.scratch/path.js`") }),
+    () => parseMarkdownPacket({ "plan.md": replaceOnce(files["plan.md"], FILES_BLOCK, "- **Files:**\n  - `.scratch/path.js` — modify: exercise the path validator") }),
     /contains \.scratch/
   );
   // 6. runtime TOON path
   assert.throws(
-    () => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("- **Files:** `test/skills.test.js`", "- **Files:** `some/handoff-1.toon`") }),
+    () => parseMarkdownPacket({ "plan.md": replaceOnce(files["plan.md"], FILES_BLOCK, "- **Files:**\n  - `some/handoff-1.toon` — modify: exercise the path validator") }),
     /contains runtime TOON path/
   );
 
@@ -753,7 +824,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
 
   // Directly test validateSectionEdges for Tasks trailing blank
   assert.throws(
-    () => validateSectionEdges("### T1: Parse plan\n- **Satisfies:** AC-1\n- **Files:** `test/skills.test.js`\n- **Test:** `node --test test/skills.test.js`\n- **Status:** pending\n\n", "Tasks"),
+    () => validateSectionEdges(`${T1_BLOCK}\n\n`, "Tasks"),
     /Tasks section must not have trailing blank/
   );
 
@@ -832,7 +903,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **State:** active", "- **State:**  active") }), /State must not have leading or trailing whitespace/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **State:** active", "- **State:** active ") }), /State must not have leading or trailing whitespace/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Status:** pending", "- **Status:**  pending") }), /Status must not have leading or trailing whitespace/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Status:** pending", "- **Status:** pending \n### T2: Another task\n- **Satisfies:** AC-1\n- **Files:** `test/skills.test.js`\n- **Test:** `node --test test/skills.test.js`\n- **Status:** superseded") }), /Status must not have leading or trailing whitespace/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Status:** pending", `- **Status:** pending \n### T2: Another task\n- **Satisfies:** AC-1\n${FILES_BLOCK}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** superseded`) }), /Status must not have leading or trailing whitespace/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **I-1:** Approved source bytes remain immutable.", "- **I-1:**  Approved source bytes remain immutable.") }), /text must not have leading or trailing whitespace/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **I-1:** Approved source bytes remain immutable.", "- **I-1:** Approved source bytes remain immutable. \n- **I-2:** Second invariant.") }), /text must not have leading or trailing whitespace/);
   // Retain the AC-10 multi-path Interfaces case
@@ -1007,7 +1078,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
       )
       .replace(
         "- **Status:** pending",
-        "- **Status:** pending\n### T2: Task 2\n- **Satisfies:** AC-2\n- **Files:** `test/skills.test.js`\n- **Test:** `node --test test/skills.test.js`\n- **Status:** pending"
+        `- **Status:** pending\n### T2: Task 2\n- **Satisfies:** AC-2\n${FILES_BLOCK}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** pending`
       );
   };
   const twoAcPlan = addAc2(files["plan.md"]);
@@ -1077,8 +1148,10 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
 
   let taskBlocks = "";
   for (let i = 1; i <= 10; i++) {
-    const filesList = i === 10 ? "`test/skills.test.js`, `test/another.test.js`" : "`test/skills.test.js`";
-    taskBlocks += `### T${i}: Task ${i}\n- **Satisfies:** AC-${i}\n- **Files:** ${filesList}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** pending\n`;
+    const filesList = i === 10
+      ? "  - `test/skills.test.js` — modify: exercise the canonical parser fixture\n  - `test/another.test.js` — modify: exercise the second pinned path"
+      : "  - `test/skills.test.js` — modify: exercise the canonical parser fixture";
+    taskBlocks += `### T${i}: Task ${i}\n- **Satisfies:** AC-${i}\n- **Files:**\n${filesList}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** pending\n`;
   }
   taskBlocks = taskBlocks.trim();
 
@@ -1517,6 +1590,34 @@ test("activation fixtures and response parser enforce lazy primary-skill selecti
   }
   assert.match(reference, /generic `continue`/);
   assert.match(reference, /completed-retained|merged-cleanup-pending/);
+
+  // Leftover terminal or malformed state gates related and lifecycle intent only. An
+  // unrelated direct prompt keeps ordinary behavior, and uncertainty asks one question.
+  for (const doc of [master, reference]) {
+    assert.match(doc, /unrelated direct work is never blocked|never blocks unrelated direct work/);
+    assert.match(doc, /asks one question instead of stopping/);
+    assert.match(doc, /A malformed state is unrelated to the prompt \| `ordinary-routing`/);
+    assert.doesNotMatch(doc, /Any state is malformed \| `fail-closed`/);
+    assert.doesNotMatch(doc, /globally gates recovery|global crash-recovery gate/);
+  }
+  // Malformed bytes cannot be parsed, so only the directory name may decide relatedness.
+  assert.match(reference, /only the `\.scratch\/<feature>\/` directory name is a trusted relatedness signal/);
+  assert.deepEqual(
+    {
+      decision: byId.get("result-pending-unrelated").decision,
+      action: byId.get("result-pending-unrelated").expectedAction,
+      primarySkill: byId.get("result-pending-unrelated").expectedPrimarySkill,
+    },
+    { decision: "ordinary-routing", action: "direct", primarySkill: null },
+  );
+  assert.deepEqual(
+    {
+      decision: byId.get("result-malformed-unrelated").decision,
+      action: byId.get("result-malformed-unrelated").expectedAction,
+    },
+    { decision: "ordinary-routing", action: "load" },
+  );
+  assert.equal(byId.get("result-malformed-with-active").decision, "fail-closed");
   assert.match(evalRunner, /createBootstrap\(repoRoot\)/);
   assert.match(evalRunner, /discoverSkillCatalog\(repoRoot\)/);
   assert.doesNotMatch(evalRunner, /REFERENCE\.md|route|trace|--mode/);

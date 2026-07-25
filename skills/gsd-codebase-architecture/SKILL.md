@@ -1,7 +1,6 @@
 ---
 name: gsd-codebase-architecture
-description: "Use for a named module/interface design, a scoped codebase architecture audit or refactor, or an architectural cause returned by diagnosis. Aligns deep modules and backend/frontend boundaries to production domains without prescribing framework structure."
-triggers: explicit named seam or interface design; architecture audit or refactor; architectural cause returned by diagnosis
+description: "Use for a named module or interface design, a scoped architecture audit or refactor, or an architectural cause returned by diagnosis."
 produces: []
 consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 ---
@@ -75,7 +74,7 @@ Keep domain/application policy independent of UI, transport, persistence, and fr
 - Keep internal test seams private. Tests observe the public interface and survive internal refactors.
 - Prefer atomic caller migration. Use Expand → Migrate → Contract only when compatibility prevents an atomic cutover and caller inventory is complete.
 
-Dependency and testing guidance: [DEEPENING.md](DEEPENING.md).
+Optional dependency and testing guidance, read only when deepening a module: [DEEPENING.md](DEEPENING.md).
 
 ## Conditional logic
 

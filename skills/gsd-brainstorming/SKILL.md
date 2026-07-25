@@ -1,7 +1,6 @@
 ---
 name: gsd-brainstorming
-description: "Use before designing non-trivial new behavior or changing product behavior when requirements or tradeoffs must be resolved. Do not use for read-only questions, pure mechanical edits, or a known single-spot quick fix. Produces a converged acceptance contract and then loads gsd-to-plan."
-triggers: non-trivial new behavior, unresolved product or architecture tradeoffs, spec-gap return, or explicit design stress-test
+description: "Use to converge requirements and tradeoffs for non-trivial new or changed product behavior into an acceptance contract, then load gsd-to-plan."
 produces: []
 consumes: []
 ---
@@ -43,7 +42,11 @@ Match exploration breadth to the prompt. Read the named area and direct dependen
 
 Convergence fixes behavior before planning. Every active acceptance criterion must have a concrete observable **Outcome**, executable **Action**, and deterministic **Expected** result, plus the invariants and non-goals that constrain it. Unresolved or future ideas remain one concise discussion note; they never become vague criteria or speculative tasks.
 
-Pin exactly one existing public test seam per active criterion before convergence. Prefer the highest deterministic existing **fast** boundary that observes production behavior: local public module, contract, or in-process CLI/API harness first. A Fast TDD Check is required for observable criteria: no browser or GUI, external network, long-lived server, large fixture, or material machine cost during implementation. If no fast public seam exists, the contract must explicitly add the smallest real fast public seam as product work. Never approve a source-text assertion, private helper probe, duplicated implementation, test-only backdoor, or resource-heavy browser/E2E seam as the implementation-task acceptance boundary.
+Pin exactly one existing public test seam per active criterion before convergence.
+- Prefer the highest deterministic existing **fast** boundary that observes production behavior: local public module, contract, or in-process CLI/API harness first.
+- A Fast TDD Check is required for observable criteria: no browser or GUI, external network, long-lived server, large fixture, or material machine cost during implementation.
+- If no fast public seam exists, the contract must explicitly add the smallest real fast public seam as product work.
+- Never approve a source-text assertion, private helper probe, duplicated implementation, test-only backdoor, or resource-heavy browser/E2E seam as the implementation-task acceptance boundary.
 
 ## Conservative context harvest and Domain Impact
 

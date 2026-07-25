@@ -1,7 +1,6 @@
 ---
 name: gsd-tdd
-description: "Use as a helper while implementing observable behavior through an existing public seam, especially from gsd-executing-plans or gsd-diagnosing-bugs. Do not start a lifecycle or create a plan."
-triggers: active session-owner execution or diagnosis requests focused red-green-refactor support
+description: "Use as a helper while implementing observable behavior through an existing public seam."
 produces: []
 consumes: [docs/domain/index.md, docs/domain/<scope>.md, plan.md, state.toon]
 ---
@@ -55,4 +54,4 @@ Pre-approval material ambiguity uses domain modeling's one-question rule. Post-a
 - [ ] RED, GREEN, then refactor evidence is truthful and transcript-only; missing green blocks landing.
 - [ ] Minimal code; no speculative feature or terminal whole-journey duplication.
 
-Details: [tests.md](tests.md), [mocking.md](mocking.md), [refactoring.md](refactoring.md).
+Optional detail, read only when a step needs it: [tests.md](tests.md), [mocking.md](mocking.md), [refactoring.md](refactoring.md).

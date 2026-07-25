@@ -1,7 +1,6 @@
 ---
 name: gsd-domain-modeling
-description: "Use when Domain Impact changes production semantics or explicit domain-model work needs current bounded-context documentation. Writes only affected contexts; broad bootstrap is possible only when the index is absent."
-triggers: non-none Domain Impact or explicit domain-model work
+description: "Use when Domain Impact changes production semantics or explicit domain-model work needs current bounded-context documentation."
 produces: [docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md]
 consumes: [docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md]
 ---

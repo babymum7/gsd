@@ -20,7 +20,7 @@ Active GSD features: <features>
 To resume execution, perform direct-root rehydration in this exact order:
 1. Use the already-loaded GSD bootstrap from <GSD_ROOT>/skills/gsd/SKILL.md; do not load it again.
 2. <resume_instruction>
-Stop immediately on any malformed or ambiguous state, or if the intent is unrelated to the active features.`;
+Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing.`;
 
 function validateGsdRoot(gsdRoot) {
   if (!gsdRoot || typeof gsdRoot !== 'string') {
@@ -37,6 +37,13 @@ function validateGsdRoot(gsdRoot) {
   }
 }
 
+// Capsule byte budget, enforced by the checks below and pinned by the extension tests.
+// Fixed template static text is 359 UTF-8 bytes; the emitted master path caps at 1024;
+// each feature slug caps at 255 with at most 5 displayed, so `<features>` caps at 1283
+// (5 x 255 + 4 x ", ") in Normal mode and 1311 with the " (and N more)" suffix. Resume
+// instructions are 84 bytes (Normal) and 65 bytes (Bounded-Ambiguity), giving worst cases
+// of 359 + 1024 + 84 + 1283 = 2750 and 359 + 1024 + 65 + 1311 = 2759 bytes, both under the
+// 4000-byte complete cap. Over-cap output fails closed; never truncate a rendered capsule.
 function createCapsule(features, gsdRoot) {
   if (!Array.isArray(features) || features.length === 0) {
     throw new Error('At least one active feature is required');
@@ -86,7 +93,7 @@ Active GSD features: ${featuresStr}
 To resume execution, perform direct-root rehydration in this exact order:
 1. Use the already-loaded GSD bootstrap from ${masterPath}; do not load it again.
 2. ${resumeInstruction}
-Stop immediately on any malformed or ambiguous state, or if the intent is unrelated to the active features.`;
+Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing.`;
 
   const capsuleBytes = Buffer.byteLength(capsule, 'utf8');
   if (capsuleBytes > 4000) {
