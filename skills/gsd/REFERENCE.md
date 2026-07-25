@@ -176,8 +176,8 @@ It contains one or two sequential tasks with unique structured paths and a real 
 - `Broad bootstrap` stays `not-offered` and non-`none` impact bootstraps the feature-scoped shard inline in that same task.
 - Only an explicitly requested broad bootstrap exits the bounded route for normal discovery.
 - Only the Quick-fix WIP verifier consumes this plan.
-- It has no proposal/spec/design source set, no approval binding, and no normal-packet authority.
-- Ordinary packet validation MUST NOT classify it as malformed converged state or dispatch normal execution from it; its special `gsd-verify` gate owns it until landing or a blocker.
+- It has no proposal/spec/design source set, no normal-packet approval binding, and no normal-packet authority. Its `state.toon` records the validated hash; since `validate-quick-fix` takes no `--expected-sha256`, the gate compares its unbound revalidation against that record.
+- Ordinary packet validation MUST NOT classify it as malformed converged state or dispatch normal execution from it; its `gsd-verify` gate owns it until landing or a blocker.
 
 ### Executable contract validator
 
@@ -294,7 +294,7 @@ Do not write active-task, numbered-history, reload-manifest, or persistent ident
 
 ### Plan amendment
 
-A bound-hash mismatch means the bytes moved, never a stop; only a missing, unreadable, or malformed-grammar `plan.md` fails closed. An approved `plan.md` stays amendable while executing: its owner edits it in place, revalidates unbound with its grammar's validator (`validate-plan`, or `validate-quick-fix` for a Quick-fix), and rebinds the returned hash into `state.toon` with an incremented `checkpoint_revision`. The wrong command reports a grammar error, not a blocker. No branch closes and no fresh feature opens.
+A bound-hash mismatch means the bytes moved, never a stop; only a missing or malformed-grammar `plan.md` fails closed. An approved `plan.md` stays amendable while executing: its owner edits it in place, revalidates unbound with its grammar's validator (`validate-plan`, or `validate-quick-fix` for a Quick-fix), and rebinds the returned hash into `state.toon` with an incremented `checkpoint_revision`. No branch closes and no fresh feature opens.
 - Bookkeeping amendments are self-service: recording a file the task touches, fixing a path or intent, splitting or reordering pending tasks, or sharpening wording that leaves acceptance intact.
 - Material amendments ask one question first, then proceed with the chosen option: changing an active criterion's Outcome/Action/Expected, weakening an invariant or non-goal, changing `Domain Impact`, replacing an interface pin, or rewriting a completed task's record. Ask before rebinding, not instead.
 - A mismatch the owner cannot account for asks one question naming the affected sections; the answer picks rebind or restore.

@@ -2239,6 +2239,18 @@ test("an executing owner amends the plan in place instead of blocking", () => {
   assert.match(amendment, /grammar/i);
   assert.match(domain, /validate-quick-fix/);
 
+  // A Quick-fix carries no normal-packet approval authority, yet its state records
+  // and rebinds a validated `plan_sha256` — both merged Quick-fix features did. The
+  // exception must say which binding is absent instead of denying binding outright.
+  const quickFix = reference.match(/### Quick-fix plan exception\n[\s\S]*?(?=\n### Executable contract validator)/)[0];
+  assert.doesNotMatch(quickFix, /set, no approval binding, and/);
+  assert.match(quickFix, /no normal-packet approval binding/);
+  assert.match(quickFix, /`state\.toon`/);
+  assert.match(quickFix, /does not accept `--expected-sha256`|unbound/);
+  assert.match(domain, /Quick-fix[^.\n]{0,160}runtime binding|runtime binding[^.\n]{0,160}Quick-fix/);
+  // A recorded binding nobody checks is decoration: the Quick-fix gate compares it.
+  assert.match(verify, /compare the returned hash with the recorded `state\.toon` `plan_sha256`/);
+
   // Uncertainty asks one question; it never becomes a stop.
   for (const body of [reference, execution]) {
     assert.match(body, /ask one question/i);

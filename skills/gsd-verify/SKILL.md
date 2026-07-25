@@ -22,7 +22,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 | Standalone review | — | Markdown packet context | — | — |
 | Planned WIP gate | `plan.md`; bound `state.toon` | authorized ledger | `state.toon`; authorized ledger; amended `plan.md` | Stop before review or merge only when `plan.md` or `state.toon` is missing or malformed |
 | Milestone WIP gate | Planned state; authoritative ledger | — | `state.toon`; milestone ledger lifecycle state | Missing source/binding is Spec escalation; missing ledger evidence is a Blocker |
-| Quick-fix WIP gate | exact Quick-fix `plan.md` | affected domain shards; `AGENTS.md` | `state.toon` | Missing or malformed Quick-fix grammar blocks; recover the real plan and never fabricate it |
+| Quick-fix WIP gate | exact Quick-fix `plan.md`; bound `state.toon` | affected domain shards; `AGENTS.md` | `state.toon`; amended `plan.md` | Missing or malformed grammar, state, or binding blocks; recover the real plan and never fabricate it |
 
 ## Planned and milestone WIP gate
 
@@ -60,7 +60,7 @@ Quick fixes have the exact minimal `plan.md` grammar from `REFERENCE.md`, not a 
 - Compare affected domain prose with production code, schemas, contracts, and tests; missing, obsolete, future, or unrelated prose is domain drift and blocks completion as a deterministic Blocker.
 - Then run code-quality, the recorded focused behavior command, whole-branch build where available, and applicable E2E before the normal squash/cleanup sequence.
 
-Before reviewing a Quick-fix run `node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md`. Exit 0 must report `kind: quick-fix` and the matching feature; exit 1 blocks malformed Quick-fix authority, while exit 2 corrects only the invocation.
+Before reviewing a Quick-fix run `node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md`. Exit 0 must report `kind: quick-fix` and the matching feature; exit 1 blocks malformed Quick-fix authority, while exit 2 corrects only the invocation. This command takes no `--expected-sha256`, so compare the returned hash with the recorded `state.toon` `plan_sha256`. A difference means the plan moved after its last checkpoint, so rebind it under § Plan amendment before review rather than reviewing bytes no state records.
 
 ## Contextual disclosure
 
