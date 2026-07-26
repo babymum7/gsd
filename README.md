@@ -148,7 +148,7 @@ Run the deterministic repository contracts:
 node --test test/*.test.js
 ```
 
-The supplementary model evaluator checks 31 workspace-state + prompt fixtures against the production bootstrap and visible catalog. It requires the strict JSON object `{ "decision": "...", "action": "...", "primarySkill": "gsd-..." | null }`; extra keys or prose fail.
+The supplementary model evaluator checks 33 workspace-state + prompt fixtures against the production bootstrap and visible catalog. It requires the strict JSON object `{ "decision": "...", "action": "...", "primarySkill": "gsd-..." | null }`; extra keys or prose fail.
 
 ```bash
 node test/eval/activation-eval.mjs

@@ -135,7 +135,7 @@ None.
 
 ### P-gsd-8: Clean transient feature artifacts after green merge
 
-- **Policy:** Delete feature scratch after a green merge unless retain or archive-and-delete was selected. A leftover `merged-cleanup-pending` packet gates only intent that names its `.scratch/<feature>/` directory or continues the lifecycle, while a full malformed packet fails closed for every prompt and plan-less malformed residue is skipped; unrelated direct work proceeds untouched, and uncertain relatedness asks one question instead of stopping.
+- **Policy:** Delete feature scratch after a green merge unless retain or archive-and-delete was selected. A leftover `merged-cleanup-pending` packet gates only intent that names its `.scratch/<feature>/` directory or continues that same feature's lifecycle, while a full malformed packet fails closed for every prompt and plan-less malformed residue is skipped; unrelated work proceeds untouched whether it is direct or a new lifecycle, and uncertain relatedness asks one question instead of stopping.
 - **Reason:** Exact ownership removes completed runtime evidence without touching neighboring sessions, and leftover runtime bytes must never block work that does not depend on them.
 
 ### P-gsd-9: Keep Quick-fix semantics explicit

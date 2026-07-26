@@ -45,14 +45,14 @@ Before non-direct lifecycle work, validate every discovered `.scratch/<feature>/
 |---|---|---|
 | A full malformed packet (`plan.md` plus `state.toon`) | `fail-closed` | Stop, naming it; discovery throws for every prompt, even one naming another valid feature. |
 | Malformed residual bytes without a `plan.md` | `ordinary-routing` | Leave them; continue selection. |
-| Prompt names a valid `merged-cleanup-pending` state, or is lifecycle work | `cleanup-question` | Ask one question resuming its delete-or-retain decision; archive stays closed. |
-| An unrelated valid `merged-cleanup-pending` state | `ordinary-routing` | Continue direct behavior, no state scan; never `ignore-terminal-record`. |
+| Prompt names a valid `merged-cleanup-pending` state, or is lifecycle work on that feature | `cleanup-question` | Ask one question resuming its delete-or-retain decision; archive stays closed. |
+| An unrelated valid `merged-cleanup-pending` state | `ordinary-routing` | Continue ordinary selection, direct or a new lifecycle; never `ignore-terminal-record`. |
 | Explicit cleanup targets completed-retained or residual state | `cleanup-only` | Stop after cleaning that named packet; load no workflow skill. |
 | Resume or new-work intent targets a completed-retained feature | `block-resume` | Stop and report it completed. |
 | An unrelated `phase=completed-retained` record or residual terminal bytes, including new work or generic `continue` | `ignore-terminal-record` | Report `ignore-terminal-record`, not `ordinary-routing`; exclude that history, select active state. |
 | Nothing above applies | `ordinary-routing` | Continue selection. |
 
-Terminal state gates only intent naming it or lifecycle work; unrelated direct work is never blocked, and uncertain relatedness asks one question instead of stopping. An active or `merged-cleanup-pending` packet is never terminal history, so unrelated new work beside one is `ordinary-routing`. Only the `.scratch/<feature>/` directory name decides relatedness.
+Terminal state gates only intent naming it; unrelated direct work is never blocked, nor an unrelated lifecycle, and uncertain relatedness asks one question instead of stopping. An active or `merged-cleanup-pending` packet is never terminal history, so unrelated new work beside one is `ordinary-routing`. Only the `.scratch/<feature>/` directory name decides relatedness.
 
 ## Recovery ownership
 

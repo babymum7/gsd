@@ -176,6 +176,22 @@
     "expectedPrimarySkill": null
   },
   {
+    "id": "result-pending-related",
+    "state": ".scratch/oauth-login/state.toon has phase=merged-cleanup-pending; no active packet",
+    "prompt": "continue oauth-login",
+    "decision": "cleanup-question",
+    "expectedAction": "stop",
+    "expectedPrimarySkill": null
+  },
+  {
+    "id": "result-pending-unrelated-lifecycle",
+    "state": ".scratch/oauth-login/state.toon has phase=merged-cleanup-pending; no active packet",
+    "prompt": "add a CSV export button to the reports page",
+    "decision": "ordinary-routing",
+    "expectedAction": "load",
+    "expectedPrimarySkill": "gsd-brainstorming"
+  },
+  {
     "id": "result-retained-related-resume",
     "state": ".scratch/oauth-login/state.toon has phase=completed-retained",
     "prompt": "continue implementing oauth-login",

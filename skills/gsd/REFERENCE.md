@@ -369,8 +369,8 @@ Apply this matrix only before non-direct lifecycle work. Strictly validate every
 |---|---|---|
 | A full malformed packet (`plan.md` plus `state.toon`) | `fail-closed` | Stop and name it; `detectCandidates` throws for every prompt, before relatedness or terminal tests and before any other valid packet wins. |
 | Malformed residual bytes without a `plan.md` | `ordinary-routing` | Leave them; continue automatic selection. |
-| A valid `phase=merged-cleanup-pending` state is named by the prompt, or the prompt is lifecycle work | `cleanup-question` | Ask one question resuming only its existing delete-or-retain decision; the pre-squash archive opportunity is not reopened. |
-| A valid `phase=merged-cleanup-pending` state is unrelated to the prompt, including a direct Nano edit | `ordinary-routing` | Continue ordinary direct behavior, no state scan; never report `ignore-terminal-record`, which covers completed-retained and residual records only. |
+| A valid `phase=merged-cleanup-pending` state is named by the prompt, or the prompt is lifecycle work on that same feature | `cleanup-question` | Ask one question resuming only its existing delete-or-retain decision; the pre-squash archive opportunity is not reopened. |
+| A valid `phase=merged-cleanup-pending` state is unrelated to the prompt, including a direct Nano edit or a new unrelated lifecycle | `ordinary-routing` | Continue ordinary selection; never report `ignore-terminal-record`, which covers completed-retained and residual records only. |
 | Explicit cleanup targets `completed-retained` or residual merged state | `cleanup-only` | Stop after cleaning that one named packet; load no workflow skill. |
 | Resume, implementation, or new-work intent explicitly targets a completed-retained feature | `block-resume` | Stop and report the feature completed. |
 | An unrelated `phase=completed-retained` record or residual terminal bytes, including new work or `continue` | `ignore-terminal-record` | Exclude terminal history and continue active-state selection. |
