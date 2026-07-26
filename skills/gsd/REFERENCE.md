@@ -375,10 +375,10 @@ Apply this matrix only before non-direct lifecycle work. Strictly validate every
 | A valid `phase=merged-cleanup-pending` state is unrelated to the prompt, including a direct Nano edit or a new unrelated lifecycle | `ordinary-routing` | Continue ordinary selection; never report `ignore-terminal-record`, which covers completed-retained and residual records only. |
 | Explicit cleanup targets `completed-retained` or residual merged state | `cleanup-only` | Stop after cleaning that one named packet; load no workflow skill. |
 | Resume, implementation, or new-work intent explicitly targets a completed-retained feature | `block-resume` | Stop and report the feature completed. |
-| An unrelated `phase=completed-retained` record or residual terminal bytes, including new work or `continue` | `ignore-terminal-record` | Exclude terminal history and continue active-state selection. |
-| No condition above applies | `ordinary-routing` | Continue automatic skill selection. |
+| An unrelated `phase=completed-retained` record or residual terminal bytes, including new work or `continue` | `ignore-terminal-record` | Report `ignore-terminal-record`; exclude that history and select active state. |
+| No condition above applies | `ordinary-routing` | Continue automatic selection. |
 
-Terminal state never blocks unrelated direct work, and uncertain relatedness asks one question instead of stopping. An active or `merged-cleanup-pending` packet is never terminal history, so new work unrelated to one is plain `ordinary-routing`. Malformed bytes cannot be parsed, so only the `.scratch/<feature>/` directory name is a trusted relatedness signal. Terminal mtimes never compete with active packets, and generic `continue` never selects them.
+Terminal state never blocks unrelated direct work, and uncertain relatedness asks one question instead of stopping. An active or `merged-cleanup-pending` packet is never terminal history, so new work unrelated to one is plain `ordinary-routing`. Malformed bytes cannot be parsed, so only the `.scratch/<feature>/` directory name is a trusted relatedness signal. Terminal mtimes never compete with active packets; generic `continue` never selects them.
 
 ## Post-approval pipeline contract
 
