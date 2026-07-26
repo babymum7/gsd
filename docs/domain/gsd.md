@@ -50,7 +50,7 @@ Own request classification, feature convergence, plan approval and in-flight ame
 - A Quick-fix carries a recorded runtime binding without normal-packet approval authority: its `state.toon` holds the validated `plan_sha256`, and both its resume revalidation and its gate compare that value against an unbound revalidation, since `validate-quick-fix` accepts no bound hash.
 - Resume selects the plan grammar by probing `validate-quick-fix` before the full-plan validator, because runtime state records no grammar kind; a bound full-plan call reports a hash mismatch before parsing, so only an unbound revalidation distinguishes moved bytes from malformed grammar.
 - A resume probe proves the recorded grammar only when the hash matches; on any difference the prior packet kind is unprovable, so resume asks one question and rebinds only to a user-accepted current grammar.
-- Semantic code and affected domain docs share one owning task and agree at each green checkpoint.
+- Semantic code and affected domain docs share one owning task and agree at each green checkpoint. Both plan grammars enforce this identically: a non-`none` classification requires each affected shard to be owned by a task that runs and changes semantic code, so a superseded, prose-only, or test-only owner is rejected.
 - Before approval, affected domain paths may be reserved but domain prose never describes unshipped target behavior.
 - A broad domain bootstrap is never offered when `docs/domain/index.md` exists.
 - Terminal evidence applies only to the unchanged commit on which it ran.

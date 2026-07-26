@@ -47,7 +47,7 @@ Write `.scratch/<feature>/plan.md` exactly from [../gsd/REFERENCE.md](../gsd/REF
 
 After every initial write or resume/finalize revision, run `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md`. Only exit 0 with `kind: plan`, the matching feature, exact source `sha256`, and expected task count may reach the post-plan action surface. Exit 1 returns malformed authority to Discussion; exit 2 corrects the invocation. Use the returned hash for approval binding and never calculate a competing interpretation.
 
-Tasks are sequential `T1`…`TN`; order encodes dependencies. Every active AC occurs exactly once across tasks. A task spanning ACs requires identical seam, test path, and lower-seam reason. For non-`none` Domain Impact, bind every exact affected `docs/domain/<scope>.md`, any required `docs/domain/index.md`, and canonical `AGENTS.md` upsert to the same owning task as the semantic code change; never create a trailing documentation-only task.
+Tasks are sequential `T1`…`TN`; order encodes dependencies. Every active AC occurs exactly once across tasks. A task spanning ACs requires identical seam, test path, and lower-seam reason. For non-`none` Domain Impact, bind every exact affected `docs/domain/<scope>.md`, any required `docs/domain/index.md`, and canonical `AGENTS.md` upsert to the same owning task as the semantic code change; never create a trailing documentation-only task. The validator rejects any shard owner that changes no semantic code.
 
 Plan complete observable behavior, not layers.
 - Use Expand → Migrate → Contract only when callers cannot migrate atomically and Contract has a completed caller/reference inventory.

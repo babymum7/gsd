@@ -123,6 +123,122 @@ test("both plan grammars reject content between the title and the first section"
     }
   }
 });
+test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks", () => {
+  // The rule only ran for `kind === "quick-fix"`, so an identical non-`none` full plan
+  // validated with no shard task at all. Full plans differ twice: `parseTasks` scopes
+  // path uniqueness per task, so a shard may be re-owned at several checkpoints, and a
+  // `superseded` task never runs, so ownership recorded there documents nothing.
+  const semantic = (feature) =>
+    canonicalPlan(feature)
+      .replace("Classification:** none", "Classification:** change-existing-context")
+      .replace("Contexts:** none", "Contexts:** gsd")
+      .replace("Documentation:** none", "Documentation:** update-existing");
+  const codeLine = "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation";
+  const shardLine = "  - `docs/domain/gsd.md` \u2014 modify: record the corrected production behavior";
+  const t1Tail = "- **Test:** `node --test test/gsd-contract.test.js`\n- **Status:** pending";
+  const appendTask = (plan, lines) => plan.replace(t1Tail, [t1Tail, ...lines].join("\n"));
+  // A second live task needs its own active criterion, since every active AC is covered
+  // exactly once and that check runs before shard ownership.
+  const withSecondCriterion = (plan) =>
+    plan
+      .replace(
+        "## Decisions",
+        [
+          "### AC-2: Document the corrected behavior",
+          "- **State:** active",
+          "- **Outcome:** The affected domain shard states the corrected production behavior.",
+          "- **Action:** Read the shard after the change lands.",
+          "- **Expected:** The shard describes the behavior the validator now enforces.",
+          "## Decisions",
+        ].join("\n"),
+      )
+      .replace(
+        "| AC-1 | production validator CLI | `tools/gsd-contract.mjs` | none |",
+        "| AC-1 | production validator CLI | `tools/gsd-contract.mjs` | none |\n| AC-2 | production validator CLI | `tools/gsd-contract.mjs` | none |",
+      );
+
+  const owned = semantic("owned").replace(codeLine, `${codeLine}\n${shardLine}`);
+  // A second live task re-owns the same shard: legal, because it documents its own change.
+  const reowned = withSecondCriterion(semantic("reowned")).replace(codeLine, `${codeLine}\n${shardLine}`);
+  const reownedPlan = appendTask(reowned, [
+    "### T2: Adjust the caller",
+    "- **Satisfies:** AC-2",
+    "- **Files:**",
+    "  - `lib/gsd-contract.mjs` \u2014 modify: pass the corrected value through",
+    shardLine,
+    "- **Test:** `node --test test/gsd-contract.test.js`",
+    "- **Status:** pending",
+  ]);
+  // The only shard owner is superseded, so no task that runs ever writes the shard.
+  const supersededOwner = appendTask(semantic("superseded-owner"), [
+    "### T2: Abandoned documentation pass",
+    "- **Satisfies:** AC-1",
+    "- **Files:**",
+    shardLine,
+    "- **Test:** `node --test test/gsd-contract.test.js`",
+    "- **Status:** superseded",
+  ]);
+  // The shard rides a prose-only task, so the semantic checkpoint stays undocumented.
+  const proseOnlyOwner = appendTask(withSecondCriterion(semantic("prose-owner")), [
+    "### T2: Note the change",
+    "- **Satisfies:** AC-2",
+    "- **Files:**",
+    "  - `AGENTS.md` \u2014 modify: record the corrected agent instruction",
+    shardLine,
+    "- **Test:** `node --test test/gsd-contract.test.js`",
+    "- **Status:** pending",
+  ]);
+  // A valid semantic owner exists, but a later documentation-only task re-owns the shard:
+  // its own green checkpoint documents a change it does not make.
+  const trailingDocsOwner = appendTask(withSecondCriterion(owned.replace("`owned`", "`trailing-docs`")), [
+    "### T2: Restate the change",
+    "- **Satisfies:** AC-2",
+    "- **Files:**",
+    shardLine.replace("record the corrected", "restate the corrected"),
+    "- **Test:** `node --test test/gsd-contract.test.js`",
+    "- **Status:** pending",
+  ]);
+
+  const missing = /must own affected domain shard: docs\/domain\/gsd\.md/;
+  const cases = [
+    { feature: "owned", content: owned, status: 0 },
+    { feature: "reowned", content: reownedPlan, status: 0 },
+    { feature: "unowned", content: semantic("unowned"), status: 1, expect: missing },
+    { feature: "superseded-owner", content: supersededOwner, status: 1, expect: missing },
+    {
+      feature: "prose-owner",
+      content: proseOnlyOwner,
+      status: 1,
+      expect: /in a task that also changes the semantic code[\s\S]*T2 does not/,
+    },
+    {
+      feature: "trailing-docs",
+      content: trailingDocsOwner,
+      status: 1,
+      expect: /in a task that also changes the semantic code[\s\S]*T2 does not/,
+    },
+  ].map((entry) => ({ ...entry, ...makePlanWorkspace(entry.feature, entry.content) }));
+
+  try {
+    for (const entry of cases) {
+      const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", entry.planPath], {
+        cwd: entry.workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, entry.status, `${entry.feature}: ${result.stdout}${result.stderr}`);
+      assert.equal(result.stderr, "");
+      if (entry.status === 0) {
+        assert.match(result.stdout, /^status: valid\nkind: plan\n/, entry.feature);
+      } else {
+        assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/, entry.feature);
+        assert.match(result.stdout, entry.expect, entry.feature);
+      }
+    }
+  } finally {
+    for (const entry of cases) rmSync(entry.workspace, { recursive: true, force: true });
+  }
+});
+
 
 test("legacy path-only task grammar is rejected bound and unbound", () => {
   const plan = canonicalPlan("legacy-task").replace(

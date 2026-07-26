@@ -46,7 +46,7 @@ Runtime-only `state.toon` stays TOON under `.scratch/`. A format is authoritativ
 
 ### Domain lifecycle
 
-Every converged feature records a mandatory `Domain Impact`. `classification=none` requires `contexts=none`, `documentation=none`, and concrete evidence. A semantic change names every affected context and binds its exact domain-documentation paths to the plan tasks owning the code change.
+Every converged feature records `Domain Impact`. `classification=none` requires `contexts=none`, `documentation=none`, and concrete evidence. A semantic change names every affected context and binds its exact `docs/domain/<context>.md` paths to the tasks owning the code change. Both grammars enforce it: every live shard owner must also change semantic code; a superseded task never counts, so prose-only or test-only ownership fails.
 
 An existing `docs/domain/index.md` suppresses every broad codebase/domain bootstrap prompt: validate it, read only shards mapped to affected contexts, and do not offer one. When the index is absent, semantic work must bootstrap the feature-scoped context documentation, then offer one independent broad-bootstrap decision; `declined` never waives that required write.
 
@@ -171,7 +171,7 @@ A Quick-fix is not a converged feature packet. Its direct fast path writes a min
 
 It contains one or two sequential tasks with unique structured paths and a real focused command.
 - The exact five-field `Domain Impact` follows the canonical classification rules:
-  - `none` requires concrete no-change evidence, every non-`none` classification changes production sources in exactly one task and gives that same task every affected `docs/domain/<context>.md` path, with prose and test paths never counting as the semantic change, and Quick-fix always records `Broad bootstrap: not-offered`.
+  - `none` requires concrete no-change evidence, every non-`none` classification changes production sources in exactly one task, and Quick-fix always records `Broad bootstrap: not-offered`.
 - An absent `docs/domain/index.md` keeps Quick-fix bounded:
   - `Broad bootstrap` stays `not-offered` and non-`none` impact bootstraps the feature-scoped shard inline in that same task.
   - Only an explicitly requested broad bootstrap exits the bounded route for normal discovery.

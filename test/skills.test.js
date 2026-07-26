@@ -183,7 +183,18 @@ test("domain-impact packet grammar is mandatory in every validation path", () =>
     evidence: "Parser-only fixture changes no production domain behavior.",
   });
 
-  const changedPlan = canonical["plan.md"]
+  // A non-`none` classification must land every affected shard in a live task that also
+  // changes semantic code, so the fixture owns both shards beside a production path.
+  const changedPlan = replaceOnce(
+    canonical["plan.md"],
+    FILES_BLOCK,
+    [
+      "- **Files:**",
+      "  - `src/billing.js` — modify: apply the approved billing behavior",
+      "  - `docs/domain/billing.md` — modify: record current billing production behavior",
+      "  - `docs/domain/orders.md` — modify: record current orders production behavior",
+    ].join("\n"),
+  )
     .replace("Classification:** none", "Classification:** change-existing-context")
     .replace("Contexts:** none", "Contexts:** billing, orders")
     .replace("Documentation:** none", "Documentation:** update-existing")
@@ -195,6 +206,13 @@ test("domain-impact packet grammar is mandatory in every validation path", () =>
     broadBootstrap: "selected",
     evidence: "Parser-only fixture changes no production domain behavior.",
   });
+  // Dropping either shard leaves that context's semantics undocumented at the checkpoint.
+  assert.throws(
+    () => parseMarkdownPacket({
+      "plan.md": replaceOnce(changedPlan, "  - `docs/domain/orders.md` — modify: record current orders production behavior\n", ""),
+    }),
+    /must own affected domain shard: docs\/domain\/orders\.md/,
+  );
   assert.throws(
     () => parseMarkdownPacket({
       "plan.md": canonical["plan.md"].replace("Contexts:** none", "Contexts:** gsd"),
