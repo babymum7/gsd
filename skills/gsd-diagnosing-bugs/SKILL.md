@@ -8,7 +8,7 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
-- Do-not-load: known single-spot quick fix
+- Do-not-load: a located failure whose prompt names the file/line or exact failure signature
 - Transition: return evidence to the session-owner execution flow, or hand an architectural cause to `gsd-codebase-architecture`
 
 # Diagnosing Bugs

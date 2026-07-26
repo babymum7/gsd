@@ -8,7 +8,7 @@ consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AG
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
-- Do-not-load: missing bound plan/state; inventing authority
+- Do-not-load: missing bound plan/state; a bare resume naming no work; inventing authority
 - Transition: after all tasks and Fast TDD Checks are green load `gsd-verify`
 
 # Executing Plans
