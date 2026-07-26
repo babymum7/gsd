@@ -25,14 +25,14 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 ## Design standard
 
-The prototype is real code under a repository-root `design/` directory, seeded from this skill's `template/` directory. Copy it once; never edit the template to serve one feature.
+The prototype is real code under a repository-root `design/` directory, seeded from this skill's `template/` directory. Copy it once; never edit the template to serve one feature. The repository-root `AGENTS.md` is the only agent contract and governs `design/` too; `design/DESIGN.md` is a design artifact recording the structure that directory uses, never a second instruction file.
 
 - Every color, spacing, radius, and type value comes from a DTCG token; a raw hex color or px length in prototype CSS is a defect, not a shortcut.
 - Repeated markup becomes a light-DOM custom-element primitive consuming only token custom properties.
 - Every primitive carries a headless behavior test; one-off page composition needs none.
 - `check:fast` stays deterministic and browser-free for the prototype loop. Playwright, axe, and visual checks are `check:slow` and run only at lock.
-- `design/AGENTS.md` and `design/DESIGN.md` govern any agent touching `design/`; keep both true as the prototype changes.
-- Read `design/docs/interaction-rules.md` before changing a surface: its rules already constrain what that surface may do, so a new surface satisfies them instead of relitigating them.
+- The prototype is built and used like a real app from the first commit, without a backend and without shipping to production, so it carries a real structure: separate files per concern, extracted components, and one document per surface. A design tool that emits one single-file HTML dump has produced an input; decompose it into that structure before lock.
+- Read `design/docs/interaction-rules.md` before changing a surface: its rules already constrain what that surface may do, so a new surface satisfies them instead of relitigating them. Keep every rule product-neutral so the ledger stays reusable across projects.
 
 ## Prototype review
 
@@ -53,6 +53,7 @@ A surface is locked when all of these hold:
 3. `check:fast` and `check:slow` are both green on the current prototype bytes.
 4. The surface document under `design/docs/` lists those states and flows, matching what the prototype renders.
 5. No accepted review feedback is unrecorded: every accepted system-wide rule exists as an `IR-<n>` entry and every accepted surface-specific decision exists in the surface document.
+6. The surface is decomposed, not one undifferentiated file: markup, styles, tokens, components, and its document are separate artifacts under `design/`.
 
 Anything unresolved stays one concise discussion note. Do not invent configuration, theming, or extensibility that no locked state requires.
 

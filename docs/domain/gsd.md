@@ -30,14 +30,14 @@ Own request classification, feature convergence, plan approval and in-flight ame
 
 - User — supplies intent, resolves load-bearing decisions, approves a plan, and may select a broad domain bootstrap only before the first domain index exists.
 - Session Owner — owns discovery, planning, implementation, repair, verification, Git, merge, and cleanup inline.
-- Future Coding Agent — follows the canonical domain-documentation and design-documentation instructions in `AGENTS.md`, reads only affected mapped contexts, and reads `design/AGENTS.md` and `design/DESIGN.md` before changing anything under `design/`.
+- Future Coding Agent — follows the canonical domain-documentation and design-documentation instructions in the repository-root `AGENTS.md`, which is the only agent contract and governs `design/` as well, and reads only affected mapped contexts.
 
 ## Invariants
 
 - Exactly one visible process owner controls a lifecycle transition at a time.
 - The visible catalog carries ten skills: eight process owners and the two helpers `gsd-tdd` and `gsd-domain-modeling`. `gsd-prototyping` is the owner of prototype-first surface convergence: it writes prototype files under `design/`, authors no lifecycle artifact itself because `gsd-to-plan` and `gsd-handoff` remain the writers of `plan.md` and `state.toon`, and transitions to `gsd-brainstorming` on Prototype Lock.
 - A locked `design/` prototype is the source of truth for user-facing surface behavior: production UI code converts from it, so the prototype changes and locks first and production markup never drifts ahead of the prototype it came from. Backend-only work carries no design impact.
-- Accepted prototype-review feedback is recorded as an artifact in the same turn as the prototype change it accepts: a rule holding across comparable surfaces appends to `design/docs/interaction-rules.md` as the next consecutive `IR-<n>` naming its observable trigger and required behavior, while a decision bound to one surface stays in that surface's document. Prototype Lock is blocked while any accepted item is unrecorded, and an existing rule is amended in place rather than duplicated.
+- Accepted prototype-review feedback is recorded as an artifact in the same turn as the prototype change it accepts: a rule holding across comparable surfaces appends to `design/docs/interaction-rules.md` as the next consecutive `IR-<n>` naming its observable trigger and required behavior, while a decision bound to one surface stays in that surface's document. Every such rule stays product-neutral so the ledger is reusable by another project unchanged. Prototype Lock is blocked while any accepted item is unrecorded, and an existing rule is amended in place rather than duplicated.
 - A fix the user already diagnosed stays ordinary direct work and never selects a visible owner: a prompt naming the file/line or exact failure signature is located work, so `gsd-diagnosing-bugs` owns only an unlocated or non-obvious cause. A larger bounded behavioral fix is opened inline by the session owner as Quick-fix, where `gsd-verify` gates only that existing packet. A returned Quick-fix WIP Fail leaves a repair round the prompt can name, and naming it re-enters that same `gsd-verify` gate instead of being answered directly. Ponytail remains hidden and is loaded only from its exact injected context path.
 - An approved `plan.md` stays amendable while its feature executes: the executing owner amends it in place, revalidates, and rebinds the returned hash, so runtime state always reports the current bytes rather than freezing the first ones.
 - A plan amendment never closes the feature or opens a new one; a material change or an unaccounted-for hash mismatch asks one question and then proceeds with the chosen option. Hash drift never diverts prompt-named work to `gsd-handoff`: the executing owner keeps that work, revalidates, and rebinds.
@@ -74,8 +74,8 @@ Own request classification, feature convergence, plan approval and in-flight ame
 
 ### Lock a prototype before requirements
 
-1. Adopt or create the `design/` instruction, documentation, and interaction-rule files, using the shipped template only as a copyable example rather than an enforced layout.
-2. Build the surface with any AI design tool, keeping every prototype artifact under `design/` and its runtime output uncommitted.
+1. Adopt or create the `design/` design-system and interaction-rule documents under the repository-root `AGENTS.md` contract, using the shipped template as a copyable product-neutral example rather than an enforced layout.
+2. Build the surface with any AI design tool, keeping every prototype artifact under `design/` and its runtime output uncommitted. A single-file tool dump is decomposed into separate files, components, and surface documents before lock.
 3. Review the prototype with the user, recording each accepted system-wide rule in the interaction-rule ledger and each surface-specific decision in that surface's document.
 4. Lock the prototype once no accepted feedback is unrecorded, then transition to requirements convergence with the locked artifacts as the surface source of truth.
 

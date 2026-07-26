@@ -248,27 +248,32 @@ test("template interaction-rule ledger is a numbered system-wide rule set", () =
   assert.match(ledger, /empty[\s\S]{0,120}search[\s\S]{0,200}no (?:results |suggestion )?dropdown/i);
   assert.match(ledger, /preload|prefetch/i);
 
-  for (const file of ["AGENTS.md", "DESIGN.md"]) {
-    assert.match(read(file), /docs\/interaction-rules\.md/, `${file} references the ledger`);
-  }
+  // The template ships no nested agent contract, so `DESIGN.md` is the file that must
+  // point at the ledger.
+  assert.match(read("DESIGN.md"), /docs\/interaction-rules\.md/, "DESIGN.md references the ledger");
+
+  // The ledger travels: its rules constrain any comparable surface in any project, so it
+  // must never name this product, its domain, or one specific screen.
+  assert.match(ledger, /(?:product-neutral|any project|another project|portable)/i);
 });
 
 // `css/tokens.css` is written by `npm run tokens`, so it is a declared build output
-// rather than a shipped file. Everything else an instruction file names must exist.
-const GENERATED = new Set(["css/tokens.css"]);
+// rather than a shipped file. `AGENTS.md` is the repository-root agent contract, which
+// deliberately lives outside this directory. Everything else `DESIGN.md` names must exist.
+const EXTERNAL = new Set(["css/tokens.css", "AGENTS.md"]);
 const PATH_EXTENSIONS = new Set(["md", "json", "js", "css"]);
 
 test("every repository path referenced by template instructions exists", () => {
   // Instruction files are the handoff surface for any agent editing design/, so a
   // referenced path that does not exist is a broken contract, not a typo.
   const unresolved = [];
-  for (const file of ["AGENTS.md", "DESIGN.md"]) {
+  for (const file of ["DESIGN.md"]) {
     for (const match of read(file).matchAll(/`([A-Za-z0-9_./-]+\.[A-Za-z0-9]+)`/g)) {
       // A backticked dotted identifier like `customElements.define` is code, not a path.
       const target = match[1].replace(/^design\//, "");
       const extension = target.slice(target.lastIndexOf(".") + 1);
       if (!PATH_EXTENSIONS.has(extension)) continue;
-      if (GENERATED.has(target)) continue;
+      if (EXTERNAL.has(target)) continue;
       if (!existsSync(join(TEMPLATE, target))) unresolved.push(`${file}: ${target}`);
     }
   }
@@ -276,14 +281,20 @@ test("every repository path referenced by template instructions exists", () => {
 });
 
 test("template instruction files state the design standard obligations", () => {
-  const agents = read("AGENTS.md");
-  assert.match(agents, /^## Design documentation$/m, "canonical section heading");
-  assert.equal(agents.match(/^## Design documentation$/gm).length, 1, "exactly one canonical section");
-  assert.match(agents, /token/i, "requires token use");
-  assert.match(agents, /primitive/i, "requires primitive extraction");
-  assert.match(agents, /check:fast[\s\S]{0,400}check:slow/, "states the fast and slow split");
+  // A nested agent contract would compete with the repository-root `AGENTS.md`, which is
+  // the only file an agent reads for instructions.
+  assert.equal(existsSync(join(TEMPLATE, "AGENTS.md")), false, "template ships no nested agent contract");
 
   const design = read("DESIGN.md");
-  assert.match(design, /token/i, "design contract is token-first");
+  assert.match(design, /token/i, "requires token use");
+  assert.match(design, /primitive/i, "requires primitive extraction");
+  assert.match(design, /check:fast[\s\S]{0,400}check:slow/, "states the fast and slow split");
+  // Clean architecture is the point: a single-file dump gets decomposed into real files,
+  // components, and docs, because the prototype is exercised like a real app.
+  assert.match(design, /single[- ]file[\s\S]{0,240}(?:decompose|split)/i);
+  assert.match(design, /like a real app|as a real app/i);
   assert.match(design, /light[- ]DOM/i, "design contract pins the light-DOM primitive rule");
+  // The rule set is reusable: nothing in it may name this product, its domain, or one
+  // specific screen, so another project can adopt the same contract unchanged.
+  assert.match(design, /(?:product-neutral|any project|another project|portable)/i);
 });

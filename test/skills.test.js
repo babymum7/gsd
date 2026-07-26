@@ -1402,21 +1402,21 @@ test("repository root instructs agents on design ownership", () => {
   const gitignore = read(".gitignore");
 
   assert.equal(agents.match(/^## Design documentation$/gm)?.length, 1, "exactly one canonical design section");
-  assert.match(agents, /`design\/AGENTS\.md`[\s\S]{0,200}before[\s\S]{0,120}`design\/`/i);
-  // Any design tool may scaffold only markup, so the instruction files themselves may be
-  // absent: adopting the flow must start by creating them from the example.
-  assert.match(agents, /if (?:they|those files) are missing[\s\S]{0,200}(?:create|adapt)/i);
+  // The root file is the only agent contract: design tools open the repository root as
+  // their working directory, so a nested design/AGENTS.md would compete with this one.
+  assert.match(agents, /root `AGENTS\.md`[\s\S]{0,200}only agent contract/i);
+  assert.doesNotMatch(agents, /`design\/AGENTS\.md`/);
   assert.match(agents, /prototype artifacts[\s\S]{0,160}under `design\/`/i);
   // design/ is the source of truth for surface behavior; production code converts from it.
   assert.match(agents, /source of truth[\s\S]{0,200}convert/i);
   assert.match(agents, /backend-only[\s\S]{0,160}no design impact/i);
   // A system-wide accepted rule is durable; per-surface states stay with their surface.
   assert.match(agents, /`design\/docs\/interaction-rules\.md`/);
-  // The template is an example of clean structure, never an enforced file layout, and no
-  // single design tool is privileged: any tool may write into design/.
+  // Any tool may write into design/, but a single-file dump is an input to decompose, not
+  // a resting state: the prototype is used like a real app, so it carries a real structure.
   assert.match(agents, /[Aa]ny AI design tool/);
-  assert.match(agents, /example[\s\S]{0,120}not a required file layout/i);
-  assert.match(agents, /single HTML file is a valid starting point/i);
+  assert.match(agents, /single[- ]file[\s\S]{0,200}(?:decompose|split)/i);
+  assert.match(agents, /before[\s\S]{0,120}lock/i);
   for (const entry of [".od/", ".live-artifacts/", ".file-versions/"]) {
     assert.ok(
       gitignore.split("\n").includes(entry),
@@ -1440,6 +1440,13 @@ test("prototype review captures accepted feedback before the surface locks", () 
   // Lock is the gate that makes capture non-optional.
   assert.match(prototyping, /^\d+\. [^\n]*(?:accepted|unrecorded)[^\n]*$/m, "a lock criterion covers accepted feedback");
   assert.match(prototyping, /read[\s\S]{0,160}interaction-rules\.md[\s\S]{0,200}before/i);
+
+  // The skill reads the root contract, never a nested one, and a single-file tool dump is
+  // decomposed into the split structure before the surface can lock.
+  assert.match(prototyping, /root `AGENTS\.md`/);
+  assert.doesNotMatch(prototyping, /`design\/AGENTS\.md`/);
+  assert.match(prototyping, /single[- ]file[\s\S]{0,240}(?:decompose|split)/i);
+  assert.match(prototyping, /^\d+\. [^\n]*(?:decomposed|split into)[^\n]*$/m, "a lock criterion covers the structure");
 });
 
 test("domain modeling keeps preapproval writes current-only and reads affected shards only", () => {

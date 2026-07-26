@@ -9,6 +9,11 @@ it. Append a new rule with the next id; never renumber or reuse an id. A rule ne
 observable trigger and the behavior that trigger requires, because a rule nobody can
 check by using the prototype is a preference.
 
+These rules are product-neutral: a rule names an interaction pattern, never this
+product, its domain language, or one specific screen. That is what makes the ledger
+portable, so another project can adopt this file unchanged and append its own rules.
+A rule that only makes sense here belongs in a surface document instead.
+
 ## Rules
 
 ### IR-1: An empty search input shows no suggestion dropdown
