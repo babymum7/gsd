@@ -9,10 +9,18 @@ design artifact: it records the structure and standards of this directory so any
 or design tool driving it produces the same shape. It is written to be usable directly
 as a system prompt for an external design tool.
 
-Nothing in this contract names a product, a domain, or one specific screen, so another
-project can adopt it unchanged. Product-neutral rules belong here and in
-`docs/interaction-rules.md`; anything true of one surface only belongs in that surface's
-document under `docs/`.
+Two layers live in this file. The **obligations** are product-neutral and
+framework-neutral: declared tokens instead of inline literals, repeated markup extracted
+into one component, a headless test per component, checks split by cost, one document per
+surface, and a real structure rather than one page of markup. Another project adopts those
+unchanged. The **mechanics** under each heading below — DTCG JSON, CSS custom properties,
+light-DOM custom elements, stylelint, Playwright — are how this dependency-free web
+template satisfies the obligations. A project on a component framework keeps the
+obligations and uses that framework instead.
+
+Nothing here names a product, a domain, or one specific screen. Product-neutral rules
+belong in this file and in `docs/interaction-rules.md`; anything true of one surface only
+belongs in that surface's document under `docs/`.
 
 ## The prototype is used like a real app
 

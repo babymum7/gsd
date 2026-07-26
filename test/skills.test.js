@@ -1447,6 +1447,13 @@ test("prototype review captures accepted feedback before the surface locks", () 
   assert.doesNotMatch(prototyping, /`design\/AGENTS\.md`/);
   assert.match(prototyping, /single[- ]file[\s\S]{0,240}(?:decompose|split)/i);
   assert.match(prototyping, /^\d+\. [^\n]*(?:decomposed|split into)[^\n]*$/m, "a lock criterion covers the structure");
+
+  // The Design standard states obligations, not one framework's mechanics: the template's
+  // light-DOM custom elements are named as its own choice, so a project on a component
+  // framework keeps the obligation and swaps the mechanism.
+  assert.match(prototyping, /declared token, never an inline literal/i);
+  assert.match(prototyping, /one extracted component/i);
+  assert.match(prototyping, /component framework uses that framework instead/i);
 });
 
 test("domain modeling keeps preapproval writes current-only and reads affected shards only", () => {

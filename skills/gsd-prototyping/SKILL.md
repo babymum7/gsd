@@ -27,10 +27,10 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 The prototype is real code under a repository-root `design/` directory, seeded from this skill's `template/` directory. Copy it once; never edit the template to serve one feature. The repository-root `AGENTS.md` is the only agent contract and governs `design/` too; `design/DESIGN.md` is a design artifact recording the structure that directory uses, never a second instruction file.
 
-- Every color, spacing, radius, and type value comes from a DTCG token; a raw hex color or px length in prototype CSS is a defect, not a shortcut.
-- Repeated markup becomes a light-DOM custom-element primitive consuming only token custom properties.
-- Every primitive carries a headless behavior test; one-off page composition needs none.
-- `check:fast` stays deterministic and browser-free for the prototype loop. Playwright, axe, and visual checks are `check:slow` and run only at lock.
+- Every color, spacing, radius, and type value comes from a declared token, never an inline literal. The template declares them as DTCG JSON built into CSS custom properties; any equivalent token layer satisfies this.
+- Repeated markup becomes one extracted component consuming only those token values. The template extracts light-DOM custom elements because it is dependency-free; a project on a component framework uses that framework instead.
+- Every extracted component carries a headless behavior test; one-off page composition needs none.
+- Checks split by cost: a deterministic browser-free loop after every change, and a browser suite gating lock. The template names them `check:fast` and `check:slow`.
 - The prototype is built and used like a real app from the first commit, without a backend and without shipping to production, so it carries a real structure: separate files per concern, extracted components, and one document per surface. A design tool that emits one single-file HTML dump has produced an input; decompose it into that structure before lock.
 - Read `design/docs/interaction-rules.md` before changing a surface: its rules already constrain what that surface may do, so a new surface satisfies them instead of relitigating them. Keep every rule product-neutral so the ledger stays reusable across projects.
 

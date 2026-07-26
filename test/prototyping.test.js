@@ -287,14 +287,23 @@ test("template instruction files state the design standard obligations", () => {
 
   const design = read("DESIGN.md");
   assert.match(design, /token/i, "requires token use");
-  assert.match(design, /primitive/i, "requires primitive extraction");
+  assert.match(design, /(?:component|primitive)/i, "requires component extraction");
   assert.match(design, /check:fast[\s\S]{0,400}check:slow/, "states the fast and slow split");
   // Clean architecture is the point: a single-file dump gets decomposed into real files,
   // components, and docs, because the prototype is exercised like a real app.
   assert.match(design, /single[- ]file[\s\S]{0,240}(?:decompose|split)/i);
   assert.match(design, /like a real app|as a real app/i);
-  assert.match(design, /light[- ]DOM/i, "design contract pins the light-DOM primitive rule");
-  // The rule set is reusable: nothing in it may name this product, its domain, or one
-  // specific screen, so another project can adopt the same contract unchanged.
+  // The obligations are reusable: nothing in them may name this product, its domain, one
+  // specific screen, or one component framework, so another project adopts them unchanged.
   assert.match(design, /(?:product-neutral|any project|another project|portable)/i);
+  assert.match(design, /framework[- ]neutral|framework[- ]agnostic/i);
+  // Light-DOM custom elements are how this dependency-free web template satisfies the
+  // component obligation, so the document must mark them as mechanics, not as the rule.
+  assert.match(design, /light[- ]DOM/i, "the template's own mechanics are still recorded");
+  assert.match(
+    design,
+    /mechanic[\s\S]{0,400}light[- ]DOM/i,
+    "light-DOM is presented as this template's mechanics",
+  );
+  assert.match(design, /component framework[\s\S]{0,160}(?:swap|instead)/i);
 });
