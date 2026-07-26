@@ -43,6 +43,12 @@ Consume the converged `Domain Impact`.
 
 ## Write plan.md
 
+Consume the converged `UI Impact` and write it directly after `Domain Impact`.
+- Record its fields in this exact order: `Classification`, `Surfaces`, `Prototype`, `Evidence`.
+- A locked `design/` prototype is the source of truth for the surface behavior it renders; the plan converts from it and never redefines it.
+- `extend-prototype` and `new-prototype` author the prototype: bind each declared prototype path to a live task that also changes a non-doc `design/` artifact. `reuse-prototype` consumes an already locked prototype, so it names those paths as its source without owning an edit to them.
+- Only `reuse-prototype` names production `Surfaces`; prototype-authoring work precedes any production surface and records `Surfaces: none`.
+
 Write `.scratch/<feature>/plan.md` exactly from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Packet grammar. This skill is the sole writer at creation and finalization; after approval the executing owner amends the same file in place under § Plan amendment. Use canonical section order, exact `Domain Impact`, concrete Outcome/Action/Expected criteria, ordered Decisions, one public interface pin per active criterion, optional Publication, and structured tasks with unique path operation/intents, focused checks, and pending status.
 
 After every initial write or resume/finalize revision, run `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md`. Only exit 0 with `kind: plan`, the matching feature, exact source `sha256`, and expected task count may reach the post-plan action surface. Exit 1 returns malformed authority to Discussion; exit 2 corrects the invocation. Use the returned hash for approval binding and never calculate a competing interpretation.

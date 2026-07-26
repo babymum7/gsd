@@ -1,0 +1,17 @@
+{
+  "name": "design-prototype",
+  "private": true,
+  "type": "module",
+  "description": "Prototype surface for prototype-first GSD convergence. Copy this template to a repository-root design/ directory.",
+  "scripts": {
+    "tokens": "style-dictionary build --config style-dictionary.config.js",
+    "check:fast": "npm run tokens && stylelint \"css/**/*.css\" \"primitives/**/*.css\" && node --test \"primitives/**/*.test.js\"",
+    "check:slow": "npm run tokens && playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.49.1",
+    "style-dictionary": "4.3.0",
+    "stylelint": "16.12.0",
+    "stylelint-declaration-strict-value": "1.10.7"
+  }
+}

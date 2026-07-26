@@ -97,6 +97,11 @@ const canonicalPacket = () => ({
     "- **Documentation:** none",
     "- **Broad bootstrap:** not-offered",
     "- **Evidence:** Parser-only fixture changes no production domain behavior.",
+    "## UI Impact",
+    "- **Classification:** none",
+    "- **Surfaces:** none",
+    "- **Prototype:** none",
+    "- **Evidence:** Parser-only fixture renders no user-facing surface and converts no locked prototype.",
     "## Scope",
     "- Validate plan",
     "## Acceptance Criteria",
@@ -260,6 +265,40 @@ test("domain-impact packet grammar is mandatory in every validation path", () =>
     ),
     /fields must be exactly ordered/i,
   );
+});
+
+test("UI Impact is returned by the parser and banned from Quick-fix paths", () => {
+  const canonical = canonicalPacket();
+  // The parsed section is the value lifecycle owners retain in the task slice, so the
+  // return shape is part of the contract, not an internal validation side effect.
+  assert.deepEqual(parseMarkdownPacket(canonical).uiImpact, {
+    classification: "none",
+    surfaces: [],
+    prototype: [],
+    evidence: "Parser-only fixture renders no user-facing surface and converts no locked prototype.",
+  });
+
+  const converting = replaceOnce(
+    canonical["plan.md"],
+    FILES_BLOCK,
+    [
+      "- **Files:**",
+      "  - `src/ui/orders.tsx` — modify: render the locked order surface states",
+    ].join("\n"),
+  ).replace(
+    "## UI Impact\n- **Classification:** none\n- **Surfaces:** none\n- **Prototype:** none",
+    "## UI Impact\n- **Classification:** reuse-prototype\n- **Surfaces:** `src/ui/orders.tsx`\n- **Prototype:** `design/docs/orders.md`",
+  );
+  assert.deepEqual(parseMarkdownPacket({ "plan.md": converting }).uiImpact, {
+    classification: "reuse-prototype",
+    surfaces: ["src/ui/orders.tsx"],
+    prototype: ["design/docs/orders.md"],
+    evidence: "Parser-only fixture renders no user-facing surface and converts no locked prototype.",
+  });
+
+  const reference = read("skills/gsd/REFERENCE.md");
+  const quickFix = reference.match(/### Quick-fix plan exception\n[\s\S]*?(?=\n### Executable contract validator)/)[0];
+  assert.match(quickFix, /under `design\/`/, "Quick-fix exception states the prototype-path prohibition");
 });
 
 test("Quick-fix Domain Impact grammar is exact and domain-owned", () => {
@@ -1317,6 +1356,92 @@ test("domain impact is enforced across the feature lifecycle", () => {
   assert.match(reference, /existing `docs\/domain\/index\.md` suppresses[\s\S]{0,120}broad/i);
 });
 
+test("UI Impact is written, retained, and revalidated across the lifecycle", () => {
+  const planner = read("skills/gsd-to-plan/SKILL.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+
+  for (const body of [planner, execution, verify, reference]) {
+    assert.match(body, /UI Impact/);
+  }
+  // The canonical grammar block orders the four fields directly after Domain Impact.
+  assert.match(
+    reference,
+    /## Domain Impact\n(?:- \*\*.+\n){5}## UI Impact\n- \*\*Classification:\*\* <none\|reuse-prototype\|extend-prototype\|new-prototype>\n- \*\*Surfaces:\*\* .+\n- \*\*Prototype:\*\* .+\n- \*\*Evidence:\*\* .+\n/,
+  );
+  assert.match(reference, /only `reuse-prototype` names production `Surfaces`/);
+  assert.match(planner, /Classification`, `Surfaces`, `Prototype`, `Evidence`/);
+  // An authoring classification must change a real design/ artifact in the owning task, so
+  // a plan can never claim it produced a prototype it does not touch.
+  assert.match(planner, /bind each declared prototype path to a live task that also changes a non-doc `design\/` artifact/);
+  assert.match(planner, /source of truth[\s\S]{0,160}never redefines it/i);
+  assert.match(execution, /validated task slice[\s\S]{0,200}UI Impact/);
+  assert.match(execution, /source of truth[\s\S]{0,200}same task as the surface change/i);
+  assert.match(verify, /terminal slice including `Domain Impact` and `UI Impact`/);
+  assert.match(verify, /UI drift[\s\S]{0,200}(?:blocks|Blocker)/i);
+
+  // The README is the human entry point: the prototype phase and the plan section it
+  // produces must both be documented, and the skill layout must list the new owner.
+  const readme = read("README.md");
+  assert.match(readme, /UI Impact/);
+  assert.match(readme, /gsd-prototyping/);
+  assert.match(readme, /gsd-prototyping\/\s*#[^\n]*prototyp/i, "skill layout lists the prototype owner");
+  assert.match(readme, /prototyp[\s\S]{0,200}before[\s\S]{0,120}(?:requirement|converg)/i);
+
+  // The shard is the durable record of shipped behavior: prototype-first delivery needs its
+  // own workflow, command row, and policy, not only prose inside the skills.
+  const domain = read("docs/domain/gsd.md");
+  assert.match(domain, /^### Lock a prototype before requirements$/m);
+  assert.match(domain, /\| Lock a prototype \| .+ \|/);
+  assert.match(domain, /^### P-gsd-15: [^\n]*prototype/im);
+});
+
+test("repository root instructs agents on design ownership", () => {
+  const agents = read("AGENTS.md");
+  const gitignore = read(".gitignore");
+
+  assert.equal(agents.match(/^## Design documentation$/gm)?.length, 1, "exactly one canonical design section");
+  assert.match(agents, /`design\/AGENTS\.md`[\s\S]{0,200}before[\s\S]{0,120}`design\/`/i);
+  // Any design tool may scaffold only markup, so the instruction files themselves may be
+  // absent: adopting the flow must start by creating them from the example.
+  assert.match(agents, /if (?:they|those files) are missing[\s\S]{0,200}(?:create|adapt)/i);
+  assert.match(agents, /prototype artifacts[\s\S]{0,160}under `design\/`/i);
+  // design/ is the source of truth for surface behavior; production code converts from it.
+  assert.match(agents, /source of truth[\s\S]{0,200}convert/i);
+  assert.match(agents, /backend-only[\s\S]{0,160}no design impact/i);
+  // A system-wide accepted rule is durable; per-surface states stay with their surface.
+  assert.match(agents, /`design\/docs\/interaction-rules\.md`/);
+  // The template is an example of clean structure, never an enforced file layout, and no
+  // single design tool is privileged: any tool may write into design/.
+  assert.match(agents, /[Aa]ny AI design tool/);
+  assert.match(agents, /example[\s\S]{0,120}not a required file layout/i);
+  assert.match(agents, /single HTML file is a valid starting point/i);
+  for (const entry of [".od/", ".live-artifacts/", ".file-versions/"]) {
+    assert.ok(
+      gitignore.split("\n").includes(entry),
+      `.gitignore ignores design-tool runtime output directory ${entry}`,
+    );
+  }
+});
+
+test("prototype review captures accepted feedback before the surface locks", () => {
+  const prototyping = read("skills/gsd-prototyping/SKILL.md");
+
+  // Review feedback is durable only when it lands in an artifact: a system-wide rule goes
+  // to the ledger, a surface-specific decision stays with its surface document.
+  assert.match(prototyping, /`design\/docs\/interaction-rules\.md`/);
+  assert.match(prototyping, /IR-<n>/);
+  assert.match(prototyping, /system-wide[\s\S]{0,240}interaction-rules\.md/i);
+  assert.match(prototyping, /surface-specific[\s\S]{0,200}surface(?:'s)? document/i);
+  // Capture happens in the same turn as the prototype change, so the artifact never lags
+  // behind what the prototype renders.
+  assert.match(prototyping, /same turn[\s\S]{0,160}prototype change/i);
+  // Lock is the gate that makes capture non-optional.
+  assert.match(prototyping, /^\d+\. [^\n]*(?:accepted|unrecorded)[^\n]*$/m, "a lock criterion covers accepted feedback");
+  assert.match(prototyping, /read[\s\S]{0,160}interaction-rules\.md[\s\S]{0,200}before/i);
+});
+
 test("domain modeling keeps preapproval writes current-only and reads affected shards only", () => {
   const brainstorm = read("skills/gsd-brainstorming/SKILL.md");
   const modeler = read("skills/gsd-domain-modeling/SKILL.md");
@@ -1510,6 +1635,22 @@ test("activation fixtures and response parser enforce lazy primary-skill selecti
   assert.doesNotMatch(fixtureText, /proposal\.toon|spec\.toon|design\.toon|plan\.toon/);
   assert.doesNotMatch(fixtureText, /"route"|"skill"/);
   assert.doesNotMatch(fixtureText, /handoff-\d+\.toon|result\.toon/);
+
+  // Prototype-first routing: new user-facing surface work converges in design/ before
+  // requirements, while backend-only work must not be dragged through a prototype.
+  const prototypeFixtures = new Map(fixtures.map((fixture) => [fixture.id, fixture]));
+  const selecting = prototypeFixtures.get("new-surface-prototype");
+  assert.ok(selecting, "a fixture pins prototype selection for new surface work");
+  assert.equal(selecting.expectedPrimarySkill, "gsd-prototyping");
+  assert.equal(selecting.expectedAction, "load");
+  const nonSelecting = prototypeFixtures.get("backend-only-no-prototype");
+  assert.ok(nonSelecting, "a fixture pins non-selection for backend-only work");
+  assert.notEqual(nonSelecting.expectedPrimarySkill, "gsd-prototyping");
+  assert.equal(nonSelecting.expectedAction, "load");
+  const bootstrap = read("skills/gsd/SKILL.md");
+  assert.match(bootstrap, /gsd-prototyping/);
+  assert.match(bootstrap, /user-facing surface[\s\S]{0,240}before[\s\S]{0,120}(?:requirement|converg)/i);
+  assert.match(bootstrap, /backend-only[\s\S]{0,160}never[\s\S]{0,120}prototyp/i);
 
   const byId = new Map(fixtures.map((fixture) => [fixture.id, fixture]));
   for (const id of ["nano-typo", "readonly-question", "mention-not-ask", "catalog"]) {
@@ -1999,7 +2140,7 @@ test("AC-2 repair: task repair stays session-owner-inline without terminal verif
 test("AC-3: Visible skill dispatch is deterministic", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
-  assert.equal(visible.length, 9, "exactly 9 visible GSD skills");
+  assert.equal(visible.length, 10, "exactly 10 visible GSD skills");
 
   const section = reference.match(
     /## Visible skill mandatory-use matrix\n+([\s\S]*?)(?:\n## |\n### |\n*$)/,
@@ -2023,9 +2164,9 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
     helperWhen: m[7].trim(),
   }));
 
-  assert.equal(rows.length, 9, "matrix must have exactly 9 rows");
+  assert.equal(rows.length, 10, "matrix must have exactly 10 rows");
   assert.deepEqual(rows.map((row) => row.skill).sort(), visible);
-  assert.equal(new Set(rows.map((row) => row.skill)).size, 9, "no multiply mapped skill");
+  assert.equal(new Set(rows.map((row) => row.skill)).size, 10, "no multiply mapped skill");
 
   const vague = /\b(as needed|if useful|when appropriate|sometimes|maybe|etc\.?|TBD|TODO)\b/i;
   // Only the Do-not-load and Transition labels were pinned, so a skill could restate another
@@ -2080,11 +2221,11 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
 
 test("AC-4: Concision preserves semantic parity", () => {
   const MAX_VISIBLE_WORDS = 10900;
-  const MAX_BOOTSTRAP_WORDS = 980;
-  const MAX_REFERENCE_WORDS = 4940;
+  const MAX_BOOTSTRAP_WORDS = 1010;
+  const MAX_REFERENCE_WORDS = 5150;
   const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
-  assert.equal(visible.length, 9);
+  assert.equal(visible.length, 10);
   const total = visible.reduce(
     (count, name) => count + wordCount(read(`skills/${name}/SKILL.md`)),
     0,

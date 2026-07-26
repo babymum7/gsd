@@ -26,7 +26,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 ## Planned and milestone WIP gate
 
-At terminal entry, validate canonical `schema:v4`, exact plan hash/binding, base/WIP identity, last green checkpoint, current tree, and required artifacts; rebuild the terminal slice including `Domain Impact`. Malformed new grammar, feature mismatch, missing artifact, or Git drift is Spec escalation. Repeat the digest guard before squash.
+At terminal entry, validate canonical `schema:v4`, exact plan hash/binding, base/WIP identity, last green checkpoint, current tree, and required artifacts; rebuild the terminal slice including `Domain Impact` and `UI Impact`. Malformed new grammar, feature mismatch, missing artifact, or Git drift is Spec escalation. Repeat the digest guard before squash.
 
 Terminal entry never blocks on the plan having moved: changed plan bytes revalidate and rebind under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment, then conformance proves the amended plan on the unchanged commit. Amend here only to record what the work actually did; a material change or drift the owner cannot account for asks one question first. Rebinding after the pre-squash guard requires rerunning that guard.
 
@@ -37,9 +37,10 @@ After all tasks and Fast TDD Checks are green, the session owner performs determ
 1. Prove every active AC maps exactly once to one completed task and one public interface pin; every changed path is task-owned. Read task diffs in plan order against explicit Decisions, invariants, non-goals, file intents, and focused-check evidence on the unchanged current commit.
 2. Prove `Domain Impact` against the cumulative diff. `none` requires concrete evidence that no term, invariant, workflow, outcome, relationship, policy, or bounded-context meaning changed. Every non-`none` classification requires exact affected shards and any index/AGENTS upsert to be owned by the same tasks as code. If the index existed, any broad-bootstrap offer or selection is contradictory.
 3. Compare affected domain shards with production code, schemas, contracts, and tests. They must describe current production behavior, contain no obsolete or future target state, and leave unrelated contexts untouched. Domain drift blocks completion as a deterministic Blocker.
-4. Only a malformed binding, ownership/coverage mismatch, explicit contract contradiction, domain drift, unresolved change, or red deterministic check blocks. No free-form critique or model-generated verdict is terminal authority; green is current-commit conformance, never persisted prose authority.
-5. A blocker keeps `phase=repair` and `next_action=enter terminal verification/repair`; repair only plan-owned source, run affected Fast TDD Checks, and repeat invalidated proofs. Any source change invalidates prior conformance.
-6. Run the complete feature-affected Deferred Slow E2E suite only after current-commit conformance. Failure returns to repair, affected fast checks, invalidated conformance, then the complete slow suite. Merge requires full slow/E2E GREEN on the same unchanged commit.
+4. Prove `UI Impact` against the cumulative diff. A changed `design/` path that no declared `Prototype` names, a changed declared `Surfaces` path whose classification declares no prototype source, or production markup that contradicts the locked prototype blocks as a deterministic Blocker.
+5. Only a malformed binding, ownership/coverage mismatch, explicit contract contradiction, domain drift, UI drift, unresolved change, or red deterministic check blocks. No free-form critique or model-generated verdict is terminal authority; green is current-commit conformance, never persisted prose authority.
+6. A blocker keeps `phase=repair` and `next_action=enter terminal verification/repair`; repair only plan-owned source, run affected Fast TDD Checks, and repeat invalidated proofs. Any source change invalidates prior conformance.
+7. Run the complete feature-affected Deferred Slow E2E suite only after current-commit conformance. Failure returns to repair, affected fast checks, invalidated conformance, then the complete slow suite. Merge requires full slow/E2E GREEN on the same unchanged commit.
 
 For squash, scratch disposition, archive, and cleanup use § Git/base/WIP/scratch mechanics and § Feature cleanup. Archive-and-delete materializes the exact approved plan and outcome before conformance so canonical archive destinations are terminal-cleanup-owned lifecycle paths in changed-path proof; every other changed path must be task-owned.
 

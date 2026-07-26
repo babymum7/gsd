@@ -6,6 +6,11 @@ dist/
 # Scratch workspace (GSD feature artifacts)
 .scratch/
 
+# Design-tool runtime output (regenerated)
+.od/
+.live-artifacts/
+.file-versions/
+
 # OS files
 .DS_Store
 Thumbs.db

@@ -27,6 +27,11 @@ function canonicalPlan(feature = "valid-plan") {
     "- **Documentation:** none",
     "- **Broad bootstrap:** not-offered",
     "- **Evidence:** This validation fixture changes no production term, invariant, workflow, outcome, relationship, policy, or context boundary.",
+    "## UI Impact",
+    "- **Classification:** none",
+    "- **Surfaces:** none",
+    "- **Prototype:** none",
+    "- **Evidence:** This validation fixture renders no user-facing surface and converts no locked prototype into production markup.",
     "## Scope",
     "- Validate one canonical plan.",
     "## Acceptance Criteria",
@@ -498,6 +503,262 @@ test("Quick-fix domain shard ownership is enforced per task, not plan-wide", () 
         assert.match(result.stdout, /^status: valid\nkind: quick-fix\n/);
       } else {
         assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/);
+        assert.match(result.stdout, entry.expect, entry.name);
+      }
+    }
+  } finally {
+    for (const entry of cases) rmSync(entry.workspace, { recursive: true, force: true });
+  }
+});
+
+test("a Quick-fix naming any design/ path is rejected", () => {
+  // A prototype-touching change is by definition not a bounded quick fix: it needs
+  // prototype convergence, so the fast path refuses the path instead of gaining a
+  // `UI Impact` section it could not enforce.
+  const offending = quickFixPlan().replace(
+    "  - `src/fix.js` \u2014 modify: correct the bounded observable behavior",
+    "  - `design/primitives/button.css` \u2014 modify: correct the bounded observable behavior",
+  );
+  const nested = quickFixPlan().replace(
+    "  - `src/fix.js` \u2014 modify: correct the bounded observable behavior",
+    "  - `src/fix.js` \u2014 modify: correct the bounded observable behavior\n  - `design/docs/orders.md` \u2014 modify: record the corrected state",
+  );
+  const cases = [
+    { name: "unrelated quick fix still validates", content: quickFixPlan(), status: 0 },
+    {
+      name: "sole design path",
+      content: offending,
+      status: 1,
+      expect: /Quick-fix must not touch prototype path: design\/primitives\/button\.css/,
+    },
+    {
+      name: "design path beside production code",
+      content: nested,
+      status: 1,
+      expect: /Quick-fix must not touch prototype path: design\/docs\/orders\.md/,
+    },
+  ].map((entry) => ({ ...entry, ...makePlanWorkspace("quick-fix-plan", entry.content) }));
+
+  try {
+    for (const entry of cases) {
+      const result = spawnSync(
+        process.execPath,
+        [CLI, "validate-quick-fix", "--path", entry.planPath],
+        { cwd: entry.workspace, encoding: "utf8" },
+      );
+      assert.equal(result.status, entry.status, `${entry.name}: ${result.stdout}${result.stderr}`);
+      assert.equal(result.stderr, "");
+      if (entry.status === 0) {
+        assert.match(result.stdout, /^status: valid\nkind: quick-fix\n/, entry.name);
+      } else {
+        assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/, entry.name);
+        assert.match(result.stdout, entry.expect, entry.name);
+      }
+    }
+  } finally {
+    for (const entry of cases) rmSync(entry.workspace, { recursive: true, force: true });
+  }
+});
+
+test("full-plan UI Impact grammar binds classification, paths, and ownership", () => {
+  // `Surfaces` names the production paths a locked prototype converts into, so it is
+  // required exactly when the plan claims to reuse a lock. A prototype-authoring packet
+  // has no production surface yet and declares `none`.
+  const reuse = (plan) =>
+    plan
+      .replace(
+        "## UI Impact\n- **Classification:** none\n- **Surfaces:** none\n- **Prototype:** none",
+        "## UI Impact\n- **Classification:** reuse-prototype\n- **Surfaces:** `src/ui/orders.tsx`\n- **Prototype:** `design/docs/orders.md`",
+      );
+
+  const cases = [
+    {
+      name: "canonical none",
+      plan: canonicalPlan("ui-none"),
+      status: 0,
+    },
+    {
+      name: "canonical reuse",
+      plan: reuse(canonicalPlan("ui-reuse")),
+      status: 0,
+    },
+    {
+      name: "missing section",
+      plan: canonicalPlan("ui-missing").replace(/## UI Impact\n(?:- .+\n){4}/, ""),
+      status: 1,
+      expect: /missing UI Impact section/,
+    },
+    {
+      name: "unknown classification",
+      plan: canonicalPlan("ui-unknown").replace(
+        "## UI Impact\n- **Classification:** none",
+        "## UI Impact\n- **Classification:** redesign",
+      ),
+      status: 1,
+      expect: /UI Impact Classification is invalid/,
+    },
+    {
+      name: "none carrying surfaces",
+      plan: canonicalPlan("ui-none-surfaces").replace(
+        "- **Surfaces:** none\n- **Prototype:** none",
+        "- **Surfaces:** `src/ui/orders.tsx`\n- **Prototype:** none",
+      ),
+      status: 1,
+      expect: /UI Impact classification none requires Surfaces and Prototype to be none/,
+    },
+    {
+      name: "prototype path outside design/",
+      plan: reuse(canonicalPlan("ui-outside")).replace(
+        "- **Prototype:** `design/docs/orders.md`",
+        "- **Prototype:** `docs/orders.md`",
+      ),
+      status: 1,
+      expect: /UI Impact Prototype path must be under design\/: docs\/orders\.md/,
+    },
+    {
+      name: "unsorted prototype paths",
+      plan: reuse(canonicalPlan("ui-unsorted")).replace(
+        "- **Prototype:** `design/docs/orders.md`",
+        "- **Prototype:** `design/docs/orders.md`, `design/docs/customers.md`",
+      ),
+      status: 1,
+      expect: /UI Impact Prototype must be sorted/,
+    },
+    {
+      name: "duplicate prototype paths",
+      plan: reuse(canonicalPlan("ui-duplicate")).replace(
+        "- **Prototype:** `design/docs/orders.md`",
+        "- **Prototype:** `design/docs/orders.md`, `design/docs/orders.md`",
+      ),
+      status: 1,
+      expect: /UI Impact Prototype must be unique/,
+    },
+    {
+      name: "unsorted surfaces",
+      plan: reuse(canonicalPlan("ui-surface-order")).replace(
+        "- **Surfaces:** `src/ui/orders.tsx`",
+        "- **Surfaces:** `src/ui/orders.tsx`, `src/ui/customers.tsx`",
+      ),
+      status: 1,
+      expect: /UI Impact Surfaces must be sorted/,
+    },
+    {
+      name: "duplicate surfaces",
+      plan: reuse(canonicalPlan("ui-surface-dupe")).replace(
+        "- **Surfaces:** `src/ui/orders.tsx`",
+        "- **Surfaces:** `src/ui/orders.tsx`, `src/ui/orders.tsx`",
+      ),
+      status: 1,
+      expect: /UI Impact Surfaces must be unique/,
+    },
+    {
+      name: "extend-prototype without surfaces validates",
+      plan: canonicalPlan("ui-extend-owned")
+        .replace(
+          "## UI Impact\n- **Classification:** none\n- **Surfaces:** none\n- **Prototype:** none",
+          "## UI Impact\n- **Classification:** extend-prototype\n- **Surfaces:** none\n- **Prototype:** `design/docs/orders.md`",
+        )
+        .replace(
+          "  - `tools/gsd-contract.mjs` — create: expose canonical plan validation",
+          "  - `tools/gsd-contract.mjs` — create: expose canonical plan validation\n  - `design/docs/orders.md` — modify: extend the order surface states and flows\n  - `design/primitives/order-form.js` — modify: render the extended order states",
+        ),
+      status: 0,
+    },
+    {
+      name: "reuse without surfaces",
+      plan: reuse(canonicalPlan("ui-reuse-bare")).replace(
+        "- **Surfaces:** `src/ui/orders.tsx`",
+        "- **Surfaces:** none",
+      ),
+      status: 1,
+      expect: /reuse-prototype requires at least one production surface/,
+    },
+    {
+      name: "non-none without prototype",
+      plan: canonicalPlan("ui-no-proto").replace(
+        "## UI Impact\n- **Classification:** none\n- **Surfaces:** none",
+        "## UI Impact\n- **Classification:** new-prototype\n- **Surfaces:** none",
+      ),
+      status: 1,
+      expect: /Surface-changing work requires at least one design\/ prototype path/,
+    },
+    {
+      name: "new-prototype carrying production surfaces",
+      plan: canonicalPlan("ui-new-surfaces").replace(
+        "## UI Impact\n- **Classification:** none\n- **Surfaces:** none\n- **Prototype:** none",
+        "## UI Impact\n- **Classification:** new-prototype\n- **Surfaces:** `src/ui/orders.tsx`\n- **Prototype:** `design/docs/orders.md`",
+      ),
+      status: 1,
+      expect: /new-prototype precedes production conversion and requires Surfaces to be none/,
+    },
+    {
+      name: "new-prototype owning its declared prototype path",
+      plan: canonicalPlan("ui-new-owned")
+        .replace(
+          "## UI Impact\n- **Classification:** none\n- **Surfaces:** none\n- **Prototype:** none",
+          "## UI Impact\n- **Classification:** new-prototype\n- **Surfaces:** none\n- **Prototype:** `design/docs/orders.md`",
+        )
+        .replace(
+          "  - `tools/gsd-contract.mjs` — create: expose canonical plan validation",
+          "  - `tools/gsd-contract.mjs` — create: expose canonical plan validation\n  - `design/docs/orders.md` — create: lock the order surface states and flows\n  - `design/primitives/order-form.js` — create: render the order surface states",
+        ),
+      status: 0,
+    },
+    {
+      name: "extend-prototype owning its declared prototype path",
+      plan: canonicalPlan("ui-extend-owned")
+        .replace(
+          "## UI Impact\n- **Classification:** none\n- **Surfaces:** none\n- **Prototype:** none",
+          "## UI Impact\n- **Classification:** extend-prototype\n- **Surfaces:** none\n- **Prototype:** `design/docs/orders.md`",
+        )
+        .replace(
+          "  - `tools/gsd-contract.mjs` — create: expose canonical plan validation",
+          "  - `tools/gsd-contract.mjs` — create: expose canonical plan validation\n  - `design/docs/orders.md` — modify: add the bulk-edit state to the order surface\n  - `design/primitives/order-form.js` — modify: render the bulk-edit state",
+        ),
+      status: 0,
+    },
+    {
+      name: "new-prototype with no owning task",
+      plan: canonicalPlan("ui-new-orphan").replace(
+        "## UI Impact\n- **Classification:** none\n- **Surfaces:** none\n- **Prototype:** none",
+        "## UI Impact\n- **Classification:** new-prototype\n- **Surfaces:** none\n- **Prototype:** `design/docs/orders.md`",
+      ),
+      status: 1,
+      expect: /plan must own declared prototype path: design\/docs\/orders\.md/,
+    },
+    {
+      name: "new-prototype owned only by a prose task",
+      plan: canonicalPlan("ui-new-prose")
+        .replace(
+          "## UI Impact\n- **Classification:** none\n- **Surfaces:** none\n- **Prototype:** none",
+          "## UI Impact\n- **Classification:** new-prototype\n- **Surfaces:** none\n- **Prototype:** `design/docs/orders.md`",
+        )
+        .replace(
+          "  - `tools/gsd-contract.mjs` — create: expose canonical plan validation",
+          "  - `design/docs/orders.md` — create: lock the order surface states and flows",
+        ),
+      status: 1,
+      expect: /in a task that also changes prototype code/,
+    },
+    // The CLI rejects a plan whose Feature slug differs from its `.scratch/<feature>/`
+    // directory, so the workspace name comes from the fixture itself, not the case label.
+  ].map((entry) => ({
+    ...entry,
+    ...makePlanWorkspace(entry.plan.match(/^## Feature\n`([^`]+)`$/m)[1], entry.plan),
+  }));
+
+  try {
+    for (const entry of cases) {
+      const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", entry.planPath], {
+        cwd: entry.workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, entry.status, `${entry.name}: ${result.stdout}${result.stderr}`);
+      assert.equal(result.stderr, "");
+      if (entry.status === 0) {
+        assert.match(result.stdout, /^status: valid\nkind: plan\n/, entry.name);
+      } else {
+        assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/, entry.name);
         assert.match(result.stdout, entry.expect, entry.name);
       }
     }

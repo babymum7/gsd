@@ -1,0 +1,54 @@
+/* Styles for the gsd-button primitive. Light DOM, so these rules land in the same
+   cascade as css/base.css and read the same token custom properties. */
+
+.gsd-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding-block: var(--space-2);
+  padding-inline: var(--space-4);
+  border-width: var(--border-width-thin);
+  border-style: solid;
+  border-color: transparent;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-accent-default);
+  color: var(--color-text-inverse);
+  font-size: var(--font-size-md);
+  cursor: pointer;
+  user-select: none;
+}
+
+.gsd-button:hover {
+  background-color: var(--color-accent-hover);
+}
+
+.gsd-button:focus-visible {
+  outline-width: var(--border-width-focus);
+  outline-style: solid;
+  outline-color: var(--color-accent-default);
+  outline-offset: var(--space-1);
+}
+
+.gsd-button[aria-disabled="true"] {
+  background-color: var(--color-accent-disabled);
+  cursor: not-allowed;
+}
+
+.gsd-button[aria-busy="true"] {
+  color: var(--color-text-inverse);
+}
+
+.gsd-button[variant="quiet"] {
+  border-color: var(--color-border-subtle);
+  background-color: var(--color-surface-base);
+  color: var(--color-text-primary);
+}
+
+.gsd-button[variant="quiet"]:hover {
+  background-color: var(--color-surface-raised);
+}
+
+.gsd-button[variant="danger"] {
+  background-color: var(--color-status-danger);
+}

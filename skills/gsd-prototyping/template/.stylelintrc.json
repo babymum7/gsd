@@ -1,0 +1,24 @@
+{
+  "plugins": ["stylelint-declaration-strict-value"],
+  "rules": {
+    "scale-unlimited/declaration-strict-value": [
+      [
+        "/color$/",
+        "fill",
+        "stroke",
+        "/^margin/",
+        "/^padding/",
+        "/^inset/",
+        "/gap$/",
+        "/radius$/",
+        "/^font-size$/",
+        "/^border(-[a-z]+)*-width$/",
+        "/^outline-(width|offset)$/"
+      ],
+      {
+        "ignoreValues": ["inherit", "currentColor", "transparent", "0"],
+        "disableFix": true
+      }
+    ]
+  }
+}

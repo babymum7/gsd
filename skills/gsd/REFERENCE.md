@@ -18,10 +18,11 @@ Explicit intent and entry context choose the mode; artifact presence never does.
 
 ## Visible skill mandatory-use matrix
 
-Canonical dispatch authority for the 9 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill. Helper rows with a true Helper-when condition must load and cannot be skipped.
+Canonical dispatch authority for the 10 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill. Helper rows with a true Helper-when condition must load and cannot be skipped.
 
 | Skill | Role | Intent | Prerequisites | Do-not-load | Transition | Helper-when |
 | --- | --- | --- | --- | --- | --- | --- |
+| `gsd-prototyping` | owner | Lock new or changed user-facing surface behavior in a tested `design/` prototype before requirements converge | Explicit new or changed user-facing surface intent | Backend-only work; a surface already locked by a current `design/` prototype | On prototype lock load `gsd-brainstorming` | — |
 | `gsd-brainstorming` | owner | Resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract | Explicit design intent or load-bearing Spec-gap return | Read-only questions, pure mechanical edits, known single-spot quick fix | On convergence load `gsd-to-plan` | — |
 | `gsd-to-plan` | owner | Create or finalize canonical `plan.md` with bound Domain Impact after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unapproved plan | Design decisions still open; Nano edits | On approval write `state.toon` and load `gsd-executing-plans` | — |
 | `gsd-executing-plans` | owner | Implement approved plan tasks and owned domain docs inline and sequentially on `wip/<feature>` | Valid approved `plan.md` and bound `state.toon` whose pending work the prompt names | No bound plan/state; a bare resume naming no work; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
@@ -32,7 +33,7 @@ Canonical dispatch authority for the 9 visible GSD skills. Shared semantics live
 | `gsd-tdd` | helper | Drive Fast TDD RED→GREEN→refactor at a public seam | Session owner is implementing or repairing observable behavior | Primary skill selection; resource-heavy browser/E2E task loops | Return green/red evidence to session owner | must load when an observable task is selected or repaired |
 | `gsd-domain-modeling` | helper | Maintain current production domain behavior for affected contexts | Domain Impact changes a context or explicit domain-model work is selected | Read-only/Nano work; uncertain or unrelated contexts | Return exact changed domain and AGENTS paths to session owner | must load when Domain Impact is not `none` or explicit domain-model work is selected |
 
-The Quick-fix route belongs to the session owner, not a tenth visible skill: a fix the user already diagnosed stays ordinary direct work, while a larger bounded fix reads the exact injected Ponytail context, writes the canonical Quick-fix plan, runs RED→GREEN→refactor with `gsd-tdd`, then loads `gsd-verify` as that packet's WIP gate. A returned Quick-fix WIP Fail leaves a repair round the prompt can name, and naming it loads that same `gsd-verify` gate rather than answering directly. Ponytail stays hidden and never enters the matrix or runtime state.
+The Quick-fix route belongs to the session owner, not a visible skill: a fix the user already diagnosed stays ordinary direct work, while a larger bounded fix reads the exact injected Ponytail context, writes the canonical Quick-fix plan, runs RED→GREEN→refactor with `gsd-tdd`, then loads `gsd-verify` as that packet's WIP gate. A returned Quick-fix WIP Fail leaves a repair round the prompt can name, and naming it loads that same `gsd-verify` gate rather than answering directly. Ponytail stays hidden and never enters the matrix or runtime state.
 
 ## Durable documentation contract
 
@@ -92,6 +93,11 @@ All fields use exact headings and labels, canonical order, UTF-8/LF, and no blan
 - **Documentation:** <none|update-existing|bootstrap-feature-context>
 - **Broad bootstrap:** <not-offered|declined|selected>
 - **Evidence:** <concrete code/schema/contract evidence>
+## UI Impact
+- **Classification:** <none|reuse-prototype|extend-prototype|new-prototype>
+- **Surfaces:** <none|sorted comma-space-separated backticked production paths>
+- **Prototype:** <none|sorted comma-space-separated backticked `design/` paths>
+- **Evidence:** <concrete surface/prototype evidence>
 ## Scope
 - <included behavior>
 ## Acceptance Criteria
@@ -136,6 +142,9 @@ An AC ID is a positive sequential integer.
 - `Domain Impact` uses the exact five fields above.
 - `none` requires no contexts or documentation; every other classification requires sorted affected context slugs and a documentation update, while `introduce-context` requires `bootstrap-feature-context`.
 - Broad bootstrap is an independent decision and is `not-offered` whenever the domain index exists.
+- `UI Impact` uses the exact four fields above, directly after `Domain Impact`.
+- `none` requires `Surfaces` and `Prototype` to be `none`. Every other classification names at least one `design/` prototype path; only `reuse-prototype` names production `Surfaces`, and it requires at least one.
+- `extend-prototype` and `new-prototype` bind every declared prototype path to a live task that also changes a non-doc `design/` artifact, so a declared surface never ships as prose alone.
 - Every active AC has exactly one matching Interfaces row.
 - A lower seam is valid only with a concrete reason that the higher production boundary is absent or cannot deterministically isolate the criterion.
 - Task IDs are positive sequential integers in heading order.
@@ -175,6 +184,7 @@ It contains one or two sequential tasks with unique structured paths and a real 
 - An absent `docs/domain/index.md` keeps Quick-fix bounded:
   - `Broad bootstrap` stays `not-offered` and non-`none` impact bootstraps the feature-scoped shard inline in that same task.
   - Only an explicitly requested broad bootstrap exits the bounded route for normal discovery.
+- No task path may be under `design/`: a prototype-touching change needs surface convergence, so it exits the bounded route instead of landing here.
 - Only the Quick-fix WIP verifier consumes this plan.
 - It has no proposal/spec/design source set, no normal-packet approval binding, and no normal-packet authority. Its `state.toon` records the validated hash; since `validate-quick-fix` takes no `--expected-sha256`, the gate compares its unbound revalidation against that record.
 - Ordinary packet validation MUST NOT classify it as malformed converged state or dispatch normal execution from it; its `gsd-verify` gate owns it until landing or a blocker.
