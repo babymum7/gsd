@@ -1395,6 +1395,12 @@ test("UI Impact is written, retained, and revalidated across the lifecycle", () 
   assert.match(domain, /^### Lock a prototype before requirements$/m);
   assert.match(domain, /\| Lock a prototype \| .+ \|/);
   assert.match(domain, /^### P-gsd-15: [^\n]*prototype/im);
+  // The prototype-lock walkthrough records the configuration this repository sets, not a
+  // tool habit: working directory at the repository root, generated files targeted at
+  // `design/`, and a file-writing run over one inline artifact block.
+  assert.match(domain, /working directory[\s\S]{0,140}repository root/i);
+  assert.match(domain, /writes? files|file-writing/i);
+  assert.match(domain, /inline artifact/i);
 });
 
 test("repository root instructs agents on design ownership", () => {
@@ -1402,8 +1408,8 @@ test("repository root instructs agents on design ownership", () => {
   const gitignore = read(".gitignore");
 
   assert.equal(agents.match(/^## Design documentation$/gm)?.length, 1, "exactly one canonical design section");
-  // The root file is the only agent contract: design tools open the repository root as
-  // their working directory, so a nested design/AGENTS.md would compete with this one.
+  // The root file is the only agent contract: this repository sets the design tool's
+  // working directory to the repository root, so a nested design/AGENTS.md would compete.
   assert.match(agents, /root `AGENTS\.md`[\s\S]{0,200}only agent contract/i);
   assert.doesNotMatch(agents, /`design\/AGENTS\.md`/);
   assert.match(agents, /prototype artifacts[\s\S]{0,160}under `design\/`/i);
@@ -1412,11 +1418,16 @@ test("repository root instructs agents on design ownership", () => {
   assert.match(agents, /backend-only[\s\S]{0,160}no design impact/i);
   // A system-wide accepted rule is durable; per-surface states stay with their surface.
   assert.match(agents, /`design\/docs\/interaction-rules\.md`/);
-  // Supplying context is the obligation: the tool runs from the repository root with this
-  // file and `design/DESIGN.md` in scope. A single-file artifact is an input to decompose,
-  // whatever produced it.
+  // Configuration is the obligation, never an asserted tool habit: this repository sets the
+  // tool's working directory to the repository root, targets its generated design files at
+  // `design/`, and supplies this file plus `design/DESIGN.md` as context. A file-writing run
+  // keeps the surface separated; a single-file artifact is still an input to decompose.
   assert.match(agents, /[Aa]ny AI design tool/);
-  assert.match(agents, /repository root[\s\S]{0,200}`design\/DESIGN\.md`[\s\S]{0,80}context/i);
+  assert.match(agents, /working directory[\s\S]{0,140}repository root/i);
+  assert.doesNotMatch(agents, /design tools open the repository root/i);
+  assert.match(agents, /generated[\s\S]{0,100}`design\/`/i);
+  assert.match(agents, /`design\/DESIGN\.md`[\s\S]{0,100}context/i);
+  assert.match(agents, /writes? files[\s\S]{0,200}inline artifact/i);
   assert.match(agents, /single[- ]file[\s\S]{0,240}(?:decompose|split)/i);
   assert.match(agents, /before[\s\S]{0,120}lock/i);
   for (const entry of [".od/", ".live-artifacts/", ".file-versions/"]) {
@@ -1443,12 +1454,16 @@ test("prototype review captures accepted feedback before the surface locks", () 
   assert.match(prototyping, /^\d+\. [^\n]*(?:accepted|unrecorded)[^\n]*$/m, "a lock criterion covers accepted feedback");
   assert.match(prototyping, /read[\s\S]{0,160}interaction-rules\.md[\s\S]{0,200}before/i);
 
-  // The skill reads the root contract, never a nested one, and supplies it together with
-  // `design/DESIGN.md` as the design tool's context. A single-file artifact is decomposed
-  // before the surface can lock.
+  // The skill reads the root contract, never a nested one, and records the configured
+  // working directory, `design/` output location, and file-writing run. A single-file
+  // artifact is decomposed before the surface can lock.
   assert.match(prototyping, /root `AGENTS\.md`/);
   assert.doesNotMatch(prototyping, /`design\/AGENTS\.md`/);
-  assert.match(prototyping, /`design\/DESIGN\.md` as its context/);
+  assert.match(prototyping, /working directory[\s\S]{0,140}repository root/i);
+  assert.doesNotMatch(prototyping, /[Rr]un the design tool from the repository root/);
+  assert.match(prototyping, /generated[\s\S]{0,100}`design\/`/i);
+  assert.match(prototyping, /`design\/DESIGN\.md`[\s\S]{0,120}context/i);
+  assert.match(prototyping, /writes? files[\s\S]{0,200}inline artifact/i);
   assert.match(prototyping, /single[- ]file[\s\S]{0,240}(?:decompose|split)/i);
   assert.match(prototyping, /^\d+\. [^\n]*(?:decomposed|split into)[^\n]*$/m, "a lock criterion covers the structure");
 

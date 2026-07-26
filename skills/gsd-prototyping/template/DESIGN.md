@@ -9,6 +9,12 @@ design artifact: it records the structure and standards of this directory so any
 or design tool driving it produces the same shape. It is written to be supplied as context
 to an external design tool, directly usable as a system prompt.
 
+The tool is configured against this repository rather than left on its defaults: its
+working directory is set to the repository root, so its agent reads the root `AGENTS.md`
+together with this file, and its generated design files are targeted at `design/`. Require
+a run whose agent writes files rather than one that returns a single inline artifact block,
+so the surface arrives already separated.
+
 Two layers live in this file. The **obligations** are product-neutral and
 framework-neutral: declared tokens instead of inline literals, repeated markup extracted
 into one component, a headless test per component, checks split by cost, one document per
@@ -35,8 +41,8 @@ That is why it carries a real structure rather than one page of markup:
 - visual values in `tokens/`, never inline literals;
 - one document per surface under `docs/`.
 
-A single-file artifact is an **input**, not a resting state, whatever produced it: design
-tools legitimately emit one self-contained page, and this directory is not one page.
+A single-file artifact is an **input**, not a resting state, whatever produced it, and this
+directory is not one page.
 Decompose it into the structure above before the surface locks: split the markup into its
 surfaces, lift repeated parts into primitives, extract every literal into a token, and
 write the surface document. A locked surface is never one undifferentiated file.
