@@ -33,11 +33,14 @@ Own request classification, feature convergence, plan approval and in-flight ame
 ## Invariants
 
 - Exactly one visible process owner controls a lifecycle transition at a time.
-- A known bounded behavioral fix is owned directly by the session owner; Ponytail remains hidden and is loaded only from its exact injected context path.
+- A fix the user already diagnosed stays ordinary direct work and never selects a visible owner: a prompt naming the file/line or exact failure signature is located work, so `gsd-diagnosing-bugs` owns only an unlocated or non-obvious cause. A larger bounded behavioral fix is opened inline by the session owner as Quick-fix, where `gsd-verify` gates only that existing packet. A returned Quick-fix WIP Fail leaves a repair round the prompt can name, and naming it re-enters that same `gsd-verify` gate instead of being answered directly. Ponytail remains hidden and is loaded only from its exact injected context path.
 - An approved `plan.md` stays amendable while its feature executes: the executing owner amends it in place, revalidates, and rebinds the returned hash, so runtime state always reports the current bytes rather than freezing the first ones.
-- A plan amendment never closes the feature or opens a new one; a material change or an unaccounted-for hash mismatch asks one question and then proceeds with the chosen option.
+- A plan amendment never closes the feature or opens a new one; a material change or an unaccounted-for hash mismatch asks one question and then proceeds with the chosen option. Hash drift never diverts prompt-named work to `gsd-handoff`: the executing owner keeps that work, revalidates, and rebinds.
 - State authority is valid only as fatal-decoded UTF-8 with LF line endings; invalid bytes and carriage returns fail closed unchanged.
-- Malformed state fails closed only for intent naming its `.scratch/<feature>/` directory or continuing the lifecycle; because the bytes cannot be parsed, that directory name is the only trusted relatedness signal.
+- A discovered full malformed packet (`plan.md` beside an unparsable `state.toon`) fails closed for every prompt, because candidate discovery throws before any relatedness or terminal test runs and before any other valid packet can be selected, including a prompt naming that other feature. Malformed residual bytes without a `plan.md` are skipped and route ordinarily. Since unparsable bytes cannot be trusted, only the `.scratch/<feature>/` directory name is a relatedness signal.
+- Validated active state is entered by intent shape: `continue` alone names no work, so it is a bare resume that loads `gsd-handoff` first even beside one executing packet and lets the recorded `next_action` select the peer owner. `continue` plus a named feature, task, or repair is not bare, so it routes straight to that owner (a pending plan task to `gsd-executing-plans`, an unapproved plan to `gsd-to-plan`, an existing Quick-fix repair packet to `gsd-verify`). A first-pending milestone ledger row resumes through that same gateway rather than authorizing replacement brainstorming.
+- Several valid active packets are an ambiguity resolved by that same gateway: discovery returns every one of them and `gsd-handoff` selects exactly one validated resume, so generic continuation asks instead of failing closed. `ignore-terminal-record` requires a discovered `phase=completed-retained` record or residual terminal bytes: an active or `merged-cleanup-pending` packet is never terminal history, so new work unrelated to one stays plain `ordinary-routing`.
+- `gsd-tdd` is helper-only and is never a primary owner; `gsd-domain-modeling` stays a selectable owner for explicit domain work.
 - Exact retained v1/v2 terminal records are structurally recognized during candidate discovery only to remain inert and byte-identical; an explicit read rejects them fail closed unchanged.
 - Full-plan approval, execution resume, terminal entry, pre-squash, and Quick-fix verification use the production Contract Validator before consuming plan authority.
 - Retained `schema:v3` stays inert and byte-identical during candidate discovery but migrates atomically on an explicit read after full validation.
@@ -132,7 +135,7 @@ None.
 
 ### P-gsd-8: Clean transient feature artifacts after green merge
 
-- **Policy:** Delete feature scratch after a green merge unless retain or archive-and-delete was selected. A leftover `merged-cleanup-pending` or malformed packet gates only intent that names its `.scratch/<feature>/` directory or continues the lifecycle; unrelated direct work proceeds untouched, and uncertain relatedness asks one question instead of stopping.
+- **Policy:** Delete feature scratch after a green merge unless retain or archive-and-delete was selected. A leftover `merged-cleanup-pending` packet gates only intent that names its `.scratch/<feature>/` directory or continues the lifecycle, while a full malformed packet fails closed for every prompt and plan-less malformed residue is skipped; unrelated direct work proceeds untouched, and uncertain relatedness asks one question instead of stopping.
 - **Reason:** Exact ownership removes completed runtime evidence without touching neighboring sessions, and leftover runtime bytes must never block work that does not depend on them.
 
 ### P-gsd-9: Keep Quick-fix semantics explicit

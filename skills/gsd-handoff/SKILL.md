@@ -1,6 +1,6 @@
 ---
 name: gsd-handoff
-description: "Use to pause, save, resume, or recover GSD work from a valid state.toon or compaction capsule."
+description: "Use to pause, save, resume, or recover GSD work from a valid state.toon, milestone ledger row, or compaction capsule, including selecting one of several active features."
 produces: [state.toon]
 consumes: [state.toon, plan.md, docs/gsd/<feature>/milestones.md]
 ---

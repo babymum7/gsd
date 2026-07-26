@@ -225,7 +225,7 @@
   },
   {
     "id": "result-malformed-unrelated",
-    "state": ".scratch/oauth-login/state.toon is malformed; no active packet",
+    "state": ".scratch/oauth-login/state.toon is malformed residual bytes with no plan.md; no active packet",
     "prompt": "add a CSV export button",
     "decision": "ordinary-routing",
     "expectedAction": "load",
@@ -233,7 +233,7 @@
   },
   {
     "id": "result-malformed-with-active",
-    "state": ".scratch/oauth-login/state.toon is malformed; .scratch/csv-export has a valid state.toon and approved plan",
+    "state": ".scratch/oauth-login is a full packet with plan.md and malformed state.toon; .scratch/csv-export has a valid state.toon and approved plan",
     "prompt": "continue csv-export",
     "decision": "fail-closed",
     "expectedAction": "stop",

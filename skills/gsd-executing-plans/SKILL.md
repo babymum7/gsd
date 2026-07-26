@@ -1,6 +1,6 @@
 ---
 name: gsd-executing-plans
-description: "Use when a valid approved plan and resumable state.toon have pending work, including resuming active planned implementation."
+description: "Use when a valid approved plan and resumable state.toon have pending work that the prompt names."
 produces: [state.toon, docs/gsd/<feature>/milestones.md]
 consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md, docs/gsd/<feature>/milestones.md]
 ---

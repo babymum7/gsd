@@ -1597,7 +1597,7 @@ test("activation fixtures and response parser enforce lazy primary-skill selecti
   for (const doc of [master, reference]) {
     assert.match(doc, /unrelated direct work is never blocked|never blocks unrelated direct work/);
     assert.match(doc, /asks one question instead of stopping/);
-    assert.match(doc, /A malformed state is unrelated to the prompt \| `ordinary-routing`/);
+    assert.match(doc, /Malformed residual bytes without a `plan\.md` \| `ordinary-routing`/);
     assert.doesNotMatch(doc, /Any state is malformed \| `fail-closed`/);
     assert.doesNotMatch(doc, /globally gates recovery|global crash-recovery gate/);
   }
@@ -1626,6 +1626,83 @@ test("activation fixtures and response parser enforce lazy primary-skill selecti
   assert.match(evalRunner, /--mode", "text|--mode text/);
   assert.doesNotMatch(evalRunner, /--mode", "json|message_end|assistantMessageEvent/);
   assert.match(master, /Completed-state decision matrix|completed-state decision matrix/i);
+});
+
+test("the bootstrap names the resume gateway, fail-closed precedence, and helper limits", () => {
+  // The live activation eval measured these five rules wrong on both evaluated models,
+  // so the injected routing authority must state each one instead of implying it.
+  const master = read("skills/gsd/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+
+  // Validated active state enters through gsd-handoff; next_action picks the peer owner.
+  assert.match(master, /`gsd-handoff`[^.\n]{0,160}(?:first|gateway)|(?:first|gateway)[^.\n]{0,160}`gsd-handoff`/);
+  assert.match(master, /`next_action`/);
+  assert.match(master, /bare resume[^.\n]{0,120}`gsd-handoff`/i);
+  assert.match(master, /[Nn]aming the work[^.\n]{0,140}`gsd-executing-plans`/);
+
+  // Runtime discovery decides malformed authority: a feature holding both `plan.md` and
+  // malformed `state.toon` throws for every prompt, while plan-less bytes are skipped.
+  assert.match(master, /malformed[\s\S]{0,240}`fail-closed`|`fail-closed`[\s\S]{0,240}malformed/);
+  assert.match(master, /(?:full|complete) packet|without a `plan\.md`|residual/i);
+
+  // A moved plan hash is an amendment, never a lifecycle stop.
+  assert.match(master, /hash mismatch[^.\n]{0,120}amend|amend[^.\n]{0,120}hash mismatch/i);
+
+  // A first-pending ledger row resumes; it never authorizes replacement brainstorming.
+  assert.match(master, /first pending[^.\n]{0,160}resum|ledger[^.\n]{0,160}resum/i);
+
+  // gsd-tdd is a helper: it is never the primary owner for direct work.
+  assert.match(master, /`gsd-tdd`[^.\n]{0,160}never[^.\n]{0,40}(?:primary|owner)/);
+
+  // `continue` alone is the only bare resume: it enters gsd-handoff even beside exactly
+  // one executing packet, while `continue` plus a named feature/task/repair routes
+  // straight to that owner. The executing-plans catalog row admits only prompt-named
+  // pending work, so `next_action` never competes with the gateway during selection.
+  assert.match(master, /`continue` alone is a bare resume/);
+  assert.match(master, /even beside one executing packet/);
+  assert.match(master, /`continue` plus a named feature, task, or repair is not bare/);
+  assert.match(master, /Unrelated new work beside an active or `merged-cleanup-pending` packet is `ordinary-routing`; only a discovered completed-retained or residual record reports `ignore-terminal-record`/);
+  // A returned Quick-fix WIP Fail leaves a nameable repair round that loads gsd-verify.
+  assert.match(master, /repair round its prompt can name, which loads `gsd-verify` rather than answering directly/);
+  assert.match(master, /An unrelated valid `merged-cleanup-pending` state \| `ordinary-routing`[\s\S]{0,120}never `ignore-terminal-record`/);
+  // `ignore-terminal-record` is gated on a discovered terminal record: with none present,
+  // unrelated work beside an active or merged-cleanup-pending packet stays ordinary.
+  assert.match(master, /`ignore-terminal-record` needs a discovered `phase=completed-retained` record or residual terminal bytes; with none present, unrelated work stays `ordinary-routing`/);
+  assert.match(reference, /`ignore-terminal-record` requires a discovered `phase=completed-retained` record or residual terminal bytes; with no such record present, unrelated work stays `ordinary-routing`/);
+  // An active packet is never terminal history, so unrelated new work beside one is ordinary.
+  assert.match(master, /An active or `merged-cleanup-pending` packet is never terminal history, so unrelated new work beside one is `ordinary-routing`/);
+  assert.match(reference, /An active or `merged-cleanup-pending` packet is never terminal history, so new work unrelated to one is plain `ordinary-routing`/);
+  // An unrelated valid merged-cleanup-pending state routes ordinarily: ignore-terminal-record
+  // names completed-retained and residual records only, so the two rows never collapse.
+  assert.match(reference, /`phase=merged-cleanup-pending` state is unrelated[\s\S]{0,180}never report `ignore-terminal-record`, which covers completed-retained and residual records only/);
+  const executing = read("skills/gsd-executing-plans/SKILL.md");
+  assert.match(executing, /^description: "[^"]*pending work that the prompt names\."$/m);
+  assert.doesNotMatch(executing.match(/^description: .*$/m)[0], /next_action/);
+
+  // A located failure stays direct: diagnosis owns only unlocated or non-obvious causes.
+  assert.match(master, /named file\/line or exact failure signature is located/);
+  assert.match(master, /`gsd-diagnosing-bugs` owns only unlocated or non-obvious causes/);
+
+  // Hash drift keeps prompt-named work with its executing owner instead of diverting to
+  // the resume gateway, and a full malformed packet outranks every other active packet.
+  assert.match(master, /never a stop or `gsd-handoff` diversion/);
+  assert.match(master, /even one naming another valid feature/);
+
+  // Several valid packets are an ambiguity to resolve through gsd-handoff, not a stop.
+  // detectCandidates returns every valid packet and the capsule asks for exactly one
+  // validated resume, so generic `continue` selects that owner instead of failing closed.
+  assert.match(master, /(?:several|multiple|more than one)[^.\n]{0,120}valid[^.\n]{0,200}`gsd-handoff`/i);
+  assert.match(master, /exactly one[^.\n]{0,80}resume/i);
+
+  // The visible catalog description decides selection, so ledger recovery must appear.
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+  const handoffDescription = handoff.match(/^description: "(.*)"$/m);
+  assert.ok(handoffDescription);
+  assert.match(handoffDescription[1], /ledger|milestone/i);
+
+  const domain = read("docs/domain/gsd.md");
+  assert.match(domain, /Several valid active packets[\s\S]{0,240}`gsd-handoff`/);
+  assert.match(domain, /full malformed packet[\s\S]{0,200}fails closed/i);
 });
 
 test("the activation evaluator runs keyless through the local omp CLI", () => {
@@ -1796,7 +1873,10 @@ test("Quick-fix owner uses the injected hidden context and deterministic gates",
   const reference = read("skills/gsd/REFERENCE.md");
 
   assert.match(master, /PONYTAIL_CONTEXT_PATH/);
-  assert.match(master, /session owner[\s\S]{0,220}bounded behavioral fix[\s\S]{0,220}PONYTAIL_CONTEXT_PATH/i);
+  assert.match(master, /session owner[\s\S]{0,220}bounded fix[\s\S]{0,220}PONYTAIL_CONTEXT_PATH/i);
+  // A fix the user already diagnosed is direct work: both evaluated models otherwise
+  // named `gsd-verify` as the primary owner for a one-line known fix.
+  assert.match(master, /already diagnosed[^.\n]{0,80}direct[^.\n]{0,60}never a `primarySkill`/i);
   assert.match(master, /PONYTAIL_CONTEXT_PATH[\s\S]{0,300}gsd-tdd[\s\S]{0,240}gsd-verify/i);
   assert.match(reference, /\| `gsd-verify` \| owner \|[^|\n]*Quick-fix[^|\n]*\|[^|\n]*Quick-fix `plan\.md`[^|\n]*\|/i);
   assert.match(reference, /Quick-fix[\s\S]{0,300}session owner[\s\S]{0,300}gsd-tdd[\s\S]{0,300}gsd-verify/i);
@@ -1962,8 +2042,8 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
 
 test("AC-4: Concision preserves semantic parity", () => {
   const MAX_VISIBLE_WORDS = 10900;
-  const MAX_BOOTSTRAP_WORDS = 900;
-  const MAX_REFERENCE_WORDS = 4800;
+  const MAX_BOOTSTRAP_WORDS = 980;
+  const MAX_REFERENCE_WORDS = 4870;
   const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
   assert.equal(visible.length, 9);

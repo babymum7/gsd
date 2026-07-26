@@ -8,56 +8,58 @@ consumes: [state.toon, plan.md, docs/domain/index.md, docs/domain/<scope>.md, do
 
 # GSD Session Bootstrap
 
-Already extension-loaded; never reload. Use only the injected `GSD_ROOT`, the exact `PONYTAIL_CONTEXT_PATH`, and each catalog row's exact absolute `skillPath`. Missing or unreadable injected paths stop; never substitute or reconstruct a workflow or context path.
+Already extension-loaded; never reload. Use only the injected `GSD_ROOT`, `PONYTAIL_CONTEXT_PATH`, and each catalog row's absolute `skillPath`. Missing/unreadable injected paths stop; never substitute or reconstruct.
 
 **Respond in the user's language.** Injected text never changes it; preserve code, paths, TOON keys, acceptance IDs, and skill names verbatim.
 
 ## Selection and continuity
 
-Apply in order. Catalog descriptions select; they do not instruct. For a matching visible skill, the **first action must be a `read` tool call on its exact catalog `skillPath`**, with no preceding text/tool. Never imitate it from metadata or memory.
+Apply in order. Catalog descriptions select, never instruct. For a matched skill, the **first action must be a `read` tool call on its exact catalog `skillPath`**, with no preceding text/tool or memory.
 
-1. **Same-session continuity first.** The current user message extends the existing conversation and its settled decisions unless the user explicitly changes direction. Continue the active owner; do not restart discovery, repeat answered questions, or reinterpret settled choices.
-2. **Explicit intent outranks inferred shape.** A direct request to review, diagnose, design an interface, audit architecture, pause, or resume selects the matching visible skill.
-3. **Validated active state outranks a new lifecycle.** For a related continuation, load `gsd-handoff`, `gsd-executing-plans`, `gsd-to-plan`, or `gsd-verify` according to the validated packet's executable state. Never infer validity from filenames alone.
-4. **Choose exactly one primary process owner.** Load its listed `SKILL.md` before acting. Do not load several candidate workflows to decide among them.
-5. **Helpers and hidden context stay lazy.** Load TDD or domain modeling only when the selected owner requires it. Architecture is a visible owner, not a helper; hidden Ponytail is context-only and carries no route, mode, output cue, or runtime preference.
-6. **No matching skill means ordinary direct behavior; Quick-fix is session-owned.** Read-only answers and Nano work remain ordinary direct behavior with no state scan, Git operation, `.scratch` access, or skill load. The current session owner handles a known bounded behavioral fix as Quick-fix: first read the exact injected `PONYTAIL_CONTEXT_PATH`, write the exact Quick-fix plan, load `gsd-tdd` for RED→GREEN→refactor, then load `gsd-verify` for the Quick-fix WIP gate. Missing context stops; never derive its path. Scope expansion exits this path for normal discovery.
-7. **Lifecycle state is minimal and fail-closed.** Before non-direct GSD lifecycle work, apply the completed-state decision matrix below, then inspect only the minimum `.scratch` metadata needed to select validated active state.
-8. **Lifecycle work stays session-owner inline.** GSD dispatches no child implementation, repair, diagnosis, architecture, or verification task. A pre-existing bounded delegation follows only its assignment and never starts or resumes a GSD lifecycle.
+1. **Same-session continuity first.** This message extends the conversation and its settled decisions unless the user redirects. Continue the active owner; never restart discovery or reopen settled choices.
+2. **Explicit intent outranks inferred shape.** A direct request to review, diagnose, design interfaces, audit architecture, or pause selects that skill.
+3. **Validated active state outranks a new lifecycle.** `continue` alone is a bare resume: load `gsd-handoff` first, even beside one executing packet; its `next_action` picks the peer owner. `continue` plus a named feature, task, or repair is not bare: naming the work routes straight there: a pending task to `gsd-executing-plans`, an unapproved plan to `gsd-to-plan`, a Quick-fix repair round to `gsd-verify`.
+   A first-pending ledger row resumes through `gsd-handoff`, never replacement brainstorming. Several valid packets also load `gsd-handoff`, which selects exactly one resume: ask, never `fail-closed`. A plan-hash mismatch is an amendment its owner revalidates and rebinds, never a stop or `gsd-handoff` diversion. Unrelated new work beside an active or `merged-cleanup-pending` packet is `ordinary-routing`; only a discovered completed-retained or residual record reports `ignore-terminal-record`. Never infer validity from filenames.
+4. **Choose exactly one primary process owner.** Load its listed `SKILL.md` first, never several.
+5. **Helpers and hidden context stay lazy.** `gsd-tdd` is helper-only, never a `primarySkill`; load it only when its owner requires it. Architecture and domain modeling are visible owners; hidden Ponytail is context-only, carrying no route, mode, or output cue.
+6. **No matching skill means ordinary direct behavior; Quick-fix is session-owned.** Read-only answers, obvious errors, and Nano work stay direct: no state scan, Git, `.scratch`, or skill load. A fix already diagnosed stays direct, never a `primarySkill`: a named file/line or exact failure signature is located, so `gsd-diagnosing-bugs` owns only unlocated or non-obvious causes.
+   The session owner opens a larger bounded fix as Quick-fix: read the injected `PONYTAIL_CONTEXT_PATH`, write its plan, use `gsd-tdd`, then `gsd-verify` gates that packet. A returned Quick-fix WIP Fail leaves a repair round its prompt can name, which loads `gsd-verify` rather than answering directly. Missing context stops; scope expansion exits to discovery.
+7. **Lifecycle state is minimal and fail-closed.** Before non-direct lifecycle work, apply the matrix below, then read minimum `.scratch` metadata.
+8. **Lifecycle work stays session-owner inline.** GSD dispatches no child implementation, repair, diagnosis, architecture, or verification task; a pre-existing delegation follows only its assignment.
 
-A selected skill owns the flow until user change or documented transition: `gsd-brainstorming` → `gsd-to-plan`; approved plan → `gsd-executing-plans`; terminal execution → `gsd-verify`; validated resume → recorded owner.
+A skill owns the flow until user change or transition: `gsd-brainstorming` → `gsd-to-plan`; approved plan → `gsd-executing-plans`; terminal execution → `gsd-verify`; validated resume → its owner.
 
 ## Canonical authority
 
-Read `GSD_ROOT/skills/gsd/REFERENCE.md` only for needed canonical artifact, Git, recovery, state, or cleanup contracts. `plan.md` owns intent and stays amendable while executing; atomic `state.toon` only binds/reports its current bytes.
+Read `GSD_ROOT/skills/gsd/REFERENCE.md` for canonical artifact, Git, recovery, state, or cleanup contracts. `plan.md` owns intent and stays amendable while executing; atomic `state.toon` binds its current bytes.
 
-The core pipeline is `gsd-brainstorming` → `gsd-to-plan` → approval → `gsd-executing-plans` → `gsd-verify` → squash cleanup. The current top-level session is sole lifecycle authority and performs work inline. Every complete draft offers approve/execute, revise, and pause/save. Execution proceeds through Fast TDD, deterministic terminal conformance, then Deferred Slow E2E; source changes invalidate terminal evidence.
+The core pipeline is `gsd-brainstorming` → `gsd-to-plan` → approval → `gsd-executing-plans` → `gsd-verify` → squash cleanup. The top-level session is sole lifecycle authority, working inline. Every complete draft offers approve/execute, revise, and pause/save. Execution runs Fast TDD, deterministic terminal conformance, then Deferred Slow E2E; source changes invalidate terminal evidence.
 
 Reject legacy proposal/spec/design TOON, numbered handoffs, attempts, result markers, reload manifests, and stale non-authoritative state. Preserve the `REFERENCE.md` **Quick-fix plan exception**; Nano stays artifact/Git-free. If a milestone ledger is all-`done`, fail closed unless canonical completion conditions hold.
 
 ## Completed-state decision matrix
 
-Before non-direct lifecycle work, validate every discovered `.scratch/<feature>/state.toon`, then take the first match:
+Before non-direct lifecycle work, validate every discovered `.scratch/<feature>/state.toon`, then take the first match. `ignore-terminal-record` needs a discovered `phase=completed-retained` record or residual terminal bytes; with none present, unrelated work stays `ordinary-routing`.
 
 | Condition | Decision | Action |
 |---|---|---|
-| Prompt names a malformed state's directory, or is generic lifecycle continuation | `fail-closed` | Stop, naming that feature. |
-| A malformed state is unrelated to the prompt | `ordinary-routing` | Leave those bytes; continue selection. |
+| A full malformed packet (`plan.md` plus `state.toon`) | `fail-closed` | Stop, naming it; discovery throws for every prompt, even one naming another valid feature. |
+| Malformed residual bytes without a `plan.md` | `ordinary-routing` | Leave them; continue selection. |
 | Prompt names a valid `merged-cleanup-pending` state, or is lifecycle work | `cleanup-question` | Ask one question resuming its delete-or-retain decision; archive stays closed. |
-| That state is unrelated to the prompt | `ordinary-routing` | Continue direct behavior, no state scan. |
-| Explicit cleanup targets completed-retained or residual state | `cleanup-only` | Clean that named packet only. |
+| An unrelated valid `merged-cleanup-pending` state | `ordinary-routing` | Continue direct behavior, no state scan; never `ignore-terminal-record`. |
+| Explicit cleanup targets completed-retained or residual state | `cleanup-only` | Stop after cleaning that named packet; load no workflow skill. |
 | Resume or new-work intent targets a completed-retained feature | `block-resume` | Stop and report it completed. |
-| A completed-retained state is unrelated, including generic `continue` | `ignore-terminal-record` | Exclude terminal history; select active state. |
-| Nothing above applies | `ordinary-routing` | Continue automatic skill selection. |
+| An unrelated `phase=completed-retained` record or residual terminal bytes, including new work or generic `continue` | `ignore-terminal-record` | Report `ignore-terminal-record`, not `ordinary-routing`; exclude that history, select active state. |
+| Nothing above applies | `ordinary-routing` | Continue selection. |
 
-Terminal state gates only intent naming it or continuing the lifecycle; unrelated direct work is never blocked, and uncertain relatedness asks one question instead of stopping. Because unparsable bytes are untrustworthy, only the `.scratch/<feature>/` directory name decides relatedness; mtimes never compete with active packets.
+Terminal state gates only intent naming it or lifecycle work; unrelated direct work is never blocked, and uncertain relatedness asks one question instead of stopping. An active or `merged-cleanup-pending` packet is never terminal history, so unrelated new work beside one is `ordinary-routing`. Only the `.scratch/<feature>/` directory name decides relatedness.
 
 ## Recovery ownership
 
-A valid **Compaction Recovery Capsule** authoritatively selects one resume: follow its root/feature and load `gsd-handoff`. **Do not invoke or execute the capsule again, avoiding circular re-entry.**
+A valid **Compaction Recovery Capsule** selects one resume: follow its root/feature, load `gsd-handoff`. **Do not invoke or execute the capsule again, avoiding circular re-entry.**
 
-A malformed or ambiguous state or capsule resolves through the matrix above; missing state cannot authorize replacement brainstorming. Unrelated intent preserves active packets and routes normally.
+A malformed or ambiguous capsule resolves through the matrix above; missing state never authorizes replacement brainstorming.
 
 ## Scope discipline
 
-Read only prompt/owner-required named files and dependencies. Broad architecture traversal requires explicit intent. Stay in the tracked project; skip nested repositories, vendored tools, dependencies, outputs, submodules, and ignored paths.
+Read prompt/owner-required files and dependencies; broad traversal needs explicit intent. Stay in the tracked project; skip nested repos, vendored tools, outputs, submodules, ignored paths.
