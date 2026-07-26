@@ -43,6 +43,7 @@ Own request classification, feature convergence, plan approval and in-flight ame
 - `gsd-tdd` is helper-only and is never a primary owner; `gsd-domain-modeling` stays a selectable owner for explicit domain work.
 - Exact retained v1/v2 terminal records are structurally recognized during candidate discovery only to remain inert and byte-identical; an explicit read rejects them fail closed unchanged.
 - Full-plan approval, execution resume, terminal entry, pre-squash, and Quick-fix verification use the production Contract Validator before consuming plan authority.
+- Plan grammar owns every line: in both the full-plan and Quick-fix forms the title is followed directly by the first section, so preamble content between them is rejected rather than ignored.
 - Retained `schema:v3` stays inert and byte-identical during candidate discovery but migrates atomically on an explicit read after full validation.
 - Every converged feature records Domain Impact, including a concrete justification for `none`.
 - Every Quick-fix records the exact five-field Domain Impact; semantic fixes own affected shards and no-impact fixes carry concrete evidence.

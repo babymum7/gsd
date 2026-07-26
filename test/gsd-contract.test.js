@@ -99,6 +99,31 @@ test("validate-plan emits deterministic minimal TOON for a canonical plan", () =
   }
 });
 
+test("both plan grammars reject content between the title and the first section", () => {
+  // `validateSections` only inspects `## ` lines and `validateTitle` only counted `# `
+  // headings, leaving this region unowned: a canonical title could carry arbitrary
+  // preamble, or drift a blank line, and still validate as converged authority.
+  const cases = [
+    ["prose-preamble", "validate-plan", canonicalPlan().replace("# Plan\n", "# Plan\nstray preamble\n")],
+    ["blank-preamble", "validate-quick-fix", quickFixPlan().replace("# Quick-fix Plan\n", "# Quick-fix Plan\n\n")],
+  ];
+  for (const [feature, command, content] of cases) {
+    const { workspace, planPath } = makePlanWorkspace(feature, content);
+    try {
+      const result = spawnSync(process.execPath, [CLI, command, "--path", planPath], {
+        cwd: workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 1, `${feature}: ${result.stdout}`);
+      assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/);
+      assert.match(result.stdout, /must be followed directly by the first ## section/);
+      assert.equal(result.stderr, "");
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
 test("legacy path-only task grammar is rejected bound and unbound", () => {
   const plan = canonicalPlan("legacy-task").replace(
     "- **Files:**\n  - `tools/gsd-contract.mjs` — create: expose canonical plan validation",

@@ -1126,7 +1126,6 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
     "session_compact",
     "before_agent_start",
     "context",
-    "agent_end",
     "session_shutdown",
   ]) {
     assert.equal(typeof events[event], "function", `${event} handler`);
@@ -1187,7 +1186,9 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
     assert.equal(messageContainsBootstrap(reinjected.messages[1]), true);
     assert.equal(reinjected.messages[2], compacted[1]);
 
-    await events.agent_end({}, { cwd: workspace });
+    // No `agent_end` handler exists to disarm the cached payload between turns; a later
+    // registration that clears it would break re-injection on the next outgoing set.
+    assert.equal(events.agent_end, undefined, "agent_end must stay unregistered");
     const nextTurn = await events.context({ messages: original }, { cwd: workspace });
     assert.equal(messageContainsBootstrap(nextTurn.messages[0]), true);
     assert.deepEqual(loggedErrors, []);

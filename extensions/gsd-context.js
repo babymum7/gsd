@@ -1325,9 +1325,8 @@ function gsdContextExtension(pi) {
     });
   }
 
-  // Context replacements are provider-request-local, so keep the cached payload
-  // armed across agent turns and deduplicate against each outgoing message set.
-  pi.on('agent_end', async () => {});
+  // No `agent_end` handler: context replacements are provider-request-local, so the cached
+  // payload stays armed across agent turns and is deduplicated per outgoing message set.
 
   pi.on('session_shutdown', async () => {
     bootstrap = null;

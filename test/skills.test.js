@@ -2070,6 +2070,9 @@ test("AC-4: Concision preserves semantic parity", () => {
   assert.doesNotMatch(handoff, /schema:v4\nfeature:/);
   assert.match(reference, /### Fast TDD and task-loop constraints/);
   assert.match(reference, /deterministic cumulative conformance/);
+  // The validator owns the region between the title and the first section, so the grammar
+  // section must say so: silent preamble tolerance was the gap that made them disagree.
+  assert.match(reference, /any line between the title and its first section/);
   assert.match(execution, /Every observable task loads `gsd-tdd`/);
   assert.match(tdd, /RED before implementation/);
   assert.match(tdd, /GREEN after implementation/);

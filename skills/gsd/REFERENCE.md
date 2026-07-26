@@ -72,7 +72,7 @@ Every observable task loads `gsd-tdd` and uses a Fast TDD Check for RED before i
 
 ### Packet grammar
 
-All fields use exact headings, exact field labels, canonical field order, UTF-8, LF, and no blank leading/trailing lines. Reject missing, duplicate, malformed, unknown, empty, vague, or reordered required fields. Never normalize, infer, or repair source values.
+All fields use exact headings and labels, canonical order, UTF-8/LF, and no blank leading/trailing lines. Reject missing, duplicate, malformed, unknown, empty, vague, or reordered fields, and any line between the title and its first section. Never normalize, infer, or repair source values.
 
 `plan.md`:
 
@@ -171,10 +171,10 @@ A Quick-fix is not a converged feature packet. Its direct fast path writes a min
 
 It contains one or two sequential tasks with unique structured paths and a real focused command.
 - The exact five-field `Domain Impact` follows the canonical classification rules:
-- `none` requires concrete no-change evidence, every non-`none` classification changes production sources in exactly one task and gives that same task every affected `docs/domain/<context>.md` path, with prose and test paths never counting as the semantic change, and Quick-fix always records `Broad bootstrap: not-offered`.
+  - `none` requires concrete no-change evidence, every non-`none` classification changes production sources in exactly one task and gives that same task every affected `docs/domain/<context>.md` path, with prose and test paths never counting as the semantic change, and Quick-fix always records `Broad bootstrap: not-offered`.
 - An absent `docs/domain/index.md` keeps Quick-fix bounded:
-- `Broad bootstrap` stays `not-offered` and non-`none` impact bootstraps the feature-scoped shard inline in that same task.
-- Only an explicitly requested broad bootstrap exits the bounded route for normal discovery.
+  - `Broad bootstrap` stays `not-offered` and non-`none` impact bootstraps the feature-scoped shard inline in that same task.
+  - Only an explicitly requested broad bootstrap exits the bounded route for normal discovery.
 - Only the Quick-fix WIP verifier consumes this plan.
 - It has no proposal/spec/design source set, no normal-packet approval binding, and no normal-packet authority. Its `state.toon` records the validated hash; since `validate-quick-fix` takes no `--expected-sha256`, the gate compares its unbound revalidation against that record.
 - Ordinary packet validation MUST NOT classify it as malformed converged state or dispatch normal execution from it; its `gsd-verify` gate owns it until landing or a blocker.
