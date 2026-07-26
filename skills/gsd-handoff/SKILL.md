@@ -57,7 +57,15 @@ Without a supplied path, discover active candidates via [../gsd/REFERENCE.md](..
 - Malformed state fails closed, and a missing or malformed-grammar plan is Spec escalation. A plan whose bytes moved is not drift to stop on: revalidate and rebind it under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment, asking one question only when the change is material or unaccounted for.
 - Never reconstruct from dirty files, plan status, conversation, or legacy pre-approval TOON.
 
-For every Execution resume, run `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256>` after state validation and before deriving the peer owner. Exit 0 must report the same feature and hash; exit 1 on malformed grammar is Spec escalation, while a hash mismatch alone rebinds under § Plan amendment. Exit 2 corrects only the invocation.
+For every Execution resume, after state validation and before deriving the peer owner, select the validator by probe: `schema:v4` records no grammar kind, so never assume one.
+
+1. Run `node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md`. Exit 0 is a Quick-fix packet; it accepts no `--expected-sha256`, so compare its returned `sha256` against `state.plan_sha256`.
+2. Exit 1 means the bytes are not Quick-fix grammar: run `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256>`. Exit 0 resumes the full plan.
+3. On exit 1 there, revalidate unbound with `node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md`: exit 0 proves the bytes only moved, which the rebind rule below resolves; exit 1 means both grammars reject the packet, which is Spec escalation.
+
+Exit 2 is never escalation: correct the invocation and rerun. A bound call checks the hash before parsing, so on its own it never proves malformed grammar. A Quick-fix plan is never malformed converged state: escalating it because the full-plan grammar rejected it is a validator-selection error.
+
+The probe reads current bytes, so it proves the recorded grammar only when the hash matches. On any difference the prior kind is unprovable, because a packet rewritten into the other grammar probes just as clean: resume asks one question naming the grammar that accepts the bytes now and stating that the prior kind cannot be proven, then rebinds only if the user accepts the current grammar.
 
 A valid Execution resume verifies `schema:v4`, plan hash/path, base/WIP, last green task/commit, and current tree, then rebuilds the active slice including `Domain Impact`. Resume validates whether verification must continue before repair, E2E, or merge. These stages add no state keys.
 

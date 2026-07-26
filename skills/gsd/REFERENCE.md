@@ -200,7 +200,9 @@ Success emits only deterministic scalar TOON fields `status`, `kind`, `feature`,
 - A fresh approval after Spec escalation atomically supersedes the older binding.
 - Full semantic parse and binding checks run only at approval, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use the retained validated slice.
 
-The executable validator runs without `--expected-sha256` at new-plan approval and when revalidating an amendment before rebinding; resume, execution entry, terminal entry, and pre-squash use the bound-hash form. Quick-fix verification uses `validate-quick-fix`.
+The executable validator runs without `--expected-sha256` at new-plan approval and when revalidating an amendment before rebinding; resume, execution entry, terminal entry, and pre-squash use the bound-hash form for a full plan. Quick-fix verification and resume use `validate-quick-fix`.
+
+Because `state.toon` records no grammar kind, resume probes `validate-quick-fix` first and only then the full-plan form; a bound call checks the hash before parsing, so an unbound revalidation is what separates moved bytes from malformed grammar. The probe proves the recorded grammar only on a hash match; on any difference the prior kind is unprovable, so resume asks before rebinding to the current grammar.
 
 No model, agent, or persistent session identity participates in approval. The current top-level session is the sole lifecycle authority; a later session assumes that role only through canonical rehydration.
 

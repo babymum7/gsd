@@ -2043,7 +2043,7 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
 test("AC-4: Concision preserves semantic parity", () => {
   const MAX_VISIBLE_WORDS = 10900;
   const MAX_BOOTSTRAP_WORDS = 980;
-  const MAX_REFERENCE_WORDS = 4870;
+  const MAX_REFERENCE_WORDS = 4940;
   const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
   assert.equal(visible.length, 9);
@@ -2052,8 +2052,10 @@ test("AC-4: Concision preserves semantic parity", () => {
     0,
   );
   assert.ok(total <= MAX_VISIBLE_WORDS, `${total} must not exceed ${MAX_VISIBLE_WORDS}`);
-  assert.ok(wordCount(read("skills/gsd/SKILL.md")) <= MAX_BOOTSTRAP_WORDS);
-  assert.ok(wordCount(read("skills/gsd/REFERENCE.md")) <= MAX_REFERENCE_WORDS);
+  const bootstrapWords = wordCount(read("skills/gsd/SKILL.md"));
+  const referenceWords = wordCount(read("skills/gsd/REFERENCE.md"));
+  assert.ok(bootstrapWords <= MAX_BOOTSTRAP_WORDS, `${bootstrapWords} must not exceed ${MAX_BOOTSTRAP_WORDS}`);
+  assert.ok(referenceWords <= MAX_REFERENCE_WORDS, `${referenceWords} must not exceed ${MAX_REFERENCE_WORDS}`);
 
   const reference = read("skills/gsd/REFERENCE.md");
   const execution = read("skills/gsd-executing-plans/SKILL.md");
@@ -2367,6 +2369,25 @@ test("an executing owner amends the plan in place instead of blocking", () => {
   assert.match(amendment, /validate-quick-fix/);
   assert.match(amendment, /grammar/i);
   assert.match(domain, /validate-quick-fix/);
+
+  // Resume has the same grammar hazard as amendment, but `schema:v4` records no kind
+  // discriminator, so "use the matching validator" is unactionable. The probe order is
+  // the contract: `validate-quick-fix` first (a full plan exits 1 there), then the bound
+  // full-plan form. A bound call checks the hash before parsing, so only an unbound
+  // revalidation separates moved bytes from genuinely malformed grammar.
+  const resume = handoff.match(/^For every Execution resume[\s\S]*?(?=\nA valid Execution resume)/m)[0];
+  assert.match(resume, /validate-quick-fix[\s\S]*validate-plan/);
+  assert.match(resume, /no grammar kind/);
+  assert.match(resume, /unbound/);
+  assert.match(resume, /Exit 2 is never escalation/);
+  assert.doesNotMatch(resume, /For every Execution resume, run `node tools\/gsd-contract\.mjs validate-plan/);
+  assert.match(domain, /probing `validate-quick-fix` before the full-plan validator/);
+  // The probe reads current bytes, not the bound kind: a packet rewritten into the other
+  // grammar probes clean, so a hash mismatch can never prove the prior kind. Any rule that
+  // rebinds silently, or claims to know "the same grammar", is unexecutable — ask instead.
+  assert.match(resume, /prior kind is unprovable/);
+  assert.doesNotMatch(resume, /same proven grammar/);
+  assert.match(domain, /prior packet kind is unprovable/);
 
   // A Quick-fix carries no normal-packet approval authority, yet its state records
   // and rebinds a validated `plan_sha256` — both merged Quick-fix features did. The

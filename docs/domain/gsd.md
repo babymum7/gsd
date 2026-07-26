@@ -46,7 +46,9 @@ Own request classification, feature convergence, plan approval and in-flight ame
 - Retained `schema:v3` stays inert and byte-identical during candidate discovery but migrates atomically on an explicit read after full validation.
 - Every converged feature records Domain Impact, including a concrete justification for `none`.
 - Every Quick-fix records the exact five-field Domain Impact; semantic fixes own affected shards and no-impact fixes carry concrete evidence.
-- A Quick-fix carries a recorded runtime binding without normal-packet approval authority: its `state.toon` holds the validated `plan_sha256`, and its gate compares that value against an unbound revalidation.
+- A Quick-fix carries a recorded runtime binding without normal-packet approval authority: its `state.toon` holds the validated `plan_sha256`, and both its resume revalidation and its gate compare that value against an unbound revalidation, since `validate-quick-fix` accepts no bound hash.
+- Resume selects the plan grammar by probing `validate-quick-fix` before the full-plan validator, because runtime state records no grammar kind; a bound full-plan call reports a hash mismatch before parsing, so only an unbound revalidation distinguishes moved bytes from malformed grammar.
+- A resume probe proves the recorded grammar only when the hash matches; on any difference the prior packet kind is unprovable, so resume asks one question and rebinds only to a user-accepted current grammar.
 - Semantic code and affected domain docs share one owning task and agree at each green checkpoint.
 - Before approval, affected domain paths may be reserved but domain prose never describes unshipped target behavior.
 - A broad domain bootstrap is never offered when `docs/domain/index.md` exists.
