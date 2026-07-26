@@ -1475,15 +1475,26 @@ test("prototype review captures accepted feedback before the surface locks", () 
   assert.match(prototyping, /component framework uses that framework instead/i);
 
   // Tool configuration is one of the obligations the standard binds, not a loose bullet
-  // beside them, so the preamble enumerating what the standard binds names it too.
+  // beside them, so the preamble naming the bound obligations includes it.
   assert.match(
     prototyping,
-    /standard binds[\s\S]{0,400}(?:configur|working directory)/i,
+    /bound obligations[\s\S]{0,400}(?:configur|working directory)/i,
     "the Design standard preamble binds tool configuration as an obligation",
   );
+  // The preamble names which obligations it binds; claiming every following bullet would
+  // sweep in the interaction-rule ledger read, which the already-recorded rules require
+  // rather than the design-standard obligations.
+  assert.doesNotMatch(prototyping, /binds every bullet/i);
+  assert.match(
+    prototyping,
+    /interaction-rule ledger[\s\S]{0,240}(?:rules already recorded|already recorded in it)/i,
+    "the preamble attributes the ledger read to the rules already recorded in it",
+  );
+  assert.doesNotMatch(prototyping, /own invariant/i);
 
-  // The domain shard's design-standard invariant enumerates the same obligation set, so a
-  // reader of either artifact gets the tool-configuration obligation.
+  // Both artifacts carry the tool-configuration obligation, and both attribute the ledger
+  // read to the rules already recorded in it, so neither claims the other's scope and
+  // neither describes document structure in place of behavior.
   const domain = read("docs/domain/gsd.md");
   const invariant = domain.split("\n").find((line) => /^- The design standard binds obligations/.test(line));
   assert.ok(invariant, "the shard records a design-standard invariant");
@@ -1491,6 +1502,12 @@ test("prototype review captures accepted feedback before the surface locks", () 
   assert.match(invariant, /`design\/`/);
   assert.match(invariant, /writes? files|file-writing/i);
   assert.match(invariant, /inline artifact/i);
+  assert.match(
+    invariant,
+    /interaction-rule ledger[\s\S]{0,240}(?:rules already recorded|already recorded in it)/i,
+    "the invariant attributes the ledger read to the rules already recorded in it",
+  );
+  assert.doesNotMatch(invariant, /own invariant|part of this enumeration/i);
 });
 
 test("domain modeling keeps preapproval writes current-only and reads affected shards only", () => {

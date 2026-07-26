@@ -27,7 +27,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 The prototype is real code under a repository-root `design/` directory, seeded from this skill's `template/` directory. Copy it once; never edit the template to serve one feature. The repository-root `AGENTS.md` is the only agent contract and governs `design/` too; `design/DESIGN.md` is a design artifact recording the structure that directory uses, never a second instruction file.
 
-The standard binds every bullet below as an obligation, tool configuration included: the working directory set to the repository root, generated design files targeted at `design/`, and a run whose agent writes files rather than one returning a single inline artifact block. Mechanics named beside an obligation are this template's example, never the rule.
+The bound obligations include tool configuration: the working directory set to the repository root, generated design files targeted at `design/`, and a run whose agent writes files rather than one returning a single inline artifact block. Mechanics named beside an obligation are this template's example, never the rule. Reading the interaction-rule ledger below is required by the rules already recorded in it, which constrain every surface change whether or not an obligation applies.
 
 - Every color, spacing, radius, and type value comes from a declared token, never an inline literal. The template declares them as DTCG JSON built into CSS custom properties; any equivalent token layer satisfies this.
 - Repeated markup becomes one extracted component consuming only those token values. The template extracts light-DOM custom elements because it is dependency-free; a project on a component framework uses that framework instead.
