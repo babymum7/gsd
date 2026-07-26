@@ -625,6 +625,35 @@ test("T3 Review Fixes detailed behavior", async (t) => {
     }
   });
 
+  // The matrix splits on plan.md: "Malformed residual bytes without a `plan.md`" routes
+  // ordinarily, while a full malformed packet fails closed. A defective state.toon was
+  // throwing before plan.md was known, so plan-less residue took down every prompt.
+  await t.test("proves a defective state.toon fails closed only beside a real plan.md", () => {
+    const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-residual-"));
+    const scratchDir = join(tempDir, ".scratch");
+    mkdirSync(scratchDir);
+    const target = join(tempDir, "state-target.toon");
+    writeFileSync(target, "schema:v4\n");
+
+    // Plan-less residue: a symlink state.toon and a directory state.toon are both left alone.
+    const linkOnly = join(scratchDir, "residual-link");
+    mkdirSync(linkOnly);
+    symlinkSync(target, join(linkOnly, "state.toon"));
+    const dirOnly = join(scratchDir, "residual-dir");
+    mkdirSync(dirOnly);
+    mkdirSync(join(dirOnly, "state.toon"));
+
+    try {
+      assert.deepEqual(detectCandidates(tempDir), []);
+
+      // Adding plan.md turns the same bytes into a full malformed packet.
+      writeFileSync(join(linkOnly, "plan.md"), "# Plan\n");
+      assert.throws(() => detectCandidates(tempDir), /symlink|state\.toon/i);
+    } finally {
+      rmSync(tempDir, { recursive: true, force: true });
+    }
+  });
+
   // 5. recursion/repeated capsule instructions test:
   await t.test("proves no recursion/repeated capsule instructions in master or handoff", () => {
     const master = readFileSync(join(ROOT, "skills/gsd/SKILL.md"), "utf8");

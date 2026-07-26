@@ -1026,15 +1026,23 @@ function detectCandidates(cwd) {
 
     let hasPlan = false;
     let hasState = false;
+    let stateDefect = null;
     for (const subEntry of subEntries) {
       if (subEntry.name === 'plan.md' && subEntry.isFile()) hasPlan = true;
       else if (subEntry.name === STATE_FILE) {
         if (typeof subEntry.isSymbolicLink === 'function' && subEntry.isSymbolicLink()) {
-          throw sanitizeStateError(new Error(`${name}: symlink state.toon rejected`), 'state.toon');
-        }
-        if (subEntry.isFile()) hasState = true;
-        else throw sanitizeStateError(new Error(`${name}: state.toon must be a regular file`), 'state.toon');
+          stateDefect = `${name}: symlink state.toon rejected`;
+        } else if (subEntry.isFile()) hasState = true;
+        else stateDefect = `${name}: state.toon must be a regular file`;
       }
+    }
+
+    // Entry order is filesystem order, so the verdict waits until plan.md is known: a
+    // defective state.toon beside a real plan.md is a full malformed packet and fails
+    // closed, while without plan.md it is plan-less residue that discovery leaves alone.
+    if (stateDefect) {
+      if (!hasPlan) continue;
+      throw sanitizeStateError(new Error(stateDefect), 'state.toon');
     }
 
     // No state authority => ignore (legacy handoff-only, plan-only, etc.).
