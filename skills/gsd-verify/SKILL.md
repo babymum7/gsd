@@ -9,7 +9,7 @@ consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AG
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
 - Do-not-load: invent completion without deterministic gates; per-task terminal verification
-- Transition: planned green path performs squash, automatic cleanup, and optional retain/archive
+- Transition: planned or Quick-fix green path performs squash, automatic cleanup, and optional retain/archive
 
 # Verify
 

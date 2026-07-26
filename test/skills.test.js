@@ -2028,6 +2028,19 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
   assert.equal(new Set(rows.map((row) => row.skill)).size, 9, "no multiply mapped skill");
 
   const vague = /\b(as needed|if useful|when appropriate|sometimes|maybe|etc\.?|TBD|TODO)\b/i;
+  // Only the Do-not-load and Transition labels were pinned, so a skill could restate another
+  // skill's guard or understate its own exit: `gsd-diagnosing-bugs` carried brainstorming's
+  // "known single-spot quick fix" while its row forbids a located failure, and `gsd-verify`
+  // claimed only the planned green path squashes. Connectives and plural inflection
+  // paraphrase freely; every content word of the canonical cell must survive.
+  const CONNECTIVES = new Set(["still", "used", "with", "work", "from", "that", "this", "when", "only", "into"]);
+  const stem = (word) => (word.endsWith("s") && !word.endsWith("ss") ? word.slice(0, -1) : word);
+  const contentWords = (text) =>
+    text
+      .toLowerCase()
+      .split(/[^a-z0-9]+/)
+      .filter((word) => word.length >= 4 && !CONNECTIVES.has(word))
+      .map(stem);
   const helpers = [];
   for (const row of rows) {
     assert.ok(row.intent && row.intent !== "—" && row.intent.length > 8, `${row.skill} exact intent`);
@@ -2048,22 +2061,15 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
     const skillMd = read(`skills/${row.skill}/SKILL.md`);
     assert.match(skillMd, /Visible skill mandatory-use matrix/);
     assert.match(skillMd, new RegExp(`Role:\\s*${row.role}`));
-    // Only the label was pinned, so a skill could restate a different skill's guard:
-    // `gsd-diagnosing-bugs` carried brainstorming's "known single-spot quick fix" while
-    // its row forbids a located failure. Connective words paraphrase freely; every
-    // content word of the canonical cell must survive into the skill's own line.
-    const CONNECTIVES = new Set(["still", "used", "with", "work", "from", "that", "this", "when", "only", "into"]);
-    const contentWords = (text) =>
-      text
-        .toLowerCase()
-        .split(/[^a-z0-9]+/)
-        .filter((word) => word.length >= 4 && !CONNECTIVES.has(word));
-    const doNotLoadLine = skillMd.match(/^- Do-not-load: (.+)$/m);
-    assert.ok(doNotLoadLine, `${row.skill} restates Do-not-load`);
-    const restated = new Set(contentWords(doNotLoadLine[1]));
-    const dropped = contentWords(row.doNotLoad).filter((word) => !restated.has(word));
-    assert.deepEqual(dropped, [], `${row.skill} drops canonical Do-not-load terms: ${dropped.join(", ")}`);
-    assert.match(skillMd, /Transition:/i);
+    const pinRestatement = (label, canonical) => {
+      const line = skillMd.match(new RegExp(`^- ${label}: (.+)$`, "m"));
+      assert.ok(line, `${row.skill} restates ${label}`);
+      const restated = new Set(contentWords(line[1]));
+      const dropped = contentWords(canonical).filter((word) => !restated.has(word));
+      assert.deepEqual(dropped, [], `${row.skill} drops canonical ${label} terms: ${dropped.join(", ")}`);
+    };
+    pinRestatement("Do-not-load", row.doNotLoad);
+    pinRestatement("Transition", row.transition);
     if (row.role === "helper") assert.match(skillMd, /Helper-when:/i);
   }
 
