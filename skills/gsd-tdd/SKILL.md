@@ -8,7 +8,7 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md, plan.md, state.toon]
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: helper
-- Helper-when: must load when an observable task is implemented or repaired inline; cannot be skipped while that condition holds
+- Helper-when: must load when an observable task is selected or repaired inline; cannot be skipped while that condition holds
 - Do-not-load: primary skill selection; resource-heavy browser/E2E task loops
 - Transition: return green/red evidence to the session owner
 

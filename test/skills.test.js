@@ -2070,7 +2070,7 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
     };
     pinRestatement("Do-not-load", row.doNotLoad);
     pinRestatement("Transition", row.transition);
-    if (row.role === "helper") assert.match(skillMd, /Helper-when:/i);
+    if (row.role === "helper") pinRestatement("Helper-when", row.helperWhen);
   }
 
   assert.deepEqual(helpers.sort(), ["gsd-domain-modeling", "gsd-tdd"]);
