@@ -1473,6 +1473,24 @@ test("prototype review captures accepted feedback before the surface locks", () 
   assert.match(prototyping, /declared token, never an inline literal/i);
   assert.match(prototyping, /one extracted component/i);
   assert.match(prototyping, /component framework uses that framework instead/i);
+
+  // Tool configuration is one of the obligations the standard binds, not a loose bullet
+  // beside them, so the preamble enumerating what the standard binds names it too.
+  assert.match(
+    prototyping,
+    /standard binds[\s\S]{0,400}(?:configur|working directory)/i,
+    "the Design standard preamble binds tool configuration as an obligation",
+  );
+
+  // The domain shard's design-standard invariant enumerates the same obligation set, so a
+  // reader of either artifact gets the tool-configuration obligation.
+  const domain = read("docs/domain/gsd.md");
+  const invariant = domain.split("\n").find((line) => /^- The design standard binds obligations/.test(line));
+  assert.ok(invariant, "the shard records a design-standard invariant");
+  assert.match(invariant, /working directory[\s\S]{0,140}repository root/i);
+  assert.match(invariant, /`design\/`/);
+  assert.match(invariant, /writes? files|file-writing/i);
+  assert.match(invariant, /inline artifact/i);
 });
 
 test("domain modeling keeps preapproval writes current-only and reads affected shards only", () => {
