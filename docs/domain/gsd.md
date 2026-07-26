@@ -76,7 +76,7 @@ Own request classification, feature convergence, plan approval and in-flight ame
 ### Lock a prototype before requirements
 
 1. Adopt or create the `design/` design-system and interaction-rule documents under the repository-root `AGENTS.md` contract, using the shipped template as a copyable product-neutral example rather than an enforced layout.
-2. Build the surface with any AI design tool, keeping every prototype artifact under `design/` and its runtime output uncommitted. A single-file tool dump is decomposed into separate files, components, and surface documents before lock.
+2. Build the surface with any AI design tool, running it from the repository root with the root `AGENTS.md` and `design/DESIGN.md` as its context. Every prototype artifact stays under `design/` and the tool's runtime output stays uncommitted. A single-file artifact is decomposed into separate files, components, and surface documents before lock.
 3. Review the prototype with the user, recording each accepted system-wide rule in the interaction-rule ledger and each surface-specific decision in that surface's document.
 4. Lock the prototype once no accepted feedback is unrecorded, then transition to requirements convergence with the locked artifacts as the surface source of truth.
 

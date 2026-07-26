@@ -1412,10 +1412,12 @@ test("repository root instructs agents on design ownership", () => {
   assert.match(agents, /backend-only[\s\S]{0,160}no design impact/i);
   // A system-wide accepted rule is durable; per-surface states stay with their surface.
   assert.match(agents, /`design\/docs\/interaction-rules\.md`/);
-  // Any tool may write into design/, but a single-file dump is an input to decompose, not
-  // a resting state: the prototype is used like a real app, so it carries a real structure.
+  // Supplying context is the obligation: the tool runs from the repository root with this
+  // file and `design/DESIGN.md` in scope. A single-file artifact is an input to decompose,
+  // whatever produced it.
   assert.match(agents, /[Aa]ny AI design tool/);
-  assert.match(agents, /single[- ]file[\s\S]{0,200}(?:decompose|split)/i);
+  assert.match(agents, /repository root[\s\S]{0,200}`design\/DESIGN\.md`[\s\S]{0,80}context/i);
+  assert.match(agents, /single[- ]file[\s\S]{0,240}(?:decompose|split)/i);
   assert.match(agents, /before[\s\S]{0,120}lock/i);
   for (const entry of [".od/", ".live-artifacts/", ".file-versions/"]) {
     assert.ok(
@@ -1441,10 +1443,12 @@ test("prototype review captures accepted feedback before the surface locks", () 
   assert.match(prototyping, /^\d+\. [^\n]*(?:accepted|unrecorded)[^\n]*$/m, "a lock criterion covers accepted feedback");
   assert.match(prototyping, /read[\s\S]{0,160}interaction-rules\.md[\s\S]{0,200}before/i);
 
-  // The skill reads the root contract, never a nested one, and a single-file tool dump is
-  // decomposed into the split structure before the surface can lock.
+  // The skill reads the root contract, never a nested one, and supplies it together with
+  // `design/DESIGN.md` as the design tool's context. A single-file artifact is decomposed
+  // before the surface can lock.
   assert.match(prototyping, /root `AGENTS\.md`/);
   assert.doesNotMatch(prototyping, /`design\/AGENTS\.md`/);
+  assert.match(prototyping, /`design\/DESIGN\.md` as its context/);
   assert.match(prototyping, /single[- ]file[\s\S]{0,240}(?:decompose|split)/i);
   assert.match(prototyping, /^\d+\. [^\n]*(?:decomposed|split into)[^\n]*$/m, "a lock criterion covers the structure");
 

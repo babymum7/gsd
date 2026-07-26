@@ -6,8 +6,8 @@ into, then keep this document describing what exists.
 
 Agent instructions live in the repository-root `AGENTS.md`, not here. This file is a
 design artifact: it records the structure and standards of this directory so any agent
-or design tool driving it produces the same shape. It is written to be usable directly
-as a system prompt for an external design tool.
+or design tool driving it produces the same shape. It is written to be supplied as context
+to an external design tool, directly usable as a system prompt.
 
 Two layers live in this file. The **obligations** are product-neutral and
 framework-neutral: declared tokens instead of inline literals, repeated markup extracted
@@ -35,11 +35,11 @@ That is why it carries a real structure rather than one page of markup:
 - visual values in `tokens/`, never inline literals;
 - one document per surface under `docs/`.
 
-A design tool that emits a single-file HTML dump has produced an **input**, not a
-resting state. Decompose it into the structure above before the surface locks: split the
-markup into its surfaces, lift repeated parts into primitives, extract every literal
-into a token, and write the surface document. A locked surface is never one
-undifferentiated file.
+A single-file artifact is an **input**, not a resting state, whatever produced it: design
+tools legitimately emit one self-contained page, and this directory is not one page.
+Decompose it into the structure above before the surface locks: split the markup into its
+surfaces, lift repeated parts into primitives, extract every literal into a token, and
+write the surface document. A locked surface is never one undifferentiated file.
 
 ## Tokens are the only source of visual values
 

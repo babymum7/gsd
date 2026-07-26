@@ -289,8 +289,9 @@ test("template instruction files state the design standard obligations", () => {
   assert.match(design, /token/i, "requires token use");
   assert.match(design, /(?:component|primitive)/i, "requires component extraction");
   assert.match(design, /check:fast[\s\S]{0,400}check:slow/, "states the fast and slow split");
-  // Clean architecture is the point: a single-file dump gets decomposed into real files,
-  // components, and docs, because the prototype is exercised like a real app.
+  // Clean architecture is the point: this file is written to be supplied as tool context,
+  // and a single-file artifact is decomposed into real files, components, and docs.
+  assert.match(design, /supplied as context/i);
   assert.match(design, /single[- ]file[\s\S]{0,240}(?:decompose|split)/i);
   assert.match(design, /like a real app|as a real app/i);
   // The obligations are reusable: nothing in them may name this product, its domain, one
