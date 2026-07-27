@@ -1396,9 +1396,11 @@ test("UI Impact is written, retained, and revalidated across the lifecycle", () 
   assert.match(domain, /\| Lock a prototype \| .+ \|/);
   assert.match(domain, /^### P-gsd-15: [^\n]*prototype/im);
   // The prototype-lock walkthrough records the configuration this repository sets, not a
-  // tool habit: working directory at the repository root, generated files targeted at
-  // `design/`, and a file-writing run over one inline artifact block.
+  // tool habit: working directory at the repository root, the meta directory that contains
+  // the agent session, generated files targeted at `design/`, and a file-writing run over
+  // one inline artifact block.
   assert.match(domain, /working directory[\s\S]{0,140}repository root/i);
+  assert.match(domain, /meta directory[\s\S]{0,160}`design\/`/i);
   assert.match(domain, /writes? files|file-writing/i);
   assert.match(domain, /inline artifact/i);
 });
@@ -1408,9 +1410,11 @@ test("repository root instructs agents on design ownership", () => {
   const gitignore = read(".gitignore");
 
   assert.equal(agents.match(/^## Design documentation$/gm)?.length, 1, "exactly one canonical design section");
-  // The root file is the only agent contract: this repository sets the design tool's
-  // working directory to the repository root, so a nested design/AGENTS.md would compete.
+  // The root file is the only agent contract, and it reaches the agent because it is
+  // supplied as context: deriving that from the working directory is unsupported, since the
+  // agent session runs in the meta directory while the working directory stays the root.
   assert.match(agents, /root `AGENTS\.md`[\s\S]{0,200}only agent contract/i);
+  assert.doesNotMatch(agents, /working directory is set to this repository root, so its agent reads this file/i);
   assert.doesNotMatch(agents, /`design\/AGENTS\.md`/);
   assert.match(agents, /prototype artifacts[\s\S]{0,160}under `design\/`/i);
   // design/ is the source of truth for surface behavior; production code converts from it.
@@ -1419,12 +1423,14 @@ test("repository root instructs agents on design ownership", () => {
   // A system-wide accepted rule is durable; per-surface states stay with their surface.
   assert.match(agents, /`design\/docs\/interaction-rules\.md`/);
   // Configuration is the obligation, never an asserted tool habit: this repository sets the
-  // tool's working directory to the repository root, targets its generated design files at
-  // `design/`, and supplies this file plus `design/DESIGN.md` as context. A file-writing run
-  // keeps the surface separated; a single-file artifact is still an input to decompose.
+  // tool's working directory to the repository root, its meta directory to `design/` so the
+  // agent session is contained there, targets its generated design files at `design/`, and
+  // supplies this file plus `design/DESIGN.md` as context. A file-writing run keeps the
+  // surface separated; a single-file artifact is still an input to decompose.
   assert.match(agents, /[Aa]ny AI design tool/);
   assert.match(agents, /working directory[\s\S]{0,140}repository root/i);
   assert.doesNotMatch(agents, /design tools open the repository root/i);
+  assert.match(agents, /meta directory[\s\S]{0,160}`design\/`/i);
   assert.match(agents, /generated[\s\S]{0,100}`design\/`/i);
   assert.match(agents, /`design\/DESIGN\.md`[\s\S]{0,100}context/i);
   assert.match(agents, /writes? files[\s\S]{0,200}inline artifact/i);

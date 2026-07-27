@@ -291,10 +291,13 @@ test("template instruction files state the design standard obligations", () => {
   assert.match(design, /check:fast[\s\S]{0,400}check:slow/, "states the fast and slow split");
   // Clean architecture is the point: this file is written to be supplied as tool context,
   // and it records the configuration this repository sets rather than any tool habit —
-  // working directory at the repository root, generated files targeted at this directory,
-  // and a run that writes files instead of returning one inline artifact block.
+  // working directory at the repository root, the meta directory that contains the agent
+  // session, generated files targeted at this directory, and a run that writes files
+  // instead of returning one inline artifact block.
   assert.match(design, /supplied as context/i);
   assert.match(design, /working directory[\s\S]{0,140}repository root/i);
+  assert.match(design, /meta directory[\s\S]{0,160}`design\/`/i);
+  assert.doesNotMatch(design, /working directory is set to the repository root, so its agent reads/i);
   assert.match(design, /generated[\s\S]{0,120}`design\/`/i);
   assert.match(design, /writes? files[\s\S]{0,200}inline artifact/i);
   assert.match(design, /single[- ]file[\s\S]{0,240}(?:decompose|split)/i);

@@ -10,10 +10,11 @@ or design tool driving it produces the same shape. It is written to be supplied 
 to an external design tool, directly usable as a system prompt.
 
 The tool is configured against this repository rather than left on its defaults: its
-working directory is set to the repository root, so its agent reads the root `AGENTS.md`
-together with this file, and its generated design files are targeted at `design/`. Require
-a run whose agent writes files rather than one that returns a single inline artifact block,
-so the surface arrives already separated.
+working directory is set to the repository root, its meta directory is set to `design/`,
+containing the agent session it opens, and its generated design files are targeted at
+`design/`. The root `AGENTS.md` and this file are supplied as its context. Require a run
+whose agent writes files rather than one that returns a single inline artifact block, so
+the surface arrives already separated.
 
 Two layers live in this file. The **obligations** are product-neutral and
 framework-neutral: declared tokens instead of inline literals, repeated markup extracted
