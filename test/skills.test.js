@@ -1395,14 +1395,18 @@ test("UI Impact is written, retained, and revalidated across the lifecycle", () 
   assert.match(domain, /^### Lock a prototype before requirements$/m);
   assert.match(domain, /\| Lock a prototype \| .+ \|/);
   assert.match(domain, /^### P-gsd-15: [^\n]*prototype/im);
-  // The prototype-lock walkthrough records the configuration this repository sets, not a
-  // tool habit: working directory at the repository root, the meta directory that contains
-  // the agent session, generated files targeted at `design/`, and a file-writing run over
-  // one inline artifact block.
-  assert.match(domain, /working directory[\s\S]{0,140}repository root/i);
-  assert.match(domain, /meta directory[\s\S]{0,160}`design\/`/i);
-  assert.match(domain, /writes? files|file-writing/i);
-  assert.match(domain, /inline artifact/i);
+  // The prototype-lock walkthrough records what the repository must end up holding, not how
+  // one tool is invoked: the surface arrives under `design/` already decomposed, the root
+  // contract is supplied wherever the agent runs, and the tool's runtime output stays
+  // uncommitted. Requiring a working directory, a meta directory, or a run mode would forbid
+  // starting an agent inside `design/`, which is a supported flow.
+  assert.match(domain, /any (?:AI )?design tool/i);
+  assert.doesNotMatch(domain, /working directory[^.]{0,80}repository root/i);
+  assert.doesNotMatch(domain, /meta directory/i);
+  assert.doesNotMatch(domain, /inline artifact/i);
+  assert.match(domain, /repository root or (?:from )?(?:in|inside) `design\/`/i);
+  assert.match(domain, /decompos[\s\S]{0,200}before[\s\S]{0,60}lock/i);
+  assert.match(domain, /runtime output[\s\S]{0,80}uncommitted/i);
 });
 
 test("repository root instructs agents on design ownership", () => {
@@ -1410,11 +1414,14 @@ test("repository root instructs agents on design ownership", () => {
   const gitignore = read(".gitignore");
 
   assert.equal(agents.match(/^## Design documentation$/gm)?.length, 1, "exactly one canonical design section");
-  // The root file is the only agent contract, and it reaches the agent because it is
-  // supplied as context: deriving that from the working directory is unsupported, since the
-  // agent session runs in the meta directory while the working directory stays the root.
+  // The root file is the only agent contract and reaches the agent because it is supplied
+  // as context. That holds wherever the agent is started, so the contract binds the outcome
+  // under `design/` rather than a working directory, a meta directory, or a run mode.
   assert.match(agents, /root `AGENTS\.md`[\s\S]{0,200}only agent contract/i);
   assert.doesNotMatch(agents, /working directory is set to this repository root, so its agent reads this file/i);
+  assert.doesNotMatch(agents, /working directory[^.]{0,80}repository root/i);
+  assert.doesNotMatch(agents, /meta directory/i);
+  assert.doesNotMatch(agents, /inline artifact/i);
   assert.doesNotMatch(agents, /`design\/AGENTS\.md`/);
   assert.match(agents, /prototype artifacts[\s\S]{0,160}under `design\/`/i);
   // design/ is the source of truth for surface behavior; production code converts from it.
@@ -1422,18 +1429,16 @@ test("repository root instructs agents on design ownership", () => {
   assert.match(agents, /backend-only[\s\S]{0,160}no design impact/i);
   // A system-wide accepted rule is durable; per-surface states stay with their surface.
   assert.match(agents, /`design\/docs\/interaction-rules\.md`/);
-  // Configuration is the obligation, never an asserted tool habit: this repository sets the
-  // tool's working directory to the repository root, its meta directory to `design/` so the
-  // agent session is contained there, targets its generated design files at `design/`, and
-  // supplies this file plus `design/DESIGN.md` as context. A file-writing run keeps the
-  // surface separated; a single-file artifact is still an input to decompose.
+  // Configuration is outcome-based: whichever design tool runs, and whether its agent starts
+  // at the repository root or inside `design/`, it is supplied this file plus
+  // `design/DESIGN.md` as context, every generated design artifact lands under `design/`
+  // already decomposed, and the tool's own runtime output stays uncommitted.
   assert.match(agents, /[Aa]ny AI design tool/);
-  assert.match(agents, /working directory[\s\S]{0,140}repository root/i);
   assert.doesNotMatch(agents, /design tools open the repository root/i);
-  assert.match(agents, /meta directory[\s\S]{0,160}`design\/`/i);
+  assert.match(agents, /repository root or (?:from )?(?:in|inside) `design\/`/i);
   assert.match(agents, /generated[\s\S]{0,100}`design\/`/i);
   assert.match(agents, /`design\/DESIGN\.md`[\s\S]{0,100}context/i);
-  assert.match(agents, /writes? files[\s\S]{0,200}inline artifact/i);
+  assert.match(agents, /runtime output[\s\S]{0,80}uncommitted/i);
   assert.match(agents, /single[- ]file[\s\S]{0,240}(?:decompose|split)/i);
   assert.match(agents, /before[\s\S]{0,120}lock/i);
   for (const entry of [".od/", ".live-artifacts/", ".file-versions/"]) {
@@ -1460,16 +1465,18 @@ test("prototype review captures accepted feedback before the surface locks", () 
   assert.match(prototyping, /^\d+\. [^\n]*(?:accepted|unrecorded)[^\n]*$/m, "a lock criterion covers accepted feedback");
   assert.match(prototyping, /read[\s\S]{0,160}interaction-rules\.md[\s\S]{0,200}before/i);
 
-  // The skill reads the root contract, never a nested one, and records the configured
-  // working directory, `design/` output location, and file-writing run. A single-file
-  // artifact is decomposed before the surface can lock.
+  // The skill reads the root contract, never a nested one, and records the outcome the tool
+  // must leave behind rather than how it is invoked. A single-file artifact is decomposed
+  // before the surface can lock.
   assert.match(prototyping, /root `AGENTS\.md`/);
   assert.doesNotMatch(prototyping, /`design\/AGENTS\.md`/);
-  assert.match(prototyping, /working directory[\s\S]{0,140}repository root/i);
   assert.doesNotMatch(prototyping, /[Rr]un the design tool from the repository root/);
+  assert.doesNotMatch(prototyping, /working directory[^.]{0,80}repository root/i);
+  assert.doesNotMatch(prototyping, /meta directory/i);
+  assert.doesNotMatch(prototyping, /inline artifact/i);
+  assert.match(prototyping, /repository root or (?:from )?(?:in|inside) `design\/`/i);
   assert.match(prototyping, /generated[\s\S]{0,100}`design\/`/i);
-  assert.match(prototyping, /`design\/DESIGN\.md`[\s\S]{0,120}context/i);
-  assert.match(prototyping, /writes? files[\s\S]{0,200}inline artifact/i);
+  assert.match(prototyping, /(?:context|governed by)[\s\S]{0,120}`design\/DESIGN\.md`|`design\/DESIGN\.md`[\s\S]{0,120}(?:context|governed)/i);
   assert.match(prototyping, /single[- ]file[\s\S]{0,240}(?:decompose|split)/i);
   assert.match(prototyping, /^\d+\. [^\n]*(?:decomposed|split into)[^\n]*$/m, "a lock criterion covers the structure");
 
@@ -1480,12 +1487,12 @@ test("prototype review captures accepted feedback before the surface locks", () 
   assert.match(prototyping, /one extracted component/i);
   assert.match(prototyping, /component framework uses that framework instead/i);
 
-  // Tool configuration is one of the obligations the standard binds, not a loose bullet
-  // beside them, so the preamble naming the bound obligations includes it.
+  // The obligation the standard binds is the outcome under `design/`, not one tool's
+  // invocation, so the preamble naming the bound obligations names that outcome.
   assert.match(
     prototyping,
-    /bound obligations[\s\S]{0,400}(?:configur|working directory)/i,
-    "the Design standard preamble binds tool configuration as an obligation",
+    /bound obligations[\s\S]{0,400}(?:any design tool|whichever design tool|tool-neutral)/i,
+    "the Design standard preamble binds a tool-neutral outcome as an obligation",
   );
   // The preamble names which obligations it binds; claiming every following bullet would
   // sweep in the interaction-rule ledger read, which the already-recorded rules require
@@ -1498,16 +1505,17 @@ test("prototype review captures accepted feedback before the surface locks", () 
   );
   assert.doesNotMatch(prototyping, /own invariant/i);
 
-  // Both artifacts carry the tool-configuration obligation, and both attribute the ledger
+  // Both artifacts carry the tool-neutral outcome obligation, and both attribute the ledger
   // read to the rules already recorded in it, so neither claims the other's scope and
   // neither describes document structure in place of behavior.
   const domain = read("docs/domain/gsd.md");
   const invariant = domain.split("\n").find((line) => /^- The design standard binds obligations/.test(line));
   assert.ok(invariant, "the shard records a design-standard invariant");
-  assert.match(invariant, /working directory[\s\S]{0,140}repository root/i);
   assert.match(invariant, /`design\/`/);
-  assert.match(invariant, /writes? files|file-writing/i);
-  assert.match(invariant, /inline artifact/i);
+  assert.match(invariant, /any design tool|whichever design tool|tool-neutral/i);
+  assert.doesNotMatch(invariant, /working directory[^.]{0,80}repository root/i);
+  assert.doesNotMatch(invariant, /meta directory/i);
+  assert.doesNotMatch(invariant, /inline artifact/i);
   assert.match(
     invariant,
     /interaction-rule ledger[\s\S]{0,240}(?:rules already recorded|already recorded in it)/i,

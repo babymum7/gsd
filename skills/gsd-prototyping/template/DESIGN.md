@@ -9,12 +9,12 @@ design artifact: it records the structure and standards of this directory so any
 or design tool driving it produces the same shape. It is written to be supplied as context
 to an external design tool, directly usable as a system prompt.
 
-The tool is configured against this repository rather than left on its defaults: its
-working directory is set to the repository root, its meta directory is set to `design/`,
-containing the agent session it opens, and its generated design files are targeted at
-`design/`. The root `AGENTS.md` and this file are supplied as its context. Require a run
-whose agent writes files rather than one that returns a single inline artifact block, so
-the surface arrives already separated.
+Any design tool may produce these files; this directory constrains what it leaves behind,
+not how it is invoked. Design work here is governed by the root `AGENTS.md` together with
+this file, whether the agent works from the repository root or from inside this directory.
+Every generated design artifact is committed under this directory and nowhere else, and the
+tool's own runtime output stays uncommitted. A single-file result is an input, not a resting
+state: it is decomposed into the structure below before a surface locks.
 
 Two layers live in this file. The **obligations** are product-neutral and
 framework-neutral: declared tokens instead of inline literals, repeated markup extracted
