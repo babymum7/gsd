@@ -803,3 +803,264 @@ test("lifecycle owners use the production validator and document inert legacy te
   assert.equal(existsSync(join(ROOT, "test", "support", "markdown-packet.mjs")), false);
   assert.equal(existsSync(join(ROOT, "lib", "gsd-contract.mjs")), true);
 });
+
+function surfaceDoc(name, { claims, rules = [] } = {}) {
+  const claimLines = claims === "none"
+    ? ["`none`"]
+    : claims.map(({ path, intent }) => `- \`${path}\` — ${intent}`);
+  return [
+    `# Surface: ${name}`,
+    "",
+    "## States",
+    "",
+    "| State | Reached when | Renders |",
+    "| --- | --- | --- |",
+    "| populated | Data exists | The list |",
+    "",
+    "## Flows",
+    "",
+    "1. populated: the user opens the list.",
+    "",
+    "## Production surfaces",
+    "",
+    ...claimLines,
+    ...(rules.length === 0 ? [] : ["", "## Rules", "", ...rules.map((id) => `- ${id}`)]),
+    "",
+  ].join("\n");
+}
+
+function ruleLedger(ids) {
+  return [
+    "# Interaction rules",
+    "",
+    "## Rules",
+    "",
+    ...ids.flatMap((id) => [
+      `### ${id}: A rule the ledger records`,
+      "",
+      "- **Trigger:** An observable condition occurs.",
+      "- **Behavior:** The surface responds the same way everywhere.",
+      "- **Reason:** A checkable rule beats a preference.",
+      "",
+    ]),
+  ].join("\n");
+}
+
+function makeDesignWorkspace(documents) {
+  const workspace = mkdtempSync(join(tmpdir(), "gsd-design-"));
+  const docsDir = join(workspace, "design", "docs");
+  mkdirSync(docsDir, { recursive: true });
+  for (const [name, content] of Object.entries(documents)) {
+    writeFileSync(join(docsDir, name), content);
+  }
+  return { workspace, docsPath: "design/docs" };
+}
+
+test("validate-design-map emits deterministic TOON for a canonical design map", () => {
+  // The map is the durable design-to-production claim: cleanup deletes `.scratch`, so a
+  // surface document is the only artifact that survives to be audited against code.
+  const documents = {
+    "interaction-rules.md": ruleLedger(["IR-1", "IR-2"]),
+    "orders.md": surfaceDoc("Orders", {
+      claims: [
+        { path: "src/ui/orders/list.tsx", intent: "converts the populated and empty states" },
+        { path: "src/ui/orders/row.tsx", intent: "converts the per-row actions" },
+      ],
+      rules: ["IR-1"],
+    }),
+    "settings.md": surfaceDoc("Settings", {
+      claims: [{ path: "src/ui/settings/page.tsx", intent: "converts every settings state" }],
+      rules: ["IR-2"],
+    }),
+  };
+  const { workspace, docsPath } = makeDesignWorkspace(documents);
+  try {
+    const expected = [
+      "status: valid",
+      "kind: design-map",
+      "surfaces: 2",
+      "claims: 3",
+    ].join("\n");
+    const first = spawnSync(process.execPath, [CLI, "validate-design-map", "--path", docsPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    const second = spawnSync(process.execPath, [CLI, "validate-design-map", "--path", docsPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+
+    assert.equal(first.status, 0, first.stderr || first.stdout);
+    assert.equal(first.stdout, expected);
+    assert.equal(first.stderr, "");
+    assert.equal(second.stdout, expected, "validation is deterministic across runs");
+    // Reading a map never rewrites it.
+    for (const [name, content] of Object.entries(documents)) {
+      assert.equal(readFileSync(join(workspace, docsPath, name), "utf8"), content, name);
+    }
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("a surface before conversion declares none and still validates", () => {
+  // An authored prototype has no production side yet, so `none` is the explicit
+  // pre-conversion claim rather than a missing section.
+  const { workspace, docsPath } = makeDesignWorkspace({
+    "interaction-rules.md": ruleLedger(["IR-1"]),
+    "orders.md": surfaceDoc("Orders", { claims: "none" }),
+  });
+  try {
+    const result = spawnSync(process.execPath, [CLI, "validate-design-map", "--path", docsPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stdout, ["status: valid", "kind: design-map", "surfaces: 1", "claims: 0"].join("\n"));
+    assert.equal(result.stderr, "");
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("validate-design-map rejects every malformed design map without mutating sources", () => {
+  // Each workspace carries exactly one defect, so the named failure proves which rule
+  // rejected it rather than which check happens to run first.
+  const withoutSection = [
+    "# Surface: Orders",
+    "",
+    "## States",
+    "",
+    "| State | Reached when | Renders |",
+    "| --- | --- | --- |",
+    "| populated | Data exists | The list |",
+    "",
+    "## Flows",
+    "",
+    "1. populated: the user opens the list.",
+    "",
+  ].join("\n");
+
+  const fixtures = [
+    {
+      name: "no production surfaces section",
+      documents: {
+        "interaction-rules.md": ruleLedger(["IR-1"]),
+        "orders.md": withoutSection,
+      },
+      expect: /design\/docs\/orders\.md must declare a ## Production surfaces section/,
+    },
+    {
+      name: "unsorted claims",
+      documents: {
+        "interaction-rules.md": ruleLedger(["IR-1"]),
+        "orders.md": surfaceDoc("Orders", {
+          claims: [
+            { path: "src/ui/orders/row.tsx", intent: "converts the per-row actions" },
+            { path: "src/ui/orders/list.tsx", intent: "converts the populated state" },
+          ],
+        }),
+      },
+      expect: /design\/docs\/orders\.md Production surfaces must be sorted[^\\]*src\/ui\/orders\/list\.tsx/,
+    },
+    {
+      name: "duplicate claim inside one document",
+      documents: {
+        "interaction-rules.md": ruleLedger(["IR-1"]),
+        "orders.md": surfaceDoc("Orders", {
+          claims: [
+            { path: "src/ui/orders/list.tsx", intent: "converts the populated state" },
+            { path: "src/ui/orders/list.tsx", intent: "converts the empty state" },
+          ],
+        }),
+      },
+      expect: /design\/docs\/orders\.md Production surfaces must be unique: src\/ui\/orders\/list\.tsx/,
+    },
+    {
+      name: "one production path claimed by two documents",
+      documents: {
+        "interaction-rules.md": ruleLedger(["IR-1"]),
+        "orders.md": surfaceDoc("Orders", {
+          claims: [{ path: "src/ui/shared/table.tsx", intent: "converts the row layout" }],
+        }),
+        "settings.md": surfaceDoc("Settings", {
+          claims: [{ path: "src/ui/shared/table.tsx", intent: "converts the row layout" }],
+        }),
+      },
+      expect: /production path src\/ui\/shared\/table\.tsx is claimed by both design\/docs\/orders\.md and design\/docs\/settings\.md/,
+    },
+    {
+      name: "claimed path under design/",
+      documents: {
+        "interaction-rules.md": ruleLedger(["IR-1"]),
+        "orders.md": surfaceDoc("Orders", {
+          claims: [{ path: "design/prototype/orders.html", intent: "converts the populated state" }],
+        }),
+      },
+      expect: /design\/docs\/orders\.md Production surfaces path must not be under design\/: design\/prototype\/orders\.html/,
+    },
+    {
+      name: "citation the ledger does not record",
+      documents: {
+        "interaction-rules.md": ruleLedger(["IR-1"]),
+        "orders.md": surfaceDoc("Orders", {
+          claims: [{ path: "src/ui/orders/list.tsx", intent: "converts the populated state" }],
+          rules: ["IR-4"],
+        }),
+      },
+      expect: /design\/docs\/orders\.md cites IR-4, which interaction-rules\.md does not record/,
+    },
+  ];
+
+  for (const fixture of fixtures) {
+    const { workspace, docsPath } = makeDesignWorkspace(fixture.documents);
+    try {
+      const result = spawnSync(process.execPath, [CLI, "validate-design-map", "--path", docsPath], {
+        cwd: workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 1, `${fixture.name}: ${result.stdout}`);
+      assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/, fixture.name);
+      assert.match(result.stdout, fixture.expect, fixture.name);
+      assert.doesNotMatch(result.stdout, /\n\s+at |Error:/, fixture.name);
+      assert.equal(result.stderr, "", fixture.name);
+      for (const [name, content] of Object.entries(fixture.documents)) {
+        assert.equal(readFileSync(join(workspace, docsPath, name), "utf8"), content, `${fixture.name}: ${name}`);
+      }
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
+test("validate-design-map rejects a symlinked design directory that escapes the workspace", () => {
+  // The relative path check alone passes when `design` itself is a link: the map would then
+  // be read from outside the audited repository while claiming to describe it.
+  const workspace = mkdtempSync(join(tmpdir(), "gsd-design-host-"));
+  const outside = mkdtempSync(join(tmpdir(), "gsd-design-away-"));
+  const documents = {
+    "interaction-rules.md": ruleLedger(["IR-1"]),
+    "orders.md": surfaceDoc("Orders", { claims: "none" }),
+  };
+  mkdirSync(join(outside, "docs"));
+  for (const [name, content] of Object.entries(documents)) {
+    writeFileSync(join(outside, "docs", name), content);
+  }
+  symlinkSync(outside, join(workspace, "design"));
+  try {
+    const result = spawnSync(process.execPath, [CLI, "validate-design-map", "--path", "design/docs"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/);
+    assert.match(result.stdout, /design must be a real directory/);
+    assert.equal(result.stderr, "");
+    for (const [name, content] of Object.entries(documents)) {
+      assert.equal(readFileSync(join(outside, "docs", name), "utf8"), content, name);
+    }
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+    rmSync(outside, { recursive: true, force: true });
+  }
+});

@@ -57,6 +57,7 @@ A surface is locked when all of these hold:
 4. The surface document under `design/docs/` lists those states and flows, matching what the prototype renders.
 5. No accepted review feedback is unrecorded: every accepted system-wide rule exists as an `IR-<n>` entry and every accepted surface-specific decision exists in the surface document.
 6. The surface is decomposed, not one undifferentiated file: markup, styles, tokens, components, and its document are separate artifacts under `design/`.
+7. The surface document declares its `## Production surfaces`: the sorted production paths converted from it, or exactly `none` before conversion, and every `IR-<n>` it cites exists in `design/docs/interaction-rules.md`. `node tools/gsd-contract.mjs validate-design-map --path design/docs` exits 0.
 
 Anything unresolved stays one concise discussion note. Do not invent configuration, theming, or extensibility that no locked state requires.
 

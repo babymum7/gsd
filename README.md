@@ -120,7 +120,8 @@ skills/
 ├── gsd-ponytail/                     # hidden level-free YAGNI context
 ├── gsd-diagnosing-bugs/              # hard-bug diagnosis loop
 ├── gsd-domain-modeling/              # current bounded-context documentation
-└── gsd-codebase-architecture/         # named seams and scoped architecture audits
+├── gsd-codebase-architecture/        # named seams and scoped architecture audits
+└── gsd-design-sync/                  # read-only design/production drift audit and routing
 ```
 
 ## Plan contract validation
@@ -153,7 +154,7 @@ Run the deterministic repository contracts:
 node --test test/*.test.js
 ```
 
-The supplementary model evaluator checks 35 workspace-state + prompt fixtures against the production bootstrap and visible catalog. It requires the strict JSON object `{ "decision": "...", "action": "...", "primarySkill": "gsd-..." | null }`; extra keys or prose fail.
+The supplementary model evaluator checks 36 workspace-state + prompt fixtures against the production bootstrap and visible catalog. It requires the strict JSON object `{ "decision": "...", "action": "...", "primarySkill": "gsd-..." | null }`; extra keys or prose fail.
 
 ```bash
 node test/eval/activation-eval.mjs

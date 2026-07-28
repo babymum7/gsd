@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { validatePlanFile } from "../lib/gsd-contract.mjs";
+import { validateDesignMap, validatePlanFile } from "../lib/gsd-contract.mjs";
 
-const COMMANDS = new Set(["validate-plan", "validate-quick-fix"]);
+const COMMANDS = new Set(["validate-plan", "validate-quick-fix", "validate-design-map"]);
 
 function quote(value) {
   return JSON.stringify(String(value));
@@ -18,13 +18,16 @@ function commandUsage(command) {
   if (command === "validate-quick-fix") {
     return "node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md";
   }
-  return "node tools/gsd-contract.mjs <validate-plan|validate-quick-fix> --path .scratch/<feature>/plan.md";
+  if (command === "validate-design-map") {
+    return "node tools/gsd-contract.mjs validate-design-map --path design/docs";
+  }
+  return "node tools/gsd-contract.mjs <validate-plan|validate-quick-fix|validate-design-map> --path <artifact>";
 }
 
 function emitHelp(command) {
   write([
     `bin: ${quote("tools/gsd-contract.mjs")}`,
-    `description: ${quote("Validate GSD plan authority in the current workspace")}`,
+    `description: ${quote("Validate GSD plan and design-map authority in the current workspace")}`,
     `usage: ${quote(commandUsage(command))}`,
   ]);
 }
@@ -89,8 +92,8 @@ function parseArguments(argv) {
       command,
     };
   }
-  if (command === "validate-quick-fix" && expectedSha256 !== null) {
-    return { usageError: "validate-quick-fix does not accept --expected-sha256", command };
+  if (command !== "validate-plan" && expectedSha256 !== null) {
+    return { usageError: `${command} does not accept --expected-sha256`, command };
   }
   return { command, planPath, expectedSha256 };
 }
@@ -102,17 +105,27 @@ if (input.usageError) {
   emitHelp(input.command);
 } else {
   try {
-    const result = validatePlanFile(input.planPath, {
-      kind: input.command === "validate-plan" ? "plan" : "quick-fix",
-      expectedSha256: input.expectedSha256,
-    });
-    write([
-      "status: valid",
-      `kind: ${result.kind}`,
-      `feature: ${result.feature}`,
-      `sha256: ${result.sha256}`,
-      `tasks: ${result.tasks}`,
-    ]);
+    if (input.command === "validate-design-map") {
+      const map = validateDesignMap(input.planPath);
+      write([
+        "status: valid",
+        `kind: ${map.kind}`,
+        `surfaces: ${map.surfaces}`,
+        `claims: ${map.claims}`,
+      ]);
+    } else {
+      const result = validatePlanFile(input.planPath, {
+        kind: input.command === "validate-plan" ? "plan" : "quick-fix",
+        expectedSha256: input.expectedSha256,
+      });
+      write([
+        "status: valid",
+        `kind: ${result.kind}`,
+        `feature: ${result.feature}`,
+        `sha256: ${result.sha256}`,
+        `tasks: ${result.tasks}`,
+      ]);
+    }
   } catch (error) {
     failArtifact(error, input.command);
   }

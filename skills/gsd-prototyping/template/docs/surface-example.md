@@ -24,6 +24,15 @@ states exist. Replace this content; keep the section shape.
 Every row above is reachable in the prototype. A state described here but not rendered
 blocks the lock, and so does a rendered state missing from this table.
 
+The section below is machine-read, so it holds claim lines only: the production files
+converted from this surface, sorted, each claimed by exactly one surface document. Before
+conversion its whole body is the single line `none`.
+
+## Production surfaces
+
+- `src/invoices/invoice-list.tsx` — converts the empty, loading, populated, and error states
+- `src/invoices/invoice-row.tsx` — converts the per-row actions and their read-only state
+
 ## Primitives
 
 - `primitives/button.js` — every action on this surface, including its disabled and

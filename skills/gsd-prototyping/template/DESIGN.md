@@ -88,6 +88,13 @@ for every comparable surface belongs in `docs/interaction-rules.md` as the next
 numbered `IR-<n>` entry, with the trigger that fires it and the behavior it requires.
 Read that ledger before designing a surface: its rules are already binding.
 
+Each surface document also declares the production paths it governs, in a machine-read
+`## Production surfaces` section holding claim lines only. Every claim names one
+production file and what it converts from this document, sorted and claimed by exactly one
+surface; before conversion the whole body is the single line `none`. That claim is what
+makes drift detectable in both directions: without it, neither a prototype change awaiting
+conversion nor production markup that moved ahead of its locked surface can be seen.
+
 ## Checks split by cost
 
 `npm run check:fast` builds tokens, lints, and runs the headless primitive tests. It is

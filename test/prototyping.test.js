@@ -218,6 +218,29 @@ test("template surface documentation lists locked states and flows", () => {
   }
 });
 
+test("template surface documentation declares the production surfaces it governs", () => {
+  // The surface document is the only artifact that outlives `.scratch`, so the claim that
+  // maps a locked surface onto the production files converted from it lives here.
+  const doc = read("docs/surface-example.md");
+  assert.match(doc, /^## Production surfaces$/m, "surface doc declares its production claim");
+
+  const body = doc.split(/^## Production surfaces$/m)[1].split(/^## /m)[0];
+  const entries = [...body.matchAll(/^- `([^`]+)` \u2014 (.+)$/gm)];
+  assert.ok(entries.length >= 1, `claim section lists backticked production paths, got ${entries.length}`);
+  for (const [, claimPath, intent] of entries) {
+    assert.doesNotMatch(claimPath, /^design\//, `${claimPath} is a production path, not a prototype path`);
+    assert.ok(intent.trim().length > 0, `${claimPath} states what it converts`);
+  }
+  // Sorted and unique is what `validate-design-map` enforces, so the shipped example must
+  // already be a map that validates rather than one an agent copies into a rejection.
+  const paths = entries.map(([, claimPath]) => claimPath);
+  assert.deepEqual(paths, [...new Set(paths)].sort(), "claims are unique and sorted");
+
+  const design = read("DESIGN.md");
+  assert.match(design, /production (?:path|surface)[\s\S]{0,240}govern/i, "DESIGN.md records the claim obligation");
+  assert.match(design, /drift[\s\S]{0,200}both directions/i, "DESIGN.md states why the claim exists");
+});
+
 test("template interaction-rule ledger is a numbered system-wide rule set", () => {
   const ledger = read("docs/interaction-rules.md");
   assert.match(ledger, /^## Rules$/m, "ledger declares its canonical Rules section");

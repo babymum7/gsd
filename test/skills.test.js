@@ -1380,6 +1380,15 @@ test("UI Impact is written, retained, and revalidated across the lifecycle", () 
   assert.match(execution, /source of truth[\s\S]{0,200}same task as the surface change/i);
   assert.match(verify, /terminal slice including `Domain Impact` and `UI Impact`/);
   assert.match(verify, /UI drift[\s\S]{0,200}(?:blocks|Blocker)/i);
+  // A non-`none` UI Impact merges only over a resolvable design map: the terminal gate runs the
+  // deterministic validator itself rather than trusting the prototype claim it reads, so all
+  // three anchors are the contract — the classification that triggers it, the exact green
+  // invocation, and a failing map as a Blocker rather than a reported finding.
+  assert.match(verify, /non-`none`[\s\S]{0,200}validate-design-map --path design\/docs/);
+  assert.match(
+    verify,
+    /validate-design-map --path design\/docs`[\s\S]{0,120}exit 0[\s\S]{0,200}deterministic Blocker/,
+  );
 
   // The README is the human entry point: the prototype phase and the plan section it
   // produces must both be documented, and the skill layout must list the new owner.
@@ -1522,6 +1531,94 @@ test("prototype review captures accepted feedback before the surface locks", () 
     "the invariant attributes the ledger read to the rules already recorded in it",
   );
   assert.doesNotMatch(invariant, /own invariant|part of this enumeration/i);
+});
+
+test("prototype lock requires a resolvable production map", () => {
+  // The claim is what makes drift detectable after cleanup deletes `.scratch`, so a surface
+  // may not lock while nobody can say which production files it governs.
+  const prototyping = read("skills/gsd-prototyping/SKILL.md");
+  const lockSection = prototyping.split(/^## Lock criteria$/m)[1].split(/^## /m)[0];
+  const criteria = [...lockSection.matchAll(/^\d+\. (.+)$/gm)].map(([, text]) => text);
+
+  const mapCriterion = criteria.find((text) => /production surface/i.test(text));
+  assert.ok(mapCriterion, "a lock criterion covers the production-surface claim");
+  assert.match(mapCriterion, /`none`/, "an unconverted surface declares none rather than omitting the claim");
+  assert.match(
+    mapCriterion,
+    /IR-<n>[\s\S]{0,160}(?:interaction-rules\.md|ledger)/i,
+    "the same criterion requires every cited rule to resolve in the ledger",
+  );
+});
+
+test("the drift owner reports three planes and routes both directions", () => {
+  // Drift is only actionable when each plane names its own authority pair and its own
+  // verdict: one blended verdict would hide which side moved.
+  const sync = read("skills/gsd-design-sync/SKILL.md");
+  assert.match(sync, /^## Invocation modes$/m, "the owner declares its invocation modes");
+
+  for (const authority of [
+    /docs\/domain\/<scope>\.md/,
+    /design\/docs\/interaction-rules\.md/,
+    /design\/docs\/<surface>\.md/,
+  ]) {
+    assert.match(sync, authority, `the planes name ${authority.source}`);
+  }
+  // A plane is only checkable when both of its sides are named: the spec plane compares a
+  // domain shard against code, and the UI plane compares prototype artifacts against the
+  // production markup converted from them.
+  assert.match(sync, /docs\/domain\/<scope>\.md[\s\S]{0,200}\bcode\b/i, "the spec plane pairs its shard with code");
+  assert.match(
+    sync,
+    /prototype artifacts?[\s\S]{0,200}production (?:markup|code)/i,
+    "the UI plane pairs prototype artifacts with production markup",
+  );
+  assert.match(
+    sync,
+    /design\/docs\/interaction-rules\.md[\s\S]{0,200}design\/docs\/<surface>\.md/,
+    "the UX plane pairs the rule ledger with the surface document",
+  );
+  for (const plane of ["spec", "ux", "ui"]) {
+    assert.match(sync, new RegExp(`\\b${plane}\\b`, "i"), `the owner names the ${plane} plane`);
+  }
+  for (const verdict of ["aligned", "design-ahead", "code-ahead", "conflict"]) {
+    assert.match(sync, new RegExp(`\`${verdict}\``), `the owner names the ${verdict} verdict`);
+  }
+
+  // Each direction has exactly one existing owner able to write that side, so naming them
+  // removes the inversion a single generic "sync" transition would allow.
+  assert.match(sync, /`design-ahead`[\s\S]{0,200}`gsd-brainstorming`/, "design-ahead converts into production");
+  assert.match(sync, /`code-ahead`[\s\S]{0,240}`gsd-prototyping`/, "code-ahead back-ports into the prototype");
+  assert.match(sync, /back-port[\s\S]{0,120}(?:re-lock|lock again)/i);
+  assert.match(sync, /`conflict`[\s\S]{0,200}ask/i, "a conflicting plane asks the user rather than picking a winner");
+
+  // The audit is read-only: it is the one owner that inspects both sides, so writing either
+  // would make it a second writer for artifacts their owners already own.
+  assert.match(sync, /writes no[\s\S]{0,160}(?:production|`design\/`)/i);
+  assert.match(sync, /validate-design-map/);
+  assert.match(sync, /Role: owner/);
+
+  // Selection is what makes the owner reachable: without a bootstrap rule the catalog row
+  // exists but no prompt routes to it.
+  const bootstrap = read("skills/gsd/SKILL.md");
+  const selectionLine = bootstrap.split("\n").find((line) => /gsd-design-sync/.test(line));
+  assert.ok(selectionLine, "the bootstrap names the drift owner");
+  assert.match(
+    selectionLine,
+    /drift|diverge/i,
+    "the same selection line binds the drift owner to design/production drift intent",
+  );
+
+  // The shard records the same production semantics, and the root contract states the
+  // back-port direction so a future agent never treats code-ahead as the prototype's truth.
+  const domain = read("docs/domain/gsd.md");
+  assert.match(domain, /eleven skills/i, "the shard records the eleven-skill catalog");
+  assert.match(domain, /\| Drift Audit \|/, "the shard defines the Drift Audit term");
+  const driftInvariant = domain.split("\n").find((line) => /^- Design and production drift/.test(line));
+  assert.ok(driftInvariant, "the shard records a drift invariant");
+  assert.match(driftInvariant, /spec[\s\S]{0,120}ux[\s\S]{0,120}ui/i);
+  assert.match(driftInvariant, /never (?:edits|writes)/i);
+  assert.match(read("AGENTS.md"), /back-port[\s\S]{0,200}re-lock/i, "the root contract states the back-port direction");
+  assert.match(read("AGENTS.md"), /production paths that surface governs/i);
 });
 
 test("domain modeling keeps preapproval writes current-only and reads affected shards only", () => {
@@ -1733,6 +1830,14 @@ test("activation fixtures and response parser enforce lazy primary-skill selecti
   assert.match(bootstrap, /gsd-prototyping/);
   assert.match(bootstrap, /user-facing surface[\s\S]{0,240}before[\s\S]{0,120}(?:requirement|converg)/i);
   assert.match(bootstrap, /backend-only[\s\S]{0,160}never[\s\S]{0,120}prototyp/i);
+
+  // A drift prompt is a recorded dispatch expectation, not an untested claim: the audit
+  // owner is only reachable if a fixture pins the prompt shape that selects it.
+  const drift = prototypeFixtures.get("design-code-drift");
+  assert.ok(drift, "a fixture pins drift selection for design/production divergence");
+  assert.equal(drift.decision, "ordinary-routing");
+  assert.equal(drift.expectedAction, "load");
+  assert.equal(drift.expectedPrimarySkill, "gsd-design-sync");
 
   const byId = new Map(fixtures.map((fixture) => [fixture.id, fixture]));
   for (const id of ["nano-typo", "readonly-question", "mention-not-ask", "catalog"]) {
@@ -2222,7 +2327,7 @@ test("AC-2 repair: task repair stays session-owner-inline without terminal verif
 test("AC-3: Visible skill dispatch is deterministic", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
-  assert.equal(visible.length, 10, "exactly 10 visible GSD skills");
+  assert.equal(visible.length, 11, "exactly 11 visible GSD skills");
 
   const section = reference.match(
     /## Visible skill mandatory-use matrix\n+([\s\S]*?)(?:\n## |\n### |\n*$)/,
@@ -2246,9 +2351,9 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
     helperWhen: m[7].trim(),
   }));
 
-  assert.equal(rows.length, 10, "matrix must have exactly 10 rows");
+  assert.equal(rows.length, 11, "matrix must have exactly 11 rows");
   assert.deepEqual(rows.map((row) => row.skill).sort(), visible);
-  assert.equal(new Set(rows.map((row) => row.skill)).size, 10, "no multiply mapped skill");
+  assert.equal(new Set(rows.map((row) => row.skill)).size, 11, "no multiply mapped skill");
 
   const vague = /\b(as needed|if useful|when appropriate|sometimes|maybe|etc\.?|TBD|TODO)\b/i;
   // Only the Do-not-load and Transition labels were pinned, so a skill could restate another
@@ -2303,11 +2408,11 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
 
 test("AC-4: Concision preserves semantic parity", () => {
   const MAX_VISIBLE_WORDS = 10900;
-  const MAX_BOOTSTRAP_WORDS = 1010;
-  const MAX_REFERENCE_WORDS = 5150;
+  const MAX_BOOTSTRAP_WORDS = 1040;
+  const MAX_REFERENCE_WORDS = 5200;
   const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
-  assert.equal(visible.length, 10);
+  assert.equal(visible.length, 11);
   const total = visible.reduce(
     (count, name) => count + wordCount(read(`skills/${name}/SKILL.md`)),
     0,
