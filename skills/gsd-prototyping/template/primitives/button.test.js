@@ -1,7 +1,7 @@
 // Headless behavior test for the gsd-button primitive.
 //
-// No browser: a minimal DOM stub is enough to prove the element's observable state,
-// which keeps this test inside `check:fast`. Rendering fidelity is `check:slow`.
+// No browser: a minimal DOM stub is enough to prove the element's observable state, so this
+// spec runs inside `check:fast` like every other check this prototype has.
 import { test } from "node:test";
 import assert from "node:assert/strict";
 

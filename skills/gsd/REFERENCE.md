@@ -18,11 +18,11 @@ Explicit intent and entry context choose the mode; artifact presence never does.
 
 ## Visible skill mandatory-use matrix
 
-Canonical dispatch authority for the 11 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill. Helper rows with a true Helper-when condition must load and cannot be skipped.
+Canonical dispatch authority for the 11 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill. Helper rows with a true Helper-when condition must load and cannot be skipped. For surface work, design-first is the default order, not a gate: a different or unclear order asks one question.
 
 | Skill | Role | Intent | Prerequisites | Do-not-load | Transition | Helper-when |
 | --- | --- | --- | --- | --- | --- | --- |
-| `gsd-prototyping` | owner | Lock new or changed user-facing surface behavior in a tested `design/` prototype before requirements converge | Explicit new or changed user-facing surface intent | Backend-only work; a surface already locked by a current `design/` prototype | On prototype lock load `gsd-brainstorming` | — |
+| `gsd-prototyping` | owner | Lock explicit new or changed user-facing surface intent, a named screen, page, or UI, in a tested `design/` prototype before requirements converge | Explicit surface intent: the prompt names a screen, page, or UI | A generic feature or integration request naming no surface; backend-only work | On prototype lock ask the conversion cadence, then load `gsd-brainstorming` only for convert now | — |
 | `gsd-brainstorming` | owner | Resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract | Explicit design intent or load-bearing Spec-gap return | Read-only questions, pure mechanical edits, known single-spot quick fix | On convergence load `gsd-to-plan` | — |
 | `gsd-to-plan` | owner | Create or finalize canonical `plan.md` with bound Domain Impact after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unapproved plan | Design decisions still open; Nano edits | On approval write `state.toon` and load `gsd-executing-plans` | — |
 | `gsd-executing-plans` | owner | Implement approved plan tasks and owned domain docs inline and sequentially on `wip/<feature>` | Valid approved `plan.md` and bound `state.toon` whose pending work the prompt names | No bound plan/state; a bare resume naming no work; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |

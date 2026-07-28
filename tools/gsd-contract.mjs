@@ -112,6 +112,7 @@ if (input.usageError) {
         `kind: ${map.kind}`,
         `surfaces: ${map.surfaces}`,
         `claims: ${map.claims}`,
+        `pending: ${map.pending}`,
       ]);
     } else {
       const result = validatePlanFile(input.planPath, {

@@ -95,13 +95,10 @@ test("template stylelint config forbids raw color and spacing literals", () => {
   assert.ok(strict[1].ignoreValues.length <= 4, "ignore list stays bounded");
 });
 
-test("template check scripts split fast prototype loop from slow browser gate", () => {
+test("template check script runs the primitive tests through a runnable glob", () => {
   const pkg = json("package.json");
-  const browser = /playwright|puppeteer|chromium|axe|percy/i;
   assert.equal(typeof pkg.scripts["check:fast"], "string");
-  assert.doesNotMatch(pkg.scripts["check:fast"], browser, "check:fast stays browser-free");
   assert.match(pkg.scripts["check:fast"], /stylelint/, "check:fast lints tokens usage");
-  assert.match(pkg.scripts["check:slow"], /playwright/, "check:slow runs the browser gate");
   // A bare directory argument is not a runnable target: `node --test primitives` resolves
   // it as a module and dies with MODULE_NOT_FOUND, so the shipped script must name a glob
   // that the runner expands to the primitive specs.
@@ -116,7 +113,6 @@ test("template check scripts split fast prototype loop from slow browser gate", 
     "stylelint",
     "stylelint-declaration-strict-value",
     "style-dictionary",
-    "@playwright/test",
   ]) {
     assert.ok(pkg.devDependencies[name], `${name} must be declared`);
   }
@@ -311,7 +307,12 @@ test("template instruction files state the design standard obligations", () => {
   const design = read("DESIGN.md");
   assert.match(design, /token/i, "requires token use");
   assert.match(design, /(?:component|primitive)/i, "requires component extraction");
-  assert.match(design, /check:fast[\s\S]{0,400}check:slow/, "states the fast and slow split");
+  assert.match(
+    design,
+    /check:fast[\s\S]{0,300}(?:browser-free|deterministic)[\s\S]{0,300}lock gate/,
+    "states one deterministic check loop that is also the lock gate",
+  );
+  assert.doesNotMatch(design, /check:slow/, "no slow gate survives in the shipped contract");
   // Clean architecture is the point: this file is written to be supplied as tool context,
   // and it records what the tool must leave behind rather than how it is invoked. Requiring
   // a working directory, a meta directory, or a run mode would forbid starting an agent

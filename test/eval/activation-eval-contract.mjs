@@ -14,7 +14,7 @@ const ALLOWED_DECISIONS = new Set([
 ]);
 const ALLOWED_ACTIONS = new Set(["load", "direct", "stop"]);
 const HTTP_DEFAULT_MODEL = "gpt-4o-mini";
-const OMP_DEFAULT_MODELS = ["gemini-3.6-flash", "gpt-5.6-luna"];
+const OMP_DEFAULT_MODELS = ["gpt-5.6-luna"];
 
 // A bearer key is one way to reach a model; the local omp binary is another, and it
 // already holds credentials. The keyless local binary is preferred so an ambient

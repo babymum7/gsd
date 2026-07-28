@@ -18,10 +18,10 @@ state: it is decomposed into the structure below before a surface locks.
 
 Two layers live in this file. The **obligations** are product-neutral and
 framework-neutral: declared tokens instead of inline literals, repeated markup extracted
-into one component, a headless test per component, checks split by cost, one document per
-surface, and a real structure rather than one page of markup. Another project adopts those
-unchanged. The **mechanics** under each heading below — DTCG JSON, CSS custom properties,
-light-DOM custom elements, stylelint, Playwright — are how this dependency-free web
+into one component, a headless test per component and per state a surface renders, one
+document per surface, and a real structure rather than one page of markup. Another project
+adopts those unchanged. The **mechanics** under each heading below — DTCG JSON, CSS custom
+properties, light-DOM custom elements, stylelint — are how this dependency-free web
 template satisfies the obligations. A project on a component framework keeps the
 obligations and uses that framework instead.
 
@@ -95,13 +95,21 @@ surface; before conversion the whole body is the single line `none`. That claim 
 makes drift detectable in both directions: without it, neither a prototype change awaiting
 conversion nor production markup that moved ahead of its locked surface can be seen.
 
-## Checks split by cost
+A second machine-read section, `## Conversion`, holds one token: `converted` once
+production has been converted from that surface, or `pending` while it still owes the
+conversion. A locked surface starts `pending`, and returns to `pending` whenever its design
+changes again, so the queue of surfaces awaiting conversion is countable rather than a
+judgment over rendered differences.
 
-`npm run check:fast` builds tokens, lints, and runs the headless primitive tests. It is
-deterministic and browser-free, so it runs after every change.
+## One deterministic check loop
 
-`npm run check:slow` runs the Playwright browser suite. It is the lock gate, not part of
-the edit loop.
+`npm run check:fast` builds tokens, lints, and runs the headless tests. It is deterministic
+and browser-free, so it runs after every change and is also the lock gate: this prototype
+has no second, slower suite.
+
+Because the gate is headless, coverage is what makes it sufficient. Every state a surface
+document lists carries a headless test asserting the observable behavior of that state, so
+locking proves each reachable state rather than a screenshot of one of them.
 
 ## Scope discipline
 

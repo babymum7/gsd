@@ -804,10 +804,13 @@ test("lifecycle owners use the production validator and document inert legacy te
   assert.equal(existsSync(join(ROOT, "lib", "gsd-contract.mjs")), true);
 });
 
-function surfaceDoc(name, { claims, rules = [] } = {}) {
+function surfaceDoc(name, { claims, rules = [], conversion = "pending" } = {}) {
   const claimLines = claims === "none"
     ? ["`none`"]
     : claims.map(({ path, intent }) => `- \`${path}\` — ${intent}`);
+  const conversionLines = conversion === false
+    ? []
+    : ["", "## Conversion", "", ...(Array.isArray(conversion) ? conversion : [conversion])];
   return [
     `# Surface: ${name}`,
     "",
@@ -824,6 +827,7 @@ function surfaceDoc(name, { claims, rules = [] } = {}) {
     "## Production surfaces",
     "",
     ...claimLines,
+    ...conversionLines,
     ...(rules.length === 0 ? [] : ["", "## Rules", "", ...rules.map((id) => `- ${id}`)]),
     "",
   ].join("\n");
@@ -866,20 +870,20 @@ test("validate-design-map emits deterministic TOON for a canonical design map", 
         { path: "src/ui/orders/list.tsx", intent: "converts the populated and empty states" },
         { path: "src/ui/orders/row.tsx", intent: "converts the per-row actions" },
       ],
+      conversion: "converted",
       rules: ["IR-1"],
     }),
-    "settings.md": surfaceDoc("Settings", {
-      claims: [{ path: "src/ui/settings/page.tsx", intent: "converts every settings state" }],
-      rules: ["IR-2"],
-    }),
+    "reports.md": surfaceDoc("Reports", { claims: "none" }),
+    "settings.md": surfaceDoc("Settings", { claims: "none", rules: ["IR-2"] }),
   };
   const { workspace, docsPath } = makeDesignWorkspace(documents);
   try {
     const expected = [
       "status: valid",
       "kind: design-map",
-      "surfaces: 2",
-      "claims: 3",
+      "surfaces: 3",
+      "claims: 2",
+      "pending: 2",
     ].join("\n");
     const first = spawnSync(process.execPath, [CLI, "validate-design-map", "--path", docsPath], {
       cwd: workspace,
@@ -916,7 +920,36 @@ test("a surface before conversion declares none and still validates", () => {
       encoding: "utf8",
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.equal(result.stdout, ["status: valid", "kind: design-map", "surfaces: 1", "claims: 0"].join("\n"));
+    assert.equal(
+      result.stdout,
+      ["status: valid", "kind: design-map", "surfaces: 1", "claims: 0", "pending: 1"].join("\n"),
+    );
+    assert.equal(result.stderr, "");
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("an already-converted surface may declare pending again beside its claims", () => {
+  // A second design change to a converted surface owes another conversion, so `pending`
+  // must stay legal while the claim lines it already earned remain in place.
+  const { workspace, docsPath } = makeDesignWorkspace({
+    "interaction-rules.md": ruleLedger(["IR-1"]),
+    "orders.md": surfaceDoc("Orders", {
+      claims: [{ path: "src/ui/orders/list.tsx", intent: "converts the populated state" }],
+      conversion: "pending",
+    }),
+  });
+  try {
+    const result = spawnSync(process.execPath, [CLI, "validate-design-map", "--path", docsPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(
+      result.stdout,
+      ["status: valid", "kind: design-map", "surfaces: 1", "claims: 1", "pending: 1"].join("\n"),
+    );
     assert.equal(result.stderr, "");
   } finally {
     rmSync(workspace, { recursive: true, force: true });
@@ -1009,6 +1042,46 @@ test("validate-design-map rejects every malformed design map without mutating so
         }),
       },
       expect: /design\/docs\/orders\.md cites IR-4, which interaction-rules\.md does not record/,
+    },
+    {
+      name: "no conversion section",
+      documents: {
+        "interaction-rules.md": ruleLedger(["IR-1"]),
+        "orders.md": surfaceDoc("Orders", { claims: "none", conversion: false }),
+      },
+      expect: /design\/docs\/orders\.md must declare a ## Conversion section holding converted or pending/,
+    },
+    {
+      name: "unknown conversion token",
+      documents: {
+        "interaction-rules.md": ruleLedger(["IR-1"]),
+        "orders.md": surfaceDoc("Orders", { claims: "none", conversion: "partial" }),
+      },
+      expect: /design\/docs\/orders\.md Conversion must be converted or pending: partial/,
+    },
+    {
+      name: "multi-line conversion body",
+      documents: {
+        "interaction-rules.md": ruleLedger(["IR-1"]),
+        "orders.md": surfaceDoc("Orders", { claims: "none", conversion: ["pending", "converted"] }),
+      },
+      expect: /design\/docs\/orders\.md Conversion must be a single token/,
+    },
+    {
+      name: "duplicate conversion section",
+      documents: {
+        "interaction-rules.md": ruleLedger(["IR-1"]),
+        "orders.md": `${surfaceDoc("Orders", { claims: "none" })}## Conversion\n\npending\n`,
+      },
+      expect: /design\/docs\/orders\.md has a duplicate ## Conversion section/,
+    },
+    {
+      name: "converted surface declaring no production claim",
+      documents: {
+        "interaction-rules.md": ruleLedger(["IR-1"]),
+        "orders.md": surfaceDoc("Orders", { claims: "none", conversion: "converted" }),
+      },
+      expect: /design\/docs\/orders\.md Conversion is converted but Production surfaces declares none/,
     },
   ];
 

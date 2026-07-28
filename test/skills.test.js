@@ -1550,6 +1550,235 @@ test("prototype lock requires a resolvable production map", () => {
   );
 });
 
+test("the prototype loop is fast-only and its lock gates on per-state coverage", () => {
+  // Removing the browser suite without replacing what it proved would weaken lock, so the
+  // gate moves onto evidence the fast loop can actually produce: one headless test per
+  // state the surface renders.
+  const prototyping = read("skills/gsd-prototyping/SKILL.md");
+  const lockSection = prototyping.split(/^## Lock criteria$/m)[1].split(/^## /m)[0];
+  const criteria = [...lockSection.matchAll(/^\d+\. (.+)$/gm)].map(([, text]) => text);
+
+  const checkCriterion = criteria.find((text) => /check:fast/.test(text));
+  assert.ok(checkCriterion, "a lock criterion names the fast check");
+  assert.match(
+    checkCriterion,
+    /headless test[\s\S]{0,160}(?:each|every) state/i,
+    "the check criterion requires per-state headless coverage",
+  );
+  assert.doesNotMatch(prototyping, /check:slow/, "the skill names no slow gate");
+  assert.doesNotMatch(prototyping, /playwright|puppeteer|chromium|browser suite/i, "no browser gate survives");
+
+  // The shipped template is what a project copies, so a browser dependency there would
+  // reintroduce the cost the design phase just dropped.
+  const pkg = JSON.parse(read("skills/gsd-prototyping/template/package.json"));
+  assert.equal(typeof pkg.scripts["check:fast"], "string", "the template keeps its fast loop");
+  assert.equal(pkg.scripts["check:slow"], undefined, "the template ships no slow script");
+  const browser = /playwright|puppeteer|chromium|axe|percy/i;
+  for (const script of Object.values(pkg.scripts)) {
+    assert.doesNotMatch(script, browser, "no template script runs a browser");
+  }
+  for (const name of Object.keys(pkg.devDependencies)) {
+    assert.doesNotMatch(name, browser, `${name} is a browser dependency`);
+  }
+  const templateDesign = read("skills/gsd-prototyping/template/DESIGN.md");
+  assert.doesNotMatch(templateDesign, /check:slow/, "the template design contract names no slow gate");
+  assert.doesNotMatch(templateDesign, browser, "the template design contract names no browser tooling");
+  assert.doesNotMatch(
+    read("skills/gsd-prototyping/template/primitives/button.test.js"),
+    /check:slow/,
+    "the shipped primitive spec defers nothing to a slow gate",
+  );
+
+  // A prototype-only packet has no production journey to run, so keeping the slow stage
+  // would gate the cheapest phase on a suite with nothing to exercise.
+  const readme = read("README.md");
+  assert.match(
+    readme,
+    /prototype-only[\s\S]{0,160}Deferred Slow E2E/i,
+    "the lifecycle overview exempts prototype-only packets from the slow stage",
+  );
+
+  // The shard is the durable record: leaving the slow gate in the Prototype Lock term would
+  // contradict the skill that owns the transition.
+  const domain = read("docs/domain/gsd.md");
+  const lockTerm = domain.split("\n").find((line) => /^\| Prototype Lock \|/.test(line));
+  assert.ok(lockTerm, "the shard defines Prototype Lock");
+  assert.doesNotMatch(lockTerm, /slow/i, "the term drops the slow gate");
+  assert.match(lockTerm, /headless test[\s\S]{0,120}(?:each|every) state/i);
+  const standard = domain.split("\n").find((line) => /^- The design standard binds obligations/.test(line));
+  assert.doesNotMatch(standard, /split by cost/i, "the design obligation drops the cost split");
+  assert.match(standard, /headless test[\s\S]{0,160}(?:each|every) state/i);
+});
+
+test("the template surface document declares its conversion state", () => {
+  // `## Production surfaces` cannot carry this: a converted surface whose design changed
+  // again keeps its claim lines, so it is indistinguishable from a synced one.
+  const surface = read("skills/gsd-prototyping/template/docs/surface-example.md");
+  const section = surface.split(/^## Conversion$/m)[1];
+  assert.ok(section, "the example surface declares a ## Conversion section");
+  const body = section.split(/^## /m)[0].split("\n").filter((line) => line.trim() !== "");
+  assert.deepEqual(body.length, 1, "the conversion body is a single token");
+  assert.match(body[0], /^(?:converted|pending)$/, "the token is converted or pending");
+
+  // The parser rejects prose inside a machine-read section, so the explanation lives above
+  // the heading rather than under it.
+  const prose = surface.split(/^## Conversion$/m)[0];
+  assert.match(prose, /`converted`[\s\S]{0,200}`pending`|`pending`[\s\S]{0,200}`converted`/);
+
+  const lockCriteria = read("skills/gsd-prototyping/SKILL.md")
+    .split(/^## Lock criteria$/m)[1].split(/^## /m)[0];
+  assert.match(
+    lockCriteria,
+    /## Conversion/,
+    "the map lock criterion requires the declared conversion state",
+  );
+});
+
+test("prototype lock asks the conversion cadence once and records pending either way", () => {
+  // Converting immediately was the only cadence, so a deliberately deferred conversion had
+  // nowhere to be recorded. One question at lock is the whole mechanism: it adds no runtime
+  // key, and both answers leave the same declared state behind.
+  const prototyping = read("skills/gsd-prototyping/SKILL.md");
+  const transition = prototyping.split(/^## Transition$/m)[1];
+  assert.ok(transition, "the owner declares its transition");
+
+  assert.match(transition, /one question/i, "the cadence is one question, not a menu");
+  assert.match(
+    transition,
+    /convert[\s\S]{0,200}`gsd-brainstorming`/i,
+    "the convert-now answer loads requirements convergence",
+  );
+  assert.match(
+    transition,
+    /batch[\s\S]{0,240}(?:no lifecycle artifact|stops)/i,
+    "the batch answer stops without authoring a lifecycle artifact",
+  );
+  // `only for convert-now` is the load-bearing half: an implementation loading the peer in
+  // both branches would satisfy every positive match above while erasing the choice. The
+  // batch sentence must therefore name no owner to load.
+  const batchSentence = transition
+    .split(/(?<=\.)\s+/)
+    .find((sentence) => /batch/i.test(sentence) && /`pending`|stops|no lifecycle artifact/i.test(sentence));
+  assert.ok(batchSentence, "the transition states the batch branch in its own sentence");
+  assert.doesNotMatch(
+    batchSentence,
+    /load `gsd-[a-z-]+`/i,
+    "the batch branch loads no skill, so deferring authors no lifecycle artifact",
+  );
+  assert.match(
+    transition,
+    /both[\s\S]{0,200}`pending`/i,
+    "both answers record the same pending conversion state",
+  );
+  // A deferred conversion must not be reachable only by remembering it: the queue is the
+  // declared state the validator counts.
+  assert.match(transition, /validate-design-map|`pending`[\s\S]{0,160}queue/i);
+  assert.match(
+    transition,
+    /prototype-only[\s\S]{0,200}Deferred Slow E2E/i,
+    "prototype-only work carries no slow stage",
+  );
+
+  // The catalog and source-of-truth invariants recorded an unconditional transition, which
+  // would contradict the branch the owner now takes.
+  const domain = read("docs/domain/gsd.md");
+  const catalog = domain.split("\n").find((line) => /^- The visible catalog carries/.test(line));
+  assert.ok(catalog, "the shard records the catalog invariant");
+  assert.doesNotMatch(
+    catalog,
+    /transitions to `gsd-brainstorming` on Prototype Lock\./,
+    "the catalog invariant no longer records an unconditional transition",
+  );
+  assert.match(catalog, /cadence|convert now|batch/i, "the catalog invariant records the choice");
+  const truth = domain.split("\n").find((line) => /^- A locked `design\/` prototype is the source/.test(line));
+  assert.ok(truth, "the shard records the source-of-truth invariant");
+  assert.match(truth, /`pending`/, "the invariant records the deferred state");
+
+  const policy = domain.split(/^### P-gsd-15: /m)[1].split(/^### /m)[0];
+  assert.match(policy, /one question/i, "the policy records the single cadence question");
+  assert.match(policy, /`pending`/, "the policy records the state both answers write");
+  assert.match(domain, /\| Choose the conversion cadence \| .+ \|/, "a command row records the cadence");
+  // The walkthrough is the shard's own record of the flow, so an unconditional transition
+  // there would contradict the batch answer that stops with no lifecycle artifact.
+  const walkthrough = domain.split(/^### Lock a prototype before requirements$/m)[1].split(/^### /m)[0];
+  assert.match(walkthrough, /one conversion-cadence question/i, "the walkthrough asks the cadence question");
+  assert.match(
+    walkthrough,
+    /batch[\s\S]{0,120}no lifecycle artifact/i,
+    "the walkthrough records the batch branch stopping without a lifecycle artifact",
+  );
+  assert.doesNotMatch(
+    walkthrough,
+    /lists, then transition to requirements convergence/,
+    "the walkthrough no longer transitions unconditionally at lock",
+  );
+});
+
+test("a conversion task flips the declared state under a scoped terminal gate", () => {
+  // The declaration is only trustworthy if the change that converts a surface must move it.
+  // The gate has to stay scoped, though: a deferred lock writes `pending` deliberately, so
+  // blocking every changed surface document would make the batch cadence block itself.
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  assert.match(
+    execution,
+    /`reuse-prototype`[\s\S]{0,320}`## Conversion`[\s\S]{0,200}`converted`/,
+    "a conversion task sets the surface's conversion state to converted",
+  );
+  assert.match(
+    execution,
+    /`converted`[\s\S]{0,200}same task as the production change/,
+    "the flip is owned by the same task as the production change",
+  );
+
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const step = verify
+    .split(/\n(?=\d\. )/)
+    .find((chunk) => /^4\. /.test(chunk) && /UI Impact/.test(chunk));
+  assert.ok(step, "the terminal gate states UI Impact conformance as step 4");
+  assert.match(
+    step,
+    /`reuse-prototype`[\s\S]{0,240}changed[\s\S]{0,120}`Surfaces`[\s\S]{0,200}`pending`[\s\S]{0,160}(?:blocks|Blocker)/,
+    "the gate fires on a reuse-prototype classification whose declared surfaces changed while the state stayed pending",
+  );
+  // Scope is the load-bearing half: a gate firing on any `pending` surface would satisfy the
+  // match above while breaking the deferred cadence, so the exemption must be stated.
+  assert.match(
+    step,
+    /(?:deferred|prototype-authoring|authoring)[\s\S]{0,200}`pending`[\s\S]{0,120}(?:untouched|never blocks|not a blocker)/i,
+    "a deferred lock's pending state is left untouched",
+  );
+
+  // The obligations must live inside the canonical design section: a stray `## Conversion`
+  // mention elsewhere in the contract would satisfy a whole-file match while leaving the
+  // one section a future agent is bound by silent.
+  const agents = read("AGENTS.md");
+  const design = agents.split(/^## Design documentation$/m)[1]?.split(/^## /m)[0];
+  assert.ok(design, "the contract carries its canonical design section");
+  assert.match(
+    design,
+    /`## Conversion`[\s\S]{0,200}`converted`[\s\S]{0,40}`pending`/,
+    "the contract requires the declared conversion state",
+  );
+  assert.match(
+    design,
+    /`pending`[\s\S]{0,200}later batch/i,
+    "the contract permits holding a locked surface for a later batch",
+  );
+  assert.match(
+    design,
+    /convert[\s\S]{0,240}`converted`[\s\S]{0,160}same task/i,
+    "the converting change flips the state in its own task",
+  );
+
+  const domain = read("docs/domain/gsd.md");
+  const policy = domain.split(/^### P-gsd-17: /m)[1]?.split(/^### /m)[0];
+  assert.ok(policy, "the shard records the conversion-flip policy");
+  assert.match(policy, /`converted`/, "the policy names the flipped state");
+  assert.match(policy, /`reuse-prototype`/, "the policy scopes the gate to conversion work");
+  assert.match(policy, /`pending`/, "the policy preserves the deferred state");
+  assert.match(domain, /\| Convert a locked surface \| .+ \|/, "a command row records the conversion");
+});
+
 test("the drift owner reports three planes and routes both directions", () => {
   // Drift is only actionable when each plane names its own authority pair and its own
   // verdict: one blended verdict would hide which side moved.
@@ -1619,6 +1848,65 @@ test("the drift owner reports three planes and routes both directions", () => {
   assert.match(driftInvariant, /never (?:edits|writes)/i);
   assert.match(read("AGENTS.md"), /back-port[\s\S]{0,200}re-lock/i, "the root contract states the back-port direction");
   assert.match(read("AGENTS.md"), /production paths that surface governs/i);
+});
+
+test("the drift audit cross-checks the declared conversion state", () => {
+  // The declaration is deterministic only as grammar: the validator proves a token exists and
+  // that `converted` carries claims, never that production actually matches. The audit is the
+  // only place both sides are read, so it is where a wrong declaration becomes visible — as
+  // evidence a human weighs, not as a machine verdict.
+  const sync = read("skills/gsd-design-sync/SKILL.md");
+
+  assert.match(
+    sync,
+    /`pending`[\s\S]{0,200}(?:queue|owe)/i,
+    "the queue is the validator's pending count, not a list the audit maintains",
+  );
+  assert.match(
+    sync,
+    /validate-design-map[\s\S]{0,400}`pending`/,
+    "the pending count comes from the same validator run the audit already makes",
+  );
+  // Both contradiction shapes must be named, and both are `ui`-plane readings: the declaration
+  // is about converted markup, so a generic verdict mention would pass while auditing nothing
+  // that can contradict it. Only reporting the `converted`-but-drifted case would also leave a
+  // surface silently claiming debt it no longer owes.
+  assert.match(
+    sync,
+    /`converted`[\s\S]{0,200}`ui`[\s\S]{0,120}`design-ahead`/,
+    "a converted surface whose ui plane reads design-ahead is evidence of a wrong declaration",
+  );
+  assert.match(
+    sync,
+    /`pending`[\s\S]{0,200}`ui`[\s\S]{0,120}`aligned`/,
+    "a pending surface whose ui plane reads aligned is evidence of a wrong declaration",
+  );
+  // The boundary is the load-bearing half: calling the cross-check proof would turn a
+  // judgment over rendered differences into a guarantee the audit cannot make.
+  assert.match(
+    sync,
+    /(?:claim|evidence)[\s\S]{0,240}(?:not|never|rather than)[\s\S]{0,80}(?:deterministic|proof|proves)/i,
+    "the declaration is an auditable claim rather than deterministic proof",
+  );
+
+  const domain = read("docs/domain/gsd.md");
+  const driftInvariant = domain.split("\n").find((line) => /^- Design and production drift/.test(line));
+  assert.ok(driftInvariant, "the shard records the drift invariant");
+  assert.match(driftInvariant, /`pending`/, "the invariant records the queue source");
+  assert.match(
+    driftInvariant,
+    /(?:claim|evidence)/i,
+    "the invariant records the declaration as a claim the audit can contradict",
+  );
+
+  const policy = domain.split(/^### P-gsd-16: /m)[1]?.split(/^### /m)[0];
+  assert.ok(policy, "the shard records the drift-audit policy");
+  assert.match(policy, /`pending`/, "the policy names the queue the audit consumes");
+  assert.match(
+    policy,
+    /(?:auditable claim|claim rather than)/i,
+    "the policy records the auditable-claim boundary",
+  );
 });
 
 test("domain modeling keeps preapproval writes current-only and reads affected shards only", () => {
@@ -1802,6 +2090,178 @@ test("T2 schema:v4 state.toon contract and skill derivation", () => {
   assert.match(master, /state\.toon/);
   assert.doesNotMatch(master, /result\.toon/);
 });
+test("prototype selection routes on explicit surface intent, never an inferred one", () => {
+  // "New or changed user-facing surface work" made every feature with an eventual UI a
+  // prototype candidate, so a prompt naming no surface split two models between the
+  // prototype owner and requirements convergence. The discriminator is what the prompt
+  // says, not what a feature probably renders later.
+  const fixtures = JSON.parse(read("test/eval/fixtures.json"));
+  const byId = new Map(fixtures.map((fixture) => [fixture.id, fixture]));
+
+  // The generic-feature fixture is the exact routing case this rule has to settle, so it is
+  // pinned here rather than left to the slow activation eval alone.
+  const generic = byId.get("new-feature");
+  assert.ok(generic, "a fixture pins a generic feature request");
+  assert.equal(generic.expectedPrimarySkill, "gsd-brainstorming");
+  assert.equal(generic.expectedAction, "load");
+  assert.doesNotMatch(
+    generic.prompt,
+    /\b(?:screen|page|surface|ui|view|dialog|modal)\b/i,
+    "the generic fixture names no surface, so only an inferred one could route it to a prototype",
+  );
+  const surface = byId.get("new-surface-prototype");
+  assert.ok(surface, "a fixture pins an explicit surface request");
+  assert.equal(surface.expectedPrimarySkill, "gsd-prototyping");
+  assert.match(
+    surface.prompt,
+    /\b(?:screen|page|surface|ui|view)\b/i,
+    "the prototype fixture names its surface explicitly",
+  );
+
+  // The bootstrap rule must state the boundary both ways: explicit intent selects, and a
+  // generic request converges first. Stating only the positive half is what let a model
+  // infer a surface behind any feature.
+  const bootstrap = read("skills/gsd/SKILL.md");
+  const rule = bootstrap.split("\n").find((line) => /gsd-prototyping/.test(line) && /surface/i.test(line));
+  assert.ok(rule, "the bootstrap carries a prototype selection rule");
+  assert.match(rule, /explicit/i, "selection keys on explicit intent");
+  assert.match(rule, /\bscreen\b|\bUI\b|\bsurface\b/, "the rule names the intent it keys on");
+  assert.match(
+    rule,
+    /(?:generic|otherwise|every other)[\s\S]{0,160}`gsd-brainstorming`/,
+    "a generic feature request converges through requirements instead",
+  );
+  assert.doesNotMatch(rule, /OAuth|login|checkout/i, "the rule names no product-specific example");
+
+  // The canonical row is dispatch authority, so a bootstrap-only fix would leave the
+  // catalog excluding just backend-only work while the rule excludes far more.
+  const reference = read("skills/gsd/REFERENCE.md");
+  const row = reference.split("\n").find((line) => /^\| `gsd-prototyping` \|/.test(line));
+  assert.ok(row, "the canonical matrix carries the prototyping row");
+  const doNotLoad = row.split("|")[5];
+  assert.match(
+    doNotLoad,
+    /(?:generic|no explicit|inferred)/i,
+    "the canonical do-not-load excludes more than backend-only work",
+  );
+  const owner = read("skills/gsd-prototyping/SKILL.md");
+  const restated = owner.match(/^- Do-not-load: (.+)$/m);
+  assert.ok(restated, "the owner restates its do-not-load");
+  assert.match(restated[1], /(?:generic|no explicit|inferred)/i, "the restatement carries the same boundary");
+
+  // The injected payload is the master rules plus each visible frontmatter description, so
+  // the description is a real routing input, not metadata: a rule-only fix leaves the
+  // catalog itself still advertising any user-facing surface behavior.
+  const injected = JSON.parse(owner.match(/^description: (.+)$/m)[1]);
+  assert.match(injected, /explicit/i, "the injected description keys on explicit intent");
+  assert.doesNotMatch(
+    injected,
+    /new or changed user-facing surface behavior/i,
+    "the description no longer advertises any user-facing surface behavior",
+  );
+
+  // The shard records shipped routing semantics, so the boundary belongs in the workflow
+  // step and the policy, not only in the skill prose.
+  const domain = read("docs/domain/gsd.md");
+  const step = domain.split("\n").find((line) => /^1\. Route/.test(line));
+  assert.ok(step, "the shard records the prototype-first routing step");
+  assert.match(step, /explicit/i, "the routing step keys on explicit surface intent");
+  const policy = domain.split(/^### P-gsd-15: /m)[1].split(/^### /m)[0];
+  assert.match(policy, /explicit/i, "the policy records the explicit-intent boundary");
+});
+
+test("design-first is the default order, never a dispatch guard", () => {
+  // Design-first is how surface work is sequenced, not a permission check. A user may open
+  // design work from the repository root, change an already-locked surface, or describe a
+  // different order; each of those is answered with one question at most, never a refusal.
+  const bootstrap = read("skills/gsd/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const prototyping = read("skills/gsd-prototyping/SKILL.md");
+  const agents = read("AGENTS.md");
+  const domain = read("docs/domain/gsd.md");
+
+  // The explicit-intent routing boundary is unchanged: a default order is not a licence to
+  // start inferring surfaces behind generic prompts again.
+  const rule = bootstrap.split("\n").find((line) => /gsd-prototyping/.test(line) && /surface/i.test(line));
+  assert.ok(rule, "the bootstrap carries a prototype selection rule");
+  assert.match(rule, /explicit/i, "explicit surface intent still selects the prototype owner");
+  assert.match(
+    rule,
+    /(?:generic|otherwise|every other)[\s\S]{0,160}`gsd-brainstorming`/,
+    "a generic feature request still converges through requirements",
+  );
+
+  // Excluding a surface an existing prototype already locks contradicts the mode that
+  // exists to change exactly that surface, so no dispatch text may carry it.
+  const row = reference.split("\n").find((line) => /^\| `gsd-prototyping` \|/.test(line));
+  assert.ok(row, "the canonical matrix carries the prototyping row");
+  assert.doesNotMatch(
+    row.split("|")[5],
+    /already locked/i,
+    "changing a locked surface is the Existing surface change mode, not a do-not-load case",
+  );
+  const restated = prototyping.match(/^- Do-not-load: (.+)$/m);
+  assert.ok(restated, "the owner restates its do-not-load");
+  assert.doesNotMatch(restated[1], /already locked/i, "the restatement carries no already-locked exclusion");
+  const modes = prototyping.split(/^## Invocation modes$/m)[1].split(/^## /m)[0];
+  assert.match(modes, /^\| Existing surface change \|/m, "changing a locked surface keeps its own mode");
+
+  // The canonical matrix is dispatch authority, so the ask-instead-of-block default order
+  // belongs there too: a root-contract-only statement would leave the table implying a gate.
+  const matrix = reference.split(/^## Visible skill mandatory-use matrix$/m)[1].split(/^## /m)[0];
+  assert.match(matrix, /default order/i, "the canonical matrix records design-first as the default order");
+  assert.match(
+    matrix,
+    /(?:different|differently|unclear)[\s\S]{0,240}one question/i,
+    "the canonical matrix asks one question instead of blocking a different order",
+  );
+
+  // The order is a default with a one-question deviation, stated where routing is decided
+  // and in the root contract a future agent reads on its own.
+  assert.match(rule, /default/i, "the selection rule states the order as a default");
+  assert.match(
+    rule,
+    /(?:different|differently|unclear)[\s\S]{0,200}one question/i,
+    "a differently described or unclear order asks one question",
+  );
+  assert.match(agents, /default order/i, "the root contract states design-first as the default order");
+  assert.match(
+    agents,
+    /(?:different|differently|unclear)[\s\S]{0,240}one question/i,
+    "the root contract asks one question instead of guarding the order",
+  );
+  assert.doesNotMatch(
+    agents,
+    /never let production markup and styling drift ahead/i,
+    "an absolute prohibition is a guard, not a default order",
+  );
+  assert.match(agents, /source of truth[\s\S]{0,200}convert/i, "the prototype is still the surface source of truth");
+
+  // Relaxing the order changes nothing about ownership: the prototype owner still writes no
+  // production code and authors no lifecycle artifact.
+  assert.match(prototyping, /authors no lifecycle artifact/);
+  const produced = [...modes.matchAll(/^\| ([^|]+) \| [^|]+ \| [^|]+ \| ([^|]+) \|/gm)]
+    .filter(([, mode]) => mode !== "Mode")
+    .map(([, , cell]) => cell);
+  assert.equal(produced.length, 3, "the mode table declares what each mode produces");
+  for (const cell of produced) {
+    assert.doesNotMatch(cell, /production/i, `${cell} produces prototype artifacts only`);
+  }
+
+  // The shard records shipped semantics, so the default order and its deviation belong in
+  // the routing step and the policy rather than only in skill prose.
+  const step = domain.split("\n").find((line) => /^1\. Route/.test(line));
+  assert.ok(step, "the shard records the prototype-first routing step");
+  assert.match(step, /default/i, "the routing step records the order as a default");
+  const policy = domain.split(/^### P-gsd-15: /m)[1].split(/^### /m)[0];
+  assert.match(policy, /default order/i, "the policy records the default order");
+  assert.match(
+    policy,
+    /(?:different|differently|unclear)[\s\S]{0,240}one question/i,
+    "the policy records the one-question deviation",
+  );
+});
+
 test("activation fixtures and response parser enforce lazy primary-skill selection", () => {
   const fixtureText = read("test/eval/fixtures.json");
   const fixtures = JSON.parse(fixtureText);
@@ -2058,11 +2518,11 @@ test("the activation evaluator runs keyless through the local omp CLI", () => {
   const ambientKey = selectEvalBackend({ OPENAI_API_KEY: "sk-ambient" }, "/usr/bin/omp");
   assert.equal(ambientKey.kind, "omp");
   assert.equal(ambientKey.command, "/usr/bin/omp");
-  assert.deepEqual(ambientKey.models, ["gemini-3.6-flash", "gpt-5.6-luna"]);
+  assert.deepEqual(ambientKey.models, ["gpt-5.6-luna"]);
 
   const keyless = selectEvalBackend({}, "/usr/bin/omp");
   assert.equal(keyless.kind, "omp");
-  assert.deepEqual(keyless.models, ["gemini-3.6-flash", "gpt-5.6-luna"]);
+  assert.deepEqual(keyless.models, ["gpt-5.6-luna"]);
 
   // No binary falls back to a bearer key; forcing http uses it even when omp exists.
   assert.equal(selectEvalBackend({ GSD_EVAL_KEY: "sk-test" }, null).kind, "http");
@@ -2070,10 +2530,15 @@ test("the activation evaluator runs keyless through the local omp CLI", () => {
   assert.equal(forcedHttp.kind, "http");
   assert.deepEqual(forcedHttp.models, ["gpt-4o-mini"]);
 
-  // An explicit model list overrides the defaults on either backend.
+  // An explicit model list overrides the default on either backend, and a model dropped
+  // from the default set is still reachable that way rather than deleted.
   assert.deepEqual(
     selectEvalBackend({ GSD_EVAL_MODEL: " gemini-3.6-flash , gpt-5.6-luna " }, "/usr/bin/omp").models,
     ["gemini-3.6-flash", "gpt-5.6-luna"],
+  );
+  assert.deepEqual(
+    selectEvalBackend({ GSD_EVAL_MODEL: "gemini-3.6-flash" }, "/usr/bin/omp").models,
+    ["gemini-3.6-flash"],
   );
   assert.deepEqual(
     selectEvalBackend({ GSD_EVAL_KEY: "sk-test", GSD_EVAL_MODEL: "gpt-4.1" }, null).models,
@@ -2094,6 +2559,15 @@ test("the activation evaluator runs keyless through the local omp CLI", () => {
   ]) {
     assert.ok(runner.includes(flag), `omp eval run must pass ${flag}`);
   }
+
+  // The shipped documentation names the same single default and the opt-in that reaches
+  // any de-defaulted model, so a reader cannot infer a two-model baseline.
+  const readme = read("README.md");
+  const evalDoc = readme.match(/^It prefers the local `omp` binary.*$/m);
+  assert.ok(evalDoc, "README must document the eval backend default");
+  assert.match(evalDoc[0], /`gpt-5\.6-luna`/);
+  assert.doesNotMatch(evalDoc[0], /`gemini-3\.6-flash`/);
+  assert.match(readme, /GSD_EVAL_MODEL[\s\S]{0,400}gemini-3\.6-flash/);
 });
 
 test("compaction recovery capsule byte identity and drift protection", async () => {

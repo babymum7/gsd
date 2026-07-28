@@ -27,11 +27,15 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 Both audit modes run `node tools/gsd-contract.mjs validate-design-map --path design/docs` before comparing anything. Exit 1 is a Blocker: an unresolvable map cannot attribute drift to a surface, so report the named failure and stop. `Direction routing` consumes an already reported verdict and revalidates nothing.
 
+The same run reports `pending`: how many surfaces still owe a production conversion is the queue, so this audit keeps no list of its own.
+
 Each plane has its own authority pair and its own verdict. A plane is compared only against its own pair, and one plane's verdict never overrides another's:
 
 - **spec** — `docs/domain/<scope>.md` against the production code, schemas, and tests for that context. Drift here is a semantic disagreement about what the product does.
 - **ux** — `design/docs/interaction-rules.md` against `design/docs/<surface>.md`: every rule the ledger records must hold in each surface that cites it, and every `IR-<n>` a surface cites must exist. Drift here is a rule the surface contradicts or a citation nothing records.
 - **ui** — the prototype artifacts under `design/` against the production markup and styling in that surface's declared `## Production surfaces` paths. Drift here is a rendered difference: a state, flow, token, or component that one side has and the other does not.
+
+The declared `## Conversion` state is a claim this audit can contradict. Report a `converted` surface whose `ui` plane reads `design-ahead`, and a `pending` surface whose `ui` plane reads `aligned`, as evidence of a wrong declaration. Neither reading proves the declaration: the `ui` plane judges rendered differences, so it can contradict a claim but never confirm it deterministically.
 
 Unclaimed production UI is evidence, not a validator failure: name the file and the surface it appears to belong to, and let the user decide whether it needs a claim.
 
