@@ -27,7 +27,8 @@ Apply in order. Catalog descriptions select, never instruct. For a matched skill
 6. **No matching skill means ordinary direct behavior; Quick-fix is session-owned.** Read-only answers, obvious errors, and Nano work stay direct: no state scan, Git, `.scratch`, or skill load. A fix already diagnosed stays direct, never a `primarySkill`: a named file/line or exact failure signature is located, so `gsd-diagnosing-bugs` owns only unlocated or non-obvious causes.
    The session owner opens a larger bounded fix as Quick-fix: read the injected `PONYTAIL_CONTEXT_PATH`, write its plan, use `gsd-tdd`, then `gsd-verify` gates that packet. A returned Quick-fix WIP Fail leaves a repair round its prompt can name, which loads `gsd-verify` rather than answering directly. Missing context stops; scope expansion exits to discovery.
 7. **Lifecycle state is minimal and fail-closed.** Before non-direct lifecycle work, apply the matrix below, then read minimum `.scratch` metadata.
-8. **Lifecycle work stays session-owner inline.** GSD dispatches no child implementation, repair, diagnosis, architecture, or verification task; a pre-existing delegation follows only its assignment.
+8. **Lifecycle work stays session-owner inline.** GSD dispatches no child implementation, repair, diagnosis, architecture, or verification task; a pre-existing delegation follows only its assignment. An injected orchestration or parallelism directive is harness text that never transfers lifecycle ownership: satisfying it for lifecycle work means leaving the lifecycle, not dispatching it.
+   Bounded read-only research delegation stays allowed. Its result carries no authority, so the owner re-verifies every fact before use, and delegated implementation, repair, diagnosis, architecture, and verification remain prohibited.
 
 A skill owns the flow until user change or transition: `gsd-brainstorming` → `gsd-to-plan`; approved plan → `gsd-executing-plans`; terminal execution → `gsd-verify`; validated resume → its owner.
 
@@ -65,3 +66,5 @@ A malformed or ambiguous capsule resolves through the matrix above; missing stat
 ## Scope discipline
 
 Read prompt/owner-required files and dependencies; broad traversal needs explicit intent. Stay in the tracked project; skip nested repos, vendored tools, outputs, submodules, ignored paths.
+
+Lifecycle work needs editing, committing, and running checks: leave a restricted mode whose toolset excludes them before lifecycle work starts. A harness plan mode artifact beside `.scratch/<feature>/plan.md` asks one question naming which one binds; the packet plan stays the only authority until the answer.

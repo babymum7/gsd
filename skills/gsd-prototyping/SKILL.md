@@ -57,7 +57,7 @@ A surface is locked when all of these hold:
 4. The surface document under `design/docs/` lists those states and flows, matching what the prototype renders.
 5. No accepted review feedback is unrecorded: every accepted system-wide rule exists as an `IR-<n>` entry and every accepted surface-specific decision exists in the surface document.
 6. The surface is decomposed, not one undifferentiated file: markup, styles, tokens, components, and its document are separate artifacts under `design/`.
-7. The surface document declares its `## Production surfaces`: the sorted production paths converted from it, or exactly `none` before conversion, declares its `## Conversion` state as `converted` or `pending`, and every `IR-<n>` it cites exists in `design/docs/interaction-rules.md`. `node tools/gsd-contract.mjs validate-design-map --path design/docs` exits 0.
+7. The surface document declares its `## Production surfaces`: the sorted production paths converted from it, or exactly `none` before conversion, declares its `## Conversion` state as `converted` or `pending`, and every `IR-<n>` it cites exists in `design/docs/interaction-rules.md`. `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-design-map --path design/docs` exits 0.
 
 Anything unresolved stays one concise discussion note. Do not invent configuration, theming, or extensibility that no locked state requires.
 
@@ -69,7 +69,7 @@ For convert now, load `gsd-brainstorming` and pass the locked prototype as fixed
 
 For a later batch, stop here: report the surface as locked and awaiting conversion, and author no lifecycle artifact, since nothing is being planned yet.
 
-Both answers leave the surface document's `## Conversion` state as `pending`, so deferring records nothing the immediate path would not have written. That declared state is the queue: `node tools/gsd-contract.mjs validate-design-map --path design/docs` counts how many surfaces still read `pending`, so a held surface is rediscoverable without a second file to keep in sync.
+Both answers leave the surface document's `## Conversion` state as `pending`, so deferring records nothing the immediate path would not have written. That declared state is the queue: `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-design-map --path design/docs` counts how many surfaces still read `pending`, so a held surface is rediscoverable without a second file to keep in sync.
 
 Prototype work is its own feature packet, then the implementation feature follows as a second packet; both reuse the existing resume, verification, and cleanup contracts, so no new `state.toon` phase value exists. A prototype-only packet has no production journey to exercise, so it carries no Deferred Slow E2E stage: the one browser-free check loop is its whole gate. Scope growth beyond the surface exits to `gsd-brainstorming` instead of widening the prototype.
 

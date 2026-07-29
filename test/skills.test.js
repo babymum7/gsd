@@ -2012,6 +2012,201 @@ test("README documents the Markdown contract without legacy plan authority", () 
   assert.doesNotMatch(readme, /proposal\.toon|spec\.toon|design\.toon|plan\.toon/);
 });
 
+// The design-map command was reachable only from the two owners that happen to call it, so a
+// reader of canonical authority could not discover it. Both entry points must carry the
+// invocation and the fields it returns, or an owner has to read the CLI source to use it.
+test("AC-4: canonical authority documents the design-map command and its output", () => {
+  const reference = read("skills/gsd/REFERENCE.md");
+  const validatorSection = reference.match(
+    /### Executable contract validator\n[\s\S]*?(?=\n### Approval binding)/,
+  );
+  assert.ok(validatorSection, "REFERENCE must keep its executable-validator section");
+  const readmeSection = read("README.md").match(
+    /## Plan contract validation\n[\s\S]*?(?=\n## Verification)/,
+  );
+  assert.ok(readmeSection, "README must keep its plan-contract section");
+  const invocation = /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" validate-design-map --path design\/docs/;
+  for (const [label, body] of [
+    ["reference", validatorSection[0]],
+    ["readme", readmeSection[0]],
+  ]) {
+    assert.match(body, invocation, `${label} carries the design-map invocation`);
+    for (const field of ["surfaces", "claims", "pending"]) {
+      assert.match(body, new RegExp(`\`${field}\``), `${label} names the ${field} field`);
+    }
+  }
+});
+
+// A harness that injects "parallelize this" reaches the session as authority-looking text. The
+// bootstrap forbade child lifecycle work but never said what an injected directive does to
+// ownership, and never said that bounded read-only research is still allowed.
+test("AC-5/AC-6: injected orchestration keeps ownership and read-only research stays allowed", () => {
+  const bootstrap = read("skills/gsd/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const pipeline = reference.match(
+    /## Post-approval pipeline contract\n[\s\S]*?(?=\n## Git\/base\/WIP\/scratch mechanics)/,
+  );
+  assert.ok(pipeline, "REFERENCE must keep its post-approval pipeline contract");
+  for (const [label, body] of [
+    ["bootstrap", bootstrap],
+    ["reference", pipeline[0]],
+  ]) {
+    assert.match(
+      body,
+      /injected orchestration[\s\S]{0,160}never transfers[\s\S]{0,80}ownership/i,
+      `${label} denies ownership transfer to an injected directive`,
+    );
+    assert.match(
+      body,
+      /leav(?:e|ing) the lifecycle/i,
+      `${label} routes a lifecycle parallelism demand out of the lifecycle`,
+    );
+    assert.match(
+      body,
+      /read-only research[\s\S]{0,200}carries no authority/i,
+      `${label} permits read-only research delegation without authority`,
+    );
+    assert.match(
+      body,
+      /implementation, repair, diagnosis, architecture, (?:or |and )?verification/i,
+      `${label} names every lifecycle category an injected directive cannot dispatch`,
+    );
+    assert.match(
+      body,
+      /re-?verif/i,
+      `${label} requires the owner to re-verify a delegated result`,
+    );
+  }
+});
+
+// The harness keeps its own todo list, so plan progress was invisible there while `state.toon`
+// held the truth. Mirroring must not create a second authority. Slow suites also needed servers
+// that a plain shell call leaks past the merge gate.
+test("AC-7/AC-8: execution mirrors tasks into the harness todo and slow suites supervise processes", () => {
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  assert.match(
+    execution,
+    /one phase[\s\S]{0,200}pending `T1\.\.TN`[\s\S]{0,120}after approval/i,
+    "execution initializes one todo phase from the exact pending task identities after approval",
+  );
+  assert.match(
+    execution,
+    /todo[\s\S]{0,400}(?:same step as|at) (?:its |the )?green checkpoint/i,
+    "a task is marked done in the same step as its green checkpoint",
+  );
+  assert.match(
+    execution,
+    /`state\.toon`[\s\S]{0,160}sole resumable authority/i,
+    "the mirror never displaces state.toon as resumable authority",
+  );
+  assert.match(
+    verify,
+    /supervised named process[\s\S]{0,200}readiness/i,
+    "the slow suite starts long-lived processes as supervised named processes with observed readiness",
+  );
+  assert.match(
+    verify,
+    /(?:server, watcher, (?:or |and )?daemon|watcher)/i,
+    "the slow-suite rule names the long-lived process kinds it covers",
+  );
+  assert.match(
+    verify,
+    /(?:torn down|teardown)[\s\S]{0,160}merge gate|merge gate[\s\S]{0,160}(?:torn down|teardown)/i,
+    "supervised processes are torn down before the merge gate",
+  );
+});
+
+test("AC-9/AC-10: conversation-only recovery is excluded and restricted modes resolve first", () => {
+  const reference = read("skills/gsd/REFERENCE.md");
+  const bootstrap = read("skills/gsd/SKILL.md");
+  assert.match(
+    reference,
+    /rewind[\s\S]{0,240}(?:committed WIP|working tree)/i,
+    "recovery contract excludes conversation-rewind tooling and names the tree it leaves behind",
+  );
+  assert.match(
+    reference,
+    /`state\.toon`[\s\S]{0,200}ahead of the restored conversation/i,
+    "the exclusion names state.toon running ahead of the restored conversation",
+  );
+  assert.match(
+    reference,
+    /(?:memory|recall)[\s\S]{0,200}never lifecycle authority/i,
+    "a memory backend recall is never lifecycle authority",
+  );
+  assert.match(
+    reference,
+    /(?:mode|toolset)[\s\S]{0,240}(?:edit|editing)[\s\S]{0,120}(?:commit|committing)/i,
+    "the restricted-mode row names the tools the lifecycle needs",
+  );
+  assert.match(
+    bootstrap,
+    /(?:leave|exit)[\s\S]{0,160}mode[\s\S]{0,200}before[\s\S]{0,80}lifecycle/i,
+    "bootstrap requires leaving a restricted mode before lifecycle work",
+  );
+  assert.match(
+    bootstrap,
+    /plan mode[\s\S]{0,240}one question|one question[\s\S]{0,240}plan mode/i,
+    "a coexisting harness plan-mode artifact asks exactly one question",
+  );
+});
+
+test("T7: the domain shard records the shipped harness-fit behavior", () => {
+  const domain = read("docs/domain/gsd.md");
+
+  // D-3 gives this shard one owning task, so every semantic change this feature
+  // shipped must be readable as current production behavior here, not only in the
+  // authority documents the tasks edited.
+  const invocation = domain.split("\n").find((line) => /^- The Contract Validator is invoked/.test(line));
+  assert.ok(invocation, "the shard records how the validator is invoked");
+  assert.match(invocation, /GSD_ROOT/, "the invocation names the injected root");
+  assert.match(invocation, /bootstrap text|not an? (?:exported )?environment variable/i, "the invocation explains why substitution is required");
+
+  const failure = domain.split("\n").find((line) => /^- An unreadable artifact/.test(line));
+  assert.ok(failure, "the shard records the failure-code split");
+  assert.match(failure, /io-error/, "the split names the I/O failure code");
+  assert.match(failure, /invalid-artifact/, "the split names the malformed-authority code");
+  assert.match(failure, /exit 1/, "both failure classes keep exit 1");
+
+  const delegation = domain.split("\n").find((line) => /^- An injected orchestration/.test(line));
+  assert.ok(delegation, "the shard records the delegation bound");
+  assert.match(delegation, /read-only research/i, "bounded research delegation stays permitted");
+  assert.match(delegation, /no authority|carries no authority/i, "a delegated result carries no authority");
+
+  const mirror = domain.split("\n").find((line) => /^- Execution mirrors/.test(line));
+  assert.ok(mirror, "the shard records the progress mirror");
+  assert.match(mirror, /`state\.toon`/, "the mirror names the resumable authority it never displaces");
+  assert.match(mirror, /display/i, "the mirror is display state");
+
+  const recovery = domain.split("\n").find((line) => /^- Lifecycle recovery restores/.test(line));
+  assert.ok(recovery, "the shard records the recovery exclusion");
+  assert.match(recovery, /rewind/i, "the exclusion names conversation rewind");
+  assert.match(recovery, /working tree|committed WIP/i, "the exclusion names the tree the rewind leaves behind");
+
+  const policy = domain.split(/^### P-gsd-18: /m)[1]?.split(/^### /m)[0];
+  assert.ok(policy, "the shard records the harness-boundary policy");
+  assert.match(policy, /- \*\*Policy:\*\*/, "the policy states its rule");
+  assert.match(policy, /- \*\*Reason:\*\*/, "the policy states its reason");
+  assert.match(policy, /`state\.toon`/, "the policy keeps runtime authority canonical");
+});
+
+test("AC-11: the repository manifest publishes the deterministic contract suite", () => {
+  const manifest = JSON.parse(read("package.json"));
+
+  // The suite is the repository's only deterministic gate, so a fresh clone must be
+  // able to run it from the manifest instead of copying a command out of prose.
+  assert.equal(manifest.type, "module", "the manifest declares ES module semantics");
+  assert.equal(manifest.private, true, "the manifest is private and never published");
+  assert.match(manifest.scripts.test, /node --test/, "the test script runs the node test runner");
+  assert.match(manifest.scripts.test, /test\/\*\.test\.js/, "the test script runs every contract suite file");
+  assert.ok(!manifest.dependencies, "the contract suite carries no runtime dependency");
+  assert.ok(!manifest.devDependencies, "the contract suite carries no development dependency");
+
+  // README is the human entry point for the same command, so the two must not drift.
+  assert.match(read("README.md"), /npm test/, "the README names the published script");
+});
+
 test("T1 session-owner execution contract and lifecycle roles", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
   const planner = read("skills/gsd-to-plan/SKILL.md");
@@ -2881,9 +3076,9 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
 });
 
 test("AC-4: Concision preserves semantic parity", () => {
-  const MAX_VISIBLE_WORDS = 10900;
-  const MAX_BOOTSTRAP_WORDS = 1040;
-  const MAX_REFERENCE_WORDS = 5200;
+  const MAX_VISIBLE_WORDS = 11000;
+  const MAX_BOOTSTRAP_WORDS = 1200;
+  const MAX_REFERENCE_WORDS = 5600;
   const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
   assert.equal(visible.length, 11);

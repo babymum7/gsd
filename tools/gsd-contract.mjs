@@ -1,7 +1,15 @@
 #!/usr/bin/env node
+import { fileURLToPath } from "node:url";
 import { validateDesignMap, validatePlanFile } from "../lib/gsd-contract.mjs";
 
 const COMMANDS = new Set(["validate-plan", "validate-quick-fix", "validate-design-map"]);
+
+// The lifecycle runs in workspaces that are not this checkout, so every help and error
+// surface names the path this process was actually loaded from. A repo-relative form here
+// would re-teach the one invocation that never resolves outside the GSD checkout, and a
+// `<GSD_ROOT>` placeholder is bootstrap text no shell expands.
+const SCRIPT_PATH = fileURLToPath(import.meta.url);
+const INVOCATION = `node ${JSON.stringify(SCRIPT_PATH)}`;
 
 function quote(value) {
   return JSON.stringify(String(value));
@@ -13,20 +21,20 @@ function write(lines) {
 
 function commandUsage(command) {
   if (command === "validate-plan") {
-    return "node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md [--expected-sha256 <64-hex>]";
+    return `${INVOCATION} validate-plan --path .scratch/<feature>/plan.md [--expected-sha256 <64-hex>]`;
   }
   if (command === "validate-quick-fix") {
-    return "node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md";
+    return `${INVOCATION} validate-quick-fix --path .scratch/<feature>/plan.md`;
   }
   if (command === "validate-design-map") {
-    return "node tools/gsd-contract.mjs validate-design-map --path design/docs";
+    return `${INVOCATION} validate-design-map --path design/docs`;
   }
-  return "node tools/gsd-contract.mjs <validate-plan|validate-quick-fix|validate-design-map> --path <artifact>";
+  return `${INVOCATION} <validate-plan|validate-quick-fix|validate-design-map> --path <artifact>`;
 }
 
 function emitHelp(command) {
   write([
-    `bin: ${quote("tools/gsd-contract.mjs")}`,
+    `bin: ${quote(SCRIPT_PATH)}`,
     `description: ${quote("Validate GSD plan and design-map authority in the current workspace")}`,
     `usage: ${quote(commandUsage(command))}`,
   ]);
@@ -47,9 +55,12 @@ function failArtifact(error, command) {
     .replace(/[\x00-\x1F\x7F]+/g, " ")
     .trim()
     .slice(0, 500) || "plan validation failed";
+  // Only the library's own tag selects `io-error`; anything else stays malformed
+  // authority, so an unexpected tag value can never invent a third code.
+  const code = error?.contractFailure === "io-error" ? "io-error" : "invalid-artifact";
   write([
     "status: error",
-    "code: invalid-artifact",
+    `code: ${code}`,
     `error: ${quote(message)}`,
     `help: ${quote(commandUsage(command))}`,
   ]);

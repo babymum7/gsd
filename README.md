@@ -129,30 +129,38 @@ skills/
 The lifecycle validates actual plan authority through one production parser. New full plans use:
 
 ```bash
-node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md
+node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md
 ```
 
 Execution resume, terminal entry, and pre-squash bind the same command to approved bytes:
 
 ```bash
-node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex>
+node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex>
 ```
 
 Quick fixes select their distinct grammar:
 
 ```bash
-node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md
+node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md
 ```
 
-Successful validation emits minimal deterministic TOON with the plan kind, feature, SHA-256, and task count. Artifact failures emit structured TOON on stdout and exit 1; invalid invocations exit 2. The validator reads only a bounded real `.scratch/<feature>/plan.md` and never mutates plan, state, domain, or Git data.
+Design maps select the design-map grammar:
+
+```bash
+node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-design-map --path design/docs
+```
+
+Successful plan validation emits minimal deterministic TOON with the plan kind, feature, SHA-256, and task count; a design map emits `surfaces`, `claims`, and `pending`, counting audited surface documents, declared production paths, and surfaces still owing a conversion. Artifact failures emit structured TOON on stdout and exit 1, separating an unreadable file (`code: io-error`) from malformed authority (`code: invalid-artifact`); invalid invocations exit 2. The validator reads only a bounded real `.scratch/<feature>/plan.md` or in-workspace `design/docs` directory and never mutates plan, state, domain, design, or Git data.
 
 ## Verification
 
-Run the deterministic repository contracts:
+Run the deterministic repository contracts through the published script:
 
 ```bash
-node --test test/*.test.js
+npm test
 ```
+
+That script runs `node --test test/*.test.js`, which is also the direct form when no manifest is installed.
 
 The supplementary model evaluator checks 36 workspace-state + prompt fixtures against the production bootstrap and visible catalog. It requires the strict JSON object `{ "decision": "...", "action": "...", "primarySkill": "gsd-..." | null }`; extra keys or prose fail.
 

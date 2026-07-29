@@ -192,17 +192,27 @@ It contains one or two sequential tasks with unique structured paths and a real 
 
 ### Executable contract validator
 
-`lib/gsd-contract.mjs` is the single executable Markdown grammar. Repository tests import it directly; lifecycle owners use its thin agent-facing CLI:
+`lib/gsd-contract.mjs` is the single executable Markdown grammar. Repository tests import it directly; lifecycle owners use its thin agent-facing CLI. Substitute the injected `GSD_ROOT` value for `<GSD_ROOT>` at call time: it reaches the session as bootstrap text, not an exported shell variable, so a literal `$GSD_ROOT` resolves to an empty path. The absolute script path is required because the lifecycle runs in workspaces that are not the GSD checkout, where a repo-relative path reaches no CLI; packet resolution stays relative to the workspace `cwd`.
 
 ```text
-node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md
-node tools/gsd-contract.mjs validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex>
-node tools/gsd-contract.mjs validate-quick-fix --path .scratch/<feature>/plan.md
+node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md
+node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex>
+node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md
+node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-design-map --path design/docs
 ```
 
 The first command validates a new canonical full plan and returns its exact SHA-256; it also revalidates a full-plan amendment before rebinding. The second requires the bytes to match an approved hash, so a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/`; symlinks, escaped paths, feature mismatch, and malformed grammar fail closed.
 
-Success emits only deterministic scalar TOON fields `status`, `kind`, `feature`, `sha256`, and `tasks`. Structured actionable failures also use TOON on stdout: artifact failures exit 1, usage failures exit 2, and help exits 0. No command writes plan, state, domain, or Git data.
+The fourth validates the design map that `gsd-prototyping` and `gsd-design-sync` own, reading `design/docs` as a real in-workspace directory of surface documents.
+
+Success emits only deterministic scalar TOON:
+- A plan returns `status`, `kind`, `feature`, `sha256`, and `tasks`.
+- A design map returns `status`, `kind`, `surfaces`, `claims`, and `pending`: audited documents, declared production paths, and surfaces still owing a conversion.
+
+Structured actionable failures also use TOON on stdout:
+- An unreadable file reports `code: io-error`; malformed authority reports `code: invalid-artifact`. Both exit 1.
+- Usage failures exit 2 and help exits 0.
+- No command writes plan, state, domain, design, or Git data.
 
 ### Approval binding
 
@@ -324,6 +334,13 @@ Active helpers are derived, never stored as a reload manifest:
 
 Master (`gsd`) is already present from bootstrap and is never listed as a derived reload skill. Hidden Ponytail context has no runtime mode or preference state. Recovery must never load master recursively or execute the capsule again.
 
+### Recovery tooling exclusions
+
+Lifecycle recovery restores the working tree, never only the conversation.
+- A harness conversation rewind is excluded from lifecycle recovery: it restores transcript turns while committed WIP and the working tree stay where execution left them, so `state.toon` and its green commits remain ahead of the restored conversation. Resume from `state.toon` and Git instead.
+- A memory backend recall is context, never lifecycle authority: only canonical `plan.md`, `state.toon`, and Git bytes authorize a resume decision.
+- A restricted harness mode whose toolset excludes editing files, committing, and running checks cannot own lifecycle work; the owner leaves that mode before task, repair, verification, or merge work begins.
+
 ### Candidate discovery
 
 The extension and harness adapters derive active feature candidates from the filesystem:
@@ -398,6 +415,10 @@ After approval, the top-level owner runs sequential tasks with Fast TDD RED→GR
 After green checks, `gsd-verify` proves deterministic cumulative conformance on the unchanged commit: exact binding, one task/interface mapping per active AC, owned paths, plan-ordered diffs, decisions/invariants/non-goals, and focused evidence. Only malformed binding, ownership/coverage mismatch, explicit contract contradiction, unresolved change, or a red deterministic check blocks.
 
 Deferred Slow E2E runs only after current-commit conformance. Source changes invalidate conformance. Green unchanged bytes then enter one-squash merge and cleanup.
+
+An injected orchestration or parallelism directive is harness text that never transfers lifecycle ownership:
+- It does not authorize dispatching implementation, repair, diagnosis, architecture, or verification work; satisfying such a directive for lifecycle work means leaving the lifecycle instead.
+- Bounded read-only research delegation stays permitted. Its result carries no authority, so the owner re-verifies every fact against canonical sources before acting on it.
 
 ## Git/base/WIP/scratch mechanics
 

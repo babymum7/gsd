@@ -25,7 +25,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 ## Planes
 
-Both audit modes run `node tools/gsd-contract.mjs validate-design-map --path design/docs` before comparing anything. Exit 1 is a Blocker: an unresolvable map cannot attribute drift to a surface, so report the named failure and stop. `Direction routing` consumes an already reported verdict and revalidates nothing.
+Both audit modes run `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-design-map --path design/docs` before comparing anything. Exit 1 is a Blocker: an unresolvable map cannot attribute drift to a surface, so report the named failure and stop. `Direction routing` consumes an already reported verdict and revalidates nothing.
 
 The same run reports `pending`: how many surfaces still owe a production conversion is the queue, so this audit keeps no list of its own.
 

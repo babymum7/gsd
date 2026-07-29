@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
@@ -369,6 +369,64 @@ test("usage and unsafe plan inputs fail through the structured CLI surface", () 
   }
 });
 
+test("the CLI names a runnable invocation in every help and error surface", () => {
+  // Help text is the most operative instruction an owner sees after a mis-invocation, so a
+  // repo-relative `node tools/gsd-contract.mjs` here re-teaches exactly the form that never
+  // resolves outside this checkout. The CLI knows where it was loaded from, so it names that
+  // absolute path instead of a placeholder no shell expands.
+  const { workspace, planPath } = makePlanWorkspace("cli-help", "# Plan\n");
+  try {
+    const surfaces = [
+      { label: "help", args: ["validate-plan", "--help"], status: 0 },
+      { label: "usage", args: ["validate-plan"], status: 2 },
+      { label: "unknown-command", args: ["validate-nothing"], status: 2 },
+      { label: "artifact", args: ["validate-plan", "--path", planPath], status: 1 },
+    ];
+    for (const surface of surfaces) {
+      const result = spawnSync(process.execPath, [CLI, ...surface.args], {
+        cwd: workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, surface.status, result.stderr || result.stdout);
+      // Every field stays JSON-quoted, so the invocation is read back through the same
+      // decode a consumer performs rather than matched against escaped bytes.
+      const field = result.stdout.split("\n").find((line) => /^(?:usage|help): /.test(line));
+      assert.ok(field, `${surface.label} must carry a usage or help field`);
+      const invocation = JSON.parse(field.slice(field.indexOf(": ") + 2));
+      assert.doesNotMatch(
+        invocation,
+        /node tools\/gsd-contract\.mjs/,
+        `${surface.label} must not instruct a repo-relative invocation`,
+      );
+      assert.ok(
+        invocation.startsWith(`node ${JSON.stringify(CLI)}`),
+        `${surface.label} must name the resolved absolute script path, got ${invocation}`,
+      );
+    }
+
+    // The documented form is only workspace-independent if it actually runs from a foreign
+    // cwd, so the decoded help line is copy-run verbatim against a real packet.
+    const valid = makePlanWorkspace("cli-copy-run", canonicalPlan("cli-copy-run"));
+    try {
+      const help = spawnSync(process.execPath, [CLI, "validate-plan", "--help"], {
+        cwd: valid.workspace,
+        encoding: "utf8",
+      });
+      const usage = JSON.parse(help.stdout.match(/^usage: (.+)$/m)[1]);
+      const copied = usage
+        .replace(".scratch/<feature>/plan.md", join(".scratch", "cli-copy-run", "plan.md"))
+        .replace(" [--expected-sha256 <64-hex>]", "");
+      const ran = spawnSync(copied, { cwd: valid.workspace, encoding: "utf8", shell: true });
+      assert.equal(ran.status, 0, ran.stderr || ran.stdout);
+      assert.match(ran.stdout, /^status: valid\nkind: plan\nfeature: cli-copy-run\n/);
+    } finally {
+      rmSync(valid.workspace, { recursive: true, force: true });
+    }
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 function quickFixPlan(feature = "quick-fix-plan") {
   return [
     "# Quick-fix Plan",
@@ -390,6 +448,46 @@ function quickFixPlan(feature = "quick-fix-plan") {
     "",
   ].join("\n");
 }
+
+// An unreadable file is the environment failing, not the author writing a bad packet.
+// Collapsing both into `invalid-artifact` would send an owner to rewrite authority that
+// is actually fine, so the two classes stay distinguishable at the CLI surface.
+test("an unreadable plan is an environment failure, not malformed authority", () => {
+  const readable = quickFixPlan("io-denied");
+  const denied = makePlanWorkspace("io-denied", readable);
+  const malformed = makePlanWorkspace("io-malformed", "# Quick-fix Plan\n");
+  chmodSync(denied.planPath, 0o000);
+  try {
+    const cases = [
+      { entry: denied, code: "io-error", expect: /plan file cannot be read/ },
+      {
+        entry: malformed,
+        code: "invalid-artifact",
+        expect: /must be followed directly by the first ## section/,
+      },
+    ];
+    for (const fixture of cases) {
+      const result = spawnSync(
+        process.execPath,
+        [CLI, "validate-quick-fix", "--path", fixture.entry.planPath],
+        { cwd: fixture.entry.workspace, encoding: "utf8" },
+      );
+      assert.equal(result.status, 1, `${fixture.code}: ${result.stdout}${result.stderr}`);
+      assert.match(result.stdout, new RegExp(`^status: error\\ncode: ${fixture.code}\\n`));
+      assert.match(result.stdout, fixture.expect);
+      assert.doesNotMatch(result.stdout, /\n\s+at |Error:/);
+      assert.equal(result.stderr, "");
+    }
+    chmodSync(denied.planPath, 0o644);
+    assert.equal(readFileSync(denied.planPath, "utf8"), readable);
+    assert.equal(readFileSync(malformed.planPath, "utf8"), "# Quick-fix Plan\n");
+  } finally {
+    chmodSync(denied.planPath, 0o644);
+    for (const workspace of [denied.workspace, malformed.workspace]) {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
 
 test("validate-quick-fix enforces its distinct Domain Impact contract", () => {
   const plan = quickFixPlan();
@@ -778,19 +876,31 @@ test("lifecycle owners use the production validator and document inert legacy te
     ["readme", readFileSync(join(ROOT, "README.md"), "utf8")],
   ]);
 
-  assert.match(files.get("reference"), /tools\/gsd-contract\.mjs validate-plan --path/);
+  // The lifecycle runs in workspaces that are not this checkout, so an owner that copies a
+  // repo-relative path never reaches the CLI. Authority documents carry the injected root
+  // substituted into an absolute path, and the bare form must not come back anywhere.
+  const absolutePlan = /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" validate-plan --path/;
+  const absoluteQuickFix = /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" validate-quick-fix --path/;
+  assert.match(files.get("reference"), absolutePlan);
   assert.match(files.get("reference"), /--expected-sha256/);
-  assert.match(files.get("reference"), /tools\/gsd-contract\.mjs validate-quick-fix --path/);
-  assert.match(files.get("planner"), /tools\/gsd-contract\.mjs validate-plan --path/);
+  assert.match(files.get("reference"), absoluteQuickFix);
+  assert.match(files.get("planner"), absolutePlan);
   for (const owner of ["execution", "handoff", "verify"]) {
     assert.match(
       files.get(owner),
-      /tools\/gsd-contract\.mjs validate-plan --path[\s\S]*--expected-sha256/,
+      /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" validate-plan --path[\s\S]*--expected-sha256/,
       `${owner} must bind validation to the approved hash`,
     );
   }
-  assert.match(files.get("verify"), /tools\/gsd-contract\.mjs validate-quick-fix --path/);
-  assert.match(files.get("readme"), /tools\/gsd-contract\.mjs validate-plan --path/);
+  assert.match(files.get("verify"), absoluteQuickFix);
+  assert.match(files.get("readme"), absolutePlan);
+  for (const [label, content] of files) {
+    assert.doesNotMatch(
+      content,
+      /node tools\/gsd-contract\.mjs/,
+      `${label} must not instruct a repo-relative validator invocation`,
+    );
+  }
 
   const legacyWording = /v1\/v2[\s\S]{0,220}candidate discovery[\s\S]{0,220}inert[\s\S]{0,220}explicit (?:read|`readStateFile`)[\s\S]{0,180}(?:reject|fail closed)/i;
   assert.match(files.get("reference"), legacyWording);
@@ -1135,5 +1245,47 @@ test("validate-design-map rejects a symlinked design directory that escapes the 
   } finally {
     rmSync(workspace, { recursive: true, force: true });
     rmSync(outside, { recursive: true, force: true });
+  }
+});
+
+test("the validator resolves a foreign workspace by absolute script path", () => {
+  // The lifecycle runs in workspaces that are not this checkout, where a repo-relative
+  // `node tools/gsd-contract.mjs` resolves against the wrong root and never reaches the
+  // CLI. Packet resolution is already `cwd`-relative, so the absolute script path is the
+  // whole fix: this pins both halves so the documented form cannot regress to the bare one.
+  const plan = canonicalPlan("foreign-workspace");
+  const { workspace } = makePlanWorkspace("foreign-workspace", plan);
+  const relativePlan = join(".scratch", "foreign-workspace", "plan.md");
+  try {
+    const absolute = spawnSync(process.execPath, [CLI, "validate-plan", "--path", relativePlan], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(absolute.status, 0, absolute.stderr || absolute.stdout);
+    assert.equal(
+      absolute.stdout,
+      [
+        "status: valid",
+        "kind: plan",
+        "feature: foreign-workspace",
+        `sha256: ${createHash("sha256").update(plan).digest("hex")}`,
+        "tasks: 1",
+      ].join("\n"),
+    );
+    assert.equal(absolute.stderr, "");
+
+    // The form every authority document used to carry, run from the workspace it would
+    // actually run in: the interpreter never loads a CLI, so no exit code or TOON failure
+    // shape is reachable and an owner reads a module error instead of a verdict.
+    const repoRelative = spawnSync(
+      process.execPath,
+      [join("tools", "gsd-contract.mjs"), "validate-plan", "--path", relativePlan],
+      { cwd: workspace, encoding: "utf8" },
+    );
+    assert.notEqual(repoRelative.status, 0);
+    assert.equal(repoRelative.stdout, "");
+    assert.match(repoRelative.stderr, /Cannot find module/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
   }
 });
