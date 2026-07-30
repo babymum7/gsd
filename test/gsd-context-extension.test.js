@@ -2168,19 +2168,49 @@ test("readStateFile rejects FIFO instead of blocking", () => {
   const tmp = mkdtempSync(join(tmpdir(), "gsd-fifo-test-"));
   const featureDir = join(tmp, ".scratch", "demo");
   mkdirSync(featureDir, { recursive: true });
-  const fifoPath = join(featureDir, "state.toon");
-  execFileSync("mkfifo", [fifoPath]);
+  const statePath = join(featureDir, "state.toon");
 
-  // If O_NONBLOCK is missing, readSync on the FIFO blocks forever.
-  // Run readStateFile in a child process with a hard timeout.
+  // Write a valid state file first so lstat sees a regular file.
+  writeFileSync(statePath, [
+    "schema:v4",
+    "feature:demo",
+    "phase:executing",
+    "plan_path:.scratch/demo/plan.md",
+    `plan_sha256:${FIXTURE_PLAN_SHA}`,
+    "base_ref:main",
+    "wip_branch:wip/demo",
+    "last_green_task:none",
+    "last_green_commit:none",
+    "autosync:off",
+    "cleanup_preference:retain",
+    "checkpoint_revision:7",
+    "",
+  ].join("\n"));
+
+  // Race: lstat sees regular file, then replace with FIFO before open.
+  // Without O_NONBLOCK the open hangs; with O_NONBLOCK it fails immediately.
   const moduleUrl = new URL("../extensions/gsd-context.js", import.meta.url).href;
   const childScript = `
+    import fs from "node:fs";
+    import { execFileSync } from "node:child_process";
     import { readStateFile } from ${JSON.stringify(moduleUrl)};
+    const statePath = ${JSON.stringify(statePath)};
+    const origLstat = fs.lstatSync.bind(fs);
+    let lstatCount = 0;
+    fs.lstatSync = (...args) => {
+      const result = origLstat(...args);
+      if (String(args[0]) === statePath && lstatCount++ === 0) {
+        // lstat saw regular file; now replace with FIFO before open.
+        fs.unlinkSync(statePath);
+        execFileSync("mkfifo", [statePath]);
+      }
+      return result;
+    };
     try {
-      readStateFile(${JSON.stringify(fifoPath)});
+      readStateFile(statePath);
       process.exit(1); // must not succeed
     } catch (e) {
-      process.exit(/cannot read|expected a regular file|FIFO|pipe/.test(e.message) ? 0 : 2);
+      process.exit(/cannot read|expected a regular file|FIFO|pipe|ENXIO/.test(e.message) ? 0 : 2);
     }
   `;
   try {
@@ -2190,7 +2220,7 @@ test("readStateFile rejects FIFO instead of blocking", () => {
     });
     // execFileSync does not throw = child exited 0 = correct rejection
   } finally {
-    try { unlinkSync(fifoPath); } catch {}
+    try { unlinkSync(statePath); } catch {}
     rmSync(tmp, { recursive: true, force: true });
   }
 });
