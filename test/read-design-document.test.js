@@ -182,7 +182,7 @@ test("pre-pin symlink swap is caught by fd-anchored traversal, not resolver", ()
   try {
     assert.throws(
       () => validateDesignMap("design/docs", { cwd: workspace }),
-      /must be a directory|cannot be opened|identity changed|not a directory/,
+      /must be a real directory|must be a directory|cannot be opened|identity changed|not a directory/,
     );
     // Assert AFTER throws — the swap must have triggered during validation,
     // proving the fd-anchored traversal was exercised.
@@ -194,5 +194,57 @@ test("pre-pin symlink swap is caught by fd-anchored traversal, not resolver", ()
     fs.mkdirSync(join(workspace, "design", "docs"), { recursive: true });
     fs.writeFileSync(join(workspace, "design", "docs", "interaction-rules.md"), ruleLedger(["IR-1"]));
     fs.writeFileSync(join(workspace, "design", "docs", "orders.md"), surfaceDoc("Orders"));
+  }
+});
+
+test("whole-root real-directory swap is caught by resolver-vs-pinner identity check", () => {
+  const workspace = makeDesignWorkspace();
+
+  // Build a replacement workspace with the same structure but different inodes.
+  const replacement = join(tmpdir(), "gsd-replacement-root-" + process.pid);
+  const replacementDocs = join(replacement, "design", "docs");
+  fs.mkdirSync(replacementDocs, { recursive: true });
+  fs.writeFileSync(join(replacementDocs, "interaction-rules.md"), ruleLedger(["IR-1"]));
+  fs.writeFileSync(join(replacementDocs, "orders.md"), surfaceDoc("Orders"));
+
+  // Swap must happen between resolver (captures original inodes) and pinner
+  // (opens fd, compares inodes). The resolver's lstat calls happen first
+  // (workspace, design, docs), then the pinner's lstatSync(workspaceRoot)
+  // is the first post-resolver call. Swap on the second workspace lstat.
+  let swapTriggered = false;
+  const originalOpenSync = fs.openSync.bind(fs);
+
+  // The resolver validates via lstatSync (no open). The pinner opens the
+  // workspace root via openSync. Swap the workspace between resolver return
+  // and pinner open: mock openSync to detect the first workspace-root open.
+  fs.openSync = (...args) => {
+    const p = String(args[0]);
+    if (p === workspace && !swapTriggered) {
+      swapTriggered = true;
+      const saved = join(tmpdir(), ".gsd-ws-orig-" + process.pid);
+      fs.renameSync(workspace, saved);
+      fs.mkdirSync(join(workspace, "design", "docs"), { recursive: true });
+      fs.writeFileSync(join(workspace, "design", "docs", "interaction-rules.md"), ruleLedger(["IR-1"]));
+      fs.writeFileSync(join(workspace, "design", "docs", "orders.md"), surfaceDoc("Orders"));
+    }
+    return originalOpenSync(...args);
+  };
+
+  try {
+    // Resolver captured original workspace inodes.
+    // Pinner's openSync follows swapped path, fstat shows different inodes.
+    assert.throws(
+      () => validateDesignMap("design/docs", { cwd: workspace }),
+      /identity changed|cannot be opened|must be a real directory|ENOTDIR/,
+    );
+    assert.ok(swapTriggered, "swap must have been triggered during validation");
+  } finally {
+    fs.openSync = originalOpenSync;
+    try { fs.rmSync(workspace, { recursive: true, force: true }); } catch {}
+    try {
+      const saved = join(tmpdir(), ".gsd-ws-orig-" + process.pid);
+      fs.renameSync(saved, workspace);
+    } catch {}
+    try { fs.rmSync(replacement, { recursive: true, force: true }); } catch {}
   }
 });
