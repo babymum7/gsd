@@ -2216,3 +2216,64 @@ test("readStateFile rejects FIFO instead of blocking", () => {
     rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test("readStateFile rejects state.toon swap after feature dir pin", () => {
+  const { execFileSync } = require("node:child_process");
+  const tmp = mkdtempSync(join(tmpdir(), "gsd-swap-test-"));
+  const featureDir = join(tmp, ".scratch", "demo");
+  mkdirSync(featureDir, { recursive: true });
+  const statePath = join(featureDir, "state.toon");
+
+  writeFileSync(statePath, [
+    "schema:v4",
+    "feature:demo",
+    "phase:executing",
+    "plan_path:.scratch/demo/plan.md",
+    `plan_sha256:${FIXTURE_PLAN_SHA}`,
+    "base_ref:main",
+    "wip_branch:wip/demo",
+    "last_green_task:none",
+    "last_green_commit:none",
+    "autosync:off",
+    "cleanup_preference:retain",
+    "checkpoint_revision:7",
+    "",
+  ].join("\n"));
+
+  // Race: swap state.toon with a FIFO after the feature dir is pinned
+  // but before the file open. Hook openSync to detect the feature-dir open
+  // (2nd call: scratch dir → feature dir), then swap before the 3rd open.
+  const moduleUrl = new URL("../extensions/gsd-context.js", import.meta.url).href;
+  const childScript = `
+    import fs from "node:fs";
+    import { readStateFile } from ${JSON.stringify(moduleUrl)};
+    const statePath = ${JSON.stringify(statePath)};
+    const origOpen = fs.openSync.bind(fs);
+    let openCount = 0;
+    const { execFileSync } = await import("node:child_process");
+    fs.openSync = (...args) => {
+      const result = origOpen(...args);
+      if (++openCount === 2) {
+        // Feature dir just pinned. Swap state.toon with a FIFO now.
+        fs.unlinkSync(statePath);
+        execFileSync("mkfifo", [statePath]);
+      }
+      return result;
+    };
+    try {
+      readStateFile(statePath);
+      process.exit(1); // must not succeed
+    } catch (e) {
+      process.exit(/cannot read|expected a regular file|FIFO|pipe|identity changed/.test(e.message) ? 0 : 2);
+    }
+  `;
+  try {
+    execFileSync(process.execPath, ["--input-type=module", "-e", childScript], {
+      timeout: 2000,
+      stdio: "pipe",
+    });
+  } finally {
+    try { unlinkSync(statePath); } catch {}
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});
