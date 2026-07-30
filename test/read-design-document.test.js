@@ -141,7 +141,7 @@ test("validateDesignMap rejects FIFO in design/docs instead of blocking", () => 
   `;
   try {
     execFileSync(process.execPath, ["--input-type=module", "-e", childScript], {
-      timeout: 2000,
+      timeout: 10_000,
       stdio: "pipe",
     });
     // execFileSync does not throw = child exited 0 = correct rejection

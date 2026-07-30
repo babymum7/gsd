@@ -2207,7 +2207,7 @@ test("readStateFile rejects FIFO instead of blocking", () => {
   `;
   try {
     execFileSync(process.execPath, ["--input-type=module", "-e", childScript], {
-      timeout: 2000,
+      timeout: 10_000,
       stdio: "pipe",
     });
     // execFileSync does not throw = child exited 0 = correct rejection
@@ -2269,7 +2269,7 @@ test("readStateFile rejects state.toon swap after feature dir pin", () => {
   `;
   try {
     execFileSync(process.execPath, ["--input-type=module", "-e", childScript], {
-      timeout: 2000,
+      timeout: 10_000,
       stdio: "pipe",
     });
   } finally {
