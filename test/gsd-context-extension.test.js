@@ -2162,3 +2162,35 @@ test("schema v4 and hidden architecture catalog cutover", () => {
     rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test("readStateFile rejects FIFO instead of blocking", () => {
+  const { execFileSync } = require("node:child_process");
+  const tmp = mkdtempSync(join(tmpdir(), "gsd-fifo-test-"));
+  const featureDir = join(tmp, ".scratch", "demo");
+  mkdirSync(featureDir, { recursive: true });
+  const fifoPath = join(featureDir, "state.toon");
+  execFileSync("mkfifo", [fifoPath]);
+
+  // If O_NONBLOCK is missing, readSync on the FIFO blocks forever.
+  // Run readStateFile in a child process with a hard timeout.
+  const moduleUrl = new URL("../extensions/gsd-context.js", import.meta.url).href;
+  const childScript = `
+    import { readStateFile } from ${JSON.stringify(moduleUrl)};
+    try {
+      readStateFile(${JSON.stringify(fifoPath)});
+      process.exit(1); // must not succeed
+    } catch (e) {
+      process.exit(/cannot read|expected a regular file|FIFO|pipe/.test(e.message) ? 0 : 2);
+    }
+  `;
+  try {
+    execFileSync(process.execPath, ["--input-type=module", "-e", childScript], {
+      timeout: 2000,
+      stdio: "pipe",
+    });
+    // execFileSync does not throw = child exited 0 = correct rejection
+  } finally {
+    try { unlinkSync(fifoPath); } catch {}
+    rmSync(tmp, { recursive: true, force: true });
+  }
+});

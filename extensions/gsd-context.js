@@ -265,7 +265,7 @@ function readBoundedRegularText(filePath, maxBytes, label, expectedRoot = null) 
     throw new Error(`${label}: exceeds size limit of ${maxBytes} bytes`);
   }
 
-  const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0);
+  const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | fs.constants.O_NONBLOCK;
   let fd;
   try {
     fd = fs.openSync(filePath, flags);
