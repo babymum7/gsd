@@ -439,6 +439,21 @@ test("every GSD skill has complete matching frontmatter", () => {
   }
 });
 
+test("gsd-prototyping Do-not-load pins production-path boundary", () => {
+  const skill = read("skills/gsd-prototyping/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  // Extract the Do-not-load value from the skill.
+  const skillRestated = skill.match(/^- Do-not-load: (.+)$/m);
+  assert.ok(skillRestated, "gsd-prototyping restates Do-not-load");
+  // Extract the Do-not-load column from the canonical REFERENCE.md row.
+  const row = reference.split("\n").find((line) => /^\| `gsd-prototyping` \|/.test(line));
+  assert.ok(row, "the canonical matrix carries the prototyping row");
+  const refDoNotLoad = row.split("|")[5];
+  // Both must name the production-surface exclusion.
+  assert.match(skillRestated[1], /production surface edits/, "skill Do-not-load names production exclusion");
+  assert.match(refDoNotLoad, /production surface edits/, "REFERENCE Do-not-load names production exclusion");
+});
+
 test("visible catalog descriptions stay within the injected byte budget", () => {
   // Every visible description is injected once per session, so the sum is a real cost.
   let total = 0;

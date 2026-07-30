@@ -162,7 +162,7 @@ npm test
 
 That script runs `node --test test/*.test.js`, which is also the direct form when no manifest is installed.
 
-The supplementary model evaluator checks 36 workspace-state + prompt fixtures against the production bootstrap and visible catalog. It requires the strict JSON object `{ "decision": "...", "action": "...", "primarySkill": "gsd-..." | null }`; extra keys or prose fail.
+The supplementary model evaluator checks 37 workspace-state + prompt fixtures against the production bootstrap and visible catalog. It requires the strict JSON object `{ "decision": "...", "action": "...", "primarySkill": "gsd-..." | null }`; extra keys or prose fail.
 
 ```bash
 node test/eval/activation-eval.mjs

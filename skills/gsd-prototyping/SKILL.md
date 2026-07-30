@@ -8,7 +8,7 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md]
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
-- Do-not-load: a generic feature or integration request naming no surface; backend-only work
+- Do-not-load: a generic feature or integration request naming no surface; backend-only work; production surface edits (reuse-prototype conversion)
 - Transition: on prototype lock ask the conversion cadence, then load `gsd-brainstorming` only for convert now
 
 # Prototyping

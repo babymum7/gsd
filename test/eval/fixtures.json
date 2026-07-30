@@ -280,6 +280,14 @@
     "expectedPrimarySkill": "gsd-brainstorming"
   },
   {
+    "id": "production-surface-edit",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "fix the mechanic scene resolution in play.tsx",
+    "decision": "ordinary-routing",
+    "expectedAction": "direct",
+    "expectedPrimarySkill": null
+  },
+  {
     "id": "design-code-drift",
     "state": "clean repo; no .scratch/ directory; design/ exists with locked surface documents under design/docs/",
     "prompt": "check how far the codebase has diverged from the design prototype",
