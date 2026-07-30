@@ -275,6 +275,8 @@ cleanup_trap() {
   GSD_TEST_SEAM_RACE=""
   GSD_TEST_SEAM_POST_RM_TMP_SYMLINK=""
   GSD_TEST_SEAM_POST_PUBLISH=""
+  GSD_TEST_SEAM_POST_CAPTURE_REPLACE=""
+  GSD_TEST_SEAM_LEGACY_SKILL_REPLACE=""
 
   # If publication failed, restore the backup target if one exists
   if [ -n "${RESTORE_TARGET:-}" ] && [ -n "${RESTORE_BACKUP_TARGET:-}" ]; then
