@@ -2,6 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TextDecoder } from 'node:util';
+import { PLAN_FEATURE_RE, PLAN_SHA256_RE } from '../lib/gsd-contract.mjs';
 
 const EXTENSION_FILE = fileURLToPath(import.meta.url);
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
@@ -221,8 +222,8 @@ const LEGACY_STATE_KEYS = new Set([
 ]);
 
 const NONE = 'none';
-const FEATURE_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const SHA256_RE = /^[a-f0-9]{64}$/;
+const FEATURE_RE = PLAN_FEATURE_RE;
+const SHA256_RE = PLAN_SHA256_RE;
 const COMMIT_RE = /^[a-f0-9]{40}$/;
 const TASK_RE = /^T[1-9]\d*$/;
 const AUTOSYNC_RE = /^(none|on|off)$/;
