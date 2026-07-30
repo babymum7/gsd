@@ -112,21 +112,29 @@ test("template check script runs the primitive tests through a runnable glob", (
   for (const name of [
     "stylelint",
     "stylelint-declaration-strict-value",
-    "style-dictionary",
   ]) {
     assert.ok(pkg.devDependencies[name], `${name} must be declared`);
   }
+  assert.equal(pkg.devDependencies["style-dictionary"], undefined, "style-dictionary is not a dependency");
 });
 
-test("template token build emits CSS custom properties from DTCG sources", () => {
-  const config = read("style-dictionary.config.js");
-  assert.match(config, /tokens\/\*\*\/\*\.json/, "build reads the token sources");
-  assert.match(config, /css\/variables/, "build emits custom properties");
-  assert.match(config, /tokens\.css/, "build writes css/tokens.css");
-  // style-dictionary@4 only reads `$value`/`$type` in DTCG mode. Auto-detection covers
-  // imperatively passed tokens, so a file-sourced build states the flag explicitly or
-  // silently emits nothing.
-  assert.match(config, /usesDtcg:\s*true/, "file-sourced DTCG build sets usesDtcg");
+test("template tokens.css declares CSS custom properties matching DTCG sources", () => {
+  // Tokens are authored directly as CSS custom properties — no build step.
+  // The JSON files under tokens/ remain as reference sources.
+  const css = read("css/tokens.css");
+  assert.match(css, /:root/, "tokens are defined on :root");
+  const declared = new Set(
+    [...css.matchAll(/--([a-z0-9-]+)\s*:/g)].map((m) => m[1]),
+  );
+  assert.ok(declared.size > 0, "tokens.css declares custom properties");
+  // Every DTCG token must have a corresponding CSS custom property.
+  const expected = new Set(
+    ["tokens/color.json", "tokens/dimension.json"]
+      .flatMap((file) => tokenLeaves(json(file)))
+      .map(({ name }) => name.split(".").join("-")),
+  );
+  const missing = [...expected].filter((name) => !declared.has(name));
+  assert.deepEqual(missing, [], "every DTCG token has a CSS custom property");
 });
 
 test("template CSS carries no hardcoded color or length literals", () => {
@@ -136,6 +144,9 @@ test("template CSS carries no hardcoded color or length literals", () => {
   const shorthands = [];
   for (const path of stylesheets) {
     const relative = path.slice(ROOT.length + 1);
+    // tokens.css is the token source file — its custom-property definitions
+    // intentionally contain literal values. Only component CSS must be literal-free.
+    if (relative.endsWith("css/tokens.css")) return;
     stripComments(readFileSync(path, "utf8")).split("\n").forEach((line, index) => {
       if (/#[0-9a-fA-F]{3,8}\b/.test(line) || /\b\d+(?:\.\d+)?(?:px|rem|em)\b/.test(line)) {
         offenders.push(`${relative}:${index + 1}`);
@@ -162,7 +173,7 @@ test("template stylesheet layer is referenced by the token build", () => {
 
 test("every template CSS custom property resolves to a declared token", () => {
   // A `var(--typo)` silently renders nothing, so the shipped base layer must only
-  // reference properties style-dictionary actually emits from the token sources.
+  // reference properties declared in tokens.css.
   const declared = new Set(
     ["tokens/color.json", "tokens/dimension.json"]
       .flatMap((file) => tokenLeaves(json(file)))
@@ -276,10 +287,9 @@ test("template interaction-rule ledger is a numbered system-wide rule set", () =
   assert.match(ledger, /(?:product-neutral|any project|another project|portable)/i);
 });
 
-// `css/tokens.css` is written by `npm run tokens`, so it is a declared build output
-// rather than a shipped file. `AGENTS.md` is the repository-root agent contract, which
-// deliberately lives outside this directory. Everything else `DESIGN.md` names must exist.
-const EXTERNAL = new Set(["css/tokens.css", "AGENTS.md"]);
+// `AGENTS.md` is the repository-root agent contract, which deliberately lives outside
+// this directory. Everything else `DESIGN.md` names must exist.
+const EXTERNAL = new Set(["AGENTS.md"]);
 const PATH_EXTENSIONS = new Set(["md", "json", "js", "css"]);
 
 test("every repository path referenced by template instructions exists", () => {

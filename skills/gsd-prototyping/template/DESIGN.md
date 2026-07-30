@@ -50,10 +50,9 @@ write the surface document. A locked surface is never one undifferentiated file.
 
 ## Tokens are the only source of visual values
 
-Colors, spacing, radii, and font sizes live in `tokens/color.json` and
-`tokens/dimension.json` in DTCG format: each entry declares `$value` and `$type`.
-The token build emits them as CSS custom properties into `css/tokens.css`, which
-`css/base.css` imports.
+Colors, spacing, radii, and font sizes live as CSS custom properties in `css/tokens.css`.
+JSON reference sources under `tokens/` document the same values in DTCG format for
+tooling interoperability; edit `css/tokens.css` directly — there is no build step.
 
 A rule may only reference those custom properties. A raw hex color or px/rem length is
 a defect. Needing a value that no token provides means adding the token first.
@@ -103,9 +102,9 @@ judgment over rendered differences.
 
 ## One deterministic check loop
 
-`npm run check:fast` builds tokens, lints, and runs the headless tests. It is deterministic
-and browser-free, so it runs after every change and is also the lock gate: this prototype
-has no second, slower suite.
+`npm run check:fast` lints CSS for inline literals and runs the headless tests. It is
+deterministic and browser-free, so it runs after every change and is also the lock gate:
+this prototype has no second, slower suite.
 
 Because the gate is headless, coverage is what makes it sufficient. Every state a surface
 document lists carries a headless test asserting the observable behavior of that state, so
