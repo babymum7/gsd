@@ -113,16 +113,16 @@
   },
   {
     "id": "converged-spec",
-    "state": ".scratch/oauth-login/plan.md exists; no approval binding",
-    "prompt": "continue with OAuth login",
+    "state": ".scratch/oauth-login/plan.md contains an unapproved draft plan; state.toon has no approval binding",
+    "prompt": "continue with the unapproved OAuth login plan to finalize and bind it",
     "decision": "ordinary-routing",
     "expectedAction": "load",
     "expectedPrimarySkill": "gsd-to-plan"
   },
   {
     "id": "interface-design",
-    "state": "clean repo; no .scratch/ directory",
-    "prompt": "redesign the public interface of the billing module",
+    "state": "clean repo; no .scratch/ directory; backend billing library with no UI surfaces",
+    "prompt": "redesign the public programmatic API types and module interfaces of the billing module",
     "decision": "ordinary-routing",
     "expectedAction": "load",
     "expectedPrimarySkill": "gsd-codebase-architecture"
@@ -233,7 +233,7 @@
   },
   {
     "id": "result-residual-unrelated",
-    "state": ".scratch/oauth-login/state.toon has phase=completed-retained residual cleanup; no active packet",
+    "state": ".scratch/oauth-login/state.toon contains a valid phase=completed-retained record with residual cleanup files; no active packet",
     "prompt": "add a nightly CSV export job to the reporting service",
     "decision": "ignore-terminal-record",
     "expectedAction": "load",
@@ -282,7 +282,7 @@
   {
     "id": "production-surface-edit",
     "state": "clean repo; no .scratch/ directory",
-    "prompt": "fix the mechanic scene resolution in play.tsx",
+    "prompt": "in play.tsx line 42, change the mechanic scene resolution to multiply by scale factor — the fix is already identified",
     "decision": "ordinary-routing",
     "expectedAction": "direct",
     "expectedPrimarySkill": null
@@ -294,5 +294,45 @@
     "decision": "ordinary-routing",
     "expectedAction": "load",
     "expectedPrimarySkill": "gsd-design-sync"
+  },
+  {
+    "id": "compaction-capsule-resume",
+    "state": ".scratch/oauth-login/compaction-capsule.toon exists containing a valid recovery capsule; .scratch/oauth-login/plan.md is present",
+    "prompt": "continue implementation",
+    "decision": "ordinary-routing",
+    "expectedAction": "load",
+    "expectedPrimarySkill": "gsd-handoff"
+  },
+  {
+    "id": "malformed-packet-direct-prompt",
+    "state": ".scratch/oauth-login/plan.md exists and state.toon is malformed JSON; no active packet",
+    "prompt": "fix typo in README.md",
+    "decision": "fail-closed",
+    "expectedAction": "stop",
+    "expectedPrimarySkill": null
+  },
+  {
+    "id": "design-sync-code-to-proto",
+    "state": "clean repo; design/ directory contains updated UI prototypes; src/components/ contains existing React code",
+    "prompt": "sync the React components in src/components to match the updated prototypes in design/",
+    "decision": "ordinary-routing",
+    "expectedAction": "load",
+    "expectedPrimarySkill": "gsd-design-sync"
+  },
+  {
+    "id": "arch-audit-during-execution",
+    "state": ".scratch/oauth-login/plan.md and state.toon exist with tasks 2-5 pending",
+    "prompt": "audit the architecture of the payment service before we continue",
+    "decision": "ordinary-routing",
+    "expectedAction": "load",
+    "expectedPrimarySkill": "gsd-codebase-architecture"
+  },
+  {
+    "id": "domain-context-mapping",
+    "state": "clean repo; docs/domain/ directory contains existing domain contexts",
+    "prompt": "document the bounded context boundaries between Order Fulfillment and Inventory Management",
+    "decision": "ordinary-routing",
+    "expectedAction": "load",
+    "expectedPrimarySkill": "gsd-domain-modeling"
   }
 ]
