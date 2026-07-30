@@ -252,39 +252,60 @@ function requireScalar(value, field) {
   return value;
 }
 
-function readBoundedRegularText(filePath, maxBytes, label, expectedRoot = null) {
-  let lst;
-  try {
-    lst = fs.lstatSync(filePath);
-  } catch (error) {
-    throw new Error(`${label}: cannot inspect file (${error.message})`);
-  }
-  if (lst.isSymbolicLink()) throw new Error(`${label}: symlink rejected`);
-  if (!lst.isFile()) throw new Error(`${label}: expected a regular file`);
-  if (lst.size > maxBytes) {
-    throw new Error(`${label}: exceeds size limit of ${maxBytes} bytes`);
-  }
-
-  const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | fs.constants.O_NONBLOCK;
+function readBoundedRegularText(filePath, maxBytes, label, expectedRoot = null, parentFd = null) {
   let fd;
+  let opened;
   try {
-    fd = fs.openSync(filePath, flags);
-    const opened = fs.fstatSync(fd);
-    if (!opened.isFile()) throw new Error(`${label}: expected a regular file`);
-    if (opened.dev !== lst.dev || opened.ino !== lst.ino) {
-      throw new Error(`${label}: file identity changed before open`);
+    if (parentFd != null) {
+      // fd-anchored open: read through pinned parent dir via /proc/self/fd.
+      const basename = path.basename(filePath);
+      const fdPath = process.platform === 'linux'
+        ? `/proc/self/fd/${parentFd}/${basename}`
+        : process.platform === 'darwin'
+          ? `/dev/fd/${parentFd}/${basename}`
+          : null;
+      if (!fdPath) throw new Error(`${label}: fd-anchored reads unavailable on this platform`);
+      const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | fs.constants.O_NONBLOCK;
+      try {
+        fd = fs.openSync(fdPath, flags);
+      } catch (error) {
+        if (error.code === 'ELOOP') throw new Error(`${label}: symlink rejected`);
+        if (error.code === 'ENOENT') throw new Error(`${label}: file not found`);
+        throw error;
+      }
+      opened = fs.fstatSync(fd);
+      if (!opened.isFile()) throw new Error(`${label}: expected a regular file`);
+    } else {
+      // Legacy pathname-based open with lstat identity check.
+      let lst;
+      try {
+        lst = fs.lstatSync(filePath);
+      } catch (error) {
+        throw new Error(`${label}: cannot inspect file (${error.message})`);
+      }
+      if (lst.isSymbolicLink()) throw new Error(`${label}: symlink rejected`);
+      if (!lst.isFile()) throw new Error(`${label}: expected a regular file`);
+      if (lst.size > maxBytes) {
+        throw new Error(`${label}: exceeds size limit of ${maxBytes} bytes`);
+      }
+      const flags = fs.constants.O_RDONLY | (fs.constants.O_NOFOLLOW ?? 0) | fs.constants.O_NONBLOCK;
+      fd = fs.openSync(filePath, flags);
+      opened = fs.fstatSync(fd);
+      if (!opened.isFile()) throw new Error(`${label}: expected a regular file`);
+      if (opened.dev !== lst.dev || opened.ino !== lst.ino) {
+        throw new Error(`${label}: file identity changed before open`);
+      }
+      const realFile = fs.realpathSync(filePath);
+      if (expectedRoot && !isInside(expectedRoot, realFile)) {
+        throw new Error(`${label}: resolved outside ${expectedRoot}`);
+      }
+      const current = fs.statSync(realFile);
+      if (current.dev !== opened.dev || current.ino !== opened.ino) {
+        throw new Error(`${label}: file identity changed during validation`);
+      }
     }
     if (opened.size > maxBytes) {
       throw new Error(`${label}: exceeds size limit of ${maxBytes} bytes`);
-    }
-
-    const realFile = fs.realpathSync(filePath);
-    if (expectedRoot && !isInside(expectedRoot, realFile)) {
-      throw new Error(`${label}: resolved outside ${expectedRoot}`);
-    }
-    const current = fs.statSync(realFile);
-    if (current.dev !== opened.dev || current.ino !== opened.ino) {
-      throw new Error(`${label}: file identity changed during validation`);
     }
 
     const capacity = Math.min(maxBytes + 1, opened.size + 1);
@@ -710,12 +731,55 @@ function readStateFileInternal(statePath, allowLegacyCompleted, migrateLegacy = 
   }
   const featureMeta = resolveFeatureDirectory(path.dirname(statePath));
   const resolvedStatePath = path.join(featureMeta.absolute, STATE_FILE);
-  const content = readBoundedRegularText(
-    resolvedStatePath,
-    STATE_FILE_MAX_BYTES,
-    resolvedStatePath,
-    featureMeta.absolute,
-  );
+
+  // fd-anchored read: pin scratch → feature, then read state.toon through feature fd.
+  let scratchFd;
+  let featureFd;
+  try {
+    const scratchFlags = fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY ?? 0) | (fs.constants.O_NOFOLLOW ?? 0);
+    scratchFd = fs.openSync(featureMeta.scratchDir, scratchFlags);
+    const scratchOpened = fs.fstatSync(scratchFd);
+    if (
+      scratchOpened.dev !== featureMeta.scratchIdentity.dev ||
+      scratchOpened.ino !== featureMeta.scratchIdentity.ino
+    ) {
+      throw new Error('.scratch identity changed before feature open');
+    }
+
+    const featurePath = process.platform === 'linux'
+      ? `/proc/self/fd/${scratchFd}/${featureMeta.feature}`
+      : process.platform === 'darwin'
+        ? `/dev/fd/${scratchFd}/${featureMeta.feature}`
+        : null;
+    if (!featurePath) throw new Error('fd-anchored reads unavailable on this platform');
+    const featureFlags = fs.constants.O_RDONLY | (fs.constants.O_DIRECTORY ?? 0) | (fs.constants.O_NOFOLLOW ?? 0);
+    featureFd = fs.openSync(featurePath, featureFlags);
+    const featureOpened = fs.fstatSync(featureFd);
+    if (
+      featureOpened.dev !== featureMeta.featureIdentity.dev ||
+      featureOpened.ino !== featureMeta.featureIdentity.ino
+    ) {
+      throw new Error('feature identity changed before state read');
+    }
+
+    const content = readBoundedRegularText(
+      resolvedStatePath,
+      STATE_FILE_MAX_BYTES,
+      resolvedStatePath,
+      featureMeta.absolute,
+      featureFd,
+    );
+    return parseStateContent(content, resolvedStatePath, featureMeta, allowLegacyCompleted, migrateLegacy);
+  } catch (error) {
+    if (error instanceof Error && error.message.startsWith('state.toon:')) throw error;
+    throw new Error(`state.toon: ${error.message}`);
+  } finally {
+    if (featureFd !== undefined) try { fs.closeSync(featureFd); } catch { /* ignore */ }
+    if (scratchFd !== undefined) try { fs.closeSync(scratchFd); } catch { /* ignore */ }
+  }
+}
+
+function parseStateContent(content, resolvedStatePath, featureMeta, allowLegacyCompleted, migrateLegacy) {
   const bindFeature = (state) => {
     if (state.feature !== featureMeta.feature) {
       throw new Error(
@@ -846,6 +910,7 @@ function resolveFeatureDirectory(featureDir, expectedFeature = null) {
     absolute: realFeatureDir,
     feature: base,
     scratchDir,
+    scratchIdentity: { dev: realParentStat.dev, ino: realParentStat.ino },
     featureIdentity: { dev: realFeatureStat.dev, ino: realFeatureStat.ino },
   };
 }

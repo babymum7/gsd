@@ -2187,25 +2187,17 @@ test("readStateFile rejects FIFO instead of blocking", () => {
     "",
   ].join("\n"));
 
-  // Race: lstat sees regular file, then replace with FIFO before open.
-  // Without O_NONBLOCK the open hangs; with O_NONBLOCK it fails immediately.
+  // Replace the regular file with a FIFO before reading.
+  // With O_NONBLOCK the open succeeds but fstat shows non-regular → rejected.
   const moduleUrl = new URL("../extensions/gsd-context.js", import.meta.url).href;
   const childScript = `
     import fs from "node:fs";
-    import { execFileSync } from "node:child_process";
     import { readStateFile } from ${JSON.stringify(moduleUrl)};
     const statePath = ${JSON.stringify(statePath)};
-    const origLstat = fs.lstatSync.bind(fs);
-    let lstatCount = 0;
-    fs.lstatSync = (...args) => {
-      const result = origLstat(...args);
-      if (String(args[0]) === statePath && lstatCount++ === 0) {
-        // lstat saw regular file; now replace with FIFO before open.
-        fs.unlinkSync(statePath);
-        execFileSync("mkfifo", [statePath]);
-      }
-      return result;
-    };
+    // Replace regular file with FIFO.
+    fs.unlinkSync(statePath);
+    const { execFileSync } = await import("node:child_process");
+    execFileSync("mkfifo", [statePath]);
     try {
       readStateFile(statePath);
       process.exit(1); // must not succeed
