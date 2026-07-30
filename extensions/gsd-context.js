@@ -89,12 +89,16 @@ function createCapsule(features, gsdRoot) {
   const resumeInstruction = isOverCap
     ? 'Stop immediately and select exactly one active feature to resume.'
     : 'Load gsd-handoff from the injected catalog and perform exactly one validated resume.';
-  const capsule = `[GSD Recovery Capsule]
-Active GSD features: ${featuresStr}
-To resume execution, perform direct-root rehydration in this exact order:
-1. Use the already-loaded GSD bootstrap from ${masterPath}; do not load it again.
-2. ${resumeInstruction}
-Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing.`;
+  // Single-pass replacement: inserted values are never rescanned.
+  const tokenMap = {
+    '<features>': featuresStr,
+    '<GSD_ROOT>/skills/gsd/SKILL.md': masterPath,
+    '<resume_instruction>': resumeInstruction,
+  };
+  const capsule = CAPSULE_TEMPLATE.replace(
+    /<features>|<GSD_ROOT>\/skills\/gsd\/SKILL\.md|<resume_instruction>/g,
+    (token) => tokenMap[token],
+  );
 
   const capsuleBytes = Buffer.byteLength(capsule, 'utf8');
   if (capsuleBytes > 4000) {
