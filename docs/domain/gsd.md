@@ -13,7 +13,7 @@ Own request classification, feature convergence, plan approval and in-flight ame
 | Term | Definition | Avoid |
 | --- | --- | --- |
 | Artifact Contract | The rule classifying repository artifacts per Invocation Mode as Required, Optional, Produced, or Fallback. | flat mandatory dependency list |
-| Contract Validator | The executable production seam that validates canonical full-plan and Quick-fix plan authority without mutating it. | test-only parser, prose-only validation |
+| Contract Validator | The executable production seam that validates canonical full-plan and Quick-fix plan authority without mutating it. File reads use fd-anchored traversal via `/proc/self/fd` with `O_NONBLOCK | O_NOFOLLOW` to prevent TOCTOU parent-directory swaps and FIFO blocking. | test-only parser, prose-only validation |
 | Context Harvest | Scope-bounded domain inspection: existing indexes limit reads to affected mapped contexts, while an absent index permits required feature bootstrap plus one optional broad-bootstrap decision. | routine broad codebase scan |
 | Deferred Slow E2E | A resource-heavy feature journey run only after current-commit deterministic conformance. | task-loop check |
 | Domain Impact | The mandatory plan classification binding semantic change evidence, affected contexts, documentation action, and broad-bootstrap disposition. | optional documentation note |
