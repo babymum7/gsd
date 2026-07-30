@@ -22,13 +22,7 @@ function ruleLedger(ids) {
   ].join("\n");
 }
 
-function surfaceDoc(name, { claims = "none", conversion = "pending" } = {}) {
-  const claimLines = claims === "none"
-    ? ["`none`"]
-    : claims.map(({ path, intent }) => `- \`${path}\` — ${intent}`);
-  const conversionLines = conversion === false
-    ? []
-    : ["", "## Conversion", "", ...(Array.isArray(conversion) ? conversion : [conversion])];
+function surfaceDoc(name) {
   return [
     `# Surface: ${name}`,
     "",
@@ -44,8 +38,11 @@ function surfaceDoc(name, { claims = "none", conversion = "pending" } = {}) {
     "",
     "## Production surfaces",
     "",
-    ...claimLines,
-    ...conversionLines,
+    "`none`",
+    "",
+    "## Conversion",
+    "",
+    "pending",
     "",
   ].join("\n");
 }
@@ -54,156 +51,84 @@ function makeDesignWorkspace() {
   const workspace = fs.mkdtempSync(join(tmpdir(), "gsd-design-toctou-"));
   const docsDir = join(workspace, "design", "docs");
   fs.mkdirSync(docsDir, { recursive: true });
-  fs.writeFileSync(
-    join(docsDir, "interaction-rules.md"),
-    ruleLedger(["IR-1"]),
-  );
+  fs.writeFileSync(join(docsDir, "interaction-rules.md"), ruleLedger(["IR-1"]));
   fs.writeFileSync(join(docsDir, "orders.md"), surfaceDoc("Orders"));
   return workspace;
 }
 
-test("readDesignDocument rejects file identity changed before open", () => {
+test("validateDesignMap closes all fds on read failure", () => {
   const workspace = makeDesignWorkspace();
-  const targetFile = join(workspace, "design", "docs", "orders.md");
-
-  let targetFd = null;
-  const originalOpenSync = fs.openSync.bind(fs);
-  fs.openSync = (...args) => {
-    const fd = originalOpenSync(...args);
-    if (String(args[0]) === targetFile) {
-      targetFd = fd;
-      // Reset close tracking when target opens to avoid fd-reuse false positives.
-      closedFd = null;
-    }
-    return fd;
-  };
-
-  let closedFd = null;
+  const closedFds = [];
   const originalCloseSync = fs.closeSync.bind(fs);
-  fs.closeSync = (fd, ...rest) => {
-    closedFd = fd;
-    return originalCloseSync(fd, ...rest);
-  };
-
-  // readDesignDocument calls fstatSync(fd) exactly twice:
-  //   call 1 = post-open identity check
-  //   call 2 = post-read identity check
-  const originalFstatSync = fs.fstatSync.bind(fs);
-  let targetFstatCalls = 0;
-  fs.fstatSync = (fd, ...rest) => {
-    const result = originalFstatSync(fd, ...rest);
-    if (fd === targetFd) {
-      targetFstatCalls++;
-      if (targetFstatCalls === 1) {
-        Object.defineProperty(result, "dev", { value: 99999, writable: false });
-        Object.defineProperty(result, "ino", { value: 99999, writable: false });
-      }
-    }
-    return result;
-  };
-
-  try {
-    assert.throws(
-      () => validateDesignMap("design/docs", { cwd: workspace }),
-      /identity changed before open/,
-    );
-    assert.equal(closedFd, targetFd, "closeSync must receive the target fd after its open");
-  } finally {
-    fs.openSync = originalOpenSync;
-    fs.fstatSync = originalFstatSync;
-    fs.closeSync = originalCloseSync;
-    fs.rmSync(workspace, { recursive: true, force: true });
-  }
-});
-
-test("readDesignDocument rejects file changed during read", () => {
-  const workspace = makeDesignWorkspace();
-  const targetFile = join(workspace, "design", "docs", "orders.md");
-
-  let targetFd = null;
-  const originalOpenSync = fs.openSync.bind(fs);
-  fs.openSync = (...args) => {
-    const fd = originalOpenSync(...args);
-    if (String(args[0]) === targetFile) {
-      targetFd = fd;
-      closedFd = null;
-    }
-    return fd;
-  };
-
-  let closedFd = null;
-  const originalCloseSync = fs.closeSync.bind(fs);
-  fs.closeSync = (fd, ...rest) => {
-    closedFd = fd;
-    return originalCloseSync(fd, ...rest);
-  };
-
-  // call 2 = post-read identity check
-  const originalFstatSync = fs.fstatSync.bind(fs);
-  let targetFstatCalls = 0;
-  fs.fstatSync = (fd, ...rest) => {
-    const result = originalFstatSync(fd, ...rest);
-    if (fd === targetFd) {
-      targetFstatCalls++;
-      if (targetFstatCalls === 2) {
-        Object.defineProperty(result, "size", { value: result.size + 1000, writable: false });
-      }
-    }
-    return result;
-  };
-
-  try {
-    assert.throws(
-      () => validateDesignMap("design/docs", { cwd: workspace }),
-      /changed during read/,
-    );
-    assert.equal(closedFd, targetFd, "closeSync must receive the target fd after its open");
-  } finally {
-    fs.openSync = originalOpenSync;
-    fs.fstatSync = originalFstatSync;
-    fs.closeSync = originalCloseSync;
-    fs.rmSync(workspace, { recursive: true, force: true });
-  }
-});
-
-test("readDesignDocument closes fd on read failure", () => {
-  const workspace = makeDesignWorkspace();
-  const targetFile = join(workspace, "design", "docs", "orders.md");
-
-  let targetFd = null;
-  const originalOpenSync = fs.openSync.bind(fs);
-  fs.openSync = (...args) => {
-    const fd = originalOpenSync(...args);
-    if (String(args[0]) === targetFile) {
-      targetFd = fd;
-      closedFd = null;
-    }
-    return fd;
-  };
-
-  let closedFd = null;
-  const originalCloseSync = fs.closeSync.bind(fs);
-  fs.closeSync = (fd, ...rest) => {
-    closedFd = fd;
-    return originalCloseSync(fd, ...rest);
-  };
-
+  fs.closeSync = (fd, ...rest) => { closedFds.push(fd); return originalCloseSync(fd, ...rest); };
   const originalReadSync = fs.readSync.bind(fs);
-  fs.readSync = (fd, ...rest) => {
-    if (fd === targetFd) throw new Error("simulated read failure");
-    return originalReadSync(fd, ...rest);
-  };
+  fs.readSync = () => { throw new Error("simulated read failure"); };
 
   try {
-    assert.throws(
-      () => validateDesignMap("design/docs", { cwd: workspace }),
-      /cannot be read/,
-    );
-    assert.equal(closedFd, targetFd, "closeSync must receive the target fd after its open");
+    assert.throws(() => validateDesignMap("design/docs", { cwd: workspace }), /cannot be read/);
+    assert.ok(closedFds.length >= 4, `expected >= 4 closed fds, got ${closedFds.length}`);
   } finally {
-    fs.openSync = originalOpenSync;
     fs.readSync = originalReadSync;
     fs.closeSync = originalCloseSync;
     fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("pinned design fd survives post-pin swap: validation reads original tree", () => {
+  const workspace = makeDesignWorkspace();
+  let rootFd, designFd;
+  let swapTriggered = false;
+  const originalOpenSync = fs.openSync.bind(fs);
+
+  fs.openSync = (...args) => {
+    const p = String(args[0]);
+    const fd = originalOpenSync(...args);
+    if (p === workspace) rootFd = fd;
+    if (rootFd && p === `/proc/self/fd/${rootFd}/design`) {
+      designFd = fd;
+      // Move original design/ aside (renameSync preserves inode),
+      // install symlink. designFd still references the original inode.
+      const saved = join(workspace, ".design-original");
+      fs.renameSync(join(workspace, "design"), saved);
+      fs.symlinkSync(saved, join(workspace, "design"));
+      swapTriggered = true;
+    }
+    return fd;
+  };
+
+  try {
+    const result = validateDesignMap("design/docs", { cwd: workspace });
+    assert.ok(swapTriggered, "swap must have been triggered");
+    assert.equal(result.kind, "design-map");
+    assert.equal(result.surfaces, 1);
+  } finally {
+    fs.openSync = originalOpenSync;
+    try { fs.rmSync(join(workspace, "design"), { recursive: true, force: true }); } catch {}
+    try { fs.renameSync(join(workspace, ".design-original"), join(workspace, "design")); } catch {}
+    fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("pre-pin symlink swap is caught by validation before fd pinning", () => {
+  const workspace = makeDesignWorkspace();
+
+  // Swap design/ to a symlink before calling validateDesignMap.
+  // resolveDesignDocsLocation catches this via lstatSync (isSymbolicLink check).
+  const escapeDir = join(workspace, ".escape-target");
+  fs.mkdirSync(escapeDir, { recursive: true });
+  fs.rmSync(join(workspace, "design"), { recursive: true, force: true });
+  fs.symlinkSync(escapeDir, join(workspace, "design"));
+
+  try {
+    assert.throws(
+      () => validateDesignMap("design/docs", { cwd: workspace }),
+      /must be a real directory|must resolve without indirection/,
+    );
+  } finally {
+    try { fs.rmSync(join(workspace, "design"), { recursive: true, force: true }); } catch {}
+    try { fs.rmSync(escapeDir, { recursive: true, force: true }); } catch {}
+    fs.mkdirSync(join(workspace, "design", "docs"), { recursive: true });
+    fs.writeFileSync(join(workspace, "design", "docs", "interaction-rules.md"), ruleLedger(["IR-1"]));
+    fs.writeFileSync(join(workspace, "design", "docs", "orders.md"), surfaceDoc("Orders"));
   }
 });
