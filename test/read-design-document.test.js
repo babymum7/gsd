@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
+import { execFileSync } from "node:child_process";
 import { validateDesignMap } from "../lib/gsd-contract.mjs";
 
 function ruleLedger(ids) {
@@ -118,6 +119,34 @@ test("pinned design fd survives post-pin swap: validation reads original tree", 
     try { fs.renameSync(join(workspace, ".design-original"), join(workspace, "design")); } catch {}
     try { fs.rmSync(replacement, { recursive: true, force: true }); } catch {}
     fs.rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("validateDesignMap rejects FIFO in design/docs instead of blocking", () => {
+  const workspace = makeDesignWorkspace();
+  const fifoPath = join(workspace, "design", "docs", "evil.md");
+  execFileSync("mkfifo", [fifoPath]);
+
+  // If O_NONBLOCK is missing, openSync blocks on the FIFO forever.
+  // Run the validator in a child process with a hard timeout to prove it returns.
+  const moduleUrl = new URL("../lib/gsd-contract.mjs", import.meta.url).href;
+  const childScript = `
+    import { validateDesignMap } from ${JSON.stringify(moduleUrl)};
+    try {
+      validateDesignMap("design/docs", { cwd: ${JSON.stringify(workspace)} });
+      process.exit(1); // must not succeed
+    } catch (e) {
+      process.exit(/must be a regular file/.test(e.message) ? 0 : 2);
+    }
+  `;
+  try {
+    execFileSync(process.execPath, ["--input-type=module", "-e", childScript], {
+      timeout: 2000,
+      stdio: "pipe",
+    });
+    // execFileSync does not throw = child exited 0 = correct rejection
+  } finally {
+    try { fs.rmSync(fifoPath); } catch {}
   }
 });
 
