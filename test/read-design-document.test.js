@@ -76,6 +76,16 @@ test("validateDesignMap closes all fds on read failure", () => {
 
 test("pinned design fd survives post-pin swap: validation reads original tree", () => {
   const workspace = makeDesignWorkspace();
+  // Original has 1 surface (orders.md). Replacement has 2 surfaces.
+  // If a pathname reader followed the symlink it would see 2; the pinned fd
+  // must still return 1 from the original tree.
+  const replacement = join(workspace, "design-replacement");
+  const replacementDocs = join(replacement, "docs");
+  fs.mkdirSync(replacementDocs, { recursive: true });
+  fs.writeFileSync(join(replacementDocs, "interaction-rules.md"), ruleLedger(["IR-1", "IR-2"]));
+  fs.writeFileSync(join(replacementDocs, "orders.md"), surfaceDoc("Orders"));
+  fs.writeFileSync(join(replacementDocs, "inventory.md"), surfaceDoc("Inventory"));
+
   let rootFd, designFd;
   let swapTriggered = false;
   const originalOpenSync = fs.openSync.bind(fs);
@@ -86,11 +96,11 @@ test("pinned design fd survives post-pin swap: validation reads original tree", 
     if (p === workspace) rootFd = fd;
     if (rootFd && p === `/proc/self/fd/${rootFd}/design`) {
       designFd = fd;
-      // Move original design/ aside (renameSync preserves inode),
-      // install symlink. designFd still references the original inode.
+      // Move original design/ aside (renameSync preserves inode).
+      // designFd still references the original inode via /proc/self/fd/.
       const saved = join(workspace, ".design-original");
       fs.renameSync(join(workspace, "design"), saved);
-      fs.symlinkSync(saved, join(workspace, "design"));
+      fs.symlinkSync(replacement, join(workspace, "design"));
       swapTriggered = true;
     }
     return fd;
@@ -100,31 +110,56 @@ test("pinned design fd survives post-pin swap: validation reads original tree", 
     const result = validateDesignMap("design/docs", { cwd: workspace });
     assert.ok(swapTriggered, "swap must have been triggered");
     assert.equal(result.kind, "design-map");
-    assert.equal(result.surfaces, 1);
+    // Must read original tree (1 surface), not replacement (2 surfaces).
+    assert.equal(result.surfaces, 1, "pinned fd must read original tree, not symlink target");
   } finally {
     fs.openSync = originalOpenSync;
     try { fs.rmSync(join(workspace, "design"), { recursive: true, force: true }); } catch {}
     try { fs.renameSync(join(workspace, ".design-original"), join(workspace, "design")); } catch {}
+    try { fs.rmSync(replacement, { recursive: true, force: true }); } catch {}
     fs.rmSync(workspace, { recursive: true, force: true });
   }
 });
 
-test("pre-pin symlink swap is caught by validation before fd pinning", () => {
+test("pre-pin symlink swap is caught by fd-anchored traversal, not resolver", () => {
   const workspace = makeDesignWorkspace();
-
-  // Swap design/ to a symlink before calling validateDesignMap.
-  // resolveDesignDocsLocation catches this via lstatSync (isSymbolicLink check).
+  // Target has a valid map (2 surfaces) so the resolver would accept it.
+  // The fd-anchored traversal must reject it because the swap happens
+  // during validateDesignMap's own root-identity lstatSync, after the
+  // resolver has already validated the original design/ directory.
   const escapeDir = join(workspace, ".escape-target");
-  fs.mkdirSync(escapeDir, { recursive: true });
-  fs.rmSync(join(workspace, "design"), { recursive: true, force: true });
-  fs.symlinkSync(escapeDir, join(workspace, "design"));
+  const escapeDocs = join(escapeDir, "docs");
+  fs.mkdirSync(escapeDocs, { recursive: true });
+  fs.writeFileSync(join(escapeDocs, "interaction-rules.md"), ruleLedger(["IR-1", "IR-2"]));
+  fs.writeFileSync(join(escapeDocs, "orders.md"), surfaceDoc("Orders"));
+  fs.writeFileSync(join(escapeDocs, "inventory.md"), surfaceDoc("Inventory"));
+
+  let swapTriggered = false;
+  const originalLstatSync = fs.lstatSync.bind(fs);
+
+  // Swap design/ to a symlink when validateDesignMap's own lstatSync(workspace)
+  // fires for the root identity check — after resolveDesignDocsLocation has
+  // already validated the original design/ directory.
+  fs.lstatSync = (...args) => {
+    const result = originalLstatSync(...args);
+    if (String(args[0]) === workspace && !swapTriggered) {
+      swapTriggered = true;
+      fs.rmSync(join(workspace, "design"), { recursive: true, force: true });
+      fs.symlinkSync(escapeDir, join(workspace, "design"));
+    }
+    return result;
+  };
 
   try {
     assert.throws(
       () => validateDesignMap("design/docs", { cwd: workspace }),
-      /must be a real directory|must resolve without indirection/,
+      /must be a directory|cannot be opened|identity changed|not a directory/,
     );
+    // Assert AFTER throws — the swap must have triggered during validation,
+    // proving the fd-anchored traversal was exercised.
+    assert.ok(swapTriggered, "swap must have triggered during validateDesignMap");
   } finally {
+    fs.lstatSync = originalLstatSync;
     try { fs.rmSync(join(workspace, "design"), { recursive: true, force: true }); } catch {}
     try { fs.rmSync(escapeDir, { recursive: true, force: true }); } catch {}
     fs.mkdirSync(join(workspace, "design", "docs"), { recursive: true });
