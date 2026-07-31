@@ -1,6 +1,6 @@
 ---
 name: gsd-verify
-description: "Use for an explicit diff or PR review, or as the terminal gate for planned and quick-fix GSD work."
+description: "Diff/PR review or planned/quick-fix terminal gate."
 produces: [docs/gsd/<feature>/milestones.md, docs/gsd/<feature>/archive/plan.md, docs/gsd/<feature>/archive/implementation.md, state.toon]
 consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md, docs/gsd/<feature>/milestones.md]
 ---
@@ -50,7 +50,7 @@ After green merge, atomically write `phase=merged-cleanup-pending`.
 For `Milestone WIP gate`, revalidate the selected row is matching and first `pending`; before final conformance change only a non-final row to `done`, while final milestone deletes the ledger. Include the mutation in the same reviewed squash; any changed prefix, other row, append, reorder, or wrong row blocks.
 ## Standalone review
 
-Standalone review is read-only and has no branch, result, or merge authority. Review supplied diff for intent compliance and code quality. Optional Markdown context informs findings only — not an approval gate.
+Read-only; no branch/result/merge authority. Supplied context informs, never approves. Report separate bounded-read-only axes: **Standards** — cite documented-standard violations; smell concerns are judgement only, standards win. **Intent** — cite request/plan/context mismatches: missing, partial, scope creep. Do not cross-rerank; summarize per axis.
 
 ## Quick-fix WIP gate
 

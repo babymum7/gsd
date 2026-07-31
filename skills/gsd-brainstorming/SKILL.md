@@ -1,6 +1,6 @@
 ---
 name: gsd-brainstorming
-description: "Use to converge requirements and tradeoffs for non-trivial new or changed product behavior into an acceptance contract, then load gsd-to-plan."
+description: "Converge non-trivial new/changed product behavior into acceptance, then load gsd-to-plan."
 produces: []
 consumes: []
 ---
@@ -36,6 +36,7 @@ Match exploration breadth to the prompt. Read the named area and direct dependen
 - Recommend an answer for every question. Batch independent questions; ask dependent questions sequentially, one decision branch at a time.
 - Ask only when the answer changes behavior, scope, an interface, a destructive action, or a load-bearing tradeoff. Otherwise choose the conservative default and state it.
 - Right-size the result. Recommend the smallest design that satisfies the ask. Do not invent retries, telemetry, configuration, extensibility, or abstractions.
+- Ask acceptance-impact questions; park coarse items. Prioritize criteria-unblockers.
 - Preserve same-session continuity: settled decisions stay settled unless new evidence conflicts or the user reopens them.
 
 ## Acceptance and interface convergence

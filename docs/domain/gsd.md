@@ -76,7 +76,7 @@ Own request classification, feature convergence, plan approval and in-flight ame
 ### Deliver a feature
 
 1. Route explicit new or changed user-facing surface intent, a prompt naming a screen, page, or UI, to prototype-first convergence before requirements: the `design/` prototype locks the surface, while a generic feature or integration request naming no surface converges through requirements first and backend-only work skips this step entirely. Design-first is the default order for that surface work rather than a gate on it, so a user describing a different order, or an order that stays unclear, is asked one question instead of being blocked.
-2. Classify intent, converge acceptance behavior plus Domain Impact, and reserve affected documentation paths without publishing future semantics.
+2. Classify intent, discover and converge acceptance behavior plus Domain Impact. During discovery, distinguish questions sharp enough for acceptance-impact form from parked uncertainty too coarse to phrase as a criterion; prioritize batching by which items unblock the most downstream criteria. Reserve affected documentation paths without publishing future semantics.
 3. Validate the canonical plan through the Contract Validator, approve its exact SHA-256, then bind it in `schema:v4` state.
 4. Execute ordered tasks with Fast TDD and green checkpoints.
 5. Prove terminal conformance, run Deferred Slow E2E, squash to base, and clean transient state.
@@ -87,6 +87,10 @@ Own request classification, feature convergence, plan approval and in-flight ame
 2. Build the surface with any AI design tool, which this repository constrains by outcome rather than by invocation: an agent doing the work is governed by the root `AGENTS.md` plus `design/DESIGN.md` as standing context whether it works from the repository root or from inside `design/`. Every prototype artifact is committed under `design/` and the tool's own runtime output stays uncommitted. A single-file result is an input: it is decomposed into separate files, components, and surface documents before lock.
 3. Review the prototype with the user, recording each accepted system-wide rule in the interaction-rule ledger and each surface-specific decision in that surface's document.
 4. Lock the prototype once no accepted feedback is unrecorded and the one browser-free check loop is green with a headless test covering each state the surface document lists, recording that surface as `pending`, then ask one conversion-cadence question: converting now transitions to requirements convergence with the locked artifacts as the surface source of truth, while holding the surface for a later batch stops there with no lifecycle artifact and leaves the same `pending` state behind.
+
+### Standalone review
+
+A read-only diff review along two independent axes, each as a bounded read-only delegation: **Standards** (documented project coding standards plus lightweight smell heuristics as judgement calls, with documented standards always overriding heuristics) and **Intent** (the diff against the originating request, plan, or supplied context, reporting missing, partial, or scope-creeped requirements). Findings are reported under their axis headings without cross-axis reranking.
 
 ### Audit design and production drift
 
