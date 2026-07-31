@@ -63,67 +63,6 @@ test("domain impact is enforced across the feature lifecycle", () => {
   assert.match(reference, /existing `docs\/domain\/index\.md` suppresses[\s\S]{0,120}broad/i);
 });
 
-test("UI Impact is written, retained, and revalidated across the lifecycle", () => {
-  const planner = read("skills/gsd-to-plan/SKILL.md");
-  const execution = read("skills/gsd-executing-plans/SKILL.md");
-  const verify = read("skills/gsd-verify/SKILL.md");
-  const reference = read("skills/gsd/REFERENCE.md");
-
-  for (const body of [planner, execution, verify, reference]) {
-    assert.match(body, /UI Impact/);
-  }
-  // The canonical grammar block orders the four fields directly after Domain Impact.
-  assert.match(
-    reference,
-    /## Domain Impact\n(?:- \*\*.+\n){5}## UI Impact\n- \*\*Classification:\*\* <none\|reuse-prototype\|extend-prototype\|new-prototype>\n- \*\*Surfaces:\*\* .+\n- \*\*Prototype:\*\* .+\n- \*\*Evidence:\*\* .+\n/,
-  );
-  assert.match(reference, /only `reuse-prototype` names production `Surfaces`/);
-  assert.match(planner, /Classification`, `Surfaces`, `Prototype`, `Evidence`/);
-  // An authoring classification must change a real design/ artifact in the owning task, so
-  // a plan can never claim it produced a prototype it does not touch.
-  assert.match(planner, /bind each declared prototype path to a live task that also changes a non-doc `design\/` artifact/);
-  assert.match(planner, /source of truth[\s\S]{0,160}never redefines it/i);
-  assert.match(execution, /validated task slice[\s\S]{0,200}UI Impact/);
-  assert.match(execution, /source of truth[\s\S]{0,200}same task as the surface change/i);
-  assert.match(verify, /terminal slice including `Domain Impact` and `UI Impact`/);
-  assert.match(verify, /UI drift[\s\S]{0,200}(?:blocks|Blocker)/i);
-  // A non-`none` UI Impact merges only over a resolvable design map: the terminal gate runs the
-  // deterministic validator itself rather than trusting the prototype claim it reads, so all
-  // three anchors are the contract — the classification that triggers it, the exact green
-  // invocation, and a failing map as a Blocker rather than a reported finding.
-  assert.match(verify, /non-`none`[\s\S]{0,200}validate-design-map --path design\/docs/);
-  assert.match(
-    verify,
-    /validate-design-map --path design\/docs`[\s\S]{0,120}exit 0[\s\S]{0,200}deterministic Blocker/,
-  );
-
-  // The README is the human entry point: the prototype phase and the plan section it
-  // produces must both be documented, and the skill layout must list the new owner.
-  const readme = read("README.md");
-  assert.match(readme, /UI Impact/);
-  assert.match(readme, /gsd-prototyping/);
-  assert.match(readme, /gsd-prototyping\/\s*#[^\n]*prototyp/i, "skill layout lists the prototype owner");
-  assert.match(readme, /prototyp[\s\S]{0,200}before[\s\S]{0,120}(?:requirement|converg)/i);
-
-  // The shard is the durable record of shipped behavior: prototype-first delivery needs its
-  // own workflow, command row, and policy, not only prose inside the skills.
-  const domain = read("docs/domain/gsd.md");
-  assert.match(domain, /^### Lock a prototype before requirements$/m);
-  assert.match(domain, /\| Lock a prototype \| .+ \|/);
-  assert.match(domain, /^### P-gsd-15: [^\n]*prototype/im);
-  // The prototype-lock walkthrough records what the repository must end up holding, not how
-  // one tool is invoked: the surface arrives under `design/` already decomposed, the root
-  // contract is supplied wherever the agent runs, and the tool's runtime output stays
-  // uncommitted. Requiring a working directory, a meta directory, or a run mode would forbid
-  // starting an agent inside `design/`, which is a supported flow.
-  assert.match(domain, /any (?:AI )?design tool/i);
-  assert.doesNotMatch(domain, /working directory[^.]{0,80}repository root/i);
-  assert.doesNotMatch(domain, /meta directory/i);
-  assert.doesNotMatch(domain, /inline artifact/i);
-  assert.match(domain, /repository root or (?:from )?(?:in|inside) `design\/`/i);
-  assert.match(domain, /decompos[\s\S]{0,200}before[\s\S]{0,60}lock/i);
-  assert.match(domain, /runtime output[\s\S]{0,80}uncommitted/i);
-});
 
 test("domain modeling keeps preapproval writes current-only and reads affected shards only", () => {
   const brainstorm = read("skills/gsd-brainstorming/SKILL.md");

@@ -39,10 +39,6 @@ test("README documents the Markdown contract without legacy plan authority", () 
   assert.doesNotMatch(readme, /proposal\.toon|spec\.toon|design\.toon|plan\.toon/);
 });
 
-// The design-map command was reachable only from the two owners that happen to call it, so a
-// reader of canonical authority could not discover it. Both entry points must carry the
-// invocation and the fields it returns, or an owner has to read the CLI source to use it.
-
 test("AC-2: Installation documentation distinguishes relocation from in-place edits", () => {
   const readme = read("README.md");
   assert.match(readme, /Relocation of the checkout requires reinstall/);

@@ -27,20 +27,6 @@ test("every GSD skill has complete matching frontmatter", () => {
   }
 });
 
-test("gsd-prototyping Do-not-load pins production-path boundary", () => {
-  const skill = read("skills/gsd-prototyping/SKILL.md");
-  const reference = read("skills/gsd/REFERENCE.md");
-  // Extract the Do-not-load value from the skill.
-  const skillRestated = skill.match(/^- Do-not-load: (.+)$/m);
-  assert.ok(skillRestated, "gsd-prototyping restates Do-not-load");
-  // Extract the Do-not-load column from the canonical REFERENCE.md row.
-  const row = reference.split("\n").find((line) => /^\| `gsd-prototyping` \|/.test(line));
-  assert.ok(row, "the canonical matrix carries the prototyping row");
-  const refDoNotLoad = row.split("|")[5];
-  // Both must name the production-surface exclusion.
-  assert.match(skillRestated[1], /production surface edits/, "skill Do-not-load names production exclusion");
-  assert.match(refDoNotLoad, /production surface edits/, "REFERENCE Do-not-load names production exclusion");
-});
 
 test("visible catalog descriptions stay within the injected byte budget", () => {
   // Every visible description is injected once per session, so the sum is a real cost.
@@ -208,7 +194,7 @@ test("AC-2 repair: task repair stays session-owner-inline without terminal verif
 test("AC-3: Visible skill dispatch is deterministic", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
-  assert.equal(visible.length, 11, "exactly 11 visible GSD skills");
+  assert.equal(visible.length, 9, "exactly 9 visible GSD skills");
 
   const section = reference.match(
     /## Visible skill mandatory-use matrix\n+([\s\S]*?)(?:\n## |\n### |\n*$)/,
@@ -232,9 +218,9 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
     helperWhen: m[7].trim(),
   }));
 
-  assert.equal(rows.length, 11, "matrix must have exactly 11 rows");
+  assert.equal(rows.length, 9, "matrix must have exactly 9 rows");
   assert.deepEqual(rows.map((row) => row.skill).sort(), visible);
-  assert.equal(new Set(rows.map((row) => row.skill)).size, 11, "no multiply mapped skill");
+  assert.equal(new Set(rows.map((row) => row.skill)).size, 9, "no multiply mapped skill");
 
   const vague = /\b(as needed|if useful|when appropriate|sometimes|maybe|etc\.?|TBD|TODO)\b/i;
   // Only the Do-not-load and Transition labels were pinned, so a skill could restate another
@@ -293,7 +279,7 @@ test("AC-4: Concision preserves semantic parity", () => {
   const MAX_REFERENCE_WORDS = 5600;
   const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
-  assert.equal(visible.length, 11);
+  assert.equal(visible.length, 9);
   const total = visible.reduce(
     (count, name) => count + wordCount(read(`skills/${name}/SKILL.md`)),
     0,

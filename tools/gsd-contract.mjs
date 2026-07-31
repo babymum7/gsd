@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url";
-import { validateDesignMap, validatePlanFile } from "../lib/gsd-contract.mjs";
+import { validatePlanFile } from "../lib/gsd-contract.mjs";
 
-const COMMANDS = new Set(["validate-plan", "validate-quick-fix", "validate-design-map"]);
+const COMMANDS = new Set(["validate-plan", "validate-quick-fix"]);
 
 // The lifecycle runs in workspaces that are not this checkout, so every help and error
 // surface names the path this process was actually loaded from. A repo-relative form here
@@ -26,16 +26,13 @@ function commandUsage(command) {
   if (command === "validate-quick-fix") {
     return `${INVOCATION} validate-quick-fix --path .scratch/<feature>/plan.md`;
   }
-  if (command === "validate-design-map") {
-    return `${INVOCATION} validate-design-map --path design/docs`;
-  }
-  return `${INVOCATION} <validate-plan|validate-quick-fix|validate-design-map> --path <artifact>`;
+  return `${INVOCATION} <validate-plan|validate-quick-fix> --path <artifact>`;
 }
 
 function emitHelp(command) {
   write([
     `bin: ${quote(SCRIPT_PATH)}`,
-    `description: ${quote("Validate GSD plan and design-map authority in the current workspace")}`,
+    `description: ${quote("Validate GSD plan authority in the current workspace")}`,
     `usage: ${quote(commandUsage(command))}`,
   ]);
 }
@@ -116,28 +113,17 @@ if (input.usageError) {
   emitHelp(input.command);
 } else {
   try {
-    if (input.command === "validate-design-map") {
-      const map = validateDesignMap(input.planPath);
-      write([
-        "status: valid",
-        `kind: ${map.kind}`,
-        `surfaces: ${map.surfaces}`,
-        `claims: ${map.claims}`,
-        `pending: ${map.pending}`,
-      ]);
-    } else {
-      const result = validatePlanFile(input.planPath, {
-        kind: input.command === "validate-plan" ? "plan" : "quick-fix",
-        expectedSha256: input.expectedSha256,
-      });
-      write([
-        "status: valid",
-        `kind: ${result.kind}`,
-        `feature: ${result.feature}`,
-        `sha256: ${result.sha256}`,
-        `tasks: ${result.tasks}`,
-      ]);
-    }
+    const result = validatePlanFile(input.planPath, {
+      kind: input.command === "validate-plan" ? "plan" : "quick-fix",
+      expectedSha256: input.expectedSha256,
+    });
+    write([
+      "status: valid",
+      `kind: ${result.kind}`,
+      `feature: ${result.feature}`,
+      `sha256: ${result.sha256}`,
+      `tasks: ${result.tasks}`,
+    ]);
   } catch (error) {
     failArtifact(error, input.command);
   }

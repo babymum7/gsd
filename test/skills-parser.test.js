@@ -127,39 +127,6 @@ test("domain-impact packet grammar is mandatory in every validation path", () =>
   );
 });
 
-test("UI Impact is returned by the parser and banned from Quick-fix paths", () => {
-  const canonical = canonicalPacket();
-  // The parsed section is the value lifecycle owners retain in the task slice, so the
-  // return shape is part of the contract, not an internal validation side effect.
-  assert.deepEqual(parseMarkdownPacket(canonical).uiImpact, {
-    classification: "none",
-    surfaces: [],
-    prototype: [],
-    evidence: "Parser-only fixture renders no user-facing surface and converts no locked prototype.",
-  });
-
-  const converting = replaceOnce(
-    canonical["plan.md"],
-    FILES_BLOCK,
-    [
-      "- **Files:**",
-      "  - `src/ui/orders.tsx` — modify: render the locked order surface states",
-    ].join("\n"),
-  ).replace(
-    "## UI Impact\n- **Classification:** none\n- **Surfaces:** none\n- **Prototype:** none",
-    "## UI Impact\n- **Classification:** reuse-prototype\n- **Surfaces:** `src/ui/orders.tsx`\n- **Prototype:** `design/docs/orders.md`",
-  );
-  assert.deepEqual(parseMarkdownPacket({ "plan.md": converting }).uiImpact, {
-    classification: "reuse-prototype",
-    surfaces: ["src/ui/orders.tsx"],
-    prototype: ["design/docs/orders.md"],
-    evidence: "Parser-only fixture renders no user-facing surface and converts no locked prototype.",
-  });
-
-  const reference = read("skills/gsd/REFERENCE.md");
-  const quickFix = reference.match(/### Quick-fix plan exception\n[\s\S]*?(?=\n### Executable contract validator)/)[0];
-  assert.match(quickFix, /under `design\/`/, "Quick-fix exception states the prototype-path prohibition");
-});
 
 test("Quick-fix Domain Impact grammar is exact and domain-owned", () => {
   const quickFixPlan = [
@@ -275,7 +242,6 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("## Summary\nValidate Markdown plan.", "## Summary\n") }), /Summary section must not be empty or blank/);
   assert.throws(() => parseMarkdownPacket({ ...files, "proposal.md": "" }), /legacy multi-file state/);
   assert.throws(() => parseMarkdownPacket({ ...files, "spec.md": "" }), /legacy multi-file state/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "design.md": "" }), /legacy multi-file state/);
   assert.doesNotThrow(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("`node --test test/skills.test.js`", "`none`") }));
   // Negative parse and bindApprovedSources tests for Feature extra line, unbackticked Base, prose Scope, and extra source key
   const featureExtraLinePlan = files["plan.md"].replace("## Feature\n`canonical-fixture`", "## Feature\n`canonical-fixture`\nextra line");

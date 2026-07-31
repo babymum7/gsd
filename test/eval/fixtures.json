@@ -264,38 +264,6 @@
     "expectedPrimarySkill": "gsd-handoff"
   },
   {
-    "id": "new-surface-prototype",
-    "state": "clean repo; no .scratch/ directory; no design/ directory",
-    "prompt": "add a new order creation screen with a user search field",
-    "decision": "ordinary-routing",
-    "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-prototyping"
-  },
-  {
-    "id": "backend-only-no-prototype",
-    "state": "clean repo; no .scratch/ directory",
-    "prompt": "add nightly reconciliation between the ledger table and the payment provider API",
-    "decision": "ordinary-routing",
-    "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-brainstorming"
-  },
-  {
-    "id": "production-surface-edit",
-    "state": "clean repo; no .scratch/ directory",
-    "prompt": "in play.tsx line 42, change the mechanic scene resolution to multiply by scale factor \u2014 the fix is already identified",
-    "decision": "ordinary-routing",
-    "expectedAction": "direct",
-    "expectedPrimarySkill": null
-  },
-  {
-    "id": "design-code-drift",
-    "state": "clean repo; no .scratch/ directory; design/ exists with locked surface documents under design/docs/",
-    "prompt": "check how far the codebase has diverged from the design prototype",
-    "decision": "ordinary-routing",
-    "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-design-sync"
-  },
-  {
     "id": "compaction-capsule-resume",
     "state": ".scratch/oauth-login/compaction-capsule.toon exists containing a valid recovery capsule; .scratch/oauth-login/plan.md is present",
     "prompt": "continue implementation",
@@ -310,14 +278,6 @@
     "decision": "fail-closed",
     "expectedAction": "stop",
     "expectedPrimarySkill": null
-  },
-  {
-    "id": "design-sync-code-to-proto",
-    "state": "clean repo; design/ directory contains updated UI prototypes; src/components/ contains existing React code",
-    "prompt": "sync the React components in src/components to match the updated prototypes in design/",
-    "decision": "ordinary-routing",
-    "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-design-sync"
   },
   {
     "id": "arch-audit-during-execution",

@@ -8,7 +8,7 @@ hide: true
 
 # Ponytail
 
-> **Context-only guard** — this file is never a visible route, primary process owner, user preference, output cue, or persisted runtime setting. An active owner reads it only when a known bounded change benefits from the smallest complete path. Nano work needs no helper. When scope expands or design decisions appear, stop applying this context and enter the normal GSD lifecycle.
+> **Context-only guard** — this file is never a visible route, primary process owner, user preference, output cue, or persisted runtime setting. An active owner reads it only when a known bounded change benefits from the smallest complete path. Nano work needs no helper. When scope expands, stop applying this context and enter the normal GSD lifecycle.
 
 Lazy senior developer: efficient, not careless. The best code is code that does not need to exist.
 

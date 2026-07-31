@@ -194,30 +194,6 @@ test("activation fixtures and response parser enforce lazy primary-skill selecti
   assert.doesNotMatch(fixtureText, /"route"|"skill"/);
   assert.doesNotMatch(fixtureText, /handoff-\d+\.toon|result\.toon/);
 
-  // Prototype-first routing: new user-facing surface work converges in design/ before
-  // requirements, while backend-only work must not be dragged through a prototype.
-  const prototypeFixtures = new Map(fixtures.map((fixture) => [fixture.id, fixture]));
-  const selecting = prototypeFixtures.get("new-surface-prototype");
-  assert.ok(selecting, "a fixture pins prototype selection for new surface work");
-  assert.equal(selecting.expectedPrimarySkill, "gsd-prototyping");
-  assert.equal(selecting.expectedAction, "load");
-  const nonSelecting = prototypeFixtures.get("backend-only-no-prototype");
-  assert.ok(nonSelecting, "a fixture pins non-selection for backend-only work");
-  assert.notEqual(nonSelecting.expectedPrimarySkill, "gsd-prototyping");
-  assert.equal(nonSelecting.expectedAction, "load");
-  const bootstrap = read("skills/gsd/SKILL.md");
-  assert.match(bootstrap, /gsd-prototyping/);
-  assert.match(bootstrap, /user-facing surface[\s\S]{0,240}before[\s\S]{0,120}(?:requirement|converg)/i);
-  assert.match(bootstrap, /backend-only[\s\S]{0,160}never[\s\S]{0,120}prototyp/i);
-
-  // A drift prompt is a recorded dispatch expectation, not an untested claim: the audit
-  // owner is only reachable if a fixture pins the prompt shape that selects it.
-  const drift = prototypeFixtures.get("design-code-drift");
-  assert.ok(drift, "a fixture pins drift selection for design/production divergence");
-  assert.equal(drift.decision, "ordinary-routing");
-  assert.equal(drift.expectedAction, "load");
-  assert.equal(drift.expectedPrimarySkill, "gsd-design-sync");
-
   const byId = new Map(fixtures.map((fixture) => [fixture.id, fixture]));
   for (const id of ["nano-typo", "readonly-question", "mention-not-ask", "catalog"]) {
     assert.deepEqual(

@@ -18,11 +18,10 @@ Explicit intent and entry context choose the mode; artifact presence never does.
 
 ## Visible skill mandatory-use matrix
 
-Canonical dispatch authority for the 11 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill. Helper rows with a true Helper-when condition must load and cannot be skipped. For surface work, design-first is the default order, not a gate: a different or unclear order asks one question.
+Canonical dispatch authority for the 9 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill. Helper rows with a true Helper-when condition must load and cannot be skipped.
 
 | Skill | Role | Intent | Prerequisites | Do-not-load | Transition | Helper-when |
 | --- | --- | --- | --- | --- | --- | --- |
-| `gsd-prototyping` | owner | Lock explicit new or changed user-facing surface intent, a named screen, page, or UI, in a tested `design/` prototype before requirements converge | Explicit surface intent: the prompt names a screen, page, or UI | A generic feature or integration request naming no surface; backend-only work; production surface edits | On prototype lock ask the conversion cadence, then load `gsd-brainstorming` only for convert now | — |
 | `gsd-brainstorming` | owner | Resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract | Explicit design intent or load-bearing Spec-gap return | Read-only questions, pure mechanical edits, known single-spot quick fix | On convergence load `gsd-to-plan` | — |
 | `gsd-to-plan` | owner | Create or finalize canonical `plan.md` with bound Domain Impact after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unapproved plan | Design decisions still open; Nano edits | On approval write `state.toon` and load `gsd-executing-plans` | — |
 | `gsd-executing-plans` | owner | Implement approved plan tasks and owned domain docs inline and sequentially on `wip/<feature>` | Valid approved `plan.md` and bound `state.toon` whose pending work the prompt names | No bound plan/state; a bare resume naming no work; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
@@ -30,7 +29,6 @@ Canonical dispatch authority for the 11 visible GSD skills. Shared semantics liv
 | `gsd-verify` | owner | Review a diff/PR or prove planned or Quick-fix code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; Quick-fix: exact Quick-fix `plan.md`; standalone: supplied diff | Invent completion without deterministic gates | Planned or Quick-fix green path: squash, cleanup, optional retain/archive | — |
 | `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | An unlocated or non-obvious cause needing evidence | A located failure: the prompt names the file/line or exact failure signature | Return evidence to execution or an architectural cause to `gsd-codebase-architecture` | — |
 | `gsd-codebase-architecture` | owner | Design a named seam or audit/refactor architecture with domain-aligned deep boundaries | Explicit interface/architecture intent or diagnosis-returned architectural cause | Unrelated broad exploration or feature work with no unresolved seam | Selected candidates enter `gsd-brainstorming`; execution evidence returns to its owner | — |
-| `gsd-design-sync` | owner | Audit spec, ux, and ui drift between the `design/` prototype and the codebase, then route each chosen direction | Explicit design/production drift or sync intent and an existing `design/` directory | Repositories with no `design/` directory; drift already located and owned by an active packet | Route each user-chosen direction to `gsd-brainstorming` or `gsd-prototyping` | — |
 | `gsd-tdd` | helper | Drive Fast TDD RED→GREEN→refactor at a public seam | Session owner is implementing or repairing observable behavior | Primary skill selection; resource-heavy browser/E2E task loops | Return green/red evidence to session owner | must load when an observable task is selected or repaired |
 | `gsd-domain-modeling` | helper | Maintain current production domain behavior for affected contexts | Domain Impact changes a context or explicit domain-model work is selected | Read-only/Nano work; uncertain or unrelated contexts | Return exact changed domain and AGENTS paths to session owner | must load when Domain Impact is not `none` or explicit domain-model work is selected |
 
@@ -94,11 +92,6 @@ All fields use exact headings and labels, canonical order, UTF-8/LF, and no blan
 - **Documentation:** <none|update-existing|bootstrap-feature-context>
 - **Broad bootstrap:** <not-offered|declined|selected>
 - **Evidence:** <concrete code/schema/contract evidence>
-## UI Impact
-- **Classification:** <none|reuse-prototype|extend-prototype|new-prototype>
-- **Surfaces:** <none|sorted comma-space-separated backticked production paths>
-- **Prototype:** <none|sorted comma-space-separated backticked `design/` paths>
-- **Evidence:** <concrete surface/prototype evidence>
 ## Scope
 - <included behavior>
 ## Acceptance Criteria
@@ -143,9 +136,6 @@ An AC ID is a positive sequential integer.
 - `Domain Impact` uses the exact five fields above.
 - `none` requires no contexts or documentation; every other classification requires sorted affected context slugs and a documentation update, while `introduce-context` requires `bootstrap-feature-context`.
 - Broad bootstrap is an independent decision and is `not-offered` whenever the domain index exists.
-- `UI Impact` uses the exact four fields above, directly after `Domain Impact`.
-- `none` requires `Surfaces` and `Prototype` to be `none`. Every other classification names at least one `design/` prototype path; only `reuse-prototype` names production `Surfaces`, and it requires at least one.
-- `extend-prototype` and `new-prototype` bind every declared prototype path to a live task that also changes a non-doc `design/` artifact, so a declared surface never ships as prose alone.
 - Every active AC has exactly one matching Interfaces row.
 - A lower seam is valid only with a concrete reason that the higher production boundary is absent or cannot deterministically isolate the criterion.
 - Task IDs are positive sequential integers in heading order.
@@ -185,7 +175,6 @@ It contains one or two sequential tasks with unique structured paths and a real 
 - An absent `docs/domain/index.md` keeps Quick-fix bounded:
   - `Broad bootstrap` stays `not-offered` and non-`none` impact bootstraps the feature-scoped shard inline in that same task.
   - Only an explicitly requested broad bootstrap exits the bounded route for normal discovery.
-- No task path may be under `design/`: a prototype-touching change needs surface convergence, so it exits the bounded route instead of landing here.
 - Only the Quick-fix WIP verifier consumes this plan.
 - It has no proposal/spec/design source set, no normal-packet approval binding, and no normal-packet authority. Its `state.toon` records the validated hash; since `validate-quick-fix` takes no `--expected-sha256`, the gate compares its unbound revalidation against that record.
 - Ordinary packet validation MUST NOT classify it as malformed converged state or dispatch normal execution from it; its `gsd-verify` gate owns it until landing or a blocker.
@@ -198,21 +187,18 @@ It contains one or two sequential tasks with unique structured paths and a real 
 node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md
 node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex>
 node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md
-node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-design-map --path design/docs
 ```
 
 The first command validates a new canonical full plan and returns its exact SHA-256; it also revalidates a full-plan amendment before rebinding. The second requires the bytes to match an approved hash, so a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/`; symlinks, escaped paths, feature mismatch, and malformed grammar fail closed.
 
-The fourth validates the design map that `gsd-prototyping` and `gsd-design-sync` own, reading `design/docs` as a real in-workspace directory of surface documents.
 
 Success emits only deterministic scalar TOON:
 - A plan returns `status`, `kind`, `feature`, `sha256`, and `tasks`.
-- A design map returns `status`, `kind`, `surfaces`, `claims`, and `pending`: audited documents, declared production paths, and surfaces still owing a conversion.
 
 Structured actionable failures also use TOON on stdout:
 - An unreadable file reports `code: io-error`; malformed authority reports `code: invalid-artifact`. Both exit 1.
 - Usage failures exit 2 and help exits 0.
-- No command writes plan, state, domain, design, or Git data.
+- No command writes plan, state, domain, or Git data.
 
 ### Approval binding
 
