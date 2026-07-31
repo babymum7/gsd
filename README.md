@@ -102,6 +102,8 @@ The current top-level session is the sole lifecycle authority. It interprets the
 - A portable pause can explicitly synchronize committed WIP state and the exact feature scratch packet (`plan.md`, `state.toon`). Dirty-path snapshots require explicit consent; automatic context-pressure checkpoints stay local.
 
 ```text
+docs/
+└── domain/                           # bounded-context domain shards
 extensions/
 └── gsd-context.js                    # only runtime entry point
 lib/
@@ -110,7 +112,8 @@ tools/
 └── gsd-contract.mjs                 # thin agent-facing validator CLI
 skills/
 ├── gsd/                              # hidden session bootstrap + canonical reference
-├── gsd-prototyping/                  # locked design/ prototype before requirements converge
+├── gsd-prototyping/                  # design prototype and surface convergence
+│   └── template/                     # shipped prototype template (css, tokens, primitives)
 ├── gsd-brainstorming/                # discovery and requirements convergence
 ├── gsd-to-plan/                      # executable Markdown plan
 ├── gsd-executing-plans/              # sequential session-owner task execution
@@ -162,7 +165,7 @@ npm test
 
 That script runs `node --test test/*.test.js`, which is also the direct form when no manifest is installed.
 
-The supplementary model evaluator checks 42 workspace-state + prompt fixtures against the production bootstrap and visible catalog. It requires the strict JSON object `{ "decision": "...", "action": "...", "primarySkill": "gsd-..." | null }`; extra keys or prose fail.
+The supplementary model evaluator checks 43 workspace-state + prompt fixtures against the production bootstrap and visible catalog. It requires the strict JSON object `{ "decision": "...", "action": "...", "primarySkill": "gsd-..." | null }`; extra keys or prose fail.
 
 ```bash
 node test/eval/activation-eval.mjs

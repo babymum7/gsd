@@ -1,0 +1,106 @@
+{
+  "pass1": {
+    "Kimi-k3": {
+      "passed": 40,
+      "total": 43,
+      "accuracy": 93
+    },
+    "gemini-3.6-flash": {
+      "passed": 43,
+      "total": 43,
+      "accuracy": 100
+    },
+    "claude-sonnet-5": {
+      "passed": 42,
+      "total": 43,
+      "accuracy": 97.7
+    },
+    "claude-opus-4.8": {
+      "passed": 41,
+      "total": 43,
+      "accuracy": 95.3
+    },
+    "gpt-5.6-luna": {
+      "passed": 43,
+      "total": 43,
+      "accuracy": 100
+    },
+    "gpt-5.6-terra": {
+      "passed": 43,
+      "total": 43,
+      "accuracy": 100
+    }
+  },
+  "pass2": {
+    "Kimi-k3": {
+      "corrected": 3,
+      "stillFailing": 0,
+      "accuracy": 100
+    },
+    "gemini-3.6-flash": {
+      "corrected": 0,
+      "stillFailing": 0,
+      "accuracy": 100
+    },
+    "claude-sonnet-5": {
+      "corrected": 1,
+      "stillFailing": 0,
+      "accuracy": 100
+    },
+    "claude-opus-4.8": {
+      "corrected": 2,
+      "stillFailing": 0,
+      "accuracy": 100
+    },
+    "gpt-5.6-luna": {
+      "corrected": 0,
+      "stillFailing": 0,
+      "accuracy": 100
+    },
+    "gpt-5.6-terra": {
+      "corrected": 0,
+      "stillFailing": 0,
+      "accuracy": 100
+    }
+  },
+  "summary": {
+    "Kimi-k3": {
+      "firstAttempt": 93,
+      "corrected": 100
+    },
+    "gemini-3.6-flash": {
+      "firstAttempt": 100,
+      "corrected": 100
+    },
+    "claude-sonnet-5": {
+      "firstAttempt": 97.7,
+      "corrected": 100
+    },
+    "claude-opus-4.8": {
+      "firstAttempt": 95.3,
+      "corrected": 100
+    },
+    "gpt-5.6-luna": {
+      "firstAttempt": 100,
+      "corrected": 100
+    },
+    "gpt-5.6-terra": {
+      "firstAttempt": 100,
+      "corrected": 100
+    }
+  },
+  "failures": {
+    "Kimi-k3": [
+      "domain-glossary",
+      "milestone-ledger-recovery",
+      "malformed-packet-direct-prompt"
+    ],
+    "claude-sonnet-5": [
+      "plan-unrelated"
+    ],
+    "claude-opus-4.8": [
+      "pause-save",
+      "result-malformed-with-active"
+    ]
+  }
+}

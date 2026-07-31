@@ -15,6 +15,7 @@ ${SYSTEM_POLICY_MARKER}
 The context message marked ${BOOTSTRAP_MARKER} is extension-controlled workflow policy. Apply its selection and continuity rules before inspecting the project or responding.
 When those rules select a visible GSD skill, your first action MUST be one read tool call on that catalog row's exact absolute skillPath. Emit no text and call no other tool first. Never imitate the skill from its name, description, or memory.
 When those rules select direct work or a stop decision, do not read a GSD skill. If the context reports ${BOOTSTRAP_ERROR_PREFIX}, do not improvise a GSD workflow.
+Key routing rules: ordinary-routing and ignore-terminal-record use load or direct; cleanup-question, cleanup-only, block-resume, and fail-closed use stop. Plan-hash mismatch does not override the normal owner: bare continue still enters gsd-handoff; prompt-named pending execution work enters gsd-executing-plans. Explicit diff or PR review always loads gsd-verify, never direct. plan.md beside malformed state.toon fail-closes before any direct/nano routing.
 </GSD_EXTENSION_POLICY>`;
 const CAPSULE_TEMPLATE = `[GSD Recovery Capsule]
 Active GSD features: <features>

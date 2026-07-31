@@ -18,7 +18,7 @@
   {
     "id": "obvious-error",
     "state": "clean repo; no .scratch/ directory",
-    "prompt": "tests fail with `TypeError: cfg.retries is undefined` at src/http.js:12 — fix it",
+    "prompt": "tests fail with `TypeError: cfg.retries is undefined` at src/http.js:12 \u2014 fix it",
     "decision": "ordinary-routing",
     "expectedAction": "direct",
     "expectedPrimarySkill": null
@@ -282,7 +282,7 @@
   {
     "id": "production-surface-edit",
     "state": "clean repo; no .scratch/ directory",
-    "prompt": "in play.tsx line 42, change the mechanic scene resolution to multiply by scale factor — the fix is already identified",
+    "prompt": "in play.tsx line 42, change the mechanic scene resolution to multiply by scale factor \u2014 the fix is already identified",
     "decision": "ordinary-routing",
     "expectedAction": "direct",
     "expectedPrimarySkill": null
@@ -334,5 +334,13 @@
     "decision": "ordinary-routing",
     "expectedAction": "load",
     "expectedPrimarySkill": "gsd-domain-modeling"
+  },
+  {
+    "id": "plan-binding-drift-continue",
+    "state": ".scratch/oauth-login has an approved plan.md and state.toon, but plan.md no longer matches the recorded SHA-256 binding",
+    "prompt": "continue",
+    "decision": "ordinary-routing",
+    "expectedAction": "load",
+    "expectedPrimarySkill": "gsd-handoff"
   }
 ]

@@ -4,6 +4,11 @@
   "private": true,
   "type": "module",
   "description": "GSD workflow skills, contract validator, and OMP session extension.",
+  "types": "extensions/gsd-context.d.ts",
+  "engines": {
+    "node": ">=20"
+  },
+  "os": ["linux"],
   "scripts": {
     "test": "node --test test/*.test.js"
   }

@@ -83,12 +83,16 @@ function resolveOmp(pathEnv) {
 }
 
 const system = [
-  "You are a coding agent. The exact production GSD session bootstrap is loaded below.",
+  "You are a GSD activation classifier. Do NOT perform, answer, or execute the user prompt. Classify only.",
+  "The exact production GSD session bootstrap is loaded below.",
   "Given the workspace state and current user prompt, apply its result-marker decision matrix and lazy skill-selection policy.",
   "Choose only the primary process owner. Helper skills such as gsd-ponytail are not represented in primarySkill.",
   'Reply with ONLY exact JSON: {"decision":"<ordinary-routing|ignore-terminal-record|cleanup-question|cleanup-only|block-resume|fail-closed>","action":"<load|direct|stop>","primarySkill":"<visible gsd-* skill>" or null}.',
   "Use load with one visible primary skill, direct with null when no primary skill applies, and stop with null for every cleanup/block/fail-closed decision.",
-  "No prose. No markdown fence.",
+  "ordinary-routing and ignore-terminal-record ALWAYS use load or direct. cleanup-question, cleanup-only, block-resume, and fail-closed ALWAYS use stop with null primarySkill.",
+  "Plan-hash mismatch does not override the normal owner: bare continue still enters gsd-handoff; prompt-named pending execution work enters gsd-executing-plans. Bare 'continue' or generic resume with a validated active .scratch plan/state = gsd-handoff; named task/feature work with validated active plan = its owner skill, not gsd-handoff.",
+  "Explicit diff or PR review prompt always loads gsd-verify, never direct. plan.md beside malformed state.toon fail-closes before any direct/nano routing.",
+  "Your entire response must be exactly one raw JSON object. No prose, no explanation, no markdown fence, no tool_call tags, no wrapper of any kind. Any text besides the JSON object is a failure.",
   "",
   bootstrap,
 ].join("\n");

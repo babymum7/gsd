@@ -4,6 +4,25 @@
 # only after the extension has been published successfully.
 set -euo pipefail
 
+# Test seams: deterministic race-condition injection points for install.test.js.
+# Set any GSD_TEST_SEAM_* variable to a documented value before invoking this script
+# to trigger a specific interleaving. The cleanup_trap clears all seams on entry.
+#
+# GSD_TEST_SEAM_PRE_RELOCATE         symlink|regular            Race before target relocation
+# GSD_TEST_SEAM_PRE_QUARANTINE       regular|symlink|quarantine_collision  Race before quarantine move
+# GSD_TEST_SEAM_POST_QUARANTINE_MOVE recreate_source|sigterm    Race/signal after quarantine move
+# GSD_TEST_SEAM_POST_QUARANTINE_REVALIDATE replace_quarantine   Replace quarantine after validation
+# GSD_TEST_SEAM_POST_CLASSIFY        regular|symlink|regular_and_backup_regular|regular_and_backup_symlink
+#                                                                      Race after final classification
+# GSD_TEST_SEAM_BACKUP_PUBLISH       regular|symlink|hardlink   Race at backup publication window
+# GSD_TEST_SEAM_POST_CAPTURE_REPLACE regular|symlink            Race after capture, before backup move
+# GSD_TEST_SEAM_POST_BACKUP_MOVE     regular|symlink|replace_backup_target_absent  Race after backup move
+# GSD_TEST_SEAM_MAKE_REFERENT_LIVE   (any non-empty)            Make old referent live after proof
+# GSD_TEST_SEAM_RACE                 regular|symlink|directory|same_source|sigterm  Race at publication
+# GSD_TEST_SEAM_POST_RM_TMP_SYMLINK  sigterm                   Signal after temp symlink removal
+# GSD_TEST_SEAM_POST_PUBLISH         sigterm                   Signal after successful publication
+# GSD_TEST_SEAM_LEGACY_SKILL_REPLACE regular                    Race replacing legacy skill links
+
 # Keep pwd's terminator behind a sentinel so path-ending CR/LF survives validation.
 REPO_WITH_SENTINEL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P && printf "x")"
 REPO="${REPO_WITH_SENTINEL%??}"
