@@ -63,8 +63,8 @@ test("AC-4: Cross-references, None. explicit, repair evidence not duplicated, an
   assert.match(reference, /Decisions is exact `None\.` or sequential D blocks/);
   assert.match(execution, /rerun only checks invalidated by the repair/i);
   assert.match(reference, /`<features>` template field is serialized as/i);
-  assert.match(reference, /For Normal mode \(<= 5 active features\), `<resume_instruction>` is:/i);
-  assert.match(reference, /For Bounded-Ambiguity mode \(> 5 active features\), `<resume_instruction>` is:/i);
+  assert.match(reference, /The `<resume_instruction>` is a single string/i);
+  assert.match(reference, /Some features are omitted from this list/i);
 });
 
 test("archive terminal disposition contract", () => {

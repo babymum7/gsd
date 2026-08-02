@@ -19,10 +19,9 @@ Key routing rules: ordinary-routing and ignore-terminal-record use load or direc
 </GSD_EXTENSION_POLICY>`;
 const CAPSULE_TEMPLATE = `[GSD Recovery Capsule]
 Active GSD features: <features>
-To resume execution, perform direct-root rehydration in this exact order:
-1. Use the already-loaded GSD bootstrap from <GSD_ROOT>/skills/gsd/SKILL.md; do not load it again.
-2. <resume_instruction>
-Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing.`;
+The listed features are a workspace inventory only and do not indicate which feature the current session is working on.
+<resume_instruction>
+Compaction MUST preserve and continue the current user request. Only resume an active feature when the preserved request or a bare continue explicitly selects it.`;
 
 function validateGsdRoot(gsdRoot) {
   if (!gsdRoot || typeof gsdRoot !== 'string') {
@@ -40,12 +39,15 @@ function validateGsdRoot(gsdRoot) {
 }
 
 // Capsule byte budget, enforced by the checks below and pinned by the extension tests.
-// Fixed template static text is 359 UTF-8 bytes; the emitted master path caps at 1024;
-// each feature slug caps at 255 with at most 5 displayed, so `<features>` caps at 1283
-// (5 x 255 + 4 x ", ") in Normal mode and 1311 with the " (and N more)" suffix. Resume
-// instructions are 84 bytes (Normal) and 65 bytes (Bounded-Ambiguity), giving worst cases
-// of 359 + 1024 + 84 + 1283 = 2750 and 359 + 1024 + 65 + 1311 = 2759 bytes, both under the
-// 4000-byte complete cap. Over-cap output fails closed; never truncate a rendered capsule.
+// The capsule carries workspace inventory only; the current user request is sent as a
+// separate context item by session.compacting, keeping the capsule bounded. Fixed template
+// static text is ~328 UTF-8 bytes; each feature slug caps at 255 with at most 5 displayed,
+// so <features> caps at 1283 (5 x 255 + 4 x ", ") in Normal mode and 1305 with the
+// " (and N more)" suffix at max width (6 + 10 digits + 6 = 22 bytes). Resume instructions
+// embed the master path (≤1024 bytes) and are ~320 bytes (Normal) and ~425 bytes
+// (Bounded-Ambiguity with over-cap clause), giving worst cases of ~1931 and ~2058 bytes,
+// both well under the 4000-byte complete cap.
+// Over-cap output fails closed; never truncate a rendered capsule.
 function createCapsule(features, gsdRoot) {
   if (!Array.isArray(features) || features.length === 0) {
     throw new Error('At least one active feature is required');
@@ -87,17 +89,18 @@ function createCapsule(features, gsdRoot) {
   let featuresStr = prefix.join(', ');
   if (isOverCap) featuresStr += ` (and ${omittedCount} more)`;
 
-  const resumeInstruction = isOverCap
-    ? 'Stop immediately and select exactly one active feature to resume.'
-    : 'Load gsd-handoff from the injected catalog and perform exactly one validated resume.';
+  const overCapClause = isOverCap
+    ? ' Some features are omitted from this list — stop and select exactly one active feature before resuming.'
+    : '';
+  const resumeInstruction =
+    `If resuming, follow the bootstrap routing in ${masterPath}: bare "continue" selects gsd-handoff; a prompt naming an active feature routes to that feature's owner skill.${overCapClause} Stop immediately on malformed or ambiguous state. Otherwise, continue ordinary routing for the current request.`;
   // Single-pass replacement: inserted values are never rescanned.
   const tokenMap = {
     '<features>': featuresStr,
-    '<GSD_ROOT>/skills/gsd/SKILL.md': masterPath,
     '<resume_instruction>': resumeInstruction,
   };
   const capsule = CAPSULE_TEMPLATE.replace(
-    /<features>|<GSD_ROOT>\/skills\/gsd\/SKILL\.md|<resume_instruction>/g,
+    /<features>|<resume_instruction>/g,
     (token) => tokenMap[token],
   );
 
@@ -1353,6 +1356,37 @@ function firstNonCompactionSummaryIndex(messages) {
   return index;
 }
 
+const CURRENT_REQUEST_MAX_BYTES = 500;
+
+function extractLastUserRequest(messages) {
+  if (!Array.isArray(messages)) return '';
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (!msg || msg.role !== 'user') continue;
+    const text = messageText(msg);
+    if (!text) continue;
+    if (messageContainsBootstrap(msg)) continue;
+    if (text.startsWith('[GSD Recovery Capsule]')) continue;
+    if (text.startsWith('[GSD compaction')) continue;
+    // Unwrap prior [GSD Current Request] to its payload for idempotence across compactions
+    const isPriorRequest = text.startsWith('[GSD Current Request]\n');
+    const requestText = isPriorRequest ? text.slice('[GSD Current Request]\n'.length) : text;
+    if (!requestText) continue;
+    const byteLen = Buffer.byteLength(requestText, 'utf8');
+    if (byteLen <= CURRENT_REQUEST_MAX_BYTES) return requestText;
+    let cutIndex = 0;
+    let bytes = 0;
+    for (const ch of requestText) {
+      const chBytes = Buffer.byteLength(ch, 'utf8');
+      if (bytes + chBytes > CURRENT_REQUEST_MAX_BYTES) break;
+      bytes += chBytes;
+      cutIndex += ch.length;
+    }
+    return requestText.slice(0, cutIndex);
+  }
+  return '';
+}
+
 function sanitizeBootstrapError(error) {
   const reason = String(error?.message ?? error).replace(/[\x00-\x1F\x7F]+/g, ' ').trim();
   return `${BOOTSTRAP_ERROR_PREFIX} ${reason}. Do not improvise a GSD workflow; continue with ordinary OMP behavior.`;
@@ -1440,7 +1474,7 @@ function gsdContextExtension(pi) {
     return { messages };
   });
 
-  pi.on('session.compacting', async (_event, ctx) => {
+  pi.on('session.compacting', async (event, ctx) => {
     pendingCapsule = null;
     const features = detectCandidates(ctx?.cwd || process.cwd());
     if (features.length === 0) {
@@ -1448,7 +1482,12 @@ function gsdContextExtension(pi) {
       return {};
     }
     pendingCapsule = createCapsule(features, GSD_ROOT);
-    return { context: [pendingCapsule] };
+    const currentRequest = extractLastUserRequest(event?.messages);
+    const context = [pendingCapsule];
+    if (currentRequest) {
+      context.push(`[GSD Current Request]\n${currentRequest}`);
+    }
+    return { context };
   });
 
   pi.on('session_compact', async () => {

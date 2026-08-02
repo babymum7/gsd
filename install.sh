@@ -168,6 +168,14 @@ process_owned_backup() {
     fi
   fi
 
+  local q_path_arg="$quarantine_path"
+  if [[ "$q_path_arg" == -* ]]; then
+    q_path_arg="./$q_path_arg"
+  fi
+  local path_arg="$path"
+  if [[ "$path_arg" == -* ]]; then
+    path_arg="./$path_arg"
+  fi
   if [ "$active_path" = "$path" ]; then
     if [ -n "$quarantine_path" ] && { [ -e "$quarantine_path" ] || [ -L "$quarantine_path" ]; }; then
       if ! is_owned_path "$quarantine_path"; then
@@ -178,11 +186,11 @@ process_owned_backup() {
       quarantine_path=$(mktemp "${path}.quarantine.XXXXXX")
     fi
 
-    local q_path_arg="$quarantine_path"
+    q_path_arg="$quarantine_path"
     if [[ "$q_path_arg" == -* ]]; then
       q_path_arg="./$q_path_arg"
     fi
-    local path_arg="$path"
+    path_arg="$path"
     if [[ "$path_arg" == -* ]]; then
       path_arg="./$path_arg"
     fi
@@ -219,7 +227,7 @@ process_owned_backup() {
     fi
   fi
 
-  local q_path_arg="$quarantine_path"
+  q_path_arg="$quarantine_path"
   if [[ "$q_path_arg" == -* ]]; then
     q_path_arg="./$q_path_arg"
   fi

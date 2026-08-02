@@ -47,7 +47,7 @@ test("visible catalog descriptions stay within the injected byte budget", () => 
   assert.doesNotMatch(reference, /UTF-8 bytes\)/);
   assert.doesNotMatch(reference, /Byte-Budget Limits|Caps are a maximum/);
   assert.match(reference, /A rendered capsule over 4000 bytes fails closed/);
-  assert.match(read("extensions/gsd-context.js"), /2750|2759/);
+  assert.match(read("extensions/gsd-context.js"), /1931|2058/);
   for (const name of skillNames()) {
     assert.doesNotMatch(read(`skills/${name}/SKILL.md`), /^triggers:/m, `${name} triggers`);
   }

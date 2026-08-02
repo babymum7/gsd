@@ -58,7 +58,7 @@ Terminal state gates only intent naming it; unrelated direct work is never block
 
 ## Recovery ownership
 
-A valid **Compaction Recovery Capsule** selects one resume: follow its root/feature, load `gsd-handoff`. **Do not invoke or execute the capsule again, avoiding circular re-entry.**
+ A valid **Compaction Recovery Capsule** lists active features as workspace inventory. Routing after compaction: a **[GSD Current Request]** equal to `continue` (preserved or live) selects resume via `gsd-handoff`; a request naming an active feature routes to that feature's owner skill; any other current request continues ordinary routing. **Do not invoke or execute the capsule again, avoiding circular re-entry.**
 
 A malformed or ambiguous capsule resolves through the matrix above; missing state never authorizes replacement brainstorming.
 

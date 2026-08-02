@@ -344,11 +344,24 @@ The Compaction Recovery Capsule is owned by GSD and is the canonical recovery in
 ```text
 [GSD Recovery Capsule]
 Active GSD features: <features>
-To resume execution, perform direct-root rehydration in this exact order:
-1. Use the already-loaded GSD bootstrap from <GSD_ROOT>/skills/gsd/SKILL.md; do not load it again.
-2. <resume_instruction>
-Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing.
+The listed features are a workspace inventory only and do not indicate which feature the current session is working on.
+<resume_instruction>
+Compaction MUST preserve and continue the current user request. Only resume an active feature when the preserved request or a bare continue explicitly selects it.
 ```
+
+#### Current Request Preservation
+
+During compaction, `session.compacting` extracts the last genuine user request from `event.messages` and returns it as a separate context item alongside the capsule. The extraction filters out bootstrap messages, recovery capsules, and compaction summaries. The request is bounded to 500 UTF-8 bytes.
+
+When present, the second context item is:
+
+```text
+[GSD Current Request]
+<last genuine user request, truncated to 500 bytes>
+```
+
+
+The capsule itself remains bounded and unchanged. The current request is informational: it preserves user intent across compaction so the agent can continue the current task rather than resuming a listed workspace feature. The capsule's workspace inventory does not prove session ownership; only a bare `continue` or an explicit prompt naming an active feature should trigger resume.
 
 #### Generic Renderer Protocol
 
@@ -370,10 +383,12 @@ The canonical renderer is a generic protocol requiring:
    - In Normal mode, the `<features>` template field is serialized as the list of all feature names joined by `", "`.
    - In Bounded-Ambiguity mode, the `<features>` template field is serialized as the first 5 sorted features joined by `", "`, followed by the exact omitted-count suffix: ` (and <omittedCount> more)` where `<omittedCount>` is `features.length - 5`.
 6. **Exact Instruction Values**:
-   - For Normal mode (<= 5 active features), `<resume_instruction>` is:
-    `Load gsd-handoff from the injected catalog and perform exactly one validated resume.`
-   - For Bounded-Ambiguity mode (> 5 active features), `<resume_instruction>` is:
-     `Stop immediately and select exactly one active feature to resume.`
+   - The `<resume_instruction>` is a single string for both modes. It delegates routing to the bootstrap:
+    `If resuming, follow the bootstrap routing in <masterPath>: bare "continue" selects gsd-handoff; a prompt naming an active feature routes to that feature's owner skill.`
+   - In Bounded-Ambiguity mode (> 5 active features), an additional clause is appended:
+    ` Some features are omitted from this list — stop and select exactly one active feature before resuming.`
+   - Both modes end with:
+    ` Stop immediately on malformed or ambiguous state. Otherwise, continue ordinary routing for the current request.`
 7. **Complete-Capsule Fail-Closed Cap**:
    - A rendered capsule over 4000 bytes fails closed; no truncation or slicing of root, slug, instruction, or Unicode is permitted. The exact per-field arithmetic lives beside `createCapsule` in `extensions/gsd-context.js`.
 

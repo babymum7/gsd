@@ -302,5 +302,21 @@
     "decision": "ordinary-routing",
     "expectedAction": "load",
     "expectedPrimarySkill": "gsd-handoff"
+  },
+  {
+    "id": "compaction-preserves-unrelated-request",
+    "state": ".scratch/oauth-login has active phase=executing state.toon and plan.md; [GSD Recovery Capsule] lists oauth-login as active feature with workspace-inventory-only wording; [GSD Current Request] preserves: 'Update the README badges to use the new CDN URLs'",
+    "prompt": "Update the README badges to use the new CDN URLs",
+    "decision": "ordinary-routing",
+    "expectedAction": "direct",
+    "expectedPrimarySkill": null
+  },
+  {
+    "id": "compaction-bare-continue-with-active",
+    "state": ".scratch/oauth-login has active phase=executing state.toon and plan.md; [GSD Recovery Capsule] lists oauth-login as active feature; [GSD Current Request] preserves: 'continue'",
+    "prompt": "continue",
+    "decision": "ordinary-routing",
+    "expectedAction": "load",
+    "expectedPrimarySkill": "gsd-handoff"
   }
 ]

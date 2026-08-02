@@ -56,13 +56,20 @@ function getContractFromReference() {
   assert.ok(match, "Failed to locate Compaction Recovery Capsule text block in REFERENCE.md");
   const template = match[1].replace(/\r\n/g, "\n");
 
-  const normalMatch = referenceContent.match(/For Normal mode[\s\S]*?`([^`]{30,})`/);
-  assert.ok(normalMatch, "Failed to locate Normal instruction in REFERENCE.md");
-  const normalInstruction = normalMatch[1];
+  const baseMatch = referenceContent.match(/It delegates routing to the bootstrap:\s*\n\s*`([^`]+)`/);
+  assert.ok(baseMatch, "Failed to locate base resume instruction in REFERENCE.md");
+  const baseInstruction = baseMatch[1];
 
-  const ambiguityMatch = referenceContent.match(/For Bounded-Ambiguity mode[\s\S]*?`([^`]{30,})`/);
-  assert.ok(ambiguityMatch, "Failed to locate Bounded-Ambiguity instruction in REFERENCE.md");
-  const ambiguityInstruction = ambiguityMatch[1];
+  const overCapMatch = referenceContent.match(/additional clause is appended:\s*\n\s*`([^`]+)`/);
+  assert.ok(overCapMatch, "Failed to locate over-cap clause in REFERENCE.md");
+  const overCapClause = overCapMatch[1];
+
+  const stopMatch = referenceContent.match(/Both modes end with:\s*\n\s*`([^`]+)`/);
+  assert.ok(stopMatch, "Failed to locate stop clause in REFERENCE.md");
+  const stopClause = stopMatch[1];
+
+  const normalInstruction = baseInstruction + stopClause;
+  const ambiguityInstruction = baseInstruction + overCapClause + stopClause;
   return { template, normalInstruction, ambiguityInstruction };
 }
 
@@ -131,7 +138,8 @@ function testIndependentRenderer(features, gsdRoot) {
   const capsule = template
     .replace("<features>", featuresStr)
     .replace("<GSD_ROOT>/skills/gsd/SKILL.md", masterPath)
-    .replace("<resume_instruction>", resumeInstruction);
+    .replace("<resume_instruction>", resumeInstruction)
+    .replace("<masterPath>", masterPath);
 
   const capsuleBytes = Buffer.byteLength(capsule, 'utf8');
   if (capsuleBytes > 4000) {
@@ -140,9 +148,9 @@ function testIndependentRenderer(features, gsdRoot) {
 
   return capsule;
 }
-test("capsule extension production API contract", (t) => {
+test("capsule extension production API contract", async (t) => {
   // 1. Proving byte identity with the generic skill contract
-  t.test("proves byte identity between REFERENCE.md template and JS extension", () => {
+  await t.test("proves byte identity between REFERENCE.md template and JS extension", () => {
     const referenceContent = readFileSync(REFERENCE_PATH, "utf8");
     
     // Extract the text block under #### Compaction Recovery Capsule
@@ -156,7 +164,7 @@ test("capsule extension production API contract", (t) => {
   });
 
   // 2. Bounded output
-  t.test("proves capsule output is bounded in size", () => {
+  await t.test("proves capsule output is bounded in size", () => {
     const capsule1 = createCapsule(["feature-a"], ROOT);
     assert.ok(capsule1.length > 200, "Capsule too short");
     assert.ok(Buffer.byteLength(capsule1, 'utf8') < 4000, "Capsule too long");
@@ -166,19 +174,19 @@ test("capsule extension production API contract", (t) => {
   });
 
   // 3. Exact order
-  t.test("proves exact order of rehydration steps is preserved", () => {
+  await t.test("proves exact order of rehydration steps is preserved", () => {
     const capsule = createCapsule(["feature-a"], ROOT);
     
-    const step1Idx = capsule.indexOf("1. Use the already-loaded GSD bootstrap from ");
-    const step2Idx = capsule.indexOf("2. Load gsd-handoff from the injected catalog and perform exactly one validated resume.");
-    
-    assert.ok(step1Idx !== -1, "Step 1 missing");
-    assert.ok(step2Idx !== -1, "Step 2 missing");
-    assert.ok(step1Idx < step2Idx, "Step 1 must precede Step 2");
+    const routingIdx = capsule.indexOf("If resuming, follow the bootstrap routing in ");
+    const inventoryIdx = capsule.indexOf("workspace inventory only");
+
+    assert.ok(routingIdx !== -1, "Routing instruction missing");
+    assert.ok(inventoryIdx !== -1, "Inventory-only wording missing");
+    assert.ok(routingIdx > inventoryIdx, "Routing instruction must follow inventory-only wording");
   });
 
   // 4. Safe serialization of feature names/paths and hardening
-  t.test("proves safe serialization of feature names and paths", () => {
+  await t.test("proves safe serialization of feature names and paths", () => {
     // Empty feature list should throw
     assert.throws(() => {
       createCapsule([], ROOT);
@@ -192,7 +200,7 @@ test("capsule extension production API contract", (t) => {
     // Check stable alphabetical sorting (stable slug order)
     const capsule = createCapsule(["feat-z", "feat-a", "feat-m"], ROOT);
     assert.match(capsule, /Active GSD features: feat-a, feat-m, feat-z/);
-    assert.match(capsule, /Stop immediately on malformed or ambiguous state for the named features\. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing\./);
+    assert.match(capsule, /Compaction MUST preserve and continue the current user request/);
 
     // Invalid names (paths, spaces, capitals, etc.) should throw
     const invalidFeatures = ["pkg/auth", "dbMigration", "app test", "feat_a", "feat.", "../escape"];
@@ -216,7 +224,7 @@ test("capsule extension production API contract", (t) => {
     // Let's update this assertion to test that it returns the ambiguity capsule!
     const ambiguityCapsule = createCapsule(["f-1", "f-2", "f-3", "f-4", "f-5", "f-6"], ROOT);
     assert.match(ambiguityCapsule, /Active GSD features: f-1, f-2, f-3, f-4, f-5 \(and 1 more\)/);
-    assert.match(ambiguityCapsule, /2\. Stop immediately and select exactly one active feature to resume\./);
+    assert.match(ambiguityCapsule, /Some features are omitted from this list — stop and select exactly one active feature before resuming\./);
 
     // Five maximum-length (255-byte) valid slugs do NOT throw and yield a capsule < 4000 bytes
     const maxLengthFeatures = Array.from({ length: 5 }, (_, i) => "a".repeat(253) + "-" + i);
@@ -239,15 +247,15 @@ test("capsule extension production API contract", (t) => {
     }, /path separators or dots are rejected/);
   });
 
-  // 5. Related-only ambiguity language
-  t.test("proves related-only ambiguity language exists", () => {
+  // 5. Workspace inventory and current-request-preservation language
+  await t.test("proves workspace inventory and current-request-preservation language exists", () => {
     const capsule = createCapsule(["feature-a"], ROOT);
-    const relatedOnlyLanguage = "Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing.";
-    assert.ok(capsule.includes(relatedOnlyLanguage), "Related-only ambiguity language missing or mismatch");
+    assert.ok(capsule.includes("workspace inventory only"), "Workspace inventory language missing");
+    assert.ok(capsule.includes("Compaction MUST preserve and continue the current user request"), "Current request preservation language missing");
   });
 
   // 6. No model-specific wording
-  t.test("proves no model-specific wording exists in the capsule", () => {
+  await t.test("proves no model-specific wording exists in the capsule", () => {
     const capsule = createCapsule(["feature-a"], ROOT);
     
     // List of model-specific keywords to ban
@@ -261,7 +269,7 @@ test("capsule extension production API contract", (t) => {
 
 
   // 7. Test production extension factory with filesystem fixtures and fake OMP API
-  t.test("tests production extension factory with filesystem fixtures and fake OMP API", async () => {
+  await t.test("tests production extension factory with filesystem fixtures and fake OMP API", async (childT) => {
     // Set up temp workspace directory
     const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-test-"));
     const scratchDir = join(tempDir, ".scratch");
@@ -310,34 +318,12 @@ test("capsule extension production API contract", (t) => {
       writeFileSync(join(feat6Dir, "plan.md"), "plan");
       writeActiveStateFixture(feat6Dir, feat6);
 
-      // Candidate 7: overlong otherwise-active candidate (>255 UTF-8 bytes, has plan.md and handoff-1.toon)
-      // On POSIX filesystems, component length cap is 255 bytes so mkdirSync of >255 bytes fails at OS layer.
-      // We intercept fs.readdirSync for scratchDir to present a Dirent for an overlong directory.
-      const feat7 = "feat-overlong-" + "a".repeat(250);
-      const realReaddirSync = require("node:fs").readdirSync;
+      // Overlong slug (>255 bytes) cannot be created on POSIX (NAME_MAX=255).
+      // detectCandidates uses fs.opendirSync, so any readdirSync mock is ineffective.
+      // createCapsule(["a".repeat(256)]) already validates renderer rejection.
+      // detectCandidates simply skips non-existent entries.
       let candidates;
-      try {
-        require("node:fs").readdirSync = function(p, opts) {
-          const res = realReaddirSync.call(this, p, opts);
-          if (p === scratchDir && opts?.withFileTypes) {
-            return [
-              ...res,
-              {
-                name: feat7,
-                isDirectory: () => true,
-                isFile: () => false,
-                isSymbolicLink: () => false
-              }
-            ];
-          }
-          return res;
-        };
-
-        // 1. Test detectCandidates
-        candidates = detectCandidates(tempDir);
-      } finally {
-        require("node:fs").readdirSync = realReaddirSync;
-      }
+      candidates = detectCandidates(tempDir);
       // Expected active candidates sorted: feat-one, feat-six (overlong candidate feat7 is skipped)
       assert.deepEqual(candidates, ["feat-one", "feat-six"]);
       // 2. Test fake OMP API and event registration
@@ -438,6 +424,86 @@ test("capsule extension production API contract", (t) => {
       assert.equal(sentMessages.length, beforeSendCount, "No message should be sent when inert");
 
       rmSync(emptyTempDir, { recursive: true, force: true });
+
+      // Regression: compaction preserves current user request as separate context item
+      await childT.test("preserves last user request as separate context item during compaction", async () => {
+        const featureDir = join(tempDir, ".scratch", "active-plan");
+        mkdirSync(featureDir, { recursive: true });
+        writeFileSync(join(featureDir, "plan.md"), "# Plan\n## Feature\n`active-plan`\n");
+        writeFileSync(join(featureDir, "state.toon"), [
+          "schema:v4", "feature:active-plan", "phase:executing", "next_action:verify",
+          "plan_path:.scratch/active-plan/plan.md",
+          "plan_sha256:" + "a".repeat(64),
+          "base_ref:main", "wip_branch:wip/active-plan",
+          "last_green_task:none", "last_green_commit:none",
+          "autosync:none", "cleanup_preference:none", "checkpoint_revision:1",
+        ].join("\n") + "\n");
+
+        // Simulate: user asked to fix a bug (unrelated to active-plan)
+        const messages = [
+          { role: "user", content: "Fix the login timeout bug" },
+          { role: "assistant", content: "I'll investigate the login timeout." },
+          { role: "user", content: "Can you also check the error logs?" },
+        ];
+        const result = await registeredEvents["session.compacting"]({ messages }, ctxMock);
+        assert.ok(Array.isArray(result.context), "Context must be an array");
+        assert.equal(result.context.length, 2, "Context must contain capsule and current request");
+        assert.match(result.context[0], /\[GSD Recovery Capsule\]/, "First item must be capsule");
+        assert.match(result.context[0], /workspace inventory only/, "Capsule must state inventory-only");
+        assert.equal(result.context[1], "[GSD Current Request]\nCan you also check the error logs?",
+          "Second item must preserve the last genuine user request");
+
+        // No messages: no current request
+        const emptyResult = await registeredEvents["session.compacting"]({ messages: [] }, ctxMock);
+        assert.equal(emptyResult.context.length, 1, "Empty messages must not add current request");
+
+        // Bootstrap message must be filtered out
+        const bootstrapMsg = { role: "user", content: "<GSD_BOOTSTRAP>\ngsd:session-bootstrap:v2\n</GSD_BOOTSTRAP>" };
+        const bootstrapResult = await registeredEvents["session.compacting"]({ messages: [bootstrapMsg] }, ctxMock);
+        assert.equal(bootstrapResult.context.length, 1, "Bootstrap messages must not become current request");
+        // Bare "continue" must be preserved as [GSD Current Request] — production real path
+        const continueMsg = { role: "user", content: "continue" };
+        const continueResult = await registeredEvents["session.compacting"]({ messages: [continueMsg] }, ctxMock);
+        assert.equal(continueResult.context.length, 2, "Bare continue must produce capsule + current request");
+        assert.equal(continueResult.context[1], "[GSD Current Request]\ncontinue",
+          "Bare continue must be preserved as-is in the current request context item");
+        // Two-compaction idempotence: first compaction emits [GSD Current Request]\n<request>,
+        // second compaction receives that as a user message and must unwrap to the same payload.
+        const firstCompactResult = await registeredEvents["session.compacting"](
+          { messages: [{ role: "user", content: "Fix the login bug" }] }, ctxMock);
+        const firstRequest = firstCompactResult.context[1]; // "[GSD Current Request]\nFix the login bug"
+        // Simulate second compaction where the only user-context message is the prior output
+        const secondCompactResult = await registeredEvents["session.compacting"](
+          { messages: [{ role: "user", content: firstRequest }] }, ctxMock);
+        assert.equal(secondCompactResult.context.length, 2,
+          "Second compaction must still produce capsule + current request");
+        assert.equal(secondCompactResult.context[1], firstRequest,
+          "Second compaction output must be byte-identical to first — no prefix nesting");
+        // Multibyte truncation: must truncate by UTF-8 bytes, not JS char count.
+        // Astral test: emoji 🎉 is 4 UTF-8 bytes but 2 JS chars (surrogate pair).
+        // Place emoji at the 500-byte boundary and assert it's never split.
+        // "X".repeat(496) = 496 bytes, then 🎉 = 4 bytes → total 500 bytes exactly.
+        const prefix = "X".repeat(496);
+        const astralMsg = { role: "user", content: prefix + "🎉" + "extra" }; // 501 bytes
+        const astralResult = await registeredEvents["session.compacting"]({ messages: [astralMsg] }, ctxMock);
+        const astralRequest = astralResult.context[1].replace("[GSD Current Request]\n", "");
+        const astralBytes = Buffer.byteLength(astralRequest, "utf8");
+        assert.ok(astralBytes <= 500, `Astral truncation must be ≤500 bytes, got ${astralBytes}`);
+        assert.ok(astralBytes >= 496, `Should keep prefix, got ${astralBytes} bytes`);
+        // The emoji must be fully present or fully absent — never half a surrogate pair.
+        assert.ok(astralRequest.includes("🎉") || !astralRequest.includes("\uD83C"),
+          "Emoji must be whole: fully present or fully absent, never split surrogate pair");
+        // Verify the string is valid UTF-8 by re-encoding and comparing byte length.
+        assert.equal(Buffer.byteLength(astralRequest, "utf8"), astralBytes,
+          "Truncated output must be valid UTF-8");
+        // Prove adding the next code point exceeds 500.
+        const oneMore = prefix + "🎉🎉"; // 504 bytes — must be truncated
+        const oneMoreMsg = { role: "user", content: oneMore };
+        const oneMoreResult = await registeredEvents["session.compacting"]({ messages: [oneMoreMsg] }, ctxMock);
+        const oneMoreRequest = oneMoreResult.context[1].replace("[GSD Current Request]\n", "");
+        assert.ok(Buffer.byteLength(oneMoreRequest, "utf8") <= 500,
+          "Two-emoji string must still be truncated to ≤500 bytes");
+      });
     } finally {
       // Clean up tempDir workspace
       rmSync(tempDir, { recursive: true, force: true });
@@ -573,7 +639,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
       // Prefix is first 5: feat-a, feat-b, feat-c, feat-d, feat-e
       // Omitted: feat-f (1 more)
       assert.match(capsule, /Active GSD features: feat-a, feat-b, feat-c, feat-d, feat-e \(and 1 more\)/);
-      assert.match(capsule, /2\. Stop immediately and select exactly one active feature to resume\./);
+      assert.match(capsule, /Some features are omitted from this list — stop and select exactly one active feature before resuming\./);
 
       // Compacted
       await registeredEvents["session_compact"]({}, { cwd: tempDir });
@@ -827,8 +893,8 @@ test("T3 Review Fixes detailed behavior", async (t) => {
       }, /GSD_ROOT path length exceeds limit/);
 
       // 4. No rendered output is syntactically partial
-      assert.ok(maxCapsule.endsWith("Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing."), "Output must end with the final sentence");
-      assert.ok(deepCapsule.endsWith("Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing."), "Output must end with the final sentence");
+      assert.ok(maxCapsule.endsWith("Compaction MUST preserve and continue the current user request. Only resume an active feature when the preserved request or a bare continue explicitly selects it."), "Output must end with the final sentence");
+      assert.ok(deepCapsule.endsWith("Compaction MUST preserve and continue the current user request. Only resume an active feature when the preserved request or a bare continue explicitly selects it."), "Output must end with the final sentence");
 
       // 5. Byte count stays within the declared cap (4000 bytes)
       assert.ok(Buffer.byteLength(maxCapsule, 'utf8') <= 4000, "Capsule size must be within the 4000-byte cap");
@@ -867,7 +933,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
 
       const capsule = compactResult.context[0];
       assert.match(capsule, /Active GSD features: feat-0001, feat-0002, feat-0003, feat-0004, feat-0005 \(and 996 more\)/);
-      assert.match(capsule, /2\. Stop immediately and select exactly one active feature to resume\./);
+      assert.match(capsule, /Some features are omitted from this list — stop and select exactly one active feature before resuming\./);
       assert.ok(Buffer.byteLength(capsule, "utf8") < 4000, "Capsule size must stay under 4000 bytes");
 
       await registeredEvents["session_compact"]({}, { cwd: tempDir });
@@ -917,10 +983,9 @@ test("T3 Review Fixes detailed behavior", async (t) => {
     const expectedMasterPath = `${specialRoot}/skills/gsd/SKILL.md`;
     const handWrittenExpected = `[GSD Recovery Capsule]
 Active GSD features: feat-a
-To resume execution, perform direct-root rehydration in this exact order:
-1. Use the already-loaded GSD bootstrap from ${expectedMasterPath}; do not load it again.
-2. Load gsd-handoff from the injected catalog and perform exactly one validated resume.
-Stop immediately on malformed or ambiguous state for the named features. If the current intent is unrelated to them, ignore this capsule and continue ordinary routing.`;
+The listed features are a workspace inventory only and do not indicate which feature the current session is working on.
+If resuming, follow the bootstrap routing in ${expectedMasterPath}: bare "continue" selects gsd-handoff; a prompt naming an active feature routes to that feature's owner skill. Stop immediately on malformed or ambiguous state. Otherwise, continue ordinary routing for the current request.
+Compaction MUST preserve and continue the current user request. Only resume an active feature when the preserved request or a bare continue explicitly selects it.`;
 
     assert.equal(capsule, handWrittenExpected, "Capsule must match hand-written expected bytes exactly with literal special characters");
     assert.ok(capsule.includes(expectedMasterPath), "Master path must contain exact literal special characters");
@@ -940,39 +1005,42 @@ Stop immediately on malformed or ambiguous state for the named features. If the 
     const normalInstructionBytes = Buffer.byteLength(normalInstruction, "utf8");
     const ambiguityInstructionBytes = Buffer.byteLength(ambiguityInstruction, "utf8");
 
-    assert.equal(fixedTextBytes, 359, "Fixed static text must be exactly 359 UTF-8 bytes");
-    assert.equal(normalInstructionBytes, 84, "Normal instruction must be exactly 84 UTF-8 bytes");
-    assert.equal(ambiguityInstructionBytes, 65, "Bounded-Ambiguity instruction must be exactly 65 UTF-8 bytes");
+    assert.equal(fixedTextBytes, 328, "Fixed static text must be exactly 328 UTF-8 bytes");
+    assert.equal(normalInstructionBytes, 279, "Normal instruction must be exactly 279 UTF-8 bytes");
+    assert.equal(ambiguityInstructionBytes, 384, "Bounded-Ambiguity instruction must be exactly 384 UTF-8 bytes");
 
     const masterPath = `${realRootPath}/skills/gsd/SKILL.md`;
     const masterPathBytes = Buffer.byteLength(masterPath, "utf8");
 
-    // Worst case totals under maximum 1024-byte path limit:
-    const normalMaxTotal = 359 + 1024 + 84 + 1283;
-    const ambiguityMaxTotal = 359 + 1024 + 65 + 1311;
-    assert.equal(normalMaxTotal, 2750, "Normal mode worst-case total under current maxima must be exactly 2750 bytes");
-    assert.equal(ambiguityMaxTotal, 2759, "Bounded-Ambiguity mode worst-case total under current maxima must be exactly 2759 bytes");
+    const MASTER_PATH_PLACEHOLDER_LEN = Buffer.byteLength("<masterPath>", "utf8");
+    const normalInstructionBase = normalInstructionBytes - MASTER_PATH_PLACEHOLDER_LEN;
+    const ambiguityInstructionBase = ambiguityInstructionBytes - MASTER_PATH_PLACEHOLDER_LEN;
+
+    // Worst case totals under maximum 1024-byte path limit (instruction bytes exclude <masterPath> placeholder):
+    const normalMaxTotal = 328 + 1024 + normalInstructionBase + 1283;
+    const ambiguityMaxTotal = 328 + 1024 + ambiguityInstructionBase + 1305;
+    assert.equal(normalMaxTotal, 2902, "Normal mode worst-case total under current maxima must be exactly 2902 bytes");
+    assert.equal(ambiguityMaxTotal, 3029, "Bounded-Ambiguity mode worst-case total under current maxima must be exactly 3029 bytes");
 
     const maxSlugs5 = Array.from({ length: 5 }, (_, i) => "a".repeat(253) + "-" + i);
     const capsule5 = createCapsule(maxSlugs5, realRootPath);
     const actualBytes5 = Buffer.byteLength(capsule5, "utf8");
 
-    // Formula calculation for 5 max slugs: 359 (fixed) + masterPathBytes + 84 (normal instruction) + 1283 (max 5 features)
-    const expectedFormulaMax5 = 359 + masterPathBytes + 84 + 1283;
+    // Formula calculation for 5 max slugs: 328 (fixed) + masterPathBytes + normalInstructionBase (267) + 1283 (max 5 features)
+    const expectedFormulaMax5 = 328 + masterPathBytes + normalInstructionBase + 1283;
     assert.equal(actualBytes5, expectedFormulaMax5, "Actual Normal capsule size must equal byte formula calculation exactly");
-    assert.ok(actualBytes5 <= 2750, "Normal mode total must not exceed 2750 bytes");
+    assert.ok(actualBytes5 <= 2902, "Normal mode total must not exceed 2902 bytes");
     assert.ok(actualBytes5 <= 4000, "Normal capsule must be within the 4000-byte cap");
 
     // Formula calculation for 6 max slugs (ambiguity mode with 1-digit omitted count: 5*255 + 4*2 + " (and 1 more)" [13 bytes] = 1296 bytes)
     const maxSlugs6 = [...maxSlugs5, "a".repeat(253) + "-5"];
     const capsule6 = createCapsule(maxSlugs6, realRootPath);
     const actualBytes6 = Buffer.byteLength(capsule6, "utf8");
-    const expectedFormulaMax6 = 359 + masterPathBytes + 65 + 1296;
+    const expectedFormulaMax6 = 328 + masterPathBytes + ambiguityInstructionBase + 1296;
     assert.equal(actualBytes6, expectedFormulaMax6, "Actual Bounded-Ambiguity capsule size must equal byte formula calculation exactly");
     assert.ok(actualBytes6 <= 4000, "Bounded-Ambiguity capsule must be within the 4000-byte cap");
   });
 });
-
 test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
   const makeRoot = () => {
     const root = mkdtempSync(join(tmpdir(), "omp-gsd-bootstrap-"));

@@ -1,8 +1,6 @@
 # Dependencies
 node_modules/
 
-# Build artifacts (regenerated)
-dist/
 # Scratch workspace (GSD feature artifacts)
 .scratch/
 
