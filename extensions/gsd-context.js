@@ -1045,22 +1045,22 @@ function writeStateAtomic(featureDir, input) {
 }
 
 
-function detectCandidates(cwd) {
+function detectCandidates(cwd, { faultTolerant = false } = {}) {
   const requestedScratchDir = path.join(cwd, '.scratch');
-  if (!fs.existsSync(requestedScratchDir)) return [];
+  if (!fs.existsSync(requestedScratchDir)) return { candidates: [], defects: [] };
 
   let scratchLst;
   let scratchDir;
   try {
     scratchLst = fs.lstatSync(requestedScratchDir);
-    if (scratchLst.isSymbolicLink() || !scratchLst.isDirectory()) return [];
+    if (scratchLst.isSymbolicLink() || !scratchLst.isDirectory()) return { candidates: [], defects: [] };
     scratchDir = fs.realpathSync(requestedScratchDir);
     const current = fs.statSync(scratchDir);
     if (current.dev !== scratchLst.dev || current.ino !== scratchLst.ino) {
       throw new Error(`${requestedScratchDir}: directory identity changed during validation`);
     }
   } catch {
-    return [];
+    return { candidates: [], defects: [] };
   }
 
   let entries;
@@ -1068,10 +1068,11 @@ function detectCandidates(cwd) {
     entries = readDirectoryEntriesBounded(scratchDir, SCRATCH_ENTRY_LIMIT, scratchDir);
   } catch (error) {
     if (error instanceof Error && error.message.includes('entry limit')) throw error;
-    return [];
+    return { candidates: [], defects: [] };
   }
 
   const candidates = [];
+  const defects = [];
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
     const name = entry.name;
@@ -1082,7 +1083,6 @@ function detectCandidates(cwd) {
     try {
       featureMeta = resolveFeatureDirectory(featureDir, name);
     } catch {
-      // Symlinked/unsafe dirs are ignored (not ordinary authority packets).
       continue;
     }
 
@@ -1111,39 +1111,47 @@ function detectCandidates(cwd) {
       }
     }
 
-    // Entry order is filesystem order, so the verdict waits until plan.md is known: a
-    // defective state.toon beside a real plan.md is a full malformed packet and fails
-    // closed, while without plan.md it is plan-less residue that discovery leaves alone.
     if (stateDefect) {
       if (!hasPlan) continue;
+      if (faultTolerant) {
+        defects.push(sanitizeStateError(new Error(stateDefect), 'state.toon').message);
+        continue;
+      }
       throw sanitizeStateError(new Error(stateDefect), 'state.toon');
     }
 
-    // No state authority => ignore (legacy handoff-only, plan-only, etc.).
     if (!hasPlan || !hasState) continue;
 
     let state;
     try {
       state = readCandidateStateFile(path.join(featureMeta.absolute, STATE_FILE));
     } catch (error) {
+      if (faultTolerant) {
+        defects.push(sanitizeStateError(error, `state.toon (${name})`).message);
+        continue;
+      }
       throw sanitizeStateError(error, `state.toon (${name})`);
     }
     if (state.feature !== name) {
-      throw sanitizeStateError(
+      const msg = sanitizeStateError(
         new Error(`${name}: state.feature mismatch: ${state.feature}`),
         'state.toon',
-      );
+      ).message;
+      if (faultTolerant) { defects.push(msg); continue; }
+      throw sanitizeStateError(new Error(msg), 'state.toon');
     }
     if (COMPLETED_STATE_PHASES.includes(state.phase)) continue;
     if (!ACTIVE_STATE_PHASES.includes(state.phase)) {
-      throw sanitizeStateError(
+      const msg = sanitizeStateError(
         new Error(`${name}: unsupported active phase ${state.phase}`),
         'state.toon',
-      );
+      ).message;
+      if (faultTolerant) { defects.push(msg); continue; }
+      throw sanitizeStateError(new Error(msg), 'state.toon');
     }
     candidates.push(name);
   }
-  return candidates.sort();
+  return { candidates: candidates.sort(), defects };
 }
 
 function parseSkillMetadata(content, filePath) {
@@ -1476,17 +1484,34 @@ function gsdContextExtension(pi) {
 
   pi.on('session.compacting', async (event, ctx) => {
     pendingCapsule = null;
-    const features = detectCandidates(ctx?.cwd || process.cwd());
+    let features;
+    let defects;
+    try {
+      ({ candidates: features, defects } = detectCandidates(ctx?.cwd || process.cwd(), { faultTolerant: true }));
+    } catch (error) {
+      // Structural failure (entry limit, directory identity) — cannot continue.
+      const message = error instanceof Error ? error.message : String(error);
+      pi.logger?.error?.(`[GSD] autocompact candidate scan failed: ${message}`);
+      features = [];
+      defects = [];
+    }
+    if (defects && defects.length > 0) {
+      for (const d of defects) {
+        pi.logger?.warn?.(`[GSD] skipped malformed packet: ${d}`);
+      }
+    }
     if (features.length === 0) {
-      pendingCapsule = null;
       return {};
     }
-    pendingCapsule = createCapsule(features, GSD_ROOT);
+    // Build everything in locals; only assign pendingCapsule after all
+    // throw-prone work succeeds so that a mid-throw leaves no stale capsule.
+    const capsule = createCapsule(features, GSD_ROOT);
     const currentRequest = extractLastUserRequest(event?.messages);
-    const context = [pendingCapsule];
+    const context = [capsule];
     if (currentRequest) {
       context.push(`[GSD Current Request]\n${currentRequest}`);
     }
+    pendingCapsule = capsule;
     return { context };
   });
 

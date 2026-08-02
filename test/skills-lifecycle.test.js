@@ -168,7 +168,7 @@ test("T2 schema:v4 state.toon contract and skill derivation", () => {
   assert.match(reference, /`enter terminal verification\/repair`[\s\S]{0,160}gsd-verify[\s\S]{0,80}gsd-handoff/);
   assert.doesNotMatch(reference, /reload\[N\]\{skill,path\}/);
   assert.doesNotMatch(handoff, /reload\[N\]\{skill,path\}/);
-  assert.match(handoff, /Write atomic `\.scratch\/<feature>\/state\.toon`/);
+  assert.match(handoff, /writes atomically to `\.scratch\/<feature>\/state\.toon`/);
   assert.match(handoff, /Active skills are derived from `phase` and `next_action`/);
   assert.match(handoff, /Never serialize a `reload` manifest/);
   assert.match(handoff, /Exact active v1, v2, and v3 records migrate atomically/);
@@ -491,7 +491,7 @@ test("AC-4: hidden bootstrap uses state.toon and terminal conformance", () => {
 
 test("terminal-conformance AC-1: enter verification only after all tasks", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  assert.match(execution, /Atomically update `state\.toon` with `last_green_task`, `last_green_commit`, and `next_action=start\/continue task`/);
+  assert.match(execution, /atomically update `state\.toon` with `last_green_task`, `last_green_commit`, and `next_action=start\/continue task`/);
   assert.match(execution, /Only after every non-superseded task and Fast TDD Check is green/);
   assert.match(execution, /next_action=enter terminal verification\/repair/);
   assert.match(execution, /load `gsd-verify`/);

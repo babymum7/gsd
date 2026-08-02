@@ -323,7 +323,7 @@ test("capsule extension production API contract", async (t) => {
       // createCapsule(["a".repeat(256)]) already validates renderer rejection.
       // detectCandidates simply skips non-existent entries.
       let candidates;
-      candidates = detectCandidates(tempDir);
+      ({ candidates } = detectCandidates(tempDir));
       // Expected active candidates sorted: feat-one, feat-six (overlong candidate feat7 is skipped)
       assert.deepEqual(candidates, ["feat-one", "feat-six"]);
       // 2. Test fake OMP API and event registration
@@ -336,7 +336,13 @@ test("capsule extension production API contract", async (t) => {
         },
         sendMessage: async (message, options) => {
           sentMessages.push({ message, options });
-        }
+        },
+        logger: {
+          error: (...args) => { piMock._lastError = args; },
+          warn: (...args) => { piMock._lastWarn = args; },
+        },
+        _lastError: null,
+        _lastWarn: null,
       };
 
       const ctxMock = {
@@ -395,6 +401,84 @@ test("capsule extension production API contract", async (t) => {
       await registeredEvents["session_compact"]({}, ctxMock);
       assert.equal(sentMessages.length, beforeSwitchCount, "Session switch clears an unsent capsule");
 
+      // Regression: a compacting failure must clear pendingCapsule so session_compact emits nothing.
+      // Step 1 — seed an unsent successful capsule via a valid feature (do NOT call session_compact).
+      const seedDir = mkdtempSync(join(tmpdir(), "omp-gsd-seed-"));
+      const seedCtx = { cwd: seedDir };
+      const seedFeat = join(seedDir, ".scratch", "seed-feature");
+      mkdirSync(seedFeat, { recursive: true });
+      writeFileSync(join(seedFeat, "plan.md"), "# Plan\n## Feature\n`seed-feature`\n");
+      writeFileSync(join(seedFeat, "state.toon"), [
+        "schema:v4", "feature:seed-feature", "phase:executing", "next_action:start task T1",
+        "plan_path:.scratch/seed-feature/plan.md",
+        "plan_sha256:" + "c".repeat(64),
+        "base_ref:main", "wip_branch:wip/seed-feature",
+        "last_green_task:none", "last_green_commit:none",
+        "autosync:none", "cleanup_preference:none", "checkpoint_revision:1",
+      ].join("\n") + "\n");
+      const seedResult = await registeredEvents["session.compacting"]({}, seedCtx);
+      assert.ok(seedResult.context?.length, "seed: compacting returns a nonempty context (pendingCapsule is set)");
+      // Step 2 — empty-scan reset: .scratch is a file so detectCandidates
+      // returns { candidates: [], defects: [] } early (opendirSync never reached).
+      // pendingCapsule must still be cleared.
+      const failDir = mkdtempSync(join(tmpdir(), "omp-gsd-empty-"));
+      const failCtx = { cwd: failDir };
+      mkdirSync(join(failDir, ".scratch"), { recursive: true });
+      rmSync(join(failDir, ".scratch"), { recursive: true, force: true });
+      writeFileSync(join(failDir, ".scratch"), "not a directory");
+      const beforeEmptyCount = sentMessages.length;
+      const emptyResult = await registeredEvents["session.compacting"]({}, failCtx);
+      assert.deepEqual(emptyResult, {}, "compacting must return {} when .scratch is not a directory");
+      await registeredEvents["session_compact"]({}, failCtx);
+      assert.equal(sentMessages.length, beforeEmptyCount, "session_compact must not send capsule after empty scan");
+      rmSync(seedDir, { recursive: true, force: true });
+      rmSync(failDir, { recursive: true, force: true });
+
+      // Step 3 — real structural throw: exceed SCRATCH_ENTRY_LIMIT (2048).
+      // detectCandidates reaches opendirSync and readDirectoryEntriesBounded,
+      // which throws "entry limit".  The handler catch sets features=[].
+      // Seed another capsule first.
+      const seedDir2 = mkdtempSync(join(tmpdir(), "omp-gsd-seed2-"));
+      const seedCtx2 = { cwd: seedDir2 };
+      const seedFeat2 = join(seedDir2, ".scratch", "seed-two");
+      mkdirSync(seedFeat2, { recursive: true });
+      writeFileSync(join(seedFeat2, "plan.md"), "# Plan\n## Feature\n`seed-two`\n");
+      writeFileSync(join(seedFeat2, "state.toon"), [
+        "schema:v4", "feature:seed-two", "phase:executing", "next_action:start task T1",
+        "plan_path:.scratch/seed-two/plan.md",
+        "plan_sha256:" + "d".repeat(64),
+        "base_ref:main", "wip_branch:wip/seed-two",
+        "last_green_task:none", "last_green_commit:none",
+        "autosync:none", "cleanup_preference:none", "checkpoint_revision:1",
+      ].join("\n") + "\n");
+      const seedResult2 = await registeredEvents["session.compacting"]({}, seedCtx2);
+      assert.ok(seedResult2.context?.length, "seed2: compacting returns nonempty context (capsule set before failure)");
+      // Create .scratch with >2048 entries to trigger the entry-limit throw.
+      const throwDir = mkdtempSync(join(tmpdir(), "omp-gsd-limit-"));
+      const throwScratch = join(throwDir, ".scratch");
+      mkdirSync(throwScratch, { recursive: true });
+      for (let j = 0; j < 2050; j++) {
+        mkdirSync(join(throwScratch, `entry-${j}`));
+      }
+      // Prove detectCandidates itself throws on the overfull dir.
+      assert.throws(
+        () => detectCandidates(throwDir, { faultTolerant: true }),
+        /entry limit/,
+        "detectCandidates must throw entry limit on >2048 scratch entries"
+      );
+      // Now invoke the handler: it catches the throw and logs it.
+      const throwCtx = { cwd: throwDir };
+      piMock._lastError = null;
+      const beforeLimitCount = sentMessages.length;
+      const limitResult = await registeredEvents["session.compacting"]({}, throwCtx);
+      assert.deepEqual(limitResult, {}, "compacting must return {} when entry limit throws");
+      assert.ok(piMock._lastError, "handler must call logger.error on structural failure");
+      assert.match(String(piMock._lastError), /entry limit/, "logged error must mention entry limit");
+      await registeredEvents["session_compact"]({}, throwCtx);
+      assert.equal(sentMessages.length, beforeLimitCount, "session_compact must not send capsule after entry-limit throw");
+      rmSync(seedDir2, { recursive: true, force: true });
+      rmSync(throwDir, { recursive: true, force: true });
+
       // A failed compacting pass must not leave the previous successful
       // capsule available to an unrelated session_compact notification.
       await registeredEvents["before_agent_start"]({ systemPrompt: [] });
@@ -403,14 +487,43 @@ test("capsule extension production API contract", async (t) => {
       mkdirSync(malformedDir);
       writeFileSync(join(malformedDir, "plan.md"), "plan");
       writeFileSync(join(malformedDir, "state.toon"), "schema:v3\n");
-      await assert.rejects(
-        registeredEvents["session.compacting"]({}, ctxMock),
-        /state\.toon|missing required field/,
-      );
+      // Fault containment: malformed state.toon must not throw; valid features
+      // survive alongside the bad packet.  The defect is logged, not fatal.
+      const result = await registeredEvents["session.compacting"]({}, ctxMock);
+      assert.ok(result.context, "compacting must return context (valid features survive)");
+      assert.match(result.context[0], /feat-one|feat-six/, "valid features must appear");
       rmSync(malformedDir, { recursive: true, force: true });
-      const beforeFailedCycleCount = sentMessages.length;
+      // Compaction succeeded (valid features survived), so session_compact sends a capsule.
+      const beforeCompactCycleCount = sentMessages.length;
       await registeredEvents["session_compact"]({}, ctxMock);
-      assert.equal(sentMessages.length, beforeFailedCycleCount, "Failed compaction clears stale pending state");
+      assert.ok(sentMessages.length > beforeCompactCycleCount, "session_compact sends capsule for surviving valid features");
+      // Mixed valid + malformed: valid feature must survive alongside a bad packet.
+      const mixedDir = mkdtempSync(join(tmpdir(), "omp-gsd-mixed-"));
+      const mixedCtx = { cwd: mixedDir };
+      // Create valid feature
+      const validDir = join(mixedDir, ".scratch", "good-feature");
+      mkdirSync(validDir, { recursive: true });
+      writeFileSync(join(validDir, "plan.md"), "# Plan\n## Feature\n`good-feature`\n");
+      writeFileSync(join(validDir, "state.toon"), [
+        "schema:v4", "feature:good-feature", "phase:executing", "next_action:start task T1",
+        "plan_path:.scratch/good-feature/plan.md",
+        "plan_sha256:" + "b".repeat(64),
+        "base_ref:main", "wip_branch:wip/good-feature",
+        "last_green_task:none", "last_green_commit:none",
+        "autosync:none", "cleanup_preference:none", "checkpoint_revision:1",
+      ].join("\n") + "\n");
+      // Create malformed feature
+      const badDir = join(mixedDir, ".scratch", "bad-feature");
+      mkdirSync(badDir, { recursive: true });
+      writeFileSync(join(badDir, "plan.md"), "# Plan\n");
+      writeFileSync(join(badDir, "state.toon"), "feature=bad\nphase=wrong\n");
+      // Compaction must return context with the valid feature, skipping the bad one
+      const mixedResult = await registeredEvents["session.compacting"]({}, mixedCtx);
+      assert.ok(mixedResult.context, "mixed scenario must return context array");
+      const capsuleText = mixedResult.context[0];
+      assert.match(capsuleText, /good-feature/, "valid feature must appear in capsule");
+      assert.doesNotMatch(capsuleText, /bad-feature/, "malformed feature must not appear in capsule");
+      rmSync(mixedDir, { recursive: true, force: true });
 
       // Test inert behavior (empty candidates)
       const emptyTempDir = mkdtempSync(join(tmpdir(), "omp-gsd-empty-"));
@@ -683,7 +796,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
     symlinkSync(targetFile, join(f4Dir, "handoff-1.toon")); // symlink impostor
 
     try {
-      const candidates = detectCandidates(tempDir);
+      const { candidates } = detectCandidates(tempDir)
       // All must be inert, so candidate list should be empty
       assert.deepEqual(candidates, []);
     } finally {
@@ -710,7 +823,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
     mkdirSync(join(dirOnly, "state.toon"));
 
     try {
-      assert.deepEqual(detectCandidates(tempDir), []);
+      assert.deepEqual(detectCandidates(tempDir).candidates, []);
 
       // Adding plan.md turns the same bytes into a full malformed packet.
       writeFileSync(join(linkOnly, "plan.md"), "# Plan\n");
@@ -798,7 +911,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
     symlinkSync(targetFile, join(f2Dir, "result.toon")); // symlink impostor
 
     try {
-      const candidates = detectCandidates(tempDir);
+      const { candidates } = detectCandidates(tempDir)
       assert.deepEqual(candidates, [], "Any entry named result.toon must keep the candidate inert");
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
@@ -1529,7 +1642,7 @@ test("state.toon lifecycle checkpoint contract", async () => {
     assert.throws(() => detectCandidates(tempDir), /state\.toon|malformed|missing required field/i);
     rmSync(malformedDir, { recursive: true, force: true });
 
-    const candidates = detectCandidates(tempDir);
+    const { candidates } = detectCandidates(tempDir)
     assert.deepEqual(candidates, ["active-one", "cleanup-one", "demo-feature"]);
     assert.ok(!candidates.includes("done-one"), "completed-retained must be inert for ordinary discovery");
     assert.ok(!candidates.includes("legacy-one"), "legacy handoff-only packets must not be active authority");
@@ -1957,7 +2070,7 @@ test("auto-compact ignores an exact retained v1 terminal state without migration
     writeFileSync(statePath, legacyBytes);
 
     assert.throws(() => readStateFile(statePath), /legacy phase must be active/);
-    assert.deepEqual(detectCandidates(temporary), []);
+    assert.deepEqual(detectCandidates(temporary).candidates, []);
     assert.equal(readFileSync(statePath, "utf8"), legacyBytes);
     assert.equal(readdirSync(featureDir).some((name) => name.endsWith(".tmp")), false);
   } finally {
@@ -1997,7 +2110,7 @@ test("auto-compact also ignores a retained v2 terminal state without migration",
     writeFileSync(statePath, legacyBytes);
 
     assert.throws(() => readStateFile(statePath), /legacy phase must be active/);
-    assert.deepEqual(detectCandidates(temporary), []);
+    assert.deepEqual(detectCandidates(temporary).candidates, []);
     assert.equal(readFileSync(statePath, "utf8"), legacyBytes);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
@@ -2030,7 +2143,7 @@ test("candidate discovery leaves retained v3 inert until explicit migration", ()
     ].join("\n");
     writeFileSync(statePath, legacyBytes);
 
-    assert.deepEqual(detectCandidates(temporary), []);
+    assert.deepEqual(detectCandidates(temporary).candidates, []);
     assert.equal(readFileSync(statePath, "utf8"), legacyBytes);
 
     const migrated = readStateFile(statePath);
@@ -2075,7 +2188,7 @@ test("candidate discovery is bounded and does not migrate legacy authority", () 
     const legacyStatePath = join(legacyDir, "state.toon");
     writeFileSync(legacyStatePath, legacyBytes);
 
-    assert.deepEqual(detectCandidates(temporary), ["legacy-active"]);
+    assert.deepEqual(detectCandidates(temporary).candidates, ["legacy-active"]);
     assert.equal(readFileSync(legacyStatePath, "utf8"), legacyBytes, "Discovery must remain read-only");
 
     const oversizedDir = join(scratch, "oversized-state");

@@ -61,9 +61,10 @@ export function createCapsule(features: string[], gsdRoot: string): string;
 /**
  * Discover active feature candidates under `cwd/.scratch/`.
  * @param cwd - Working directory containing `.scratch/`.
- * @returns Sorted array of active feature directory names.
+ * @param options - Optional flags. `faultTolerant: true` skips malformed packets and collects defects instead of throwing.
+ * @returns Object with `candidates` (sorted active feature names) and `defects` (error messages for skipped malformed packets).
  */
-export function detectCandidates(cwd: string): string[];
+export function detectCandidates(cwd: string, options?: { faultTolerant?: boolean }): { candidates: string[]; defects: string[] };
 
 /**
  * Discover the visible skill catalog for a GSD root.

@@ -107,7 +107,7 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
     assert.match(skill, /hash|SHA-256|binding/i);
   }
   assert.match(execution, /amend `\.scratch\/<feature>\/plan\.md` under § Plan amendment, revalidate, rebind/i);
-  assert.match(handoff, /Write atomic `\.scratch\/<feature>\/state\.toon`/i);
+  assert.match(handoff, /writes atomically to `\.scratch\/<feature>\/state\.toon`/i);
   assert.match(tdd, /focused test seam from the approved Markdown plan/);
   assert.match(tdd, /consume the exact validated task slice and relevant pinned sections/);
   assert.doesNotMatch(tdd, /proposal\.toon|spec\.toon|plan\.toon/);

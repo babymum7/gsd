@@ -9,7 +9,7 @@ consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AG
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
 - Do-not-load: open design decisions; Nano edits
-- Transition: on approval write `state.toon` and load `gsd-executing-plans`
+- Transition: on approval use `node "<GSD_ROOT>/tools/gsd-state.mjs" write-state` to write `state.toon` (never the `write` tool directly) and load `gsd-executing-plans`
 
 # To Plan
 

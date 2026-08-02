@@ -27,7 +27,8 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 ## Write
 
-Write atomic `.scratch/<feature>/state.toon` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Runtime state contract: same-directory temp, fsync, rename, directory fsync where supported, then validated readback.
+**Always use the CLI tool** `node "<GSD_ROOT>/tools/gsd-state.mjs" write-state --feature-dir .scratch/<feature> --json-file state.json` to write state.toon. Write the state fields to a temporary JSON file first, then pass its path via `--json-file`. Never write state.toon directly using the `write` tool; direct writes bypass validation and produce malformed files that break autocompact and resume. The CLI validates, serializes, writes atomically, and readbacks automatically.
+The CLI writes atomically to `.scratch/<feature>/state.toon` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Runtime state contract: same-directory temp, fsync, rename, directory fsync where supported, then validated readback.
 - Approval first writes `phase=approved`.
 - Canonical `schema:v4` gives the session owner only lifecycle, plan/Git binding, green checkpoint, runtime preferences, and revision.
 - Exact active v1, v2, and v3 records migrate atomically after full validation; v1/v2 terminal records fail closed unchanged.

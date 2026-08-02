@@ -45,7 +45,7 @@ Before non-direct lifecycle work, validate every discovered `.scratch/<feature>/
 
 | Condition | Decision | Action |
 |---|---|---|
-| A full malformed packet (`plan.md` plus `state.toon`) | `fail-closed` | Stop, naming it; discovery throws for every prompt, even one naming another valid feature. |
+| A full malformed packet (`plan.md` plus `state.toon`) | `fail-closed` | Stop, naming it; discovery throws for every prompt, even one naming another valid feature. (Autocompaction uses fault-tolerant discovery instead — malformed packets are skipped, valid candidates survive, and all-malformed produces no capsule.) |
 | Malformed residual bytes without a `plan.md` | `ordinary-routing` | Leave them; continue selection. |
 | Prompt names a valid `merged-cleanup-pending` state, or is lifecycle work on that feature | `cleanup-question` | Ask one question resuming its delete-or-retain decision; archive stays closed. |
 | An unrelated valid `merged-cleanup-pending` state | `ordinary-routing` | Continue ordinary selection, direct or a new lifecycle; never `ignore-terminal-record`. |
