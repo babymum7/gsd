@@ -596,7 +596,7 @@ function validateCommonState(state, label) {
       throw new Error(`${label}: git identity required after approval`);
     }
     if (!isValidWipBranch(state.wip_branch, state.feature)) {
-      throw new Error(`${label}: wip_branch feature mismatch`);
+      throw new Error(`${label}: wip_branch feature mismatch: expected "wip/${state.feature}"`);
     }
   }
 
@@ -1059,7 +1059,9 @@ function detectCandidates(cwd, { faultTolerant = false } = {}) {
     if (current.dev !== scratchLst.dev || current.ino !== scratchLst.ino) {
       throw new Error(`${requestedScratchDir}: directory identity changed during validation`);
     }
-  } catch {
+  } catch (error) {
+    // TOCTOU directory swap is structural, not "no features" — surface it.
+    if (error instanceof Error && error.message.includes('directory identity changed')) throw error;
     return { candidates: [], defects: [] };
   }
 
@@ -1505,7 +1507,14 @@ function gsdContextExtension(pi) {
     }
     // Build everything in locals; only assign pendingCapsule after all
     // throw-prone work succeeds so that a mid-throw leaves no stale capsule.
-    const capsule = createCapsule(features, GSD_ROOT);
+    let capsule;
+    try {
+      capsule = createCapsule(features, GSD_ROOT);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      pi.logger?.error?.(`[GSD] autocompact capsule creation failed: ${message}`);
+      return {};
+    }
     const currentRequest = extractLastUserRequest(event?.messages);
     const context = [capsule];
     if (currentRequest) {
@@ -1540,6 +1549,7 @@ export {
   ACTIVE_STATE_PHASES,
   CAPSULE_TEMPLATE,
   COMPLETED_STATE_PHASES,
+  STATE_FIELD_ORDER,
   createBootstrap,
   createCapsule,
   detectCandidates,

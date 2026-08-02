@@ -1,10 +1,11 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url";
 import {
+  ACTIVE_STATE_PHASES,
+  COMPLETED_STATE_PHASES,
+  STATE_FIELD_ORDER,
   parseState,
   readStateFile,
-  serializeState,
-  validateState,
   writeStateAtomic,
 } from "../extensions/gsd-context.js";
 
@@ -14,7 +15,7 @@ const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const INVOCATION = `node ${JSON.stringify(SCRIPT_PATH)}`;
 
 function write_(lines) {
-  process.stdout.write(lines.join("\n"));
+  process.stdout.write(lines.join("\n") + "\n");
 }
 
 function commandUsage(command) {
@@ -50,7 +51,17 @@ function emitHelp(command) {
       "Usage: " + usage,
       "",
       "Write a state.toon file atomically with validation and readback.",
-      "The JSON must contain all required v4 fields in canonical order.",
+      "The JSON must be an object with exactly these v4 fields (order is normalised):",
+      "",
+      ...STATE_FIELD_ORDER.map((f) => `  ${f}`),
+      "",
+      "Unset fields use the literal string \"none\" (never null or \"\").",
+      "Constraints:",
+      `  phase                  one of: ${[...ACTIVE_STATE_PHASES, ...COMPLETED_STATE_PHASES].join(", ")}`,
+      "  plan_path              .scratch/<feature>/plan.md",
+      "  wip_branch             wip/<feature>",
+      "  plan_sha256            64 lowercase hex chars",
+      "  no field value may contain a newline",
       "",
       "Options:",
       "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
@@ -82,7 +93,7 @@ function emitHelp(command) {
     "  write-state      Write state.toon atomically with validation",
     "  validate-state   Validate a state.toon file without writing",
     "",
-    "Use --help <command> for command-specific help.",
+    "Use --help (or -h) <command> for command-specific help.",
   ]);
 }
 
@@ -90,6 +101,9 @@ function failUsage(message, command = null) {
   process.stderr.write(`gsd-state: ${message}\n`);
   if (command) {
     process.stderr.write(`Usage: ${commandUsage(command)}\n`);
+  } else {
+    process.stderr.write(`Usage: ${commandUsage(null)}\n`);
+    process.stderr.write("Use --help for available commands.\n");
   }
   process.exit(2);
 }
@@ -196,8 +210,9 @@ if (input.usageError) {
     } else {
       state = JSON.parse(input.json);
     }
-  } catch {
-    failUsage("invalid JSON", "write-state");
+  } catch (error) {
+    const origin = input.jsonFile ? `${input.jsonFile}: ` : "";
+    failUsage(`invalid JSON: ${origin}${error.message}`, "write-state");
   }
   try {
     const result = writeStateAtomic(input.featureDir, state);

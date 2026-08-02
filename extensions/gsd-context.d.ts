@@ -47,6 +47,9 @@ export const ACTIVE_STATE_PHASES: readonly ActivePhase[];
 /** Frozen array of completed state phases. */
 export const COMPLETED_STATE_PHASES: readonly CompletedPhase[];
 
+/** Frozen canonical v4 field order for a state.toon packet. */
+export const STATE_FIELD_ORDER: readonly (keyof State)[];
+
 /** The raw capsule template string with unreplaced tokens. */
 export const CAPSULE_TEMPLATE: string;
 

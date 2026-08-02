@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, readdirSync, rmSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, readdirSync, rmSync, existsSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -12,6 +12,7 @@ import {
   parseState,
   serializeState,
   validateState,
+  STATE_FIELD_ORDER,
 } from "../extensions/gsd-context.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -184,6 +185,7 @@ test("rejects wip_branch feature mismatch", () => {
   const r = cli(["validate-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 1);
   assert.match(r.stderr, /wip_branch feature mismatch/);
+  assert.match(r.stderr, /expected "wip\/test-feature"/, "error must name the expected branch");
 });
 
 test("rejects blank lines", () => {
@@ -323,6 +325,18 @@ test("CLI --help shows usage", () => {
   assert.match(r.stdout, /validate-state/);
 });
 
+test("CLI write-state --help documents every canonical v4 field", () => {
+  const r = cli(["--help", "write-state"]);
+  assert.equal(r.exitCode, 0);
+  for (const field of STATE_FIELD_ORDER) {
+    assert.match(r.stdout, new RegExp(`^\\s+${field}$`, "m"), `--help must list ${field}`);
+  }
+  // Constraints an agent cannot guess from the field name alone.
+  assert.match(r.stdout, /wip\/<feature>/, "--help must state the wip_branch rule");
+  assert.match(r.stdout, /"none"/, "--help must state the unset-field sentinel");
+  assert.match(r.stdout, /--json-file/, "--help must prefer the shell-safe input");
+});
+
 test("CLI write-state --json-file creates valid file", () => {
   const { scratch } = tmpFeatureDir();
   const jsonPath = join(scratch, "..", "state-input.json");
@@ -337,7 +351,19 @@ test("CLI write-state --json-file rejects missing file", () => {
   const { scratch } = tmpFeatureDir();
   const r = cli(["write-state", "--feature-dir", scratch, "--json-file", "/nonexistent.json"]);
   assert.equal(r.exitCode, 2);
-  assert.match(r.stderr, /invalid JSON|ENOENT/);
+  assert.match(r.stderr, /ENOENT/, "error must forward the underlying cause");
+  assert.match(r.stderr, /nonexistent\.json/, "error must name the offending file");
+});
+
+test("CLI write-state --json-file rejects non-JSON content", () => {
+  const { scratch } = tmpFeatureDir();
+  const jsonPath = join(scratch, "..", "state-input.json");
+  writeFileSync(jsonPath, "{broken, not json");
+  const r = cli(["write-state", "--feature-dir", scratch, "--json-file", jsonPath]);
+  assert.equal(r.exitCode, 2);
+  assert.match(r.stderr, /invalid JSON/);
+  assert.match(r.stderr, /state-input\.json/, "error must name the offending file");
+  assert.equal(existsSync(join(scratch, "state.toon")), false, "no state.toon may be written");
 });
 
 test("CLI write-state --json and --json-file are mutually exclusive", () => {
