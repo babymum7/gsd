@@ -23,7 +23,7 @@ function commandUsage(command) {
     return `${INVOCATION} read-state --path .scratch/<feature>/state.toon`;
   }
   if (command === "write-state") {
-    return `${INVOCATION} write-state --feature-dir .scratch/<feature> --json-file state.json`;
+    return `${INVOCATION} write-state --feature-dir .scratch/<feature> --json-file .scratch/<feature>/.state-input.json`;
   }
   if (command === "validate-state") {
     return `${INVOCATION} validate-state --path .scratch/<feature>/state.toon`;

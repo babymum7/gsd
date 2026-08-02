@@ -339,7 +339,7 @@ test("CLI write-state --help documents every canonical v4 field", () => {
 
 test("CLI write-state --json-file creates valid file", () => {
   const { scratch } = tmpFeatureDir();
-  const jsonPath = join(scratch, "..", "state-input.json");
+  const jsonPath = join(scratch, ".state-input.json");
   writeFileSync(jsonPath, JSON.stringify(VALID_STATE));
   const r = cli(["write-state", "--feature-dir", scratch, "--json-file", jsonPath]);
   assert.equal(r.exitCode, 0);
@@ -357,7 +357,7 @@ test("CLI write-state --json-file rejects missing file", () => {
 
 test("CLI write-state --json-file rejects non-JSON content", () => {
   const { scratch } = tmpFeatureDir();
-  const jsonPath = join(scratch, "..", "state-input.json");
+  const jsonPath = join(scratch, ".state-input.json");
   writeFileSync(jsonPath, "{broken, not json");
   const r = cli(["write-state", "--feature-dir", scratch, "--json-file", jsonPath]);
   assert.equal(r.exitCode, 2);
@@ -368,7 +368,7 @@ test("CLI write-state --json-file rejects non-JSON content", () => {
 
 test("CLI write-state --json and --json-file are mutually exclusive", () => {
   const { scratch } = tmpFeatureDir();
-  const jsonPath = join(scratch, "..", "state-input.json");
+  const jsonPath = join(scratch, ".state-input.json");
   writeFileSync(jsonPath, JSON.stringify(VALID_STATE));
   const r = cli(["write-state", "--feature-dir", scratch, "--json", "{}", "--json-file", jsonPath]);
   assert.equal(r.exitCode, 2);
@@ -378,7 +378,7 @@ test("CLI write-state --json and --json-file are mutually exclusive", () => {
 test("CLI write-state --json-file survives apostrophes and multiline JSON", () => {
   const { scratch } = tmpFeatureDir();
   const state = { ...VALID_STATE, next_action: "review user's fix for O'Brien" };
-  const jsonPath = join(scratch, "..", "state-input.json");
+  const jsonPath = join(scratch, ".state-input.json");
   writeFileSync(jsonPath, JSON.stringify(state, null, 2) + "\n");
   const r = cli(["write-state", "--feature-dir", scratch, "--json-file", jsonPath]);
   assert.equal(r.exitCode, 0);
@@ -389,7 +389,7 @@ test("CLI write-state --json-file survives apostrophes and multiline JSON", () =
 test("CLI write-state --json-file rejects newline inside state field value", () => {
   const { scratch } = tmpFeatureDir();
   const state = { ...VALID_STATE, next_action: "start\ntask T1" };
-  const jsonPath = join(scratch, "..", "state-input.json");
+  const jsonPath = join(scratch, ".state-input.json");
   writeFileSync(jsonPath, JSON.stringify(state));
   const r = cli(["write-state", "--feature-dir", scratch, "--json-file", jsonPath]);
   assert.equal(r.exitCode, 1, "literal newline in field value must be rejected");

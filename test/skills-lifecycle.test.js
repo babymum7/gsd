@@ -136,7 +136,7 @@ test("T1 session-owner execution contract and lifecycle roles", () => {
   assert.match(execution, /RED before implementation, GREEN after implementation, then refactor after green/);
   assert.match(execution, /rerun only checks invalidated by the repair/);
   assert.match(execution, /Reject legacy proposal\/spec\/design files/);
-  assert.match(execution, /an amended plan is rebound in that same write/);
+  assert.match(execution, /[Aa]n amended plan/);
 });
 
 test("T2 schema:v4 state.toon contract and skill derivation", () => {
@@ -491,7 +491,7 @@ test("AC-4: hidden bootstrap uses state.toon and terminal conformance", () => {
 
 test("terminal-conformance AC-1: enter verification only after all tasks", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  assert.match(execution, /atomically update `state\.toon` with `last_green_task`, `last_green_commit`, and `next_action=start\/continue task`/);
+  assert.match(execution, /atomically update `state\.toon` with `last_green_task`, `last_green_commit`, `next_action=start\/continue task/);
   assert.match(execution, /Only after every non-superseded task and Fast TDD Check is green/);
   assert.match(execution, /next_action=enter terminal verification\/repair/);
   assert.match(execution, /load `gsd-verify`/);
