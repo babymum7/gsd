@@ -43,6 +43,8 @@ After all tasks and Fast TDD Checks are green, the session owner performs determ
 
 For squash, scratch disposition, archive, and cleanup use § Git/base/WIP/scratch mechanics and § Feature cleanup. Archive-and-delete materializes the exact approved plan and outcome before conformance so canonical archive destinations are terminal-cleanup-owned lifecycle paths in changed-path proof; every other changed path must be task-owned.
 
+The merge target is exactly the recorded `state.toon` `base_ref`; never ask whether to merge into `main` and never widen to the repository default branch. Promoting that base onward is separate user-owned work after this packet ends green. See [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Base derivation and merge target.
+
 After green merge, write the state fields to `.scratch/<feature>/.state-input.json`, then use `node "<GSD_ROOT>/tools/gsd-state.mjs" write-state --feature-dir .scratch/<feature> --json-file .scratch/<feature>/.state-input.json` to atomically write `phase=merged-cleanup-pending` (never the `write` tool directly). Delete `.state-input.json` after the CLI succeeds or fails.
 
 For `Milestone WIP gate`, revalidate the selected row is matching and first `pending`; before final conformance change only a non-final row to `done`, while final milestone deletes the ledger. Include the mutation in the same reviewed squash; any changed prefix, other row, append, reorder, or wrong row blocks.

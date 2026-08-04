@@ -427,6 +427,12 @@ For branch-backed writes, first require a Git work tree. `plan.md` records the b
 
 Cross-machine sync carries the committed WIP branch and exact `.scratch/<feature>/` packet (`plan.md` and `state.toon`). Dirty non-scratch paths still require an explicit named snapshot decision. On resume, the session owner rehydrates from the bound schema-v4 state, exact plan bytes/hash, base/WIP, last green task/commit, current tree, and required artifacts. Portable sync never sweeps unrelated dirty paths.
 
+### Base derivation and merge target
+
+The base is read from the work tree at packet creation, never assumed: take the branch currently checked out (`git rev-parse --abbrev-ref HEAD`) before `wip/<feature>` exists, and record that exact value in `plan.md` § Base and in `state.toon` `base_ref`. A repository default such as `main`, an upstream tracking branch, or any naming convention is authoritative only when it is the branch actually checked out. A linked worktree is checked out on its own branch, so that branch is the base; detached HEAD records the commit oid instead. The base is never `wip/<feature>`.
+
+The terminal squash merges into exactly the recorded `base_ref` and nothing else, so `main` is the merge target only when `main` is the recorded base. Never ask whether to merge into `main`, never retarget a packet mid-lifecycle, and never widen the merge to the repository default branch. Promoting the base onward — a worktree branch into `main`, a release train, or a pull request — is separate user-owned work outside this packet's lifecycle: the packet ends green when its recorded base holds the squash, and onward promotion is the user's own next request.
+
 ## Feature cleanup
 
 For explicit abandon/drop/delete: confirm the feature name, inspect whether the worktree is dirty, check out the recorded base, safely delete the WIP branch, and remove `.scratch/<feature>/`. Never force-delete unmerged work without explicit confirmation.

@@ -114,6 +114,31 @@ test("AC-2: Terminal conformance precedes slow E2E with same-commit gates", () =
   assert.match(reference, /Deferred Slow E2E runs only after current-commit conformance/);
 });
 
+// The `## Base` field and `base_ref` were both required with no rule for deriving the
+// value, so a worktree session recorded the repository default and the terminal gate
+// offered to merge into `main` instead of the branch the packet was actually cut from.
+test("base is derived from the work tree and owns the merge target", () => {
+  const reference = read("skills/gsd/REFERENCE.md");
+  const planner = read("skills/gsd-to-plan/SKILL.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+
+  assert.match(reference, /### Base derivation and merge target/);
+  assert.match(reference, /base is read from the work tree at packet creation, never assumed/);
+  assert.match(reference, /git rev-parse --abbrev-ref HEAD/);
+  assert.match(reference, /linked worktree is checked out on its own branch, so that branch is the base/);
+  assert.match(reference, /detached HEAD records the commit oid/);
+  assert.match(reference, /terminal squash merges into exactly the recorded `base_ref`/);
+  assert.match(reference, /`main` is the merge target only when `main` is the recorded base/);
+  assert.match(reference, /Never ask whether to merge into `main`/);
+
+  // The planner captures it; the terminal gate consumes it. Neither may fall back to a default.
+  assert.match(planner, /Read § Base from the work tree, never from convention/);
+  assert.match(planner, /git rev-parse --abbrev-ref HEAD/);
+  assert.match(verify, /merge target is exactly the recorded `state\.toon` `base_ref`/);
+  assert.match(verify, /never ask whether to merge into `main`/);
+  assert.match(verify, /Promoting that base onward is separate user-owned work/);
+});
+
 // --- session-owner terminal conformance ---
 test("terminal conformance has no model-capacity or fan-out path", () => {
   const bodies = [

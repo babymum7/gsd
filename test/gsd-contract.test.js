@@ -444,6 +444,43 @@ function quickFixPlan(feature = "quick-fix-plan") {
   ].join("\n");
 }
 
+// A worktree session plans on the worktree's own branch, so the base is whatever is
+// checked out — never a hardcoded default. The validator must accept any such base and
+// reject only the packet's own WIP branch, which would leave the squash no merge target.
+test("both grammars accept a non-default base and reject a self-referencing one", () => {
+  const cases = [
+    { command: "validate-plan", feature: "worktree-base", build: canonicalPlan },
+    { command: "validate-quick-fix", feature: "worktree-base-qf", build: quickFixPlan },
+  ];
+  for (const { command, feature, build } of cases) {
+    const worktreeBase = build(feature).replace("`main`", "`worktree-onboarding`");
+    const accepted = makePlanWorkspace(feature, worktreeBase);
+    try {
+      const result = spawnSync(process.execPath, [CLI, command, "--path", accepted.planPath], {
+        cwd: accepted.workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 0, `${command} must accept a worktree base: ${result.stdout}${result.stderr}`);
+    } finally {
+      rmSync(accepted.workspace, { recursive: true, force: true });
+    }
+
+    const selfBase = build(feature).replace("`main`", `\`wip/${feature}\``);
+    const rejected = makePlanWorkspace(feature, selfBase);
+    try {
+      const result = spawnSync(process.execPath, [CLI, command, "--path", rejected.planPath], {
+        cwd: rejected.workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 1, `${command} must reject a self-referencing base: ${result.stdout}`);
+      assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/);
+      assert.match(result.stdout, new RegExp(`never its own WIP branch wip/${feature}`));
+    } finally {
+      rmSync(rejected.workspace, { recursive: true, force: true });
+    }
+  }
+});
+
 // An unreadable file is the environment failing, not the author writing a bad packet.
 // Collapsing both into `invalid-artifact` would send an owner to rewrite authority that
 // is actually fine, so the two classes stay distinguishable at the CLI surface.
