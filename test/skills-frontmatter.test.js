@@ -31,14 +31,16 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
   const byLength = [...headings].sort((a, b) => b.length - a.length);
 
   // Every heading the skills depend on. A rename or deletion fails here rather than silently
-  // orphaning the citation, and the inventory is exact because a prefix match alone would
-  // still resolve a narrowed heading.
+  // orphaning the citation, and the inventory is exact because resolving a citation by prefix
+  // would still accept a heading that was narrowed.
   const CITED = [
     "Artifact Contract",
     "Base derivation and merge target",
     "Candidate discovery",
     "Canonical Markdown contract",
     "Contextual disclosure templates",
+    "Fast TDD and task-loop constraints",
+    "Feature cleanup",
     "Git/base/WIP/scratch mechanics",
     "Packet grammar",
     "Plan amendment",
@@ -50,24 +52,39 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
     assert.ok(headings.has(heading), `REFERENCE no longer defines the cited § ${heading}`);
   }
 
-  // `§` also cites `plan.md` sections, so only citations positioned after the REFERENCE.md
-  // link on their line — the documented "see canon" form — are canon citations.
-  let checked = 0;
+  // `§` cites `plan.md` sections too, so those citations name their artifact first and every
+  // unqualified one is canon. Scanning the citation itself rather than its position on the
+  // line is what covers the mid-sentence form, which an earlier positional rule skipped.
+  let canon = 0;
+  let artifact = 0;
   for (const name of skillNames()) {
-    for (const line of read(`skills/${name}/SKILL.md`).split("\n")) {
-      const link = line.indexOf("REFERENCE.md");
-      if (link < 0) continue;
-      for (const match of line.matchAll(/§\s+([A-Z][^.,;:)\n]*)/g)) {
-        if (match.index < link) continue;
-        const cited = match[1].trim();
-        const heading = byLength.find((candidate) => cited === candidate || cited.startsWith(candidate));
-        assert.ok(heading, `${name} cites § ${cited}, which matches no REFERENCE heading`);
-        assert.ok(CITED.includes(heading), `${name} cites § ${heading}, absent from the inventory`);
-        checked += 1;
-      }
-    }
+    read(`skills/${name}/SKILL.md`)
+      .split("\n")
+      .forEach((line, index) => {
+        const where = `${name}:${index + 1}`;
+        for (const match of line.matchAll(/§\s+([A-Z][^.,;:§\n]*)/g)) {
+          const cited = match[1].trim();
+          if (/`(plan\.md|milestones\.md|state\.toon)`\s*$/.test(line.slice(0, match.index))) {
+            artifact += 1;
+            continue;
+          }
+          const heading = byLength.find((candidate) => cited.startsWith(candidate));
+          assert.ok(heading, `${where} cites § ${cited}, which matches no REFERENCE heading`);
+          // A citation may be followed by prose, so anything after the heading must read as
+          // continuing prose rather than as more of a section name.
+          const rest = cited.slice(heading.length);
+          assert.match(
+            rest,
+            /^$|^(\s+[a-z]|\]|\)|\s*\|)/,
+            `${where} cites § ${cited}, which extends the heading § ${heading}`,
+          );
+          assert.ok(CITED.includes(heading), `${where} cites § ${heading}, absent from the inventory`);
+          canon += 1;
+        }
+      });
   }
-  assert.ok(checked >= 25, `the canon citation layer must stay covered, only found ${checked}`);
+  assert.equal(canon, 32, "the canon citation layer must stay fully covered");
+  assert.ok(artifact >= 2, `plan-section citations must stay qualified, found ${artifact}`);
 });
 
 
@@ -319,7 +336,11 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
 test("AC-4: Concision preserves semantic parity", () => {
   const MAX_VISIBLE_WORDS = 11000;
   const MAX_BOOTSTRAP_WORDS = 1200;
-  const MAX_REFERENCE_WORDS = 5600;
+  // Raised from 5600 in 2026-08 when Git base derivation and the pre-squash gate became
+  // executable contracts: each tool moved into canon costs an invocation, its exit codes, and
+  // its read-only guarantee. The cap exists so the canon stays one on-demand read, so raising
+  // it again requires the same kind of stated reason, never a silent bump to fit new prose.
+  const MAX_REFERENCE_WORDS = 6000;
   const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
   assert.equal(visible.length, 9);

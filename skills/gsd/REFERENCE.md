@@ -429,11 +429,15 @@ Cross-machine sync carries the committed WIP branch and exact `.scratch/<feature
 
 ### Base derivation and merge target
 
-At packet creation, before `wip/<feature>` exists, run `git symbolic-ref --quiet --short HEAD` and record that branch in both `plan.md` § Base and `state.toon` `base_ref`; every bound validator call passes `--expected-base <base_ref>`, so the two records cannot diverge. Never use `git rev-parse --abbrev-ref HEAD`, which prints the literal `HEAD` when detached. A detached HEAD fails closed instead of recording a commit oid, because the base is the branch that must hold the squash.
+At packet creation, before `wip/<feature>` exists, run `node "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed `base:` branch in both `plan.md` § Base and `state.toon` `base_ref`; every bound validator call passes `--expected-base <base_ref>`, so the two records cannot diverge. It reads `git symbolic-ref --quiet --short HEAD`, never `git rev-parse --abbrev-ref HEAD`, which prints the literal `HEAD` when detached. Exit 1 with `code: detached-head` fails packet creation closed instead of recording a commit oid, because the base is the branch that must hold the squash.
 
 A repository default, upstream branch, or naming convention is authoritative only when it is the checked-out branch; a linked worktree records its own branch; the base is never `wip/<feature>`.
 
-The terminal squash merges into exactly the recorded `base_ref`, so `main` is the merge target only when `main` is that base. Before squashing, verify `base_ref` still resolves to a local branch able to receive the merge; a vanished base blocks the gate instead of retargeting. Never ask whether to merge into `main` and never widen to the repository default. Promoting the base onward — into `main`, a release train, or a pull request — is separate user-owned work after the packet ends green.
+Before the squash run `node "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`. Exit 0 prints `status: ready` with the observed base, WIP branch, and attached HEAD; exit 1 prints `status: blocked` and a `code:` naming the drift, which blocks as Spec escalation, because a blocked gate never retargets the merge. Exit 2 corrects only the invocation.
+
+The blocking codes are `detached-head`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `no-git-identity`, `unusable-branch-name`, `not-a-work-tree`, `state-unusable`, `git-query-failed`, and `git-unavailable`: a Git query that cannot answer blocks rather than reporting ready, because an unanswered query proves nothing. Both commands only ever read: they run no Git subcommand that can change a repository, and `preflight` inspects `state.toon` without migrating it.
+
+The terminal squash merges into exactly the recorded `base_ref`, so `main` is the merge target only when `main` is that base. Never ask whether to merge into `main` and never widen to the repository default. Promoting the base onward — into `main`, a release train, or a pull request — is separate user-owned work after the packet ends green.
 
 ## Feature cleanup
 
