@@ -1,15 +1,17 @@
 #!/usr/bin/env node
+import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
   ACTIVE_STATE_PHASES,
   COMPLETED_STATE_PHASES,
   STATE_FIELD_ORDER,
-  parseState,
+  inspectStateFile,
   readStateFile,
   writeStateAtomic,
 } from "../extensions/gsd-context.js";
 
 const COMMANDS = new Set(["read-state", "write-state", "validate-state"]);
+const VALUE_FLAGS = new Set(["--path", "--feature-dir", "--json", "--json-file"]);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const INVOCATION = `node ${JSON.stringify(SCRIPT_PATH)}`;
@@ -37,7 +39,8 @@ function emitHelp(command) {
     write_([
       "Usage: " + usage,
       "",
-      "Read and validate a state.toon file. Outputs canonical TOON on success.",
+      "Read and validate a state.toon file. Outputs the parsed fields as JSON.",
+      "A legacy v1/v2/v3 packet is migrated in place to canonical v4.",
       "",
       "Options:",
       "  --path <path>    Path to state.toon (required)",
@@ -68,6 +71,8 @@ function emitHelp(command) {
       "  --json-file <path>     Path to JSON file with state fields (preferred, shell-safe)",
       "  --json <json>          State fields as JSON string (legacy, breaks on apostrophes)",
       "",
+      "Delete the --json-file temp file after this command succeeds or fails.",
+      "",
       "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
     ]);
     return;
@@ -76,7 +81,8 @@ function emitHelp(command) {
     write_([
       "Usage: " + usage,
       "",
-      "Validate a state.toon file without writing. Outputs parsed fields as JSON.",
+      "Validate a state.toon file without writing anything: a legacy packet is",
+      "parsed and reported unmigrated. Outputs parsed fields as JSON.",
       "",
       "Options:",
       "  --path <path>    Path to state.toon (required)",
@@ -89,7 +95,7 @@ function emitHelp(command) {
     "Usage: " + INVOCATION + " <command> [options]",
     "",
     "Commands:",
-    "  read-state       Read and validate a state.toon file",
+    "  read-state       Read and validate a state.toon file (migrates legacy schemas)",
     "  write-state      Write state.toon atomically with validation",
     "  validate-state   Validate a state.toon file without writing",
     "",
@@ -139,23 +145,15 @@ function parseArguments(argv) {
       i++;
       continue;
     }
-    if (arg === "--path" && i + 1 < argv.length) {
-      result.path = argv[++i];
-      i++;
-      continue;
-    }
-    if (arg === "--feature-dir" && i + 1 < argv.length) {
-      result.featureDir = argv[++i];
-      i++;
-      continue;
-    }
-    if (arg === "--json" && i + 1 < argv.length) {
-      result.json = argv[++i];
-      i++;
-      continue;
-    }
-    if (arg === "--json-file" && i + 1 < argv.length) {
-      result.jsonFile = argv[++i];
+    if (VALUE_FLAGS.has(arg)) {
+      if (i + 1 >= argv.length) {
+        failUsage(`${arg} requires a value`, result.command);
+      }
+      const value = argv[++i];
+      if (arg === "--path") result.path = value;
+      else if (arg === "--feature-dir") result.featureDir = value;
+      else if (arg === "--json") result.json = value;
+      else result.jsonFile = value;
       i++;
       continue;
     }
@@ -191,9 +189,7 @@ if (input.usageError) {
 } else if (input.command === "validate-state") {
   if (!input.path) failUsage("--path is required", "validate-state");
   try {
-    const fs = await import("node:fs");
-    const content = fs.default.readFileSync(input.path, "utf8");
-    const state = parseState(content, input.path);
+    const state = inspectStateFile(input.path);
     process.stdout.write(JSON.stringify(state, null, 2) + "\n");
   } catch (error) {
     failArtifact(error, "validate-state");
@@ -204,12 +200,7 @@ if (input.usageError) {
   if (input.json && input.jsonFile) failUsage("--json and --json-file are mutually exclusive", "write-state");
   let state;
   try {
-    if (input.jsonFile) {
-      const fs = await import("node:fs");
-      state = JSON.parse(fs.default.readFileSync(input.jsonFile, "utf8"));
-    } else {
-      state = JSON.parse(input.json);
-    }
+    state = JSON.parse(input.jsonFile ? readFileSync(input.jsonFile, "utf8") : input.json);
   } catch (error) {
     const origin = input.jsonFile ? `${input.jsonFile}: ` : "";
     failUsage(`invalid JSON: ${origin}${error.message}`, "write-state");

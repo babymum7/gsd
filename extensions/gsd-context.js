@@ -672,13 +672,12 @@ function validateLegacyV2State(input, label = 'state.toon') {
     throw new Error(`${label}: invalid progress_status`);
   }
   if (['draft', 'approved', 'executing', 'paused'].includes(state.phase)) {
-    if (
-      state.review_round !== NONE ||
-      state.blocking_fingerprint !== NONE ||
-      state.reviewed_commit !== NONE ||
-      state.progress_status !== NONE
-    ) {
-      throw new Error(`${label}: review progress must be none before terminal phases`);
+    const populated = ['review_round', 'blocking_fingerprint', 'reviewed_commit', 'progress_status']
+      .filter((field) => state[field] !== NONE);
+    if (populated.length > 0) {
+      throw new Error(
+        `${label}: review progress must be none before terminal phases: ${populated.join(', ')} set in phase ${state.phase}`,
+      );
     }
   }
   return state;
@@ -814,6 +813,11 @@ function parseStateContent(content, resolvedStatePath, featureMeta, allowLegacyC
 
 function readStateFile(statePath) {
   return readStateFileInternal(statePath, false, true);
+}
+
+// Hardened read without legacy migration: validation must never write.
+function inspectStateFile(statePath) {
+  return readStateFileInternal(statePath, false, false);
 }
 
 function readCandidateStateFile(statePath) {
@@ -1555,6 +1559,7 @@ export {
   detectCandidates,
   discoverSkillCatalog,
   firstNonCompactionSummaryIndex,
+  inspectStateFile,
   messageContainsBootstrap,
   parseSkillMetadata,
   parseState,

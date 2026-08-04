@@ -1,21 +1,12 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import {
-  canonicalPacket, structuredPacket, FILES_BLOCK, filesBlockWith, T1_BLOCK, INTERFACE_ROW,
-  replaceOnce, read, skillNames, visibleSkillNames, filesUnder, markdownFiles,
-  parseAgentFrontmatter, ROOT, SKILLS,
-} from "./support/skills-fixtures.js";
+import { read, skillNames, filesUnder, ROOT, SKILLS } from "./support/skills-fixtures.js";
 import { existsSync } from "node:fs";
 import { join, resolve } from "node:path";
-import {
-  bindApprovedSources, parseMarkdownPacket, parseQuickFixPlan, rejectLegacyPreapprovalFiles,
-  sha256, verifyApprovedSources, validateSectionEdges,
-} from "../lib/gsd-contract.mjs";
 import {
   parseActivationResponse, responseMatchesFixture, selectEvalBackend, validateActivationTarget,
   validateFixtureSet,
 } from "./eval/activation-eval-contract.mjs";
-import gsdContextExtension, { CAPSULE_TEMPLATE } from "../extensions/gsd-context.js";
 
 test("session owner is sole lifecycle authority without model agents", () => {
   const paths = [

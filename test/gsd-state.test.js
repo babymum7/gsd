@@ -317,6 +317,55 @@ test("CLI missing command gives usage error", () => {
   assert.match(r.stderr, /missing command/);
 });
 
+test("CLI flag without a value gives a naming usage error", () => {
+  for (const flag of ["--path", "--feature-dir", "--json", "--json-file"]) {
+    const r = cli(["write-state", flag]);
+    assert.equal(r.exitCode, 2, `${flag} without value must be a usage error`);
+    assert.match(r.stderr, new RegExp(`\\${flag} requires a value`), `${flag} must be named`);
+  }
+});
+
+test("CLI validate-state rejects a path whose basename is not state.toon", () => {
+  const { scratch } = tmpFeatureDir();
+  const alias = join(scratch, "state.toon.bak");
+  writeFileSync(alias, "schema:v4\n");
+  const r = cli(["validate-state", "--path", alias]);
+  assert.equal(r.exitCode, 1);
+  assert.match(r.stderr, /expected state\.toon/);
+});
+
+test("CLI validate-state reports a legacy packet without migrating it; read-state migrates", () => {
+  const { scratch } = tmpFeatureDir();
+  const statePath = join(scratch, "state.toon");
+  const legacyV3 = [
+    "schema:v3",
+    "feature:test-feature",
+    "phase:executing",
+    "next_action:continue task T1",
+    "plan_path:.scratch/test-feature/plan.md",
+    "plan_sha256:9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386",
+    "base_ref:main",
+    "wip_branch:wip/test-feature",
+    "last_green_task:none",
+    "last_green_commit:none",
+    "autosync:none",
+    "ponytail_level:none",
+    "cleanup_preference:none",
+    "checkpoint_revision:1",
+    "",
+  ].join("\n");
+  writeFileSync(statePath, legacyV3);
+
+  const validated = cli(["validate-state", "--path", statePath]);
+  assert.equal(validated.exitCode, 0, validated.stderr);
+  assert.equal(JSON.parse(validated.stdout).schema, "v4", "validate-state reports the migrated shape");
+  assert.equal(readFileSync(statePath, "utf8"), legacyV3, "validate-state must never write");
+
+  const migrated = cli(["read-state", "--path", statePath]);
+  assert.equal(migrated.exitCode, 0, migrated.stderr);
+  assert.match(readFileSync(statePath, "utf8"), /^schema:v4\n/, "read-state migrates in place");
+});
+
 test("CLI --help shows usage", () => {
   const r = cli(["--help"]);
   assert.equal(r.exitCode, 0);

@@ -433,7 +433,7 @@ For explicit abandon/drop/delete: confirm the feature name, inspect whether the 
 
 ### Terminal scratch disposition
 
-Before final terminal review/squash, the user may explicitly select retain or archive-and-delete; omission defaults to delete after a green merge. There is no mandatory terminal cleanup prompt. Persist `cleanup_preference` in `state.toon` when explicitly chosen (via `gsd-state.mjs write-state`). After a green merge, use `gsd-state.mjs write-state` to write `phase=merged-cleanup-pending` and automatically remove scratch unless retain or archive-and-delete was selected; crash recovery resumes only that cleanup decision. The pre-squash archive opportunity is not reopened after merge.
+Before final terminal review/squash, the user may explicitly select retain or archive-and-delete; omission defaults to delete after a green merge. There is no mandatory terminal cleanup prompt. Persist `cleanup_preference` in `state.toon` when explicitly chosen (via `gsd-state.mjs write-state`; see `gsd-handoff` § Write). After a green merge, use the same CLI invocation to write `phase=merged-cleanup-pending` and remove scratch unless retain or archive-and-delete was selected; crash recovery resumes only that cleanup decision. The pre-squash archive opportunity is not reopened after merge.
 
 - **delete (default):** after the green squash, remove `.scratch/<feature>/`.
 - **retain:** keep `.scratch/<feature>/` and set `phase=completed-retained` with `next_action=none`.

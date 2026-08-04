@@ -111,11 +111,20 @@ export function parseSkillMetadata(content: string, filePath: string): SkillMeta
 export function parseState(content: string, label?: string): State;
 
 /**
- * Read and validate a state.toon file from disk.
+ * Read and validate a state.toon file from disk through fd-anchored, TOCTOU-hardened
+ * I/O. A legacy v1/v2/v3 packet is migrated in place to canonical v4 as a side effect.
  * @param statePath - Absolute path to a state.toon file.
  * @returns Validated state object.
  */
 export function readStateFile(statePath: string): State;
+
+/**
+ * Read and validate a state.toon file with the same hardening as `readStateFile`
+ * but never writing: legacy packets are parsed and returned unmigrated.
+ * @param statePath - Absolute path to a state.toon file.
+ * @returns Validated state object.
+ */
+export function inspectStateFile(statePath: string): State;
 
 /**
  * Serialize a State object to state.toon format.

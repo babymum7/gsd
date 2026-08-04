@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync, readdirSync, mkdtempSync, writeFileSync, mkdirSync, rmSync, symlinkSync, realpathSync, lstatSync } from "node:fs";
+import { readFileSync, readdirSync, mkdtempSync, writeFileSync, mkdirSync, rmSync, symlinkSync, realpathSync, lstatSync, unlinkSync } from "node:fs";
 import { join, dirname, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
