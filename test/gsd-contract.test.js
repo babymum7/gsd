@@ -75,6 +75,7 @@ test("validate-plan emits deterministic minimal TOON for a canonical plan", () =
       "status: valid",
       "kind: plan",
       "feature: valid-plan",
+      "base: main",
       `sha256: ${createHash("sha256").update(plan).digest("hex")}`,
       "tasks: 1",
     ].join("\n");
@@ -410,7 +411,8 @@ test("the CLI names a runnable invocation in every help and error surface", () =
       const usage = JSON.parse(help.stdout.match(/^usage: (.+)$/m)[1]);
       const copied = usage
         .replace(".scratch/<feature>/plan.md", join(".scratch", "cli-copy-run", "plan.md"))
-        .replace(" [--expected-sha256 <64-hex>]", "");
+        // Optional flags are documented in brackets; a copy-run drops all of them.
+        .replace(/ \[[^\]]+\]/g, "");
       const ran = spawnSync(copied, { cwd: valid.workspace, encoding: "utf8", shell: true });
       assert.equal(ran.status, 0, ran.stderr || ran.stdout);
       assert.match(ran.stdout, /^status: valid\nkind: plan\nfeature: cli-copy-run\n/);
@@ -478,6 +480,104 @@ test("both grammars accept a non-default base and reject a self-referencing one"
     } finally {
       rmSync(rejected.workspace, { recursive: true, force: true });
     }
+  }
+});
+
+// `plan.md` § Base and `state.toon` `base_ref` are two records of one decision. Prose alone
+// let them drift, so a packet could stay hash-bound to a plan naming base A while the merge
+// gate read base B out of state and squashed there.
+test("a bound call rejects a plan whose base differs from the recorded base_ref", () => {
+  const cases = [
+    { command: "validate-plan", feature: "bound-base", build: canonicalPlan },
+    { command: "validate-quick-fix", feature: "bound-base-qf", build: quickFixPlan },
+  ];
+  for (const { command, feature, build } of cases) {
+    const plan = build(feature).replace("`main`", "`release/2026`");
+    const { workspace, planPath } = makePlanWorkspace(feature, plan);
+    try {
+      const agreed = spawnSync(
+        process.execPath,
+        [CLI, command, "--path", planPath, "--expected-base", "release/2026"],
+        { cwd: workspace, encoding: "utf8" },
+      );
+      assert.equal(agreed.status, 0, `${command} must accept a matching base: ${agreed.stdout}${agreed.stderr}`);
+      assert.match(agreed.stdout, /^base: release\/2026$/m);
+
+      const drifted = spawnSync(
+        process.execPath,
+        [CLI, command, "--path", planPath, "--expected-base", "main"],
+        { cwd: workspace, encoding: "utf8" },
+      );
+      assert.equal(drifted.status, 1, `${command} must reject a drifted base: ${drifted.stdout}`);
+      assert.match(drifted.stdout, /^code: invalid-artifact$/m);
+      // Resume branches on this phrase to stop instead of rebinding, so it is a contract.
+      assert.match(drifted.stdout, /plan base release\/2026 does not match recorded base_ref main/);
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
+// Resume separates moved bytes from malformed grammar by revalidating without the bound hash.
+// If that call dropped the base check, a base mismatch would come back clean and be rebound as
+// an ordinary amendment — silently retargeting the merge. The base check is hash-independent.
+test("an unbound revalidation still rejects a drifted base", () => {
+  const feature = "unbound-base";
+  const plan = canonicalPlan(feature).replace("`main`", "`release/2026`");
+  const { workspace, planPath } = makePlanWorkspace(feature, plan);
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [CLI, "validate-plan", "--path", planPath, "--expected-base", "main"],
+      { cwd: workspace, encoding: "utf8" },
+    );
+    assert.equal(result.status, 1, `an unbound call must still check the base: ${result.stdout}`);
+    assert.match(result.stdout, /does not match recorded base_ref main/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+// The base is interpolated into Git commands, so a value Git would read as an option or a
+// range must be rejected by the grammar itself, with no expected base supplied.
+test("a base that is not a usable Git branch name is rejected", () => {
+  const feature = "unsafe-base";
+  for (const base of ["--force", "a..b", "feature/", ".hidden", "trailing.lock", "has space"]) {
+    const plan = canonicalPlan(feature).replace("`main`", `\`${base}\``);
+    const { workspace, planPath } = makePlanWorkspace(feature, plan);
+    try {
+      const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], {
+        cwd: workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 1, `base ${base} must be rejected: ${result.stdout}`);
+      assert.match(result.stdout, /^code: invalid-artifact$/m);
+      assert.match(result.stdout, /Base must be a Git branch name able to receive the merge/);
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
+// A usage error must name the flag rather than fail deep inside validation.
+test("--expected-base rejects a malformed value and a repeat as usage errors", () => {
+  const feature = "base-usage";
+  const { workspace, planPath } = makePlanWorkspace(feature, canonicalPlan(feature));
+  try {
+    for (const args of [
+      ["--expected-base", "not a branch"],
+      ["--expected-base", "main", "--expected-base", "main"],
+      ["--expected-base"],
+    ]) {
+      const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath, ...args], {
+        cwd: workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 2, `${args.join(" ")} must be a usage error: ${result.stdout}`);
+      assert.match(result.stdout, /--expected-base/);
+    }
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
   }
 });
 
@@ -712,6 +812,7 @@ test("the validator resolves a foreign workspace by absolute script path", () =>
         "status: valid",
         "kind: plan",
         "feature: foreign-workspace",
+        "base: main",
         `sha256: ${createHash("sha256").update(plan).digest("hex")}`,
         "tasks: 1",
       ].join("\n"),

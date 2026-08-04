@@ -60,9 +60,11 @@ Without a supplied path, discover active candidates via [../gsd/REFERENCE.md](..
 
 For every Execution resume, after state validation and before deriving the peer owner, select the validator by probe: `schema:v4` records no grammar kind, so never assume one.
 
-1. Run `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md`. Exit 0 is a Quick-fix packet; it accepts no `--expected-sha256`, so compare its returned `sha256` against `state.plan_sha256`.
-2. Exit 1 means the bytes are not Quick-fix grammar: run `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256>`. Exit 0 resumes the full plan.
-3. On exit 1 there, revalidate unbound with `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md`: exit 0 proves the bytes only moved, which the rebind rule below resolves; exit 1 means both grammars reject the packet, which is Spec escalation.
+1. Run `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`. Exit 0 is a Quick-fix packet; it accepts no `--expected-sha256`, so compare its returned `sha256` against `state.plan_sha256`.
+2. Exit 1 means the bytes are not Quick-fix grammar: run `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>`. Exit 0 resumes the full plan.
+3. On exit 1 there, revalidate unbound with `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`: exit 0 proves the bytes only moved, which the rebind rule below resolves; exit 1 means both grammars reject the packet, which is Spec escalation.
+
+An error naming a base mismatch stops the ladder immediately as Spec escalation: the packet parsed, so its § Base no longer matches the recorded merge target. Keeping `--expected-base` on the unbound call is what prevents that mismatch from reading as moved bytes and being rebound, which would retarget the squash. A base is never rebound mid-lifecycle.
 
 Exit 2 is never escalation: correct the invocation and rerun. A bound call checks the hash before parsing, so on its own it never proves malformed grammar. A Quick-fix plan is never malformed converged state: escalating it because the full-plan grammar rejected it is a validator-selection error.
 

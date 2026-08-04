@@ -1495,6 +1495,24 @@ test("state.toon lifecycle checkpoint contract", async () => {
     /plan_sha256|hash/i,
   );
 
+  // `base_ref` is the recorded merge target that a Git command consumes verbatim, so its shape
+  // is validated here rather than trusted from whatever wrote the packet. A self-referencing
+  // base is rejected too: the squash would target the branch being squashed.
+  for (const base of ["--force", "a..b", "x/.y", "y.lock", "has space", "main;rm -rf /", "-x", "x/"]) {
+    assert.throws(
+      () => validateState({ ...baseFields, base_ref: base }),
+      /base_ref must be a Git branch name able to receive the merge/,
+      `base_ref ${JSON.stringify(base)} must be rejected`,
+    );
+  }
+  assert.throws(
+    () => validateState({ ...baseFields, base_ref: "wip/demo-feature" }),
+    /base_ref must not be its own WIP branch wip\/demo-feature/,
+  );
+  for (const base of ["main", "worktree-onboarding", "release/2026.1"]) {
+    assert.equal(validateState({ ...baseFields, base_ref: base }).base_ref, base);
+  }
+
   // Legacy runtime artifacts never parse as state authority
   assert.throws(() => parseState("schema:v1\nmode:execution\nphase:task-active\n"), /legacy|unsupported|phase|unknown/i);
 

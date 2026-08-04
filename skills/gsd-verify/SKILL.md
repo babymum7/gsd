@@ -30,7 +30,7 @@ At terminal entry, validate canonical `schema:v4`, exact plan hash/binding, base
 
 Terminal entry never blocks on the plan having moved: changed plan bytes revalidate and rebind under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment, then conformance proves the amended plan on the unchanged commit. Amend here only to record what the work actually did; a material change or drift the owner cannot account for asks one question first. Rebinding after the pre-squash guard requires rerunning that guard.
 
-At terminal entry and again before squash run `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256>`. Exit 0 must report the bound feature and hash before cumulative proof continues; exit 1 on malformed grammar blocks as Spec escalation, while a hash mismatch alone routes to § Plan amendment. Exit 2 corrects only the invocation. Never use the unbound form except to revalidate an amendment before rebinding.
+At terminal entry and again before squash run `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>`. Exit 0 must report the bound feature, hash, and base before cumulative proof continues; exit 1 on malformed grammar or a base mismatch blocks as Spec escalation, while a hash mismatch alone routes to § Plan amendment. Exit 2 corrects only the invocation. Never use the unbound form except to revalidate an amendment before rebinding.
 
 After all tasks and Fast TDD Checks are green, the session owner performs deterministic cumulative conformance before Deferred Slow E2E:
 
@@ -43,7 +43,7 @@ After all tasks and Fast TDD Checks are green, the session owner performs determ
 
 For squash, scratch disposition, archive, and cleanup use § Git/base/WIP/scratch mechanics and § Feature cleanup. Archive-and-delete materializes the exact approved plan and outcome before conformance so canonical archive destinations are terminal-cleanup-owned lifecycle paths in changed-path proof; every other changed path must be task-owned.
 
-The merge target is exactly the recorded `state.toon` `base_ref`; never ask whether to merge into `main` and never widen to the repository default branch. Promoting that base onward is separate user-owned work after this packet ends green. See [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Base derivation and merge target.
+The merge target is exactly the recorded `state.toon` `base_ref`, which must still resolve to a local branch able to receive the squash; never ask whether to merge into `main` and never widen to the repository default. Promoting that base onward is separate user-owned work after this packet ends green.
 
 After green merge, write the state fields to `.scratch/<feature>/.state-input.json`, then use `node "<GSD_ROOT>/tools/gsd-state.mjs" write-state --feature-dir .scratch/<feature> --json-file .scratch/<feature>/.state-input.json` to atomically write `phase=merged-cleanup-pending` (never the `write` tool directly). Delete `.state-input.json` after the CLI succeeds or fails.
 

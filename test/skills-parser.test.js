@@ -6,8 +6,8 @@ import {
   parseAgentFrontmatter, ROOT, SKILLS,
 } from "./support/skills-fixtures.js";
 import {
-  bindApprovedSources, parseMarkdownPacket, parseQuickFixPlan, rejectLegacyPreapprovalFiles,
-  sha256, verifyApprovedSources, validateSectionEdges,
+  bindApprovedSources, isSafeBranchRef, parseMarkdownPacket, parseQuickFixPlan,
+  rejectLegacyPreapprovalFiles, sha256, verifyApprovedSources, validateSectionEdges,
 } from "../lib/gsd-contract.mjs";
 import {
   parseActivationResponse, responseMatchesFixture, selectEvalBackend, validateActivationTarget,
@@ -946,4 +946,24 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
 test("legacy pre-approval TOON is explicitly rejected", () => {
   assert.throws(() => rejectLegacyPreapprovalFiles(["proposal.toon", "spec.toon"]), /not authoritative/);
   assert.doesNotThrow(() => rejectLegacyPreapprovalFiles(["handoff-1.toon", "result.toon"]));
+});
+
+// The recorded base is the merge target, so a Git command consumes it verbatim. Anything Git
+// would read as an option, a range, or a reserved ref shape must be rejected at both records
+// rather than discovered when the squash runs.
+test("a base is only accepted when it is a usable Git branch name", () => {
+  for (const safe of ["main", "worktree-onboarding", "release/2026.1", "user/fix_1", "a-b.c/d"]) {
+    assert.ok(isSafeBranchRef(safe), `${safe} must be accepted`);
+  }
+  for (const unsafe of [
+    "", "-x", "--force", "a..b", "a/../b", "x/.y", ".hidden", "x/y.lock", "y.lock",
+    "x//y", "/x", "x/", "x.", "has space", "main\nrm -rf /", "main;rm -rf /", "HEAD@{0}",
+    "x~1", "x^", "x:y", "x?", "x*", "x[y]", "x\\y", "$(id)", "main\0",
+  ]) {
+    assert.ok(!isSafeBranchRef(unsafe), `${JSON.stringify(unsafe)} must be rejected`);
+  }
+  assert.ok(!isSafeBranchRef(`${"a".repeat(256)}`), "an oversized ref must be rejected");
+  for (const wrong of [null, undefined, 42, {}, ["main"]]) {
+    assert.ok(!isSafeBranchRef(wrong), `${JSON.stringify(wrong)} must be rejected`);
+  }
 });

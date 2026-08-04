@@ -21,10 +21,10 @@ function write(lines) {
 
 function commandUsage(command) {
   if (command === "validate-plan") {
-    return `${INVOCATION} validate-plan --path .scratch/<feature>/plan.md [--expected-sha256 <64-hex>]`;
+    return `${INVOCATION} validate-plan --path .scratch/<feature>/plan.md [--expected-sha256 <64-hex>] [--expected-base <branch>]`;
   }
   if (command === "validate-quick-fix") {
-    return `${INVOCATION} validate-quick-fix --path .scratch/<feature>/plan.md`;
+    return `${INVOCATION} validate-quick-fix --path .scratch/<feature>/plan.md [--expected-base <branch>]`;
   }
   return `${INVOCATION} <validate-plan|validate-quick-fix> --path <artifact>`;
 }
@@ -72,9 +72,11 @@ function parseArguments(argv) {
 
   let planPath = null;
   let expectedSha256 = null;
+  let expectedBase = null;
+  const FLAGS = new Set(["--path", "--expected-sha256", "--expected-base"]);
   for (let index = 0; index < args.length; index += 1) {
     const flag = args[index];
-    if (flag !== "--path" && flag !== "--expected-sha256") {
+    if (!FLAGS.has(flag)) {
       return { usageError: `unknown argument: ${flag}`, command };
     }
     const value = args[index + 1];
@@ -85,11 +87,16 @@ function parseArguments(argv) {
     if (flag === "--path") {
       if (planPath !== null) return { usageError: "--path may be supplied only once", command };
       planPath = value;
-    } else {
+    } else if (flag === "--expected-sha256") {
       if (expectedSha256 !== null) {
         return { usageError: "--expected-sha256 may be supplied only once", command };
       }
       expectedSha256 = value;
+    } else {
+      if (expectedBase !== null) {
+        return { usageError: "--expected-base may be supplied only once", command };
+      }
+      expectedBase = value;
     }
   }
 
@@ -103,7 +110,10 @@ function parseArguments(argv) {
   if (command !== "validate-plan" && expectedSha256 !== null) {
     return { usageError: `${command} does not accept --expected-sha256`, command };
   }
-  return { command, planPath, expectedSha256 };
+  if (expectedBase !== null && !/^[a-zA-Z0-9_./-]+$/.test(expectedBase)) {
+    return { usageError: "--expected-base must be one branch name", command };
+  }
+  return { command, planPath, expectedSha256, expectedBase };
 }
 
 const input = parseArguments(process.argv.slice(2));
@@ -116,11 +126,13 @@ if (input.usageError) {
     const result = validatePlanFile(input.planPath, {
       kind: input.command === "validate-plan" ? "plan" : "quick-fix",
       expectedSha256: input.expectedSha256,
+      expectedBase: input.expectedBase,
     });
     write([
       "status: valid",
       `kind: ${result.kind}`,
       `feature: ${result.feature}`,
+      `base: ${result.base}`,
       `sha256: ${result.sha256}`,
       `tasks: ${result.tasks}`,
     ]);

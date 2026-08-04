@@ -117,26 +117,45 @@ test("AC-2: Terminal conformance precedes slow E2E with same-commit gates", () =
 // The `## Base` field and `base_ref` were both required with no rule for deriving the
 // value, so a worktree session recorded the repository default and the terminal gate
 // offered to merge into `main` instead of the branch the packet was actually cut from.
+// The base must also stay a branch: a commit oid can receive no squash.
 test("base is derived from the work tree and owns the merge target", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const planner = read("skills/gsd-to-plan/SKILL.md");
   const verify = read("skills/gsd-verify/SKILL.md");
 
+  const DERIVATION = /git symbolic-ref --quiet --short HEAD/;
+
   assert.match(reference, /### Base derivation and merge target/);
-  assert.match(reference, /base is read from the work tree at packet creation, never assumed/);
-  assert.match(reference, /git rev-parse --abbrev-ref HEAD/);
-  assert.match(reference, /linked worktree is checked out on its own branch, so that branch is the base/);
-  assert.match(reference, /detached HEAD records the commit oid/);
+  assert.match(reference, DERIVATION);
+  assert.match(reference, /A detached HEAD fails closed instead of recording a commit oid/);
+  assert.match(reference, /linked worktree records its own branch/);
+  assert.match(reference, /the base is never `wip\/<feature>`/);
   assert.match(reference, /terminal squash merges into exactly the recorded `base_ref`/);
-  assert.match(reference, /`main` is the merge target only when `main` is the recorded base/);
+  assert.match(reference, /`main` is the merge target only when `main` is that base/);
   assert.match(reference, /Never ask whether to merge into `main`/);
+  // Two records of one decision only stay consistent if the bound call compares them.
+  assert.match(reference, /--expected-base <base_ref>/);
 
   // The planner captures it; the terminal gate consumes it. Neither may fall back to a default.
   assert.match(planner, /Read § Base from the work tree, never from convention/);
-  assert.match(planner, /git rev-parse --abbrev-ref HEAD/);
+  assert.match(planner, DERIVATION);
+  assert.match(planner, /detached HEAD stops packet creation/);
   assert.match(verify, /merge target is exactly the recorded `state\.toon` `base_ref`/);
+  assert.match(verify, /must still resolve to a local branch able to receive the squash/);
   assert.match(verify, /never ask whether to merge into `main`/);
   assert.match(verify, /Promoting that base onward is separate user-owned work/);
+
+  // `git rev-parse --abbrev-ref HEAD` prints the literal `HEAD` when detached, so every
+  // mention of that form must stay inside prose explaining why it is not the derivation.
+  for (const [name, body] of [["reference", reference], ["planner", planner], ["verify", verify]]) {
+    for (const hit of body.match(/git rev-parse --abbrev-ref HEAD/g) ?? []) {
+      assert.match(
+        body,
+        /prints the literal `HEAD`/,
+        `${name} names ${hit} without stating that it fails on detached HEAD`,
+      );
+    }
+  }
 });
 
 // --- session-owner terminal conformance ---

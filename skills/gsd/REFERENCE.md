@@ -184,16 +184,16 @@ It contains one or two sequential tasks with unique structured paths and a real 
 `lib/gsd-contract.mjs` is the single executable Markdown grammar. Repository tests import it directly; lifecycle owners use its thin agent-facing CLI. Substitute the injected `GSD_ROOT` value for `<GSD_ROOT>` at call time: it reaches the session as bootstrap text, not an exported shell variable, so a literal `$GSD_ROOT` resolves to an empty path. The absolute script path is required because the lifecycle runs in workspaces that are not the GSD checkout, where a repo-relative path reaches no CLI; packet resolution stays relative to the workspace `cwd`.
 
 ```text
-node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md
-node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex>
-node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md
+node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
+node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex> --expected-base <base_ref>
+node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
 ```
 
 The first command validates a new canonical full plan and returns its exact SHA-256; it also revalidates a full-plan amendment before rebinding. The second requires the bytes to match an approved hash, so a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/`; symlinks, escaped paths, feature mismatch, and malformed grammar fail closed.
 
 
 Success emits only deterministic scalar TOON:
-- A plan returns `status`, `kind`, `feature`, `sha256`, and `tasks`.
+- A plan returns `status`, `kind`, `feature`, `base`, `sha256`, and `tasks`.
 
 Structured actionable failures also use TOON on stdout:
 - An unreadable file reports `code: io-error`; malformed authority reports `code: invalid-artifact`. Both exit 1.
@@ -207,7 +207,7 @@ Structured actionable failures also use TOON on stdout:
 - A fresh approval after Spec escalation atomically supersedes the older binding.
 - Full semantic parse and binding checks run only at approval, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use the retained validated slice.
 
-The executable validator runs without `--expected-sha256` at new-plan approval and when revalidating an amendment before rebinding; resume, execution entry, terminal entry, and pre-squash use the bound-hash form for a full plan. Quick-fix verification and resume use `validate-quick-fix`.
+The validator runs unbound at new-plan approval and when revalidating an amendment before rebinding; every other full-plan call uses the bound-hash form. Once `state.toon` exists, every call also passes `--expected-base <state.base_ref>`, so a plan whose § Base drifted from the recorded merge target fails closed instead of sending the squash elsewhere. Quick-fix verification and resume use `validate-quick-fix`.
 
 Because `state.toon` records no grammar kind, resume probes `validate-quick-fix` first and only then the full-plan form; a bound call checks the hash before parsing, so an unbound revalidation is what separates moved bytes from malformed grammar. The probe proves the recorded grammar only on a hash match; on any difference the prior kind is unprovable, so resume asks before rebinding to the current grammar.
 
@@ -265,7 +265,7 @@ phase:draft|approved|executing|paused|verifying|repair|merged-cleanup-pending|co
 next_action:<opaque next action or none>
 plan_path:.scratch/<feature>/plan.md|none
 plan_sha256:<64-hex>|none
-base_ref:<branch or oid>|none
+base_ref:<branch>|none
 wip_branch:wip/<feature>|none
 last_green_task:T<n>|none
 last_green_commit:<40-hex>|none
@@ -429,9 +429,11 @@ Cross-machine sync carries the committed WIP branch and exact `.scratch/<feature
 
 ### Base derivation and merge target
 
-The base is read from the work tree at packet creation, never assumed: take the branch currently checked out (`git rev-parse --abbrev-ref HEAD`) before `wip/<feature>` exists, and record that exact value in `plan.md` § Base and in `state.toon` `base_ref`. A repository default such as `main`, an upstream tracking branch, or any naming convention is authoritative only when it is the branch actually checked out. A linked worktree is checked out on its own branch, so that branch is the base; detached HEAD records the commit oid instead. The base is never `wip/<feature>`.
+At packet creation, before `wip/<feature>` exists, run `git symbolic-ref --quiet --short HEAD` and record that branch in both `plan.md` § Base and `state.toon` `base_ref`; every bound validator call passes `--expected-base <base_ref>`, so the two records cannot diverge. Never use `git rev-parse --abbrev-ref HEAD`, which prints the literal `HEAD` when detached. A detached HEAD fails closed instead of recording a commit oid, because the base is the branch that must hold the squash.
 
-The terminal squash merges into exactly the recorded `base_ref` and nothing else, so `main` is the merge target only when `main` is the recorded base. Never ask whether to merge into `main`, never retarget a packet mid-lifecycle, and never widen the merge to the repository default branch. Promoting the base onward — a worktree branch into `main`, a release train, or a pull request — is separate user-owned work outside this packet's lifecycle: the packet ends green when its recorded base holds the squash, and onward promotion is the user's own next request.
+A repository default, upstream branch, or naming convention is authoritative only when it is the checked-out branch; a linked worktree records its own branch; the base is never `wip/<feature>`.
+
+The terminal squash merges into exactly the recorded `base_ref`, so `main` is the merge target only when `main` is that base. Before squashing, verify `base_ref` still resolves to a local branch able to receive the merge; a vanished base blocks the gate instead of retargeting. Never ask whether to merge into `main` and never widen to the repository default. Promoting the base onward — into `main`, a release train, or a pull request — is separate user-owned work after the packet ends green.
 
 ## Feature cleanup
 

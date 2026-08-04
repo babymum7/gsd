@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { TextDecoder } from 'node:util';
-import { PLAN_FEATURE_RE, PLAN_SHA256_RE } from '../lib/gsd-contract.mjs';
+import { isSafeBranchRef, PLAN_FEATURE_RE, PLAN_SHA256_RE } from '../lib/gsd-contract.mjs';
 
 const EXTENSION_FILE = fileURLToPath(import.meta.url);
 const UTF8_DECODER = new TextDecoder('utf-8', { fatal: true });
@@ -608,6 +608,17 @@ function validateCommonState(state, label) {
     throw new Error(`${label}: next_action is required for phase ${state.phase}`);
   }
 
+  // `base_ref` is the recorded merge target, so a Git command consumes it verbatim. Shape it
+  // here, before any caller interpolates it, and reject a base that names the branch being
+  // squashed: the terminal merge would target its own source.
+  if (state.base_ref !== NONE) {
+    if (!isSafeBranchRef(state.base_ref)) {
+      throw new Error(`${label}: base_ref must be a Git branch name able to receive the merge`);
+    }
+    if (state.base_ref === `wip/${state.feature}`) {
+      throw new Error(`${label}: base_ref must not be its own WIP branch wip/${state.feature}`);
+    }
+  }
   if (state.last_green_task !== NONE && !TASK_RE.test(state.last_green_task)) {
     throw new Error(`${label}: invalid last_green_task`);
   }
