@@ -14,6 +14,62 @@ test("every GSD skill has complete matching frontmatter", () => {
   }
 });
 
+// The architecture is thin skills over one canonical REFERENCE, so a canon citation is the
+// load-bearing link between them. Three were pinned by hand; nothing caught a renamed or
+// deleted heading orphaning the rest, and a skill pointing at canon that no longer says
+// anything is how an agent ends up improvising the contract — the base bug's own failure mode.
+test("every canon citation in a skill resolves to a REFERENCE heading", () => {
+  const headings = new Set(
+    [
+      ...read("skills/gsd/REFERENCE.md")
+        // The packet grammar templates are fenced and contain `## Base`, `## Domain Impact`,
+        // and friends, which are plan sections rather than REFERENCE headings.
+        .replace(/^```[\s\S]*?^```$/gm, "")
+        .matchAll(/^#{2,4}\s+(.+)$/gm),
+    ].map((match) => match[1].trim()),
+  );
+  const byLength = [...headings].sort((a, b) => b.length - a.length);
+
+  // Every heading the skills depend on. A rename or deletion fails here rather than silently
+  // orphaning the citation, and the inventory is exact because a prefix match alone would
+  // still resolve a narrowed heading.
+  const CITED = [
+    "Artifact Contract",
+    "Base derivation and merge target",
+    "Candidate discovery",
+    "Canonical Markdown contract",
+    "Contextual disclosure templates",
+    "Git/base/WIP/scratch mechanics",
+    "Packet grammar",
+    "Plan amendment",
+    "Post-approval pipeline contract",
+    "Runtime state contract",
+    "Skill derivation from phase and next_action",
+  ];
+  for (const heading of CITED) {
+    assert.ok(headings.has(heading), `REFERENCE no longer defines the cited § ${heading}`);
+  }
+
+  // `§` also cites `plan.md` sections, so only citations positioned after the REFERENCE.md
+  // link on their line — the documented "see canon" form — are canon citations.
+  let checked = 0;
+  for (const name of skillNames()) {
+    for (const line of read(`skills/${name}/SKILL.md`).split("\n")) {
+      const link = line.indexOf("REFERENCE.md");
+      if (link < 0) continue;
+      for (const match of line.matchAll(/§\s+([A-Z][^.,;:)\n]*)/g)) {
+        if (match.index < link) continue;
+        const cited = match[1].trim();
+        const heading = byLength.find((candidate) => cited === candidate || cited.startsWith(candidate));
+        assert.ok(heading, `${name} cites § ${cited}, which matches no REFERENCE heading`);
+        assert.ok(CITED.includes(heading), `${name} cites § ${heading}, absent from the inventory`);
+        checked += 1;
+      }
+    }
+  }
+  assert.ok(checked >= 25, `the canon citation layer must stay covered, only found ${checked}`);
+});
+
 
 test("visible catalog descriptions stay within the injected byte budget", () => {
   // Every visible description is injected once per session, so the sum is a real cost.

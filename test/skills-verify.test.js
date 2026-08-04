@@ -137,7 +137,7 @@ test("base is derived from the work tree and owns the merge target", () => {
   assert.match(reference, /--expected-base <base_ref>/);
 
   // The planner captures it; the terminal gate consumes it. Neither may fall back to a default.
-  assert.match(planner, /Read § Base from the work tree, never from convention/);
+  assert.match(planner, /Read `plan\.md` § Base from the work tree, never from convention/);
   assert.match(planner, DERIVATION);
   assert.match(planner, /detached HEAD stops packet creation/);
   assert.match(verify, /merge target is exactly the recorded `state\.toon` `base_ref`/);
