@@ -2,16 +2,46 @@
 // Observed Git state, never asserted Git state. Base derivation and the pre-squash gate were
 // prose-only rules, so nothing could tell a session that followed them from one that assumed
 // `main`. This tool answers both questions from the work tree and never writes: every Git
-// invocation goes through `git()`, which refuses any subcommand outside READ_ONLY.
+// invocation goes through `git()`, which admits only the exact argv shapes below.
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
+import { realpathSync } from "node:fs";
 import { isSafeBranchRef } from "../lib/gsd-contract.mjs";
 import { inspectStateFile } from "../extensions/gsd-context.js";
 
 const COMMANDS = new Set(["derive-base", "preflight"]);
 const VALUE_FLAGS = new Set(["--feature-dir", "--cwd"]);
-const READ_ONLY = new Set(["rev-parse", "symbolic-ref", "show-ref", "worktree"]);
+
+// A subcommand name is not a permission: `git symbolic-ref <name> <ref>` writes a ref and
+// `git symbolic-ref --delete <name>` removes one, so the boundary is the whole argv. These
+// four shapes are every query this tool makes; `show-ref` is the one with a variable
+// argument and is handled below.
+const READ_ONLY = new Set([
+  "rev-parse --is-inside-work-tree",
+  "rev-parse --show-toplevel",
+  "symbolic-ref --quiet --short HEAD",
+  "worktree list --porcelain",
+]);
+const BRANCH_REF_PREFIX = "refs/heads/";
+
+export function assertReadOnlyGit(args) {
+  const shape = args.join(" ");
+  if (READ_ONLY.has(shape)) return;
+  const branch = args.length === 4 && args[3].startsWith(BRANCH_REF_PREFIX)
+    ? args[3].slice(BRANCH_REF_PREFIX.length)
+    : null;
+  if (
+    branch !== null &&
+    args[0] === "show-ref" &&
+    args[1] === "--verify" &&
+    args[2] === "--quiet" &&
+    isSafeBranchRef(branch)
+  ) {
+    return;
+  }
+  throw new Error(`refusing a Git invocation that is not an allowed read-only query: git ${shape}`);
+}
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const INVOCATION = `node ${JSON.stringify(SCRIPT_PATH)}`;
@@ -91,11 +121,9 @@ function blocked(code, message) {
 }
 
 function git(args, cwd) {
-  // The read-only boundary is enforced here rather than by review: `worktree` is readable
-  // only through `worktree list`, and every other subcommand must be in READ_ONLY.
-  if (!READ_ONLY.has(args[0]) || (args[0] === "worktree" && args[1] !== "list")) {
-    throw new Error(`refusing a Git subcommand that is not read-only: ${args.join(" ")}`);
-  }
+  // The read-only boundary is enforced here rather than by review, and a rejected shape is a
+  // defect rather than repository drift: it throws instead of emitting a blocked record.
+  assertReadOnlyGit(args);
   const result = spawnSync("git", args, { cwd, encoding: "utf8", shell: false });
   if (result.error) blocked("git-unavailable", `git cannot be executed: ${result.error.message}`);
   return { status: result.status, stdout: (result.stdout ?? "").trim() };
@@ -191,18 +219,11 @@ function parseArguments(argv) {
   return result;
 }
 
-const input = parseArguments(process.argv.slice(2));
-if (input.help) {
-  emitHelp(input.command);
-} else if (input.usageError) {
-  failUsage(input.usageError, input.command);
-} else if (input.command === "derive-base") {
-  write_(["status: ok", `base: ${deriveBase(input.cwd)}`]);
-} else {
-  requireWorkTree(input.cwd);
+function preflight(cwd, featureDir) {
+  requireWorkTree(cwd);
   let state;
   try {
-    state = inspectStateFile(join(input.cwd, input.featureDir, "state.toon"));
+    state = inspectStateFile(join(cwd, featureDir, "state.toon"));
   } catch (error) {
     blocked("state-unusable", error.message);
   }
@@ -215,13 +236,13 @@ if (input.help) {
   const base = requireBranchName(state.base_ref, "base_ref");
   const wip = requireBranchName(state.wip_branch, "wip_branch");
   if (base === wip) blocked("base-is-wip", `base_ref ${base} is the branch being squashed`);
-  if (!localBranchExists(base, input.cwd)) {
+  if (!localBranchExists(base, cwd)) {
     blocked("base-missing", `base_ref ${base} no longer resolves to a local branch, so the squash has no target`);
   }
-  if (!localBranchExists(wip, input.cwd)) {
+  if (!localBranchExists(wip, cwd)) {
     blocked("wip-missing", `wip_branch ${wip} no longer resolves to a local branch`);
   }
-  const elsewhere = checkedOutElsewhere(base, input.cwd);
+  const elsewhere = checkedOutElsewhere(base, cwd);
   if (elsewhere !== null) {
     blocked(
       "base-checked-out-elsewhere",
@@ -230,7 +251,7 @@ if (input.help) {
   }
   // A detached HEAD at the gate is not a cosmetic detail: commits made there sit on no
   // branch, so squashing the recorded WIP branch would silently drop them.
-  const head = git(["symbolic-ref", "--quiet", "--short", "HEAD"], input.cwd);
+  const head = git(["symbolic-ref", "--quiet", "--short", "HEAD"], cwd);
   if (head.status !== 0 || head.stdout === "") {
     blocked(
       "detached-head",
@@ -238,4 +259,27 @@ if (input.help) {
     );
   }
   write_(["status: ready", `base: ${base}`, `wip: ${wip}`, `head: ${head.stdout}`]);
+}
+
+// Importable so the read-only boundary can be unit-tested directly; running the CLI stays the
+// only side effect of executing this file.
+function isMain() {
+  try {
+    return realpathSync(process.argv[1] ?? "") === realpathSync(SCRIPT_PATH);
+  } catch {
+    return false;
+  }
+}
+
+if (isMain()) {
+  const input = parseArguments(process.argv.slice(2));
+  if (input.help) {
+    emitHelp(input.command);
+  } else if (input.usageError) {
+    failUsage(input.usageError, input.command);
+  } else if (input.command === "derive-base") {
+    write_(["status: ok", `base: ${deriveBase(input.cwd)}`]);
+  } else {
+    preflight(input.cwd, input.featureDir);
+  }
 }

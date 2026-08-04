@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
 import { writeStateAtomic } from "../extensions/gsd-context.js";
+import { assertReadOnlyGit } from "../tools/gsd-git.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI = join(__dirname, "..", "tools", "gsd-git.mjs");
@@ -239,26 +240,61 @@ test("neither command mutates the repository", () => {
   }
 });
 
-// The read-only guarantee is a boundary in the source, not a habit: one funnel, and only
-// subcommands that cannot write. A future edit adding a direct spawn or a mutating
-// subcommand must fail here.
-test("the read-only Git boundary is enforced in one place", () => {
+// A subcommand name is not a permission: `git symbolic-ref <name> <ref>` writes a ref and
+// `--delete` removes one, so an allowlist of subcommands would have admitted a mutating call
+// the moment someone added one. The boundary is the whole argv, tested directly.
+test("the read-only boundary rejects every mutating Git invocation", () => {
+  const rejected = [
+    // `symbolic-ref` is read-only in exactly one shape and writes refs in the others.
+    ["symbolic-ref", "HEAD", "refs/heads/hijacked"],
+    ["symbolic-ref", "--delete", "HEAD"],
+    ["symbolic-ref", "-m", "reason", "HEAD", "refs/heads/hijacked"],
+    ["symbolic-ref", "--short", "HEAD"],
+    ["worktree", "add", "/tmp/anywhere"],
+    ["worktree", "remove", "/tmp/anywhere"],
+    ["worktree", "list"],
+    ["update-ref", "refs/heads/main", "HEAD"],
+    ["checkout", "main"],
+    ["merge", "--squash", "wip/x"],
+    ["rev-parse", "HEAD"],
+    // The derivation that prints the literal `HEAD` when detached is not even executable.
+    ["rev-parse", "--abbrev-ref", "HEAD"],
+    ["show-ref"],
+    ["show-ref", "--verify", "--quiet", "refs/tags/v1"],
+    // A ref path that escapes `refs/heads/` or is not a usable branch name is refused.
+    ["show-ref", "--verify", "--quiet", "refs/heads/../../evil"],
+    ["show-ref", "--verify", "--quiet", "refs/heads/-x"],
+    ["show-ref", "--verify", "--quiet", "refs/heads/"],
+    [],
+  ];
+  for (const args of rejected) {
+    assert.throws(
+      () => assertReadOnlyGit(args),
+      /refusing a Git invocation that is not an allowed read-only query/,
+      `git ${args.join(" ")} must be refused`,
+    );
+  }
+
+  // Exactly the queries this tool makes, and nothing else, are admitted.
+  for (const args of [
+    ["rev-parse", "--is-inside-work-tree"],
+    ["rev-parse", "--show-toplevel"],
+    ["symbolic-ref", "--quiet", "--short", "HEAD"],
+    ["worktree", "list", "--porcelain"],
+    ["show-ref", "--verify", "--quiet", "refs/heads/main"],
+    ["show-ref", "--verify", "--quiet", "refs/heads/release/2026.1"],
+  ]) {
+    assertReadOnlyGit(args);
+  }
+
+  // One funnel, so no call can bypass the guard.
   const source = readFileSync(CLI, "utf8");
   assert.equal(
     (source.match(/spawnSync\(/g) ?? []).length,
     1,
     "every Git call must go through the single guarded funnel",
   );
-  assert.match(source, /const READ_ONLY = new Set\(\["rev-parse", "symbolic-ref", "show-ref", "worktree"\]\)/);
-  assert.match(source, /args\[0\] === "worktree" && args\[1\] !== "list"/);
-  assert.match(source, /refusing a Git subcommand that is not read-only/);
-  for (const mutating of ["checkout", "merge", "commit", "branch", "reset", "fetch", "push", "clean"]) {
-    assert.doesNotMatch(
-      source,
-      new RegExp(`READ_ONLY[^\\n]*${mutating}`),
-      `${mutating} must never be reachable`,
-    );
-  }
+  assert.match(source, /assertReadOnlyGit\(args\);/);
 });
 
 test("usage errors name the flag and exit 2", () => {
