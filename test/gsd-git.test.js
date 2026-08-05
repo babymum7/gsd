@@ -287,8 +287,38 @@ test("the read-only boundary rejects every mutating Git invocation", () => {
     assertReadOnlyGit(args);
   }
 
-  // One funnel, so no call can bypass the guard.
+});
+
+// The guard only guarantees anything if it is unavoidable. Counting `spawnSync` alone left
+// `execFileSync`, `exec`, `spawn`, and a dynamic import as ways to reach Git around it, so the
+// whole process-execution surface of this file is pinned: one import, one name, one call site.
+test("no Git call can reach a process except through the guard", () => {
   const source = readFileSync(CLI, "utf8");
+
+  const imports = [...source.matchAll(/import\s+\{([^}]*)\}\s+from\s+"node:child_process";/g)];
+  assert.equal(imports.length, 1, "child_process must be imported exactly once");
+  assert.deepEqual(
+    imports[0][1].split(",").map((name) => name.trim()).filter(Boolean),
+    ["spawnSync"],
+    "only the guarded runner may be imported",
+  );
+
+  // Every other route to a child process, including CommonJS and dynamic forms.
+  for (const escape of [
+    /\bexecSync\s*\(/,
+    /\bexecFileSync\s*\(/,
+    /\bexecFile\s*\(/,
+    /\bexec\s*\(/,
+    /\bspawn\s*\(/,
+    /\bfork\s*\(/,
+    /require\s*\(\s*["']child_process["']\s*\)/,
+    /require\s*\(\s*["']node:child_process["']\s*\)/,
+    /import\s*\(\s*["']n?o?d?e?:?child_process["']\s*\)/,
+    /from\s+["']child_process["']/,
+  ]) {
+    assert.doesNotMatch(source, escape, `${escape} would bypass the read-only guard`);
+  }
+
   assert.equal(
     (source.match(/spawnSync\(/g) ?? []).length,
     1,
