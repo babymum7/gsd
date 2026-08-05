@@ -143,6 +143,8 @@ test("base is derived from the work tree and owns the merge target", () => {
   assert.match(reference, PREFLIGHT);
   assert.match(reference, /a blocked gate never retargets the merge/);
   assert.match(reference, /run no Git subcommand that can change a repository/);
+  // A squash commits the whole index, so the gate must prove the reviewed tree is committed.
+  assert.match(reference, /`dirty-worktree` counts staged, modified, and untracked paths outside `\.scratch\//);
 
   // The planner captures it; the terminal gate consumes it. Neither may fall back to a default.
   assert.match(planner, /Read `plan\.md` § Base from the work tree, never from convention/);
@@ -151,6 +153,7 @@ test("base is derived from the work tree and owns the merge target", () => {
   assert.match(verify, /merge target is exactly the recorded `state\.toon` `base_ref`/);
   assert.match(verify, PREFLIGHT);
   assert.match(verify, /only `status: ready` proceeds/);
+  assert.match(verify, /no path outside `\.scratch\/` is staged, modified, or untracked/);
   assert.match(verify, /stops the gate instead of retargeting the merge/);
   assert.match(verify, /never ask whether to merge into `main`/);
   assert.match(verify, /Promoting that base onward is separate user-owned work/);

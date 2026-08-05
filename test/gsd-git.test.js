@@ -1,10 +1,18 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  mkdtempSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  utimesSync,
+  writeFileSync,
+} from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { execFileSync, spawnSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { writeStateAtomic } from "../extensions/gsd-context.js";
 import { assertReadOnlyGit } from "../tools/gsd-git.mjs";
 
@@ -44,6 +52,8 @@ function makePacket({ feature = "git-demo", base = "main" } = {}) {
   git(["config", "user.email", "test@example.com"], root);
   git(["config", "user.name", "test"], root);
   writeFileSync(join(root, "file.txt"), "base\n");
+  mkdirSync(join(root, "src"), { recursive: true });
+  writeFileSync(join(root, "src", "app.js"), "code\n");
   git(["add", "-A"], root);
   git(["commit", "-qm", "init"], root);
   git(["checkout", "-q", "-b", `wip/${feature}`], root);
@@ -114,10 +124,74 @@ test("preflight passes when the recorded base and WIP branch both still hold", (
     assert.equal(result.status, 0, result.stdout + result.stderr);
     assert.equal(
       result.stdout,
-      ["status: ready", "base: trunk", "wip: wip/ready-demo", "head: wip/ready-demo", ""].join("\n"),
+      [
+        "status: ready",
+        "base: trunk",
+        "wip: wip/ready-demo",
+        "head: wip/ready-demo",
+        "tree: clean outside .scratch/",
+        "",
+      ].join("\n"),
     );
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// Canon requires the reviewed non-scratch tree to match the recorded binding before the
+// squash, and the requirement has teeth: the commit after `git merge --squash` commits the
+// whole index, so a staged path outside `.scratch/` lands in the squash unreviewed.
+test("preflight blocks a dirty non-scratch tree and ignores scratch churn", () => {
+  const dirtyCases = [
+    {
+      label: "modified tracked file",
+      path: "src/app.js",
+      prepare: ({ root }) => writeFileSync(join(root, "src", "app.js"), "changed\n"),
+    },
+    {
+      label: "staged change",
+      path: "file.txt",
+      prepare: ({ root }) => {
+        writeFileSync(join(root, "file.txt"), "staged\n");
+        git(["add", "file.txt"], root);
+      },
+    },
+    {
+      label: "new untracked file",
+      path: "notes.md",
+      prepare: ({ root }) => writeFileSync(join(root, "notes.md"), "note\n"),
+    },
+    {
+      label: "staged rename",
+      path: "src/main.js",
+      prepare: ({ root }) => git(["mv", "src/app.js", "src/main.js"], root),
+    },
+  ];
+
+  for (const { label, path, prepare } of dirtyCases) {
+    const packet = makePacket({ feature: "dirty-demo", base: "trunk" });
+    try {
+      prepare(packet);
+      const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
+      assert.equal(result.status, 1, `${label} must block: ${result.stdout}`);
+      assert.match(result.stdout, /^code: dirty-worktree$/m, label);
+      // The record names the offending path, and a rename's origin is not counted twice.
+      assert.match(result.stdout, new RegExp(`1 non-scratch path\\(s\\)[^"]*${path.replace(".", "\\.")}`), label);
+    } finally {
+      rmSync(packet.root, { recursive: true, force: true });
+    }
+  }
+
+  // Review diffs exclude scratch, so the packet's own churn must never block its gate.
+  const packet = makePacket({ feature: "dirty-demo", base: "trunk" });
+  try {
+    writeFileSync(join(packet.root, packet.relative, "plan.md"), "# Plan\nrewritten\n");
+    writeFileSync(join(packet.root, packet.relative, "scratch-note.txt"), "working note\n");
+    const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
+    assert.equal(result.status, 0, `scratch churn must not block: ${result.stdout}`);
+    assert.match(result.stdout, /^tree: clean outside \.scratch\/$/m);
+  } finally {
+    rmSync(packet.root, { recursive: true, force: true });
   }
 });
 
@@ -230,10 +304,20 @@ test("neither command mutates the repository", () => {
       git(["reflog", "--format=%H%gd"], root),
       git(["config", "--local", "--list"], root),
     ].join("\n");
+  // Reading the tree must not even refresh the index stat cache, which plain `git status`
+  // rewrites; the snapshot above cannot see that, so hash the index bytes directly.
+  const indexDigest = () =>
+    createHash("sha256").update(readFileSync(join(root, ".git", "index"))).digest("hex");
   try {
     const before = snapshot();
+    // `snapshot()` just refreshed the cache, so stale it again: a plain `git status` would
+    // now rewrite the index, and the lock-free query this tool uses must not.
+    const future = new Date(Date.now() + 5000);
+    utimesSync(join(root, "file.txt"), future, future);
+    const indexBefore = indexDigest();
     assert.equal(cli(["preflight", "--feature-dir", relative], root).status, 0);
     assert.equal(cli(["derive-base"], root).status, 0);
+    assert.equal(indexDigest(), indexBefore, "the index must be byte-identical");
     assert.equal(snapshot(), before, "the repository must be unchanged");
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -265,6 +349,10 @@ test("the read-only boundary rejects every mutating Git invocation", () => {
     ["show-ref", "--verify", "--quiet", "refs/heads/../../evil"],
     ["show-ref", "--verify", "--quiet", "refs/heads/-x"],
     ["show-ref", "--verify", "--quiet", "refs/heads/"],
+    // Plain `status` may refresh the index stat cache, so only the lock-free form is a query.
+    ["status"],
+    ["status", "--porcelain=v1", "--untracked-files=all", "-z"],
+    ["--no-optional-locks", "status"],
     [],
   ];
   for (const args of rejected) {
@@ -280,6 +368,7 @@ test("the read-only boundary rejects every mutating Git invocation", () => {
     ["rev-parse", "--is-inside-work-tree"],
     ["rev-parse", "--show-toplevel"],
     ["symbolic-ref", "--quiet", "--short", "HEAD"],
+    ["--no-optional-locks", "status", "--porcelain=v1", "--untracked-files=all", "-z"],
     ["worktree", "list", "--porcelain"],
     ["show-ref", "--verify", "--quiet", "refs/heads/main"],
     ["show-ref", "--verify", "--quiet", "refs/heads/release/2026.1"],

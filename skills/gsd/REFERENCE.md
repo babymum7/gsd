@@ -433,9 +433,11 @@ At packet creation, before `wip/<feature>` exists, run `node "<GSD_ROOT>/tools/g
 
 A repository default, upstream branch, or naming convention is authoritative only when it is the checked-out branch; a linked worktree records its own branch; the base is never `wip/<feature>`.
 
-Before the squash run `node "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`. Exit 0 prints `status: ready` with the observed base, WIP branch, and attached HEAD; exit 1 prints `status: blocked` and a `code:` naming the drift, which blocks as Spec escalation, because a blocked gate never retargets the merge. Exit 2 corrects only the invocation.
+Before the squash run `node "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`. Exit 0 prints `status: ready` with the observed base, WIP branch, attached HEAD, and a tree clean outside `.scratch/`; exit 1 prints `status: blocked` and a `code:` naming the drift, which blocks as Spec escalation, because a blocked gate never retargets the merge. Exit 2 corrects only the invocation.
 
-The blocking codes are `detached-head`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `no-git-identity`, `unusable-branch-name`, `not-a-work-tree`, `state-unusable`, `git-query-failed`, and `git-unavailable`: a Git query that cannot answer blocks rather than reporting ready, because an unanswered query proves nothing. Both commands only ever read: they run no Git subcommand that can change a repository, and `preflight` inspects `state.toon` without migrating it.
+The blocking codes are `detached-head`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `no-git-identity`, `unusable-branch-name`, `not-a-work-tree`, `state-unusable`, `git-query-failed`, and `git-unavailable`: a Git query that cannot answer blocks rather than reporting ready, because an unanswered query proves nothing.
+
+`dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, because the commit that records a squash takes the whole index and would carry bytes no gate reviewed. Both commands only ever read: they run no Git subcommand that can change a repository, `status` runs lock-free so reading cannot refresh the index, and `preflight` inspects `state.toon` without migrating it.
 
 The terminal squash merges into exactly the recorded `base_ref`, so `main` is the merge target only when `main` is that base. Never ask whether to merge into `main` and never widen to the repository default. Promoting the base onward — into `main`, a release train, or a pull request — is separate user-owned work after the packet ends green.
 

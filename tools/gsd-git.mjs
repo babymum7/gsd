@@ -15,12 +15,14 @@ const VALUE_FLAGS = new Set(["--feature-dir", "--cwd"]);
 
 // A subcommand name is not a permission: `git symbolic-ref <name> <ref>` writes a ref and
 // `git symbolic-ref --delete <name>` removes one, so the boundary is the whole argv. These
-// four shapes are every query this tool makes; `show-ref` is the one with a variable
-// argument and is handled below.
+// five shapes are every query this tool makes; `show-ref` is the one with a variable
+// argument and is handled below. `status` runs under `--no-optional-locks` so that reading
+// the tree cannot even refresh the index's stat cache.
 const READ_ONLY = new Set([
   "rev-parse --is-inside-work-tree",
   "rev-parse --show-toplevel",
   "symbolic-ref --quiet --short HEAD",
+  "--no-optional-locks status --porcelain=v1 --untracked-files=all -z",
   "worktree list --porcelain",
 ]);
 const BRANCH_REF_PREFIX = "refs/heads/";
@@ -84,6 +86,7 @@ function emitHelp(command) {
       "  - base_ref resolves to a local branch able to receive the merge",
       "  - base_ref is not checked out in another linked worktree",
       "  - wip_branch resolves to a local branch",
+      "  - no path outside .scratch/ is uncommitted, staged, or untracked",
       "",
       "Blocked means the gate stops; it never retargets the merge.",
       "",
@@ -126,7 +129,9 @@ function git(args, cwd) {
   assertReadOnlyGit(args);
   const result = spawnSync("git", args, { cwd, encoding: "utf8", shell: false });
   if (result.error) blocked("git-unavailable", `git cannot be executed: ${result.error.message}`);
-  return { status: result.status, stdout: (result.stdout ?? "").trim() };
+  const stdout = result.stdout ?? "";
+  // `raw` matters for `status --porcelain -z`, whose records begin with a significant space.
+  return { status: result.status, stdout: stdout.trim(), raw: stdout };
 }
 
 function requireWorkTree(cwd) {
@@ -169,6 +174,30 @@ function checkedOutElsewhere(branch, cwd) {
     }
   }
   return null;
+}
+
+// Canon requires the reviewed non-scratch tree to match the recorded binding before the
+// squash. It is not cosmetic: the commit that follows `git merge --squash` commits the whole
+// index, so anything staged outside `.scratch/` rides into the squash without being reviewed
+// or covered by the conformance run, which proved only the current commit.
+function dirtyNonScratchPaths(cwd) {
+  const report = git(
+    ["--no-optional-locks", "status", "--porcelain=v1", "--untracked-files=all", "-z"],
+    cwd,
+  );
+  if (report.status !== 0) {
+    blocked("git-query-failed", "git could not report the working tree state, so it cannot be proven reviewed");
+  }
+  const records = report.raw.split("\0").filter((record) => record !== "");
+  const dirty = [];
+  for (let index = 0; index < records.length; index += 1) {
+    const record = records[index];
+    const path = record.slice(3);
+    // A rename or copy carries its origin path as the following record.
+    if (record[0] === "R" || record[0] === "C") index += 1;
+    if (!path.startsWith(".scratch/")) dirty.push(path);
+  }
+  return dirty;
 }
 
 function deriveBase(cwd) {
@@ -258,7 +287,21 @@ function preflight(cwd, featureDir) {
       `HEAD is detached, so no branch holds the work about to be squashed: check out ${wip} before the gate`,
     );
   }
-  write_(["status: ready", `base: ${base}`, `wip: ${wip}`, `head: ${head.stdout}`]);
+  const dirty = dirtyNonScratchPaths(cwd);
+  if (dirty.length > 0) {
+    const shown = dirty.slice(0, 3).join(", ");
+    blocked(
+      "dirty-worktree",
+      `${dirty.length} non-scratch path(s) are uncommitted, so the squash would carry unreviewed bytes: ${shown}${dirty.length > 3 ? ", …" : ""}`,
+    );
+  }
+  write_([
+    "status: ready",
+    `base: ${base}`,
+    `wip: ${wip}`,
+    `head: ${head.stdout}`,
+    "tree: clean outside .scratch/",
+  ]);
 }
 
 // Importable so the read-only boundary can be unit-tested directly; running the CLI stays the
