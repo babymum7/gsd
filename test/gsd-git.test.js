@@ -319,12 +319,21 @@ test("no Git call can reach a process except through the guard", () => {
     assert.doesNotMatch(source, escape, `${escape} would bypass the read-only guard`);
   }
 
+  // Counting call sites still allowed `const raw = spawnSync; raw("git", …)`, so the
+  // capability itself is pinned: it may appear exactly where it enters the module and exactly
+  // where it is used. Any alias, re-export, or second call site is a third occurrence.
   assert.equal(
-    (source.match(/spawnSync\(/g) ?? []).length,
-    1,
-    "every Git call must go through the single guarded funnel",
+    (source.match(/\bspawnSync\b/g) ?? []).length,
+    2,
+    "spawnSync may appear only as the import and the one guarded call",
   );
-  assert.match(source, /assertReadOnlyGit\(args\);/);
+
+  // And that one call must execute the argv the guard just checked, in that order.
+  assert.match(
+    source,
+    /assertReadOnlyGit\(args\);\n\s*const result = spawnSync\("git", args, \{ cwd, encoding: "utf8", shell: false \}\);/,
+    "the guarded argv must be exactly what reaches the process",
+  );
 });
 
 test("usage errors name the flag and exit 2", () => {
