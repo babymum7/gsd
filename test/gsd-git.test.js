@@ -145,12 +145,12 @@ test("preflight blocks a dirty non-scratch tree and ignores scratch churn", () =
   const dirtyCases = [
     {
       label: "modified tracked file",
-      path: "src/app.js",
+      paths: ["src/app.js"],
       prepare: ({ root }) => writeFileSync(join(root, "src", "app.js"), "changed\n"),
     },
     {
       label: "staged change",
-      path: "file.txt",
+      paths: ["file.txt"],
       prepare: ({ root }) => {
         writeFileSync(join(root, "file.txt"), "staged\n");
         git(["add", "file.txt"], root);
@@ -158,25 +158,36 @@ test("preflight blocks a dirty non-scratch tree and ignores scratch churn", () =
     },
     {
       label: "new untracked file",
-      path: "notes.md",
+      paths: ["notes.md"],
       prepare: ({ root }) => writeFileSync(join(root, "notes.md"), "note\n"),
     },
     {
+      // A rename affects both of its paths: the origin is deleted and the destination added.
       label: "staged rename",
-      path: "src/main.js",
+      paths: ["src/main.js", "src/app.js"],
       prepare: ({ root }) => git(["mv", "src/app.js", "src/main.js"], root),
+    },
+    {
+      // Git names only the destination first, so reading that record alone would clear a
+      // squash that deletes a reviewed file by hiding it in the packet's own scratch dir.
+      label: "reviewed file moved into scratch",
+      paths: ["src/app.js"],
+      prepare: ({ root, relative }) => git(["mv", "src/app.js", join(relative, "app.js")], root),
     },
   ];
 
-  for (const { label, path, prepare } of dirtyCases) {
+  for (const { label, paths, prepare } of dirtyCases) {
     const packet = makePacket({ feature: "dirty-demo", base: "trunk" });
     try {
       prepare(packet);
       const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
       assert.equal(result.status, 1, `${label} must block: ${result.stdout}`);
       assert.match(result.stdout, /^code: dirty-worktree$/m, label);
-      // The record names the offending path, and a rename's origin is not counted twice.
-      assert.match(result.stdout, new RegExp(`1 non-scratch path\\(s\\)[^"]*${path.replace(".", "\\.")}`), label);
+      // Every affected path outside scratch is counted exactly once and named.
+      assert.match(result.stdout, new RegExp(`${paths.length} non-scratch path\\(s\\)`), label);
+      for (const path of paths) {
+        assert.match(result.stdout, new RegExp(path.replace(/\./g, "\\.")), label);
+      }
     } finally {
       rmSync(packet.root, { recursive: true, force: true });
     }

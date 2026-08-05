@@ -145,6 +145,8 @@ test("base is derived from the work tree and owns the merge target", () => {
   assert.match(reference, /run no Git subcommand that can change a repository/);
   // A squash commits the whole index, so the gate must prove the reviewed tree is committed.
   assert.match(reference, /`dirty-worktree` counts staged, modified, and untracked paths outside `\.scratch\//);
+  // Git names only a rename's destination first, so counting one record hid a staged deletion.
+  assert.match(reference, /A rename or copy counts both of its paths, so moving a reviewed file into `\.scratch\/` still blocks/);
 
   // The planner captures it; the terminal gate consumes it. Neither may fall back to a default.
   assert.match(planner, /Read `plan\.md` § Base from the work tree, never from convention/);

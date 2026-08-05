@@ -437,7 +437,7 @@ Before the squash run `node "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-d
 
 The blocking codes are `detached-head`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `no-git-identity`, `unusable-branch-name`, `not-a-work-tree`, `state-unusable`, `git-query-failed`, and `git-unavailable`: a Git query that cannot answer blocks rather than reporting ready, because an unanswered query proves nothing.
 
-`dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, because the commit that records a squash takes the whole index and would carry bytes no gate reviewed. Both commands only ever read: they run no Git subcommand that can change a repository, `status` runs lock-free so reading cannot refresh the index, and `preflight` inspects `state.toon` without migrating it.
+`dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, because the commit that records a squash takes the whole index and would carry bytes no gate reviewed. A rename or copy counts both of its paths, so moving a reviewed file into `.scratch/` still blocks. Both commands only ever read: they run no Git subcommand that can change a repository, `status` runs lock-free so reading cannot refresh the index, and `preflight` inspects `state.toon` without migrating it.
 
 The terminal squash merges into exactly the recorded `base_ref`, so `main` is the merge target only when `main` is that base. Never ask whether to merge into `main` and never widen to the repository default. Promoting the base onward — into `main`, a release train, or a pull request — is separate user-owned work after the packet ends green.
 

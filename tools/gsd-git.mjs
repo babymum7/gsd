@@ -189,15 +189,21 @@ function dirtyNonScratchPaths(cwd) {
     blocked("git-query-failed", "git could not report the working tree state, so it cannot be proven reviewed");
   }
   const records = report.raw.split("\0").filter((record) => record !== "");
-  const dirty = [];
+  const dirty = new Set();
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
-    const path = record.slice(3);
-    // A rename or copy carries its origin path as the following record.
-    if (record[0] === "R" || record[0] === "C") index += 1;
-    if (!path.startsWith(".scratch/")) dirty.push(path);
+    const paths = [record.slice(3)];
+    // An index-side rename or copy reports its destination and carries its origin as the
+    // following record. Both are affected: `git mv src/app.js .scratch/<feature>/app.js`
+    // names only a scratch destination while staging the removal of a reviewed file, so
+    // reading the destination alone would clear a squash that deletes reviewed work.
+    if ((record[0] === "R" || record[0] === "C") && index + 1 < records.length) {
+      index += 1;
+      paths.push(records[index]);
+    }
+    for (const path of paths) if (!path.startsWith(".scratch/")) dirty.add(path);
   }
-  return dirty;
+  return [...dirty];
 }
 
 function deriveBase(cwd) {
