@@ -1,19 +1,9 @@
-import { test } from "node:test";
 import assert from "node:assert/strict";
 import { existsSync, readdirSync, readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync } from "node:fs";
 import nodeFs from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import {
-  bindApprovedSources, parseMarkdownPacket, parseQuickFixPlan, rejectLegacyPreapprovalFiles,
-  sha256, verifyApprovedSources, validateSectionEdges,
-} from "../../lib/gsd-contract.mjs";
-import {
-  parseActivationResponse, responseMatchesFixture, selectEvalBackend, validateActivationTarget,
-  validateFixtureSet,
-} from "../eval/activation-eval-contract.mjs";
-import gsdContextExtension, { CAPSULE_TEMPLATE } from "../../extensions/gsd-context.js";
 
 export { existsSync, readdirSync, readFileSync, mkdtempSync, mkdirSync, writeFileSync, rmSync, realpathSync, nodeFs, dirname, join, resolve, tmpdir };
 
@@ -51,7 +41,7 @@ export function parseAgentFrontmatter(content, label) {
       const match = text.match(/^([A-Za-z][A-Za-z0-9_-]*):(?:\s+(.*))?$/);
       if (!match) throw new Error(`${label}: malformed frontmatter line "${text}"`);
       const [, key, rawValue = ""] = match;
-      if (Object.prototype.hasOwnProperty.call(result, key)) throw new Error(`${label}: duplicate ${key}`);
+      if (Object.hasOwn(result, key)) throw new Error(`${label}: duplicate ${key}`);
       if (rawValue !== "") {
         result[key] = scalar(rawValue);
         index++;

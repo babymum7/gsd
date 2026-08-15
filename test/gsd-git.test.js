@@ -404,7 +404,7 @@ test("no Git call can reach a process except through the guard", () => {
   );
 
   // Every other route to a child process, including CommonJS and dynamic forms.
-  for (const escape of [
+  for (const escapePattern of [
     /\bexecSync\s*\(/,
     /\bexecFileSync\s*\(/,
     /\bexecFile\s*\(/,
@@ -416,7 +416,7 @@ test("no Git call can reach a process except through the guard", () => {
     /import\s*\(\s*["']n?o?d?e?:?child_process["']\s*\)/,
     /from\s+["']child_process["']/,
   ]) {
-    assert.doesNotMatch(source, escape, `${escape} would bypass the read-only guard`);
+    assert.doesNotMatch(source, escapePattern, `${escapePattern} would bypass the read-only guard`);
   }
 
   // Counting call sites still allowed `const raw = spawnSync; raw("git", …)`, so the

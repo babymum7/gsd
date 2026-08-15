@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { read, skillNames, filesUnder, ROOT, SKILLS } from "./support/skills-fixtures.js";
 import { existsSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 import {
   parseActivationResponse, responseMatchesFixture, selectEvalBackend, validateActivationTarget,
   validateFixtureSet,

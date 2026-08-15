@@ -322,8 +322,7 @@ test("capsule extension production API contract", async (t) => {
       // detectCandidates uses fs.opendirSync, so any readdirSync mock is ineffective.
       // createCapsule(["a".repeat(256)]) already validates renderer rejection.
       // detectCandidates simply skips non-existent entries.
-      let candidates;
-      ({ candidates } = detectCandidates(tempDir));
+      const { candidates } = detectCandidates(tempDir);
       // Expected active candidates sorted: feat-one, feat-six (overlong candidate feat7 is skipped)
       assert.deepEqual(candidates, ["feat-one", "feat-six"]);
       // 2. Test fake OMP API and event registration

@@ -208,7 +208,7 @@ test("rejects carriage return line endings", () => {
 
 test("writeStateAtomic produces canonical TOON format", () => {
   const { scratch } = tmpFeatureDir();
-  const result = writeStateAtomic(scratch, VALID_STATE);
+  const _result = writeStateAtomic(scratch, VALID_STATE);
   const raw = readFileSync(join(scratch, "state.toon"), "utf8");
 
   const lines = raw.trim().split("\n");

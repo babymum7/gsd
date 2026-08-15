@@ -8,8 +8,13 @@
   "engines": {
     "node": ">=20"
   },
-  "os": ["linux"],
+  "os": [
+    "linux"
+  ],
   "scripts": {
-    "test": "node --test --test-timeout=30000 test/*.test.js"
+    "test": "node --test --test-timeout=30000 test/*.test.js",
+    "lint": "npx --yes @biomejs/biome@2.5.8 lint .",
+    "format": "npx --yes @biomejs/biome@2.5.8 format --write",
+    "lint:shell": "shellcheck install.sh"
   }
 }

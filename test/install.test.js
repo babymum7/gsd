@@ -721,7 +721,7 @@ test("T4: OMP_AGENTS_DIR parent as symlink or file fails closed with exit 1", ()
 
 test("T4: special checkout/home paths with spaces, quotes, dollar signs, glob characters, and leading dashes", () => {
   const specialName = "-special $'*?[] workspace";
-  const { temporary, home, fakeBin, repo } = makeInstallFixture({ repoName: specialName });
+  const { temporary, fakeBin, repo } = makeInstallFixture({ repoName: specialName });
   
   const specialHome = join(temporary, `${specialName}_home`);
   mkdirSync(specialHome);
