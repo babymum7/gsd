@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { read, skillNames, visibleSkillNames, parseAgentFrontmatter, ROOT } from "./support/skills-fixtures.js";
 import { readdirSync } from "node:fs";
-import { join, resolve } from "node:path";
+import { join } from "node:path";
 
 test("every GSD skill has complete matching frontmatter", () => {
   for (const name of skillNames()) {
@@ -107,7 +107,7 @@ test("visible catalog descriptions stay within the injected byte budget", () => 
   assert.doesNotMatch(reference, /UTF-8 bytes\)/);
   assert.doesNotMatch(reference, /Byte-Budget Limits|Caps are a maximum/);
   assert.match(reference, /A rendered capsule over 4000 bytes fails closed/);
-  assert.match(read("extensions/gsd-context.js"), /1931|2058/);
+  assert.match(read("lib/gsd-bootstrap.mjs"), /1931|2058/);
   for (const name of skillNames()) {
     assert.doesNotMatch(read(`skills/${name}/SKILL.md`), /^triggers:/m, `${name} triggers`);
   }
