@@ -101,11 +101,17 @@ The current top-level session is the sole lifecycle authority. It interprets the
 docs/
 └── domain/                           # bounded-context domain shards
 extensions/
-└── gsd-context.js                    # only runtime entry point
+├── gsd-context.js                    # only runtime entry point (extension factory + facade)
+└── gsd-context.d.ts                  # hand-maintained public type surface
 lib/
-└── gsd-contract.mjs                 # executable full-plan and Quick-fix grammar
+├── gsd-contract.mjs                 # executable full-plan and Quick-fix grammar
+├── gsd-fs.mjs                       # fd-anchored TOCTOU-hardened file primitives
+├── gsd-state.mjs                    # state.toon schema, validation, and candidate discovery
+└── gsd-bootstrap.mjs                # skill catalog, bootstrap renderer, recovery capsule, message utils
 tools/
-└── gsd-contract.mjs                 # thin agent-facing validator CLI
+├── gsd-contract.mjs                 # plan and Quick-fix validator CLI
+├── gsd-git.mjs                      # read-only derive-base and preflight queries
+└── gsd-state.mjs                    # state.toon read/write/validate CLI
 skills/
 ├── gsd/                              # hidden session bootstrap + canonical reference
 ├── gsd-brainstorming/                # discovery and requirements convergence
@@ -119,6 +125,10 @@ skills/
 ├── gsd-domain-modeling/              # current bounded-context documentation
 └── gsd-codebase-architecture/        # named seams and scoped architecture audits
 ```
+
+`extensions/gsd-context.d.ts` is a hand-maintained public type surface for `gsd-context.js`; `test/gsd-context-dts.test.js` asserts the facade's runtime exports stay mirrored in it.
+
+Development checks: `npm test` runs the full suite; `npm run lint` runs Biome with the repository rule set (currently zero diagnostics); `npm run format -- <path>` reformats the passed JS/MJS/JSON files through Biome (the existing hand-formatted tree is intentionally not bulk-reformatted); `npm run lint:shell` checks `install.sh` and requires a `shellcheck` install.
 
 ## Plan contract validation
 
