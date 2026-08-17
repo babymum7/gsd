@@ -1,8 +1,8 @@
 #!/usr/bin/env node
 import { fileURLToPath } from "node:url";
-import { validatePlanFile } from "../lib/gsd-contract.mjs";
+import { analyzeParallelWaves, validatePlanFile } from "../lib/gsd-contract.mjs";
 
-const COMMANDS = new Set(["validate-plan", "validate-quick-fix"]);
+const COMMANDS = new Set(["validate-plan", "validate-quick-fix", "analyze-waves"]);
 
 // The lifecycle runs in workspaces that are not this checkout, so every help and error
 // surface names the path this process was actually loaded from. A repo-relative form here
@@ -26,7 +26,10 @@ function commandUsage(command) {
   if (command === "validate-quick-fix") {
     return `${INVOCATION} validate-quick-fix --path .scratch/<feature>/plan.md [--expected-base <branch>]`;
   }
-  return `${INVOCATION} <validate-plan|validate-quick-fix> --path <artifact>`;
+  if (command === "analyze-waves") {
+    return `${INVOCATION} analyze-waves --path .scratch/<feature>/plan.md [--expected-sha256 <64-hex>] [--expected-base <branch>]`;
+  }
+  return `${INVOCATION} <validate-plan|validate-quick-fix|analyze-waves> --path <artifact>`;
 }
 
 function emitHelp(command) {
@@ -107,7 +110,7 @@ function parseArguments(argv) {
       command,
     };
   }
-  if (command !== "validate-plan" && expectedSha256 !== null) {
+  if (command === "validate-quick-fix" && expectedSha256 !== null) {
     return { usageError: `${command} does not accept --expected-sha256`, command };
   }
   if (expectedBase !== null && !/^[a-zA-Z0-9_./-]+$/.test(expectedBase)) {
@@ -124,18 +127,25 @@ if (input.usageError) {
 } else {
   try {
     const result = validatePlanFile(input.planPath, {
-      kind: input.command === "validate-plan" ? "plan" : "quick-fix",
+      kind: input.command === "validate-quick-fix" ? "quick-fix" : "plan",
       expectedSha256: input.expectedSha256,
       expectedBase: input.expectedBase,
     });
-    write([
+    const lines = [
       "status: valid",
       `kind: ${result.kind}`,
       `feature: ${result.feature}`,
       `base: ${result.base}`,
       `sha256: ${result.sha256}`,
       `tasks: ${result.tasks}`,
-    ]);
+    ];
+    if (input.command === "analyze-waves") {
+      const waves = analyzeParallelWaves(result.parsed.tasks)
+        .map((wave) => wave.tasks.join(","))
+        .join("|");
+      lines.push(`waves: ${waves}`);
+    }
+    write(lines);
   } catch (error) {
     failArtifact(error, input.command);
   }

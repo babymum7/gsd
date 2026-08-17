@@ -8,13 +8,13 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md, plan.md, state.toon]
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: helper
-- Helper-when: must load when an observable task is selected or repaired inline; cannot be skipped while that condition holds
+- Helper-when: must load when an observable task is selected or repaired inline or in a wave-dispatched sub-agent; cannot be skipped while that condition holds
 - Do-not-load: primary skill selection; resource-heavy browser/E2E task loops
 - Transition: return green/red evidence to the session owner
 
 # Test-Driven Development
 
-> **Direct invocation guard** — internal helper only; an active owner composes it inline. Select an Invocation Mode, validate only that row's Required artifacts, and follow its Missing required action. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract and § Fast TDD and task-loop constraints.
+> **Direct invocation guard** — internal helper only; an active owner composes it inline or passes it to a wave-dispatched sub-agent. Select an Invocation Mode, validate only that row's Required artifacts, and follow its Missing required action. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract and § Fast TDD and task-loop constraints.
 
 ## Invocation modes
 
@@ -31,7 +31,7 @@ A **Fast TDD Check** is deterministic, local, and cheap enough for repeated RED�
 
 The validated task slice selects its focused test seam from the approved Markdown plan. Consume that exact slice and relevant pinned sections, including ordered Decisions, without reparsing plan/binding. Missing or mismatched pins block. Use the highest deterministic existing fast public seam; use a lower seam only for a plan-recorded constraint. Source-text assertions, private-helper probes, and test-only fakes cannot substitute for behavior.
 
-Keep RED/Green/refactor evidence in session-owner reporting/transcripts only; add no runtime schema.
+Keep RED/Green/refactor evidence in session-owner reporting/transcripts only; a wave-dispatched sub-agent returns its evidence to the session owner, and add no runtime schema.
 
 ## Anti-pattern: horizontal slices
 Never batch all tests before implementation. Use vertical tracer bullets: one focused public-seam test → every production layer required by the AC and live code → verified green; repeat. Do not assume a universal layer stack or stop at a test-only bypass.

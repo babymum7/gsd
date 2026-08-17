@@ -834,3 +834,212 @@ test("the validator resolves a foreign workspace by absolute script path", () =>
     rmSync(workspace, { recursive: true, force: true });
   }
 });
+
+function wavePlan(feature, tasks) {
+  const acTitles = new Map();
+  for (const [index, task] of tasks.entries()) {
+    const id = task.satisfies ?? `AC-${index + 1}`;
+    if (!acTitles.has(id)) acTitles.set(id, task.ac);
+  }
+  const criteria = [...acTitles.entries()]
+    .map(
+      ([id, title]) =>
+        [
+          `### ${id}: Analyze ${title}`,
+          "- **State:** active",
+          "- **Outcome:** The task criterion is proven.",
+          "- **Action:** Run the focused check.",
+          "- **Expected:** The check reports green.",
+        ].join("\n"),
+    )
+    .join("\n");
+  const interfaces = [...acTitles.keys()]
+    .map((id) => `| ${id} | production validator CLI | \`tools/gsd-contract.mjs\` | none |`)
+    .join("\n");
+  const taskBlocks = tasks
+    .map(
+      (task, index) =>
+        [
+          `### T${index + 1}: ${task.title}`,
+          `- **Satisfies:** ${task.satisfies ?? `AC-${index + 1}`}`,
+          "- **Files:**",
+          `  - \`${task.file}\` — create: implement the task`,
+          `- **Test:** \`${task.test}\``,
+          `- **Status:** ${task.status ?? "pending"}`,
+        ].join("\n"),
+    )
+    .join("\n");
+  return [
+    "# Plan",
+    "## Feature",
+    `\`${feature}\``,
+    "## Base",
+    "`main`",
+    "## Summary",
+    "Exercise parallel wave analysis.",
+    "## Context",
+    "gsd",
+    "## Domain Impact",
+    "- **Classification:** none",
+    "- **Contexts:** none",
+    "- **Documentation:** none",
+    "- **Broad bootstrap:** not-offered",
+    "- **Evidence:** This fixture changes no production term, invariant, workflow, outcome, relationship, policy, or context boundary.",
+    "## Scope",
+    "- Validate wave analysis.",
+    "## Acceptance Criteria",
+    criteria,
+    "## Decisions",
+    "None.",
+    "## Invariants",
+    "- **I-1:** Wave analysis never mutates the plan.",
+    "## Non-goals",
+    "- **NG-1:** No execution happens here.",
+    "## Interfaces",
+    "| Criterion | Seam | Path | Lower-seam reason |",
+    "| --- | --- | --- | --- |",
+    interfaces,
+    "## Publication",
+    "null",
+    "## Tasks",
+    taskBlocks,
+    "",
+  ].join("\n");
+}
+
+function runWaves(planPath, workspace, extraArgs = []) {
+  return spawnSync(process.execPath, [CLI, "analyze-waves", "--path", planPath, ...extraArgs], {
+    cwd: workspace,
+    encoding: "utf8",
+  });
+}
+
+test("analyze-waves groups file- and check-disjoint tasks into one parallel wave", () => {
+  const plan = wavePlan("wave-join", [
+    { title: "A", ac: "A", file: "src/a.js", test: "node --test test/a.test.js" },
+    { title: "B", ac: "B", file: "src/b.js", test: "node --test test/b.test.js" },
+    { title: "C", ac: "C", file: "src/c.js", test: "node --test test/c.test.js" },
+  ]);
+  const { workspace, planPath } = makePlanWorkspace("wave-join", plan);
+  try {
+    const result = runWaves(planPath, workspace);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stderr, "");
+    assert.match(result.stdout, /^status: valid\nkind: plan\nfeature: wave-join\n/);
+    assert.match(result.stdout, /waves: T1,T2,T3$/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("analyze-waves splits waves on shared files and shared checks", () => {
+  const plans = [
+    {
+      name: "shared-file",
+      tasks: [
+        { title: "A", ac: "A", file: "src/a.js", test: "node --test test/a.test.js" },
+        { title: "B", ac: "B", file: "src/b.js", test: "node --test test/b.test.js" },
+        { title: "C", ac: "C", file: "src/a.js", test: "node --test test/c.test.js" },
+        { title: "D", ac: "D", file: "src/d.js", test: "node --test test/d.test.js" },
+      ],
+      waves: "T1,T2|T3,T4",
+    },
+    {
+      name: "shared-check",
+      tasks: [
+        { title: "A", ac: "A", file: "src/a.js", test: "node --test test/a.test.js" },
+        { title: "B", ac: "B", file: "src/b.js", test: "node --test test/a.test.js" },
+        { title: "C", ac: "C", file: "src/c.js", test: "node --test test/c.test.js" },
+      ],
+      waves: "T1|T2,T3",
+    },
+  ];
+  for (const entry of plans) {
+    const plan = wavePlan(`wave-${entry.name}`, entry.tasks);
+    const { workspace, planPath } = makePlanWorkspace(`wave-${entry.name}`, plan);
+    try {
+      const result = runWaves(planPath, workspace);
+      assert.equal(result.status, 0, `${entry.name}: ${result.stderr || result.stdout}`);
+      assert.match(result.stdout, new RegExp(`waves: ${entry.waves.replaceAll(".", "\\.")}$`), entry.name);
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
+test("analyze-waves skips superseded tasks without letting them break a wave", () => {
+  // T2 is superseded and shares a file with T1; if it participated it would split the
+  // wave, so the surviving active tasks T1, T3, T4 must still group together.
+  const plan = wavePlan("wave-superseded", [
+    { title: "A", ac: "A", file: "src/a.js", test: "node --test test/a.test.js", status: "pending" },
+    { title: "B", ac: "B", file: "src/a.js", test: "node --test test/b.test.js", status: "superseded" },
+    { title: "C", ac: "B", file: "src/c.js", test: "node --test test/c.test.js", status: "pending", satisfies: "AC-2" },
+    { title: "D", ac: "C", file: "src/b.js", test: "node --test test/b.test.js", status: "pending", satisfies: "AC-3" },
+  ]);
+  const { workspace, planPath } = makePlanWorkspace("wave-superseded", plan);
+  try {
+    const result = runWaves(planPath, workspace);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /waves: T1,T3,T4$/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("analyze-waves accepts the bound hash and fails closed on drift", () => {
+  const plan = wavePlan("wave-bound", [
+    { title: "A", ac: "A", file: "src/a.js", test: "node --test test/a.test.js" },
+    { title: "B", ac: "B", file: "src/b.js", test: "node --test test/b.test.js" },
+  ]);
+  const { workspace, planPath } = makePlanWorkspace("wave-bound", plan);
+  try {
+    const bound = runWaves(planPath, workspace, ["--expected-sha256", createHash("sha256").update(plan).digest("hex")]);
+    assert.equal(bound.status, 0, bound.stderr || bound.stdout);
+    assert.match(bound.stdout, /waves: T1,T2$/);
+
+    const drifted = runWaves(planPath, workspace, ["--expected-sha256", "a".repeat(64)]);
+    assert.equal(drifted.status, 1);
+    assert.match(drifted.stdout, /code: invalid-artifact/);
+    assert.match(drifted.stdout, /hash mismatch after approval/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("analyze-waves rejects quick-fix grammar and enforces usage", () => {
+  const quickFix = [
+    "# Quick-fix Plan",
+    "## Feature",
+    "`wave-quick`",
+    "## Base",
+    "`main`",
+    "## Domain Impact",
+    "- **Classification:** none",
+    "- **Contexts:** none",
+    "- **Documentation:** none",
+    "- **Broad bootstrap:** not-offered",
+    "- **Evidence:** This fix changes no production term, invariant, workflow, outcome, relationship, policy, or context boundary.",
+    "## Tasks",
+    "### T1: Fix the value",
+    "- **Files:**",
+    "  - `src/a.js` — modify: correct the value",
+    "- **Test:** `node --test test/a.test.js`",
+    "",
+  ].join("\n");
+  const { workspace, planPath } = makePlanWorkspace("wave-quick", quickFix);
+  try {
+    const rejected = runWaves(planPath, workspace);
+    assert.equal(rejected.status, 1);
+    assert.match(rejected.stdout, /code: invalid-artifact/);
+
+    const missing = spawnSync(process.execPath, [CLI, "analyze-waves"], { cwd: workspace, encoding: "utf8" });
+    assert.equal(missing.status, 2);
+    assert.match(missing.stdout, /code: usage/);
+
+    const help = spawnSync(process.execPath, [CLI, "analyze-waves", "--help"], { cwd: workspace, encoding: "utf8" });
+    assert.equal(help.status, 0, help.stderr || help.stdout);
+    assert.match(help.stdout, /analyze-waves/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});

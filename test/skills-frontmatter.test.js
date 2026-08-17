@@ -43,6 +43,7 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
     "Feature cleanup",
     "Git/base/WIP/scratch mechanics",
     "Packet grammar",
+    "Parallel wave dispatch",
     "Plan amendment",
     "Post-approval pipeline contract",
     "Runtime state contract",
@@ -83,7 +84,7 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
         }
       });
   }
-  assert.equal(canon, 32, "the canon citation layer must stay fully covered");
+  assert.equal(canon, 36, "the canon citation layer must stay fully covered");
   assert.ok(artifact >= 2, `plan-section citations must stay qualified, found ${artifact}`);
 });
 
@@ -338,9 +339,12 @@ test("AC-4: Concision preserves semantic parity", () => {
   const MAX_BOOTSTRAP_WORDS = 1200;
   // Raised from 5600 in 2026-08 when Git base derivation and the pre-squash gate became
   // executable contracts: each tool moved into canon costs an invocation, its exit codes, and
-  // its read-only guarantee. The cap exists so the canon stays one on-demand read, so raising
-  // it again requires the same kind of stated reason, never a silent bump to fit new prose.
-  const MAX_REFERENCE_WORDS = 6000;
+  // its read-only guarantee. Raised again to 6100 in 2026-08 for the parallel-wave dispatch
+  // contract: the analyze-waves CLI invocation, its exit codes, the task-independence proof,
+  // and the sub-agent MUST/MUST-NOT and owner-reconcile rules are the same kind of executable
+  // contract. The cap exists so the canon stays one on-demand read, so raising it again
+  // requires the same kind of stated reason, never a silent bump to fit new prose.
+  const MAX_REFERENCE_WORDS = 6100;
   const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
   assert.equal(visible.length, 9);
