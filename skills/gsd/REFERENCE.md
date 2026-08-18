@@ -476,7 +476,7 @@ When archive-and-delete is selected:
 2. Write `docs/gsd/<feature>/archive/implementation.md` summarizing the feature outcome, changed paths, acceptance outcomes, and verification evidence.
 3. Do not copy legacy handoffs, immutable attempts, `result.toon`, or other rejected runtime history.
 4. If either archive destination already exists, fail closed and preserve prior content; never overwrite.
-5. Materialize and review the archive before squash so it lands in the same green one-feature/one-squash commit with the implementation; never create a second documentation commit after squash.
+5. Materialize and review the archive before squash so it lands in the same green one-feature/one-squash commit with the implementation; never create a second documentation commit after squash. The pre-squash `gsd-git.mjs preflight` verifies `archive/plan.md` is byte-for-byte the approved plan and `archive/implementation.md` is non-empty.
 6. After publication, delete `.scratch/<feature>/` as with ordinary delete disposition.
 
 Existing one-squash branch cleanup and scratch cleanup contracts remain intact.

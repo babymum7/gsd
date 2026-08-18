@@ -35,6 +35,7 @@ This skill is the **sole writer** of `docs/domain/index.md`, `docs/domain/<scope
 4. If broad bootstrap is selected, inspect only tracked production code, schemas, contracts, and tests; skip dependencies, generated output, vendored code, nested repositories, and ignored paths. Create only evidenced stable contexts. Broad selection never changes the feature's acceptance scope.
 5. Before approval, return the exact affected paths and write no target behavior. A preapproval bootstrap may describe only production behavior already shipped. During execution, update those paths to current production behavior in the same task as the implementing code. Never preserve obsolete behavior as history.
 6. Upsert one `## Domain documentation` section in the applicable `AGENTS.md`: preserve unrelated instructions, replace the existing canonical section when present, and never append a duplicate.
+7. Prove the whole model before returning: run `node "<GSD_ROOT>/tools/gsd-domain.mjs" validate --index docs/domain/index.md --agents AGENTS.md`. Exit 0 reports a complete, sorted, well-formed model; exit 1 is a malformed or inconsistent model to fix before returning.
 
 ## Bounded-context rules
 

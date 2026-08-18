@@ -13,6 +13,7 @@ import {
   serializeState,
   validateState,
   STATE_FIELD_ORDER,
+  detectCandidates,
 } from "../extensions/gsd-context.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -67,7 +68,7 @@ test("rejects = separator (legacy malformed format)", () => {
   writeFileSync(join(scratch, "state.toon"), "feature=bad\nphase=wrong\n");
   const r = cli(["validate-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 1, "should exit 1 on malformed input");
-  assert.match(r.stderr, /malformed row/);
+  assert.match(r.stdout, /malformed row/);
 });
 
 test("rejects missing required field", () => {
@@ -90,7 +91,7 @@ test("rejects missing required field", () => {
   writeFileSync(join(scratch, "state.toon"), content);
   const r = cli(["validate-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 1);
-  assert.match(r.stderr, /missing required field: phase/);
+  assert.match(r.stdout, /missing required field: phase/);
 });
 
 test("rejects wrong field order", () => {
@@ -113,7 +114,7 @@ test("rejects wrong field order", () => {
   writeFileSync(join(scratch, "state.toon"), content);
   const r = cli(["validate-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 1);
-  assert.match(r.stderr, /canonical order/);
+  assert.match(r.stdout, /canonical order/);
 });
 
 test("rejects unknown key", () => {
@@ -137,7 +138,7 @@ test("rejects unknown key", () => {
   writeFileSync(join(scratch, "state.toon"), content);
   const r = cli(["validate-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 1);
-  assert.match(r.stderr, /unknown key: plan_hash/);
+  assert.match(r.stdout, /unknown key: plan_hash/);
 });
 
 test("rejects invalid feature slug", () => {
@@ -161,7 +162,7 @@ test("rejects invalid feature slug", () => {
   writeFileSync(join(scratch, "state.toon"), content);
   const r = cli(["validate-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 1);
-  assert.match(r.stderr, /invalid feature slug/);
+  assert.match(r.stdout, /invalid feature slug/);
 });
 
 test("rejects wip_branch feature mismatch", () => {
@@ -184,8 +185,8 @@ test("rejects wip_branch feature mismatch", () => {
   writeFileSync(join(scratch, "state.toon"), content);
   const r = cli(["validate-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 1);
-  assert.match(r.stderr, /wip_branch feature mismatch/);
-  assert.match(r.stderr, /expected "wip\/test-feature"/, "error must name the expected branch");
+  assert.match(r.stdout, /wip_branch feature mismatch/);
+  assert.match(r.stdout, /wip\/test-feature/, "error must name the expected branch");
 });
 
 test("rejects blank lines", () => {
@@ -193,7 +194,7 @@ test("rejects blank lines", () => {
   writeFileSync(join(scratch, "state.toon"), "schema:v4\n\nfeature:test-feature\n");
   const r = cli(["validate-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 1);
-  assert.match(r.stderr, /blank lines are not allowed/);
+  assert.match(r.stdout, /blank lines are not allowed/);
 });
 
 test("rejects carriage return line endings", () => {
@@ -201,7 +202,7 @@ test("rejects carriage return line endings", () => {
   writeFileSync(join(scratch, "state.toon"), "schema:v4\r\nfeature:test-feature\r\n");
   const r = cli(["validate-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 1);
-  assert.match(r.stderr, /carriage return rejected/);
+  assert.match(r.stdout, /carriage return rejected/);
 });
 
 // ─── Canonical v4 write/readback ──────────────────────────────────────
@@ -292,7 +293,7 @@ test("CLI write-state rejects invalid JSON", () => {
     "--json", "{bad json}",
   ]);
   assert.equal(r.exitCode, 2);
-  assert.match(r.stderr, /invalid JSON/);
+  assert.match(r.stdout, /invalid JSON/);
 });
 
 test("CLI write-state rejects incomplete state", () => {
@@ -308,20 +309,20 @@ test("CLI write-state rejects incomplete state", () => {
 test("CLI missing --path gives usage error", () => {
   const r = cli(["read-state"]);
   assert.equal(r.exitCode, 2);
-  assert.match(r.stderr, /--path is required/);
+  assert.match(r.stdout, /--path is required/);
 });
 
 test("CLI missing command gives usage error", () => {
   const r = cli([]);
   assert.equal(r.exitCode, 2);
-  assert.match(r.stderr, /missing command/);
+  assert.match(r.stdout, /missing command/);
 });
 
 test("CLI flag without a value gives a naming usage error", () => {
   for (const flag of ["--path", "--feature-dir", "--json", "--json-file"]) {
     const r = cli(["write-state", flag]);
     assert.equal(r.exitCode, 2, `${flag} without value must be a usage error`);
-    assert.match(r.stderr, new RegExp(`\\${flag} requires a value`), `${flag} must be named`);
+    assert.match(r.stdout, new RegExp(`\\${flag} requires a value`), `${flag} must be named`);
   }
 });
 
@@ -331,7 +332,7 @@ test("CLI validate-state rejects a path whose basename is not state.toon", () =>
   writeFileSync(alias, "schema:v4\n");
   const r = cli(["validate-state", "--path", alias]);
   assert.equal(r.exitCode, 1);
-  assert.match(r.stderr, /expected state\.toon/);
+  assert.match(r.stdout, /expected state\.toon/);
 });
 
 test("CLI validate-state reports a legacy packet without migrating it; read-state migrates", () => {
@@ -400,8 +401,8 @@ test("CLI write-state --json-file rejects missing file", () => {
   const { scratch } = tmpFeatureDir();
   const r = cli(["write-state", "--feature-dir", scratch, "--json-file", "/nonexistent.json"]);
   assert.equal(r.exitCode, 2);
-  assert.match(r.stderr, /ENOENT/, "error must forward the underlying cause");
-  assert.match(r.stderr, /nonexistent\.json/, "error must name the offending file");
+  assert.match(r.stdout, /ENOENT/, "error must forward the underlying cause");
+  assert.match(r.stdout, /nonexistent\.json/, "error must name the offending file");
 });
 
 test("CLI write-state --json-file rejects non-JSON content", () => {
@@ -410,8 +411,8 @@ test("CLI write-state --json-file rejects non-JSON content", () => {
   writeFileSync(jsonPath, "{broken, not json");
   const r = cli(["write-state", "--feature-dir", scratch, "--json-file", jsonPath]);
   assert.equal(r.exitCode, 2);
-  assert.match(r.stderr, /invalid JSON/);
-  assert.match(r.stderr, /state-input\.json/, "error must name the offending file");
+  assert.match(r.stdout, /invalid JSON/);
+  assert.match(r.stdout, /state-input\.json/, "error must name the offending file");
   assert.equal(existsSync(join(scratch, "state.toon")), false, "no state.toon may be written");
 });
 
@@ -421,7 +422,7 @@ test("CLI write-state --json and --json-file are mutually exclusive", () => {
   writeFileSync(jsonPath, JSON.stringify(VALID_STATE));
   const r = cli(["write-state", "--feature-dir", scratch, "--json", "{}", "--json-file", jsonPath]);
   assert.equal(r.exitCode, 2);
-  assert.match(r.stderr, /mutually exclusive/);
+  assert.match(r.stdout, /mutually exclusive/);
 });
 
 test("CLI write-state --json-file survives apostrophes and multiline JSON", () => {
@@ -456,7 +457,7 @@ test("CLI missing --json and --json-file gives usage error", () => {
   const { scratch } = tmpFeatureDir();
   const r = cli(["write-state", "--feature-dir", scratch]);
   assert.equal(r.exitCode, 2);
-  assert.match(r.stderr, /--json or --json-file is required/);
+  assert.match(r.stdout, /--json or --json-file is required/);
 });
 
 // ─── Direct API tests (programmatic, no CLI) ──────────────────────────
@@ -586,4 +587,39 @@ test("every lifecycle Markdown file's state-write instructions use the CLI or de
     [],
     `Found state.toon write instructions without gsd-state.mjs/gsd-handoff:\n${violations.join("\n")}`
   );
+});
+
+test("detectCandidates surfaces a ledger-only feature for milestone recovery", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-milestone-discovery-"));
+  const ledger = (rows) => [
+    "# Milestones", "", "## Feature", "", "`demo-feature`", "", "## Base", "", "`main`", "",
+    "## Milestones", "", "| ID | Slug | Goal | Status |", "| --- | --- | --- | --- |",
+    ...rows,
+  ].join("\n") + "\n";
+  const docsDir = join(dir, "docs", "gsd", "demo-feature");
+  mkdirSync(docsDir, { recursive: true });
+
+  // A pending ledger with no scratch packet is an incomplete feature to recover.
+  writeFileSync(join(docsDir, "milestones.md"), ledger([
+    "| M1 | auth-login | Add password login | done |",
+    "| M2 | auth-mfa | Add MFA enrollment | pending |",
+  ]));
+  assert.deepEqual(detectCandidates(dir).candidates, ["demo-feature"]);
+
+  // An all-done ledger is a stale residual, not an active candidate.
+  writeFileSync(join(docsDir, "milestones.md"), ledger(["| M1 | auth-login | Add password login | done |"]));
+  assert.deepEqual(detectCandidates(dir).candidates, []);
+
+  // A ledger whose Feature slug does not match its directory is not authoritative.
+  writeFileSync(join(docsDir, "milestones.md"), ledger(["| M1 | auth-login | Add password login | pending |"]).replace("`demo-feature`", "`other-feature`"));
+  assert.deepEqual(detectCandidates(dir).candidates, []);
+
+  // An existing scratch packet is the lifecycle authority and is never shadowed by a ledger.
+  writeFileSync(join(docsDir, "milestones.md"), ledger(["| M1 | auth-login | Add password login | pending |"]));
+  const scratch = join(dir, ".scratch", "demo-feature");
+  mkdirSync(scratch, { recursive: true });
+  writeFileSync(join(scratch, "plan.md"), "# Plan\n");
+  assert.deepEqual(detectCandidates(dir).candidates, []);
+
+  rmSync(dir, { recursive: true, force: true });
 });

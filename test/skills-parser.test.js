@@ -5,8 +5,8 @@ import {
   replaceOnce, read,
 } from "./support/skills-fixtures.js";
 import {
-  bindApprovedSources, isSafeBranchRef, parseMarkdownPacket, parseQuickFixPlan,
-  rejectLegacyPreapprovalFiles, sha256, verifyApprovedSources, validateSectionEdges,
+  isSafeBranchRef, parseMarkdownPacket, parseQuickFixPlan,
+  sha256, verifyApprovedSources, validateSectionEdges,
 } from "../lib/gsd-contract.mjs";
 
 test("structured task file intents parse deterministically", () => {
@@ -101,7 +101,7 @@ test("domain-impact packet grammar is mandatory in every validation path", () =>
   );
   const legacyFiles = { "plan.md": legacyPlan };
   const legacyBinding = { "plan.md": sha256(legacyPlan) };
-  assert.throws(() => bindApprovedSources(legacyFiles), /Domain Impact|section/i);
+
   assert.throws(() => verifyApprovedSources(legacyFiles, legacyBinding), /Domain Impact|section/i);
   assert.throws(
     () => verifyApprovedSources({ "plan.md": `${legacyPlan}\n` }, legacyBinding),
@@ -221,7 +221,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   const parsed = parseMarkdownPacket(files);
   assert.equal(parsed.feature, "canonical-fixture");
   assert.deepEqual(parsed.tasks.map(({ id }) => id), ["T1"]);
-  const binding = bindApprovedSources(files);
+  const binding = { "plan.md": sha256(files["plan.md"]) };
   assert.deepEqual(verifyApprovedSources(files, binding), binding);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("**State:** active", "**State:** draft") }), /invalid state/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.", "- **Expected:** Return the matching feature and acceptance criterion.\n- **Action:** Parse the approved Markdown plan.") }), /fields must be exactly ordered/);
@@ -237,21 +237,17 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   assert.throws(() => parseMarkdownPacket({ ...files, "proposal.md": "" }), /legacy multi-file state/);
   assert.throws(() => parseMarkdownPacket({ ...files, "spec.md": "" }), /legacy multi-file state/);
   assert.doesNotThrow(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("`node --test test/skills.test.js`", "`none`") }));
-  // Negative parse and bindApprovedSources tests for Feature extra line, unbackticked Base, prose Scope, and extra source key
+  // Negative parse tests for Feature extra line, unbackticked Base, and prose Scope.
   const featureExtraLinePlan = files["plan.md"].replace("## Feature\n`canonical-fixture`", "## Feature\n`canonical-fixture`\nextra line");
   assert.throws(() => parseMarkdownPacket({ "plan.md": featureExtraLinePlan }), /Feature must be/);
-  assert.throws(() => bindApprovedSources({ "plan.md": featureExtraLinePlan }), /Feature must be/);
 
   const unbacktickedBasePlan = files["plan.md"].replace("## Base\n`main`", "## Base\nmain");
   assert.throws(() => parseMarkdownPacket({ "plan.md": unbacktickedBasePlan }), /Base must be/);
-  assert.throws(() => bindApprovedSources({ "plan.md": unbacktickedBasePlan }), /Base must be/);
 
   const proseScopePlan = files["plan.md"].replace("## Scope\n- Validate plan", "## Scope\nValidate plan");
   assert.throws(() => parseMarkdownPacket({ "plan.md": proseScopePlan }), /Scope line 1 must be a bullet point/);
-  assert.throws(() => bindApprovedSources({ "plan.md": proseScopePlan }), /Scope line 1 must be a bullet point/);
 
   assert.throws(() => parseMarkdownPacket({ ...files, "extra.md": "# Extra" }), /files mapping must contain exactly plan.md/);
-  assert.throws(() => bindApprovedSources({ ...files, "extra.md": "# Extra" }), /files mapping must contain exactly plan.md/);
   
   const publishedPlan = files["plan.md"]
     .replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/milestones.md`")
@@ -935,11 +931,6 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   multiAc10Plan = replaceSection(multiAc10Plan, "Tasks", taskBlocks);
 
   assert.doesNotThrow(() => parseMarkdownPacket({ ...files, "plan.md": multiAc10Plan }));
-});
-
-test("legacy pre-approval TOON is explicitly rejected", () => {
-  assert.throws(() => rejectLegacyPreapprovalFiles(["proposal.toon", "spec.toon"]), /not authoritative/);
-  assert.doesNotThrow(() => rejectLegacyPreapprovalFiles(["handoff-1.toon", "result.toon"]));
 });
 
 // The recorded base is the merge target, so a Git command consumes it verbatim. Anything Git

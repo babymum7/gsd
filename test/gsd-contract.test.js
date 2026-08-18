@@ -199,6 +199,16 @@ test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks
     "- **Test:** `node --test test/gsd-contract.test.js`",
     "- **Status:** pending",
   ]);
+  // `docs/domain/index.md` and `AGENTS.md` follow the same ownership rule as a shard: a
+  // doc-only task that owns either changes nothing it describes.
+  const indexOnlyOwner = appendTask(withSecondCriterion(owned.replace("`owned`", "`index-only`")), [
+    "### T2: Restate the index",
+    "- **Satisfies:** AC-2",
+    "- **Files:**",
+    "  - `docs/domain/index.md` \u2014 modify: keep the index current",
+    "- **Test:** `node --test test/gsd-contract.test.js`",
+    "- **Status:** pending",
+  ]);
 
   const missing = /must own affected domain shard: docs\/domain\/gsd\.md/;
   const cases = [
@@ -217,6 +227,12 @@ test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks
       content: trailingDocsOwner,
       status: 1,
       expect: /in a task that also changes the semantic code[\s\S]*T2 does not/,
+    },
+    {
+      feature: "index-only",
+      content: indexOnlyOwner,
+      status: 1,
+      expect: /docs\/domain\/index\.md[\s\S]*T2 does not/,
     },
   ].map((entry) => ({ ...entry, ...makePlanWorkspace(entry.feature, entry.content) }));
 

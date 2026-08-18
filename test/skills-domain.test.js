@@ -138,16 +138,17 @@ test("T7: the domain shard records the shipped harness-fit behavior", () => {
   // D-3 gives this shard one owning task, so every semantic change this feature
   // shipped must be readable as current production behavior here, not only in the
   // authority documents the tasks edited.
-  const invocation = domain.split("\n").find((line) => /^- The Contract Validator is invoked/.test(line));
-  assert.ok(invocation, "the shard records how the validator is invoked");
-  assert.match(invocation, /GSD_ROOT/, "the invocation names the injected root");
-  assert.match(invocation, /bootstrap text|not an? (?:exported )?environment variable/i, "the invocation explains why substitution is required");
+  const invocation = domain.split("\n").find((line) => /^- The Contract Validator is reached/.test(line));
+  assert.ok(invocation, "the shard records how the validator is reached");
+  assert.match(invocation, /absolute path/, "the validator is reached by an absolute path");
+  assert.match(invocation, /injected bootstrap root/, "the path is resolved from the injected root");
+  assert.match(invocation, /workspaces that are not the GSD checkout/, "the absolute form serves foreign workspaces");
 
   const failure = domain.split("\n").find((line) => /^- An unreadable artifact/.test(line));
-  assert.ok(failure, "the shard records the failure-code split");
-  assert.match(failure, /io-error/, "the split names the I/O failure code");
-  assert.match(failure, /invalid-artifact/, "the split names the malformed-authority code");
-  assert.match(failure, /exit 1/, "both failure classes keep exit 1");
+  assert.ok(failure, "the shard records the failure-class split");
+  assert.match(failure, /could not read a file/, "the split names the unreadable-file class");
+  assert.match(failure, /malformed authority/, "the split names the malformed-authority class");
+  assert.match(failure, /never one collapsed status/, "the two classes stay distinguishable");
 
   const delegation = domain.split("\n").find((line) => /^- An injected orchestration/.test(line));
   assert.ok(delegation, "the shard records the delegation bound");
@@ -164,7 +165,7 @@ test("T7: the domain shard records the shipped harness-fit behavior", () => {
   assert.match(recovery, /rewind/i, "the exclusion names conversation rewind");
   assert.match(recovery, /working tree|committed WIP/i, "the exclusion names the tree the rewind leaves behind");
 
-  const policy = domain.split(/^### P-gsd-18: /m)[1]?.split(/^### /m)[0];
+  const policy = domain.split(/^### P-gsd-16: /m)[1]?.split(/^### /m)[0];
   assert.ok(policy, "the shard records the harness-boundary policy");
   assert.match(policy, /- \*\*Policy:\*\*/, "the policy states its rule");
   assert.match(policy, /- \*\*Reason:\*\*/, "the policy states its reason");

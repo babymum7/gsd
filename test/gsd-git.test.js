@@ -264,6 +264,55 @@ test("preflight blocks every way the recorded Git identity can stop holding", ()
   }
 });
 
+test("preflight verifies archive-and-delete materialized the exact approved plan", () => {
+  const { root, feature, relative } = makePacket({ feature: "archive-demo", base: "trunk" });
+  const featureDir = join(root, ".scratch", feature);
+  try {
+    writeStateAtomic(featureDir, {
+      schema: "v4",
+      feature,
+      phase: "verifying",
+      next_action: "terminal gate",
+      plan_path: `.scratch/${feature}/plan.md`,
+      plan_sha256: "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386",
+      base_ref: "trunk",
+      wip_branch: `wip/${feature}`,
+      last_green_task: "T1",
+      last_green_commit: git(["rev-parse", "HEAD"], root),
+      autosync: "none",
+      cleanup_preference: "archive-and-delete",
+      checkpoint_revision: "1",
+    });
+
+    // No archive yet: the gate blocks instead of squashing an undocumented feature.
+    let result = cli(["preflight", "--feature-dir", relative], root);
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^code: archive-missing$/m);
+
+    // A rewritten archive plan is not the approved bytes and must not ride into the squash.
+    // The archive lands on the WIP branch first, so the reviewed tree is clean at the gate.
+    const archiveDir = join(root, "docs", "gsd", feature, "archive");
+    mkdirSync(archiveDir, { recursive: true });
+    writeFileSync(join(archiveDir, "plan.md"), "# Rewritten\n");
+    writeFileSync(join(archiveDir, "implementation.md"), "Feature outcome summary.\n");
+    git(["add", "-A"], root);
+    git(["commit", "-qm", "materialize archive"], root);
+    result = cli(["preflight", "--feature-dir", relative], root);
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^code: archive-plan-mismatch$/m);
+
+    // The exact approved bytes pass, and the gate reports ready.
+    writeFileSync(join(archiveDir, "plan.md"), readFileSync(join(featureDir, "plan.md")));
+    git(["add", "-A"], root);
+    git(["commit", "-qm", "fix archive plan"], root);
+    result = cli(["preflight", "--feature-dir", relative], root);
+    assert.equal(result.status, 0, result.stdout);
+    assert.match(result.stdout, /^status: ready$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("both commands refuse a directory that is not a Git work tree", () => {
   const bare = mkdtempSync(join(tmpdir(), "gsd-git-bare-"));
   try {
@@ -442,7 +491,8 @@ test("usage errors name the flag and exit 2", () => {
     for (const args of [["preflight"], ["preflight", "--feature-dir"], ["nonsense"], []]) {
       const result = cli(args, root);
       assert.equal(result.status, 2, `${args.join(" ")}: ${result.stdout}${result.stderr}`);
-      assert.match(result.stderr, /^gsd-git: /m);
+      assert.match(result.stdout, /^status: error$/m);
+      assert.match(result.stdout, /^code: usage$/m);
     }
     const help = cli(["--help", "preflight"], root);
     assert.equal(help.status, 0, help.stderr);

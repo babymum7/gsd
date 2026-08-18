@@ -7,15 +7,13 @@
 // ledger when that row is the final milestone.
 import { readFileSync, rmSync, writeFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { MILESTONE_BRANCH_RE, MILESTONE_SLUG_RE, parseMilestoneLedger } from "../lib/gsd-milestone.mjs";
 
 const COMMANDS = new Set(["validate", "complete"]);
 const VALUE_FLAGS = new Set(["--path", "--expected-feature", "--expected-base"]);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const INVOCATION = `node ${JSON.stringify(SCRIPT_PATH)}`;
-
-const SLUG_RE = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-const BRANCH_RE = /^[a-zA-Z0-9_./-]+$/;
 
 function quote(value) {
   return JSON.stringify(String(value));
@@ -69,93 +67,6 @@ function failIo(message, command) {
   process.exitCode = 1;
 }
 
-// Parse the canonical ledger grammar and return { feature, base, rows, rowLines }. Rows carry
-// the 0-based line index of their table row so `complete` can replace exactly one cell.
-function parseLedger(content) {
-  if (content.includes("\r")) {
-    throw new Error("carriage return rejected");
-  }
-  const lines = content.split("\n");
-  // A trailing newline yields one empty final element; strip it before shape checks.
-  if (lines.at(-1) === "") lines.pop();
-  if (lines.length === 0) {
-    throw new Error("ledger is empty");
-  }
-
-  const expect = (index, expected) => {
-    const actual = lines[index];
-    if (actual !== expected) {
-      throw new Error(`line ${index + 1} must be ${JSON.stringify(expected)}`);
-    }
-  };
-  const requireLine = (index, label) => {
-    const actual = lines[index];
-    if (actual === undefined || actual === "") {
-      throw new Error(`missing ${label}`);
-    }
-    return actual;
-  };
-
-  expect(0, "# Milestones");
-  expect(1, "");
-  expect(2, "## Feature");
-  expect(3, "");
-  const featureLine = requireLine(4, "feature value");
-  const featureMatch = featureLine.match(/^`([^`]+)`$/);
-  if (!featureMatch || !SLUG_RE.test(featureMatch[1])) {
-    throw new Error("## Feature must be one backtick-quoted lowercase kebab-case slug");
-  }
-  expect(5, "");
-  expect(6, "## Base");
-  expect(7, "");
-  const baseLine = requireLine(8, "base value");
-  const baseMatch = baseLine.match(/^`([^`]+)`$/);
-  if (!baseMatch || !BRANCH_RE.test(baseMatch[1])) {
-    throw new Error("## Base must be one backtick-quoted branch name");
-  }
-  expect(9, "");
-  expect(10, "## Milestones");
-  expect(11, "");
-  expect(12, "| ID | Slug | Goal | Status |");
-  expect(13, "| --- | --- | --- | --- |");
-
-  const rows = [];
-  const rowLines = [];
-  let seenPending = false;
-  for (let index = 14; index < lines.length; index += 1) {
-    const line = lines[index];
-    if (line === "") {
-      throw new Error(`line ${index + 1} must not be blank`);
-    }
-    const match = line.match(/^\| (M[1-9]\d*) \| ([a-z0-9]+(?:-[a-z0-9]+)*) \| ([^|]+) \| (pending|done) \|$/);
-    if (!match) {
-      throw new Error(`line ${index + 1} is not a valid milestone row`);
-    }
-    const [, id, slug, goal, status] = match;
-    if (id !== `M${rows.length + 1}`) {
-      throw new Error(`milestone IDs must be sequential; expected M${rows.length + 1}, got ${id}`);
-    }
-    if (status === "pending") seenPending = true;
-    if (status === "done" && seenPending) {
-      throw new Error("done rows must form a prefix; a done row may not follow a pending row");
-    }
-    rows.push({ id, slug, goal, status });
-    rowLines.push(index);
-  }
-  if (rows.length === 0) {
-    throw new Error("## Milestones must contain at least one row");
-  }
-  if (rows.every((row) => row.status === "done")) {
-    throw new Error("a ledger with no pending row is a stale lifecycle residual, not a completed canonical ledger");
-  }
-  const slugs = new Set(rows.map((row) => row.slug));
-  if (slugs.size !== rows.length) {
-    throw new Error("milestone slugs must be unique");
-  }
-
-  return { feature: featureMatch[1], base: baseMatch[1], rows, rowLines, lines };
-}
-
 function parseArguments(argv) {
   const [command, ...args] = argv;
   if (!command) return { usageError: "a milestone command is required", command: null };
@@ -192,10 +103,10 @@ function parseArguments(argv) {
   }
 
   if (path === null) return { usageError: "--path is required", command };
-  if (expectedFeature !== null && !SLUG_RE.test(expectedFeature)) {
+  if (expectedFeature !== null && !MILESTONE_SLUG_RE.test(expectedFeature)) {
     return { usageError: "--expected-feature must be a lowercase kebab-case slug", command };
   }
-  if (expectedBase !== null && !BRANCH_RE.test(expectedBase)) {
+  if (expectedBase !== null && !MILESTONE_BRANCH_RE.test(expectedBase)) {
     return { usageError: "--expected-base must be one branch name", command };
   }
   return { command, path, expectedFeature, expectedBase };
@@ -210,7 +121,7 @@ function readLedger(path, command) {
     return null;
   }
   try {
-    return parseLedger(content);
+    return parseMilestoneLedger(content);
   } catch (error) {
     failLedger(error.message, command);
     return null;

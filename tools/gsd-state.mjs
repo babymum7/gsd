@@ -103,19 +103,22 @@ function emitHelp(command) {
   ]);
 }
 
+function quote(value) {
+  return JSON.stringify(String(value));
+}
+
 function failUsage(message, command = null) {
-  process.stderr.write(`gsd-state: ${message}\n`);
-  if (command) {
-    process.stderr.write(`Usage: ${commandUsage(command)}\n`);
-  } else {
-    process.stderr.write(`Usage: ${commandUsage(null)}\n`);
-    process.stderr.write("Use --help for available commands.\n");
-  }
+  write_(["status: error", "code: usage", `error: ${quote(message)}`, `help: ${quote(commandUsage(command))}`]);
   process.exit(2);
 }
 
 function failArtifact(error, command) {
-  process.stderr.write(`gsd-state: ${command}: ${error.message}\n`);
+  const message = String(error?.message ?? error)
+    .replace(/[\x00-\x1F\x7F]+/g, " ")
+    .trim()
+    .slice(0, 500) || "state validation failed";
+  const code = error?.contractFailure === "io-error" ? "io-error" : "invalid-artifact";
+  write_(["status: error", `code: ${code}`, `error: ${quote(message)}`, `help: ${quote(commandUsage(command))}`]);
   process.exit(1);
 }
 

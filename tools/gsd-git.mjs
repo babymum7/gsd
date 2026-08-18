@@ -6,7 +6,7 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { realpathSync } from "node:fs";
+import { readFileSync, realpathSync } from "node:fs";
 import { isSafeBranchRef } from "../lib/gsd-contract.mjs";
 import { inspectStateFile } from "../lib/gsd-state.mjs";
 
@@ -112,9 +112,7 @@ function emitHelp(command) {
 }
 
 function failUsage(message, command = null) {
-  process.stderr.write(`gsd-git: ${message}\n`);
-  process.stderr.write(`Usage: ${commandUsage(command)}\n`);
-  if (!command) process.stderr.write("Use --help for available commands.\n");
+  write_(["status: error", "code: usage", `error: ${JSON.stringify(message)}`, `help: ${JSON.stringify(commandUsage(command))}`]);
   process.exit(2);
 }
 
@@ -254,6 +252,42 @@ function parseArguments(argv) {
   return result;
 }
 
+// Archive-and-delete materializes non-authoritative history before the squash, but the
+// contract (skills/gsd/REFERENCE.md § Feature archive contract) was prose-only, so nothing
+// could tell a correct copy from a forgotten or rewritten one. The pre-squash gate verifies
+// the archive exists and the archived plan is the exact approved bytes before it lands.
+function verifyArchive(cwd, featureDir, state) {
+  if (state.cleanup_preference !== "archive-and-delete") return;
+  const archiveDir = join(cwd, "docs", "gsd", state.feature, "archive");
+  const scratchPlanPath = join(cwd, featureDir, "plan.md");
+  const archivePlanPath = join(archiveDir, "plan.md");
+  const implementationPath = join(archiveDir, "implementation.md");
+  let scratchPlan;
+  let archivePlan;
+  try {
+    scratchPlan = readFileSync(scratchPlanPath);
+  } catch (error) {
+    blocked("archive-source-missing", `cannot read approved plan ${scratchPlanPath}: ${error.message}`);
+  }
+  try {
+    archivePlan = readFileSync(archivePlanPath);
+  } catch (error) {
+    blocked("archive-missing", `archive-and-delete requires ${archivePlanPath}: ${error.message}`);
+  }
+  if (!scratchPlan.equals(archivePlan)) {
+    blocked("archive-plan-mismatch", `${archivePlanPath} must be byte-for-byte the approved .scratch plan`);
+  }
+  let implementation;
+  try {
+    implementation = readFileSync(implementationPath, "utf8");
+  } catch (error) {
+    blocked("archive-missing", `archive-and-delete requires ${implementationPath}: ${error.message}`);
+  }
+  if (implementation.trim() === "") {
+    blocked("archive-implementation-empty", `${implementationPath} must summarize the feature outcome`);
+  }
+}
+
 function preflight(cwd, featureDir) {
   requireWorkTree(cwd);
   let state;
@@ -301,6 +335,7 @@ function preflight(cwd, featureDir) {
       `${dirty.length} non-scratch path(s) are uncommitted, so the squash would carry unreviewed bytes: ${shown}${dirty.length > 3 ? ", …" : ""}`,
     );
   }
+  verifyArchive(cwd, featureDir, state);
   write_([
     "status: ready",
     `base: ${base}`,
