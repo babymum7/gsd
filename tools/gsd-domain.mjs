@@ -43,7 +43,7 @@ function emitHelp() {
     "",
     "Flags:",
     "  --index   Path to docs/domain/index.md. Shards resolve beside it.",
-    "  --agents  Path to AGENTS.md; optional, validates its domain section.",
+    "  --agents  Path to AGENTS.md; optional, validates its documentation sections.",
   ]);
   process.exitCode = 0;
 }
@@ -141,17 +141,22 @@ function runValidate({ index, agents, command }) {
     failDomain(`orphan shard files without an index row: ${orphans.join(", ")}`);
     return;
   }
+  let sections = null;
   if (agents !== null) {
     const agentsContent = readText(agents, command);
     if (agentsContent === null) return;
     try {
-      parseAgentsDomainSection(agentsContent);
+      sections = parseAgentsDomainSection(agentsContent);
     } catch (error) {
       failDomain(`${agents}: ${error.message}`);
       return;
     }
   }
-  write(["status: valid", `scopes: ${parsed.scopes.length}`]);
+  const output = ["status: valid", `scopes: ${parsed.scopes.length}`];
+  if (sections !== null) {
+    output.push(`sections: ${Object.keys(sections).join(", ")}`);
+  }
+  write(output);
 }
 
 const input = parseArguments(process.argv.slice(2));

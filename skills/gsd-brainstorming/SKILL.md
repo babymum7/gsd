@@ -1,7 +1,7 @@
 ---
 name: gsd-brainstorming
 description: "Converge non-trivial new/changed product behavior into acceptance, then load gsd-to-plan."
-produces: []
+produces: [docs/decisions/NNNN-slug.md]
 consumes: []
 ---
 
@@ -13,7 +13,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 # GSD Brainstorming
 
-> **Invocation guard** — this skill owns pre-approval discovery and convergence only. It creates no artifact. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract after selecting an invocation mode. Read-only questions, Nano edits, known single-spot fixes, bounded delegated tasks, and already-converged approved work do not enter this skill.
+> **Invocation guard** — this skill owns pre-approval discovery and convergence only. It creates no plan, state, or TOON artifact; its one durable write is a decision record for a settled load-bearing tradeoff. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract after selecting an invocation mode. Read-only questions, Nano edits, known single-spot fixes, bounded delegated tasks, and already-converged approved work do not enter this skill.
 
 ## Invocation modes
 
@@ -48,6 +48,10 @@ Pin exactly one existing public test seam per active criterion before convergenc
 - A Fast TDD Check is required for observable criteria: no browser or GUI, external network, long-lived server, large fixture, or material machine cost during implementation.
 - If no fast public seam exists, the contract must explicitly add the smallest real fast public seam as product work.
 - Never approve a source-text assertion, private helper probe, duplicated implementation, test-only backdoor, or resource-heavy browser/E2E seam as the implementation-task acceptance boundary.
+
+## Durable decision records
+
+When a load-bearing tradeoff settles during convergence, write one `docs/decisions/NNNN-slug.md` record with the minimal header from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Durable decision and design records. A record may precede implementation; `## Decision` states the locked choice and `Status` is `Accepted`, `Rejected`, or `Superseded by NNNN`.
 
 ## Conservative context harvest and Domain Impact
 

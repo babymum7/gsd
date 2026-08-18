@@ -255,6 +255,68 @@ test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks
     for (const entry of cases) rmSync(entry.workspace, { recursive: true, force: true });
   }
 });
+test("plan-owned durable records enforce NNNN-slug.md and allow prose-only ownership", () => {
+  const badRecord = canonicalPlan("bad-record").replace(
+    "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation",
+    "  - `docs/decisions/bad-name.md` \u2014 create: record architecture decision",
+  );
+  const badDesignRecord = canonicalPlan("bad-design").replace(
+    "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation",
+    "  - `docs/design/bad_name.md` \u2014 create: record system design",
+  );
+  const validRecord = canonicalPlan("valid-record").replace(
+    "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation",
+    "  - `docs/decisions/0001-tech-stack.md` \u2014 create: record architecture decision",
+  );
+  const validDesignRecord = canonicalPlan("valid-design").replace(
+    "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation",
+    "  - `docs/design/0042-system-architecture.md` \u2014 create: record system design",
+  );
+
+  const cases = [
+    {
+      feature: "bad-record",
+      content: badRecord,
+      status: 1,
+      expect: /durable record path must match.*NNNN-slug\.md/,
+    },
+    {
+      feature: "bad-design",
+      content: badDesignRecord,
+      status: 1,
+      expect: /durable record path must match.*NNNN-slug\.md/,
+    },
+    {
+      feature: "valid-record",
+      content: validRecord,
+      status: 0,
+    },
+    {
+      feature: "valid-design",
+      content: validDesignRecord,
+      status: 0,
+    },
+  ].map((entry) => ({ ...entry, ...makePlanWorkspace(entry.feature, entry.content) }));
+
+  try {
+    for (const entry of cases) {
+      const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", entry.planPath], {
+        cwd: entry.workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, entry.status, `${entry.feature}: ${result.stdout}${result.stderr}`);
+      assert.equal(result.stderr, "");
+      if (entry.status === 0) {
+        assert.match(result.stdout, /^status: valid\nkind: plan\n/, entry.feature);
+      } else {
+        assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/, entry.feature);
+        assert.match(result.stdout, entry.expect, entry.feature);
+      }
+    }
+  } finally {
+    for (const entry of cases) rmSync(entry.workspace, { recursive: true, force: true });
+  }
+});
 
 
 test("legacy path-only task grammar is rejected bound and unbound", () => {

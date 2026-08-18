@@ -40,6 +40,7 @@ Git-tracked knowledge intended for both people and agents is strict Markdown und
 
 - `docs/domain/index.md` is a small bounded-context index; `docs/domain/<scope>.md` shards describe current production terms, actors, invariants, workflows, outcomes, relationships, and policies. Shard by bounded context, never feature. They are not implementation plans or journals. `gsd-domain-modeling` owns the exact schema and is the sole writer.
 - `docs/gsd/<feature>/milestones.md` is the human-reviewable milestone contract and ledger. Its goals are approved authority; its status column is controlled by terminal verification.
+- `docs/decisions/NNNN-slug.md` and `docs/design/NNNN-slug.md` are durable decision and UI/UX design records with one mandatory minimal header; numbering is sequential and gap-free per directory.
 - `docs/gsd/<feature>/archive/plan.md` and `docs/gsd/<feature>/archive/implementation.md` are optional history only. They never become execution authority and never reopen a completed feature.
 
 Runtime-only `state.toon` stays TOON under `.scratch/`. A format is authoritative by its declared role and canonical path, never extension alone.
@@ -51,6 +52,12 @@ Every converged feature records `Domain Impact`. `classification=none` requires 
 An existing `docs/domain/index.md` suppresses every broad codebase/domain bootstrap prompt: validate it, read only shards mapped to affected contexts, and do not offer one. When the index is absent, semantic work must bootstrap the feature-scoped context documentation, then offer one independent broad-bootstrap decision; `declined` never waives that required write.
 
 Domain docs describe current production behavior after the task, while the plan records target behavior before it. Existing docs are hints; code, schemas, contracts, and tests win on conflict. Drift blocks until code and affected shards agree. `gsd-domain-modeling` also upserts one canonical `## Domain documentation` section in the applicable `AGENTS.md`, preserving unrelated instructions without duplication.
+
+### Durable decision and design records
+
+Decision records capture load-bearing tradeoffs settled during convergence; design records capture UI/UX decisions settled during execution. Both carry one mandatory minimal header: `# NNNN — Title`, exactly one `- **Status:** Accepted|Rejected|Superseded by NNNN`, exactly one `- **Date:** YYYY-MM-DD`, and a non-empty `## Decision` section; measurement sections stay optional.
+`node "<GSD_ROOT>/tools/gsd-record.mjs" validate --path <record> --kind decisions|design` proves the header: exit 0 is `status: valid`, exit 1 is `code: invalid-record` or `io-error`, exit 2 is usage.
+The terminal gate runs it on every owned record before the squash. `AGENTS.md` gains one `## Decisions` and one `## Design` section, upserted without duplication.
 
 ## Canonical Markdown contract
 

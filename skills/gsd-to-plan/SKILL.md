@@ -51,6 +51,8 @@ After every initial write or resume/finalize revision, run `node "<GSD_ROOT>/too
 
 Tasks are sequential `T1`…`TN`; order encodes dependencies. Every active AC occurs exactly once across tasks. A task spanning ACs requires identical seam, test path, and lower-seam reason. For non-`none` Domain Impact, bind every exact affected `docs/domain/<scope>.md`, any required `docs/domain/index.md`, and canonical `AGENTS.md` upsert to the same owning task as the semantic code change; never create a trailing documentation-only task. The validator rejects any shard owner that changes no semantic code.
 
+A decision or design record is durable prose, not a domain shard: bind each `docs/decisions/NNNN-slug.md` and `docs/design/NNNN-slug.md` to its producing task, and allow a record-only task that changes no semantic code. See [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Durable decision and design records.
+
 Plan complete observable behavior, not layers.
 - Use Expand → Migrate → Contract only when callers cannot migrate atomically and Contract has a completed caller/reference inventory.
 - Pin the highest deterministic fast public seam.

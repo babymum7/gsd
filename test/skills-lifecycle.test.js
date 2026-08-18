@@ -509,5 +509,15 @@ test("terminal-conformance AC-5: same-commit invalidation and merge gates", () =
   assert.match(reference, /Green unchanged bytes then enter one-squash merge and cleanup/);
 });
 
+test("terminal-conformance AC-4: verify gate proves owned durable records", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  assert.match(verify, /gsd-record\.mjs/);
+  assert.match(verify, /--kind decisions\|design/);
+  assert.match(verify, /docs\/decisions\/NNNN-slug\.md/);
+  assert.match(verify, /docs\/design\/NNNN-slug\.md/);
+  assert.match(reference, /Durable decision and design records/);
+});
+
 
 // --- session-owner terminal conformance ---

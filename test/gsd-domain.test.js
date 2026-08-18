@@ -127,12 +127,25 @@ test("parseDomainScope rejects a scope/slug mismatch", () => {
   assert.throws(() => parseDomainScope(content, "billing"), /must name/);
 });
 
-test("parseAgentsDomainSection requires exactly one section", () => {
-  assert.deepEqual(parseAgentsDomainSection("# Agent instructions\n\n## Domain documentation\n\n- A rule.\n"), { count: 1 });
+test("parseAgentsDomainSection requires exactly one of each documentation section", () => {
+  const complete =
+    "# Agent instructions\n\n## Domain documentation\n\n- A rule.\n\n## Decisions\n\n- A decision.\n\n## Design\n\n- A design.\n";
+  assert.deepEqual(parseAgentsDomainSection(complete), { domain: 1, decisions: 1, design: 1 });
   assert.throws(() => parseAgentsDomainSection("# Agent instructions\n"), /must contain/);
   assert.throws(
     () => parseAgentsDomainSection("## Domain documentation\n\n## Domain documentation\n"),
     /exactly one/,
+  );
+  assert.throws(
+    () => parseAgentsDomainSection("# Agent instructions\n\n## Domain documentation\n\n## Design\n"),
+    /must contain a `## Decisions` section/,
+  );
+  assert.throws(
+    () =>
+      parseAgentsDomainSection(
+        "# Agent instructions\n\n## Domain documentation\n\n## Decisions\n\n## Decisions\n\n## Design\n",
+      ),
+    /exactly one `## Decisions` section/,
   );
 });
 
@@ -142,18 +155,32 @@ test("validate CLI reports a complete model and rejects an orphan shard", () => 
   mkdirSync(docs, { recursive: true });
   writeFileSync(join(docs, "index.md"), indexContent([["billing", "Invoicing and settlement."]]));
   writeFileSync(join(docs, "billing.md"), shardContent("billing"));
-  writeFileSync(join(dir, "AGENTS.md"), "# Agent instructions\n\n## Domain documentation\n\n- A rule.\n");
+  writeFileSync(
+    join(dir, "AGENTS.md"),
+    "# Agent instructions\n\n## Domain documentation\n\n- A rule.\n\n## Decisions\n\n- A decision.\n\n## Design\n\n- A design.\n",
+  );
 
   const valid = run(["validate", "--index", join(docs, "index.md"), "--agents", join(dir, "AGENTS.md")]);
   assert.equal(valid.status, 0, valid.stdout);
   assert.match(valid.stdout, /status: valid/);
   assert.match(valid.stdout, /scopes: 1/);
+  assert.match(valid.stdout, /sections: domain, decisions, design/);
 
   writeFileSync(join(docs, "orphan.md"), shardContent("orphan"));
   const orphan = run(["validate", "--index", join(docs, "index.md")]);
   assert.equal(orphan.status, 1);
   assert.match(orphan.stdout, /code: invalid-domain/);
   assert.match(orphan.stdout, /orphan shard/);
+
+  rmSync(join(docs, "orphan.md"), { force: true });
+  writeFileSync(
+    join(dir, "AGENTS.md"),
+    "# Agent instructions\n\n## Domain documentation\n\n## Decisions\n\n## Decisions\n\n## Design\n",
+  );
+  const dupSections = run(["validate", "--index", join(docs, "index.md"), "--agents", join(dir, "AGENTS.md")]);
+  assert.equal(dupSections.status, 1);
+  assert.match(dupSections.stdout, /code: invalid-domain/);
+  assert.match(dupSections.stdout, /exactly one `## Decisions` section/);
 
   rmSync(dir, { recursive: true, force: true });
 });

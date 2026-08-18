@@ -39,6 +39,7 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
     "Candidate discovery",
     "Canonical Markdown contract",
     "Contextual disclosure templates",
+    "Durable decision and design records",
     "Fast TDD and task-loop constraints",
     "Feature cleanup",
     "Git/base/WIP/scratch mechanics",
@@ -84,7 +85,7 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
         }
       });
   }
-  assert.equal(canon, 36, "the canon citation layer must stay fully covered");
+  assert.equal(canon, 40, "the canon citation layer must stay fully covered");
   assert.ok(artifact >= 2, `plan-section citations must stay qualified, found ${artifact}`);
 });
 
@@ -342,9 +343,12 @@ test("AC-4: Concision preserves semantic parity", () => {
   // its read-only guarantee. Raised again to 6100 in 2026-08 for the parallel-wave dispatch
   // contract: the analyze-waves CLI invocation, its exit codes, the task-independence proof,
   // and the sub-agent MUST/MUST-NOT and owner-reconcile rules are the same kind of executable
-  // contract. The cap exists so the canon stays one on-demand read, so raising it again
-  // requires the same kind of stated reason, never a silent bump to fit new prose.
-  const MAX_REFERENCE_WORDS = 6100;
+  // contract. Raised again to 6300 in 2026-08 for durable decision and design records: the
+  // record grammar, the gsd-record validator CLI and exit codes, and the terminal-gate
+  // ownership proof are executable contracts of the same kind. The cap exists so the canon
+  // stays one on-demand read, so raising it again requires the same kind of stated reason,
+  // never a silent bump to fit new prose.
+  const MAX_REFERENCE_WORDS = 6300;
   const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
   assert.equal(visible.length, 9);

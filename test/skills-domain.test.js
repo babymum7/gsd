@@ -171,3 +171,21 @@ test("T7: the domain shard records the shipped harness-fit behavior", () => {
   assert.match(policy, /- \*\*Reason:\*\*/, "the policy states its reason");
   assert.match(policy, /`state\.toon`/, "the policy keeps runtime authority canonical");
 });
+
+test("T8: the domain shard and AGENTS.md record the durable decision and design surfaces", () => {
+  const domain = read("docs/domain/gsd.md");
+  assert.match(domain, /Durable Decision Record/);
+  assert.match(domain, /Durable Design Record/);
+  assert.match(domain, /docs\/decisions\/NNNN-slug\.md/);
+  assert.match(domain, /docs\/design\/NNNN-slug\.md/);
+  assert.match(domain, /minimal header/);
+  assert.match(domain, /sequential and gap-free per directory/);
+  assert.match(domain, /proves every owned record before the squash/);
+
+  const agents = read("AGENTS.md");
+  assert.equal(agents.match(/^## Domain documentation$/gm)?.length, 1);
+  assert.equal(agents.match(/^## Decisions$/gm)?.length, 1);
+  assert.equal(agents.match(/^## Design$/gm)?.length, 1);
+  assert.match(agents, /docs\/decisions\/NNNN-slug\.md/);
+  assert.match(agents, /docs\/design\/NNNN-slug\.md/);
+});

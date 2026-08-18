@@ -17,6 +17,8 @@ Own request classification, feature convergence, plan approval and in-flight ame
 | Contract Validator | The executable production seam that validates canonical full-plan and Quick-fix plan authority without mutating it. Reads are traversal-hardened with identity checks so a parent-directory swap or a blocking file cannot substitute authority mid-validation. Plan reads pin the full ancestry chain (workspace → directory → target) and compare each step's identity against the value captured at resolution. | test-only parser, prose-only validation |
 | Deferred Slow E2E | A resource-heavy feature journey run only after current-commit deterministic conformance. | task-loop check |
 | Domain Impact | The mandatory plan classification binding semantic change evidence, affected contexts, documentation action, and broad-bootstrap disposition. | optional documentation note |
+| Durable Decision Record | A Git-tracked `docs/decisions/NNNN-slug.md` record of a load-bearing tradeoff settled during convergence, carrying the mandatory minimal header of a numbered title, `Status`, `Date`, and non-empty `## Decision`. | ephemeral plan note |
+| Durable Design Record | A Git-tracked `docs/design/NNNN-slug.md` record of a UI/UX decision settled during execution, carrying the same minimal header and optional measurement sections. | unmeasured UI note |
 | Fast TDD Check | A deterministic local command suitable for repeated RED→GREEN use at a production-facing seam. | final slow acceptance suite |
 | Invocation Mode | A named path through one skill with its own required artifacts, fallback behavior, output authority, and prompt policy. | dispatch label |
 | Milestone Ledger | The Git-tracked `docs/gsd/<feature>/milestones.md` contract carrying precise user-approved milestone goals and durable pending/done state. | roadmap, task ledger |
@@ -65,15 +67,17 @@ Own request classification, feature convergence, plan approval and in-flight ame
 - Execution mirrors the bound plan's pending task identities into the harness todo list once, after approval or at resume, and marks each task done in the same step as its green checkpoint. That list is display state: `state.toon` remains the sole resumable authority and the mirror never selects, completes, or resumes work.
 - Lifecycle recovery restores the working tree, never only the conversation: a harness conversation rewind is excluded because it restores transcript turns while committed WIP and the working tree stay where execution left them, leaving `state.toon` and its green commits ahead of the restored conversation. A memory backend recall is context and never lifecycle authority, and a restricted mode whose toolset excludes editing, committing, and running checks is left before lifecycle work begins.
 - Implementation is the only lifecycle work GSD may dispatch, and only as parallel waves of provably independent tasks to sub-agents: a wave is a maximal contiguous run of non-superseded tasks in strict heading order where every pair is file-, criterion-, and check-disjoint, computed deterministically by the Contract Validator's `analyze-waves`. A sub-agent receives one complete validated task slice, performs Fast TDD and its affected domain-doc updates in the same commit on its own `wip/<feature>/t<n>` branch, and never writes `state.toon`, amends `plan.md`, merges, or decides lifecycle. The session owner reconciles the wave in plan order into one green checkpoint, so `state.toon` remains the sole resumable authority and terminal conformance still proves the unchanged final commit.
+- A durable decision or design record lives at `docs/(decisions|design)/NNNN-slug.md` and carries its mandatory minimal header of a numbered title, `Status`, `Date`, and non-empty `## Decision`. Numbering is sequential and gap-free per directory, and the terminal gate proves every owned record before the squash.
+
 
 ## Workflows and state transitions
 
 ### Deliver a feature
 
-1. Classify intent, discover and converge acceptance behavior plus Domain Impact. During discovery, distinguish questions sharp enough for acceptance-impact form from parked uncertainty too coarse to phrase as a criterion; prioritize batching by which items unblock the most downstream criteria. Reserve affected documentation paths without publishing future semantics.
+1. Classify intent, discover and converge acceptance behavior plus Domain Impact. During discovery, distinguish questions sharp enough for acceptance-impact form from parked uncertainty too coarse to phrase as a criterion; prioritize batching by which items unblock the most downstream criteria. Reserve affected documentation paths without publishing future semantics, and write one durable decision record when a load-bearing tradeoff settles.
 2. Validate the canonical plan through the Contract Validator, approve its exact SHA-256, then bind it in `schema:v4` state.
-3. Execute ordered tasks with Fast TDD and green checkpoints.
-4. Prove terminal conformance, run Deferred Slow E2E, squash to base, and clean transient state.
+3. Execute ordered tasks with Fast TDD and green checkpoints, writing one durable design record when a UI/UX decision settles.
+4. Prove terminal conformance including every owned decision and design record, run Deferred Slow E2E, squash to base, and clean transient state.
 
 ### Standalone review
 
