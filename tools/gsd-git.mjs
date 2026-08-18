@@ -8,7 +8,7 @@ import { fileURLToPath } from "node:url";
 import { join } from "node:path";
 import { realpathSync } from "node:fs";
 import { isSafeBranchRef } from "../lib/gsd-contract.mjs";
-import { inspectStateFile } from "../extensions/gsd-context.js";
+import { inspectStateFile } from "../lib/gsd-state.mjs";
 
 const COMMANDS = new Set(["derive-base", "preflight"]);
 const VALUE_FLAGS = new Set(["--feature-dir", "--cwd"]);

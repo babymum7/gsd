@@ -259,12 +259,12 @@ IDs are positive sequential `M1..MN`; slugs are unique lowercase kebab-case; goa
 
 ### Milestone Ledger completion contract
 
-Only the `Milestone WIP gate` may complete ledger lifecycle state. `gsd-executing-plans` treats the selected first-pending row and all ledger bytes as read-only during task work. At terminal verification, `gsd-verify` proves the selected row still matches the approved milestone and remains first pending.
+Only the `Milestone WIP gate` may complete ledger lifecycle state. `gsd-executing-plans` treats the selected first-pending row and all ledger bytes as read-only during task work. At terminal verification, `gsd-verify` proves the selected row still matches the approved milestone and remains first pending with `node "<GSD_ROOT>/tools/gsd-milestone.mjs" validate --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>`, then applies the transition with `... complete ...` under the same binding.
 
 - **Non-final milestone:** change exactly the selected row's status from `pending` to `done`; preserve every other byte.
 - **Final milestone:** delete `docs/gsd/<feature>/milestones.md` instead of writing an all-`done` ledger.
 
-The status transition or deletion is part of the reviewed WIP diff and lands only in the same green squash commit as the milestone implementation. A red gate never changes base ledger state. Normal execution/publication never completes or deletes a row.
+The status transition or deletion is part of the reviewed WIP diff and lands only in the same green squash commit as the milestone implementation. A red gate never changes base ledger state. Normal execution/publication never completes or deletes a row. `tools/gsd-milestone.mjs` is the deterministic executor of this contract: `complete` marks exactly the first pending row `done`, or deletes the ledger when that row is final.
 
 ## Runtime state contract
 

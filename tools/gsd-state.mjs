@@ -8,7 +8,7 @@ import {
   inspectStateFile,
   readStateFile,
   writeStateAtomic,
-} from "../extensions/gsd-context.js";
+} from "../lib/gsd-state.mjs";
 
 const COMMANDS = new Set(["read-state", "write-state", "validate-state"]);
 const VALUE_FLAGS = new Set(["--path", "--feature-dir", "--json", "--json-file"]);

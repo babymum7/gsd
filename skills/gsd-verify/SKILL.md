@@ -13,7 +13,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 # Verify
 
-> **Invocation guard** — automatic selection loads standalone review; active owners load planned/quick-fix gates. Select an Invocation Mode and validate only its Required state under [REFERENCE.md § Post-approval pipeline contract](../gsd/REFERENCE.md#post-approval-pipeline-contract) and § Artifact Contract.
+> **Invocation guard** — automatic selection loads standalone review; active owners load planned/quick-fix/milestone gates. Select an Invocation Mode and validate only its Required state under [REFERENCE.md § Post-approval pipeline contract](../gsd/REFERENCE.md#post-approval-pipeline-contract) and § Artifact Contract.
 
 ## Invocation modes
 
@@ -26,7 +26,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 ## Planned and milestone WIP gate
 
-At terminal entry, validate canonical `schema:v4`, exact plan hash/binding, base/WIP identity, last green checkpoint, current tree, and required artifacts; rebuild the terminal slice including `Domain Impact`. Malformed new grammar, feature mismatch, missing artifact, or Git drift is Spec escalation. Repeat the digest guard before squash.
+At terminal entry, validate canonical `schema:v4`, exact plan hash/binding, base/WIP identity, last green checkpoint, current tree, and required artifacts; rebuild the terminal slice including `Domain Impact`. Malformed new grammar, feature mismatch, missing artifact, or Git drift is Spec escalation. Repeat the digest guard before squash. Select `Milestone WIP gate` when `plan.md` `## Publication` is non-`null`; otherwise `Planned WIP gate`.
 
 Terminal entry never blocks on the plan having moved: changed plan bytes revalidate and rebind under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment, then conformance proves the amended plan on the unchanged commit. Amend here only to record what the work actually did; a material change or drift the owner cannot account for asks one question first. Rebinding after the pre-squash guard requires rerunning that guard.
 
@@ -47,7 +47,10 @@ The merge target is exactly the recorded `state.toon` `base_ref`; never ask whet
 
 After green merge, write the state fields to `.scratch/<feature>/.state-input.json`, then use `node "<GSD_ROOT>/tools/gsd-state.mjs" write-state --feature-dir .scratch/<feature> --json-file .scratch/<feature>/.state-input.json` to atomically write `phase=merged-cleanup-pending` (never the `write` tool directly). Delete `.state-input.json` after the CLI succeeds or fails.
 
-For `Milestone WIP gate`, revalidate the selected row is matching and first `pending`; before final conformance change only a non-final row to `done`, while final milestone deletes the ledger. Include the mutation in the same reviewed squash; any changed prefix, other row, append, reorder, or wrong row blocks.
+For `Milestone WIP gate`, prove the ledger matches its packet and remains sequential:
+- Validate: `node "<GSD_ROOT>/tools/gsd-milestone.mjs" validate --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>` must exit 0 and report the matching feature/base with the first `pending` row as the selected milestone.
+- Complete: run `node "<GSD_ROOT>/tools/gsd-milestone.mjs" complete --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>` once per remaining pending milestone in plan order; each non-final invocation marks exactly that row `done`, and the final milestone deletes the ledger.
+Include every mutation in the same reviewed squash; a red gate changes no base ledger state, and any changed prefix, other row, append, reorder, or wrong row blocks.
 ## Standalone review
 
 Read-only; no branch/result/merge authority. Supplied context informs, never approves. Report separate bounded-read-only axes: **Standards** — cite documented-standard violations; smell concerns are judgement only, standards win. **Intent** — cite request/plan/context mismatches: missing, partial, scope creep. Do not cross-rerank; summarize per axis.

@@ -21,6 +21,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 |---|---|---|---|---|
 | Normal plan execution | `plan.md`; bound `state.toon` | authorized ledger | `state.toon`; authorized ledger; amended `plan.md` | Stop only when `plan.md` or `state.toon` is missing or malformed; never synthesize source state or dispatch |
 | Milestone plan execution | Normal required state; authoritative ledger | — | `state.toon` | Missing source/binding is Spec escalation; missing ledger evidence is a Blocker |
+Select `Milestone plan execution` when `plan.md` `## Publication` is non-`null` (the feature owns a milestone ledger); otherwise `Normal plan execution`.
 
 ## Intake and amendable contract
 
@@ -46,7 +47,7 @@ Initialize one phase in the harness todo list from the exact pending `T1..TN` id
 5. The task boundary is green focused evidence, recorded only in reporting and transcripts. A red focused check or explicit self-verification failure re-enters this task's bounded inline repair. First checkpoint `next_action=start/continue task`, repair source-first under `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`, then rerun only checks invalidated by the repair. Load no terminal verifier until every task is green.
 6. Commit only green task-owned changes on WIP. Use `gsd-state.mjs write-state --json-file` (never the `write` tool directly) to atomically update `state.toon` with `last_green_task`, `last_green_commit`, `next_action=start/continue task`, and an amended plan hash; delete `.scratch/<feature>/.state-input.json`. Mark that task done in the todo list in the same step as its green checkpoint. Task `Tn+1` begins only from the committed green checkpoint of `Tn` (after a wave, the owner's merged checkpoint). Source mutations never overlap task/repair or Deferred Slow E2E.
 
-In `Milestone plan execution`, keep the authoritative ledger byte-for-byte read-only throughout the per-task loop. Revalidate the selected milestone is still the matching first-pending row before every task and pass that identity to `gsd-verify`; execution never marks a row `done` or deletes the ledger.
+In `Milestone plan execution`, keep the authoritative ledger byte-for-byte read-only throughout the per-task loop. Revalidate the selected milestone is still the matching first-pending row before every task by running `node "<GSD_ROOT>/tools/gsd-milestone.mjs" validate --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>`; execution never marks a row `done` or deletes the ledger (only the `Milestone WIP gate` does, via `complete`).
 
 Only after every non-superseded task and Fast TDD Check is green, atomically set `next_action=enter terminal verification/repair` and load `gsd-verify`. The session owner then performs deterministic cumulative conformance before Deferred Slow E2E.
 
