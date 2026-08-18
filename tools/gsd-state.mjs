@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import {
@@ -14,7 +14,7 @@ const COMMANDS = new Set(["read-state", "write-state", "validate-state"]);
 const VALUE_FLAGS = new Set(["--path", "--feature-dir", "--json", "--json-file"]);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `node ${JSON.stringify(SCRIPT_PATH)}`;
+const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
 
 function write_(lines) {
   process.stdout.write(lines.join("\n") + "\n");

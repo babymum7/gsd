@@ -27,7 +27,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 ## Write
 
-**Always use the CLI tool** `node "<GSD_ROOT>/tools/gsd-state.mjs" write-state --feature-dir .scratch/<feature> --json-file .scratch/<feature>/.state-input.json` to write state.toon. Write the state fields to `.scratch/<feature>/.state-input.json`, pass its path via `--json-file`, then delete the temp file — both on success and on failure. Never write state.toon directly using the `write` tool; direct writes bypass validation and produce malformed files that break autocompact and resume. The CLI validates, serializes, writes atomically, and readbacks automatically.
+**Always use the CLI tool** `bun "<GSD_ROOT>/tools/gsd-state.mjs" write-state --feature-dir .scratch/<feature> --json-file .scratch/<feature>/.state-input.json` to write state.toon. Write the state fields to `.scratch/<feature>/.state-input.json`, pass its path via `--json-file`, then delete the temp file — both on success and on failure. Never write state.toon directly using the `write` tool; direct writes bypass validation and produce malformed files that break autocompact and resume. The CLI validates, serializes, writes atomically, and readbacks automatically.
 The CLI writes atomically to `.scratch/<feature>/state.toon` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Runtime state contract: same-directory temp, fsync, rename, directory fsync where supported, then validated readback.
 - Approval first writes `phase=approved`.
 - Canonical `schema:v4` gives the session owner only lifecycle, plan/Git binding, green checkpoint, runtime preferences, and revision.
@@ -60,9 +60,9 @@ Without a supplied path, discover active candidates via [../gsd/REFERENCE.md](..
 
 For every Execution resume, after state validation and before deriving the peer owner, select the validator by probe: `schema:v4` records no grammar kind, so never assume one.
 
-1. Run `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`. Exit 0 is a Quick-fix packet; it accepts no `--expected-sha256`, so compare its returned `sha256` against `state.plan_sha256`.
-2. Exit 1 means the bytes are not Quick-fix grammar: run `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>`. Exit 0 resumes the full plan.
-3. On exit 1 there, revalidate unbound with `node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`: exit 0 proves the bytes only moved, which the rebind rule below resolves; exit 1 means both grammars reject the packet, which is Spec escalation.
+1. Run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`. Exit 0 is a Quick-fix packet; it accepts no `--expected-sha256`, so compare its returned `sha256` against `state.plan_sha256`.
+2. Exit 1 means the bytes are not Quick-fix grammar: run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>`. Exit 0 resumes the full plan.
+3. On exit 1 there, revalidate unbound with `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`: exit 0 proves the bytes only moved, which the rebind rule below resolves; exit 1 means both grammars reject the packet, which is Spec escalation.
 
 An error naming a base mismatch stops the ladder immediately as Spec escalation: the packet parsed, so its `plan.md` § Base no longer matches the recorded merge target. Keeping `--expected-base` on the unbound call is what prevents that mismatch from reading as moved bytes and being rebound, which would retarget the squash. A base is never rebound mid-lifecycle.
 

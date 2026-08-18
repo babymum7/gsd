@@ -56,7 +56,7 @@ Domain docs describe current production behavior after the task, while the plan 
 ### Durable decision and design records
 
 Decision records capture load-bearing tradeoffs settled during convergence; design records capture UI/UX decisions settled during execution. Both carry one mandatory minimal header: `# NNNN — Title`, exactly one `- **Status:** Accepted|Rejected|Superseded by NNNN`, exactly one `- **Date:** YYYY-MM-DD`, and a non-empty `## Decision` section; measurement sections stay optional.
-`node "<GSD_ROOT>/tools/gsd-record.mjs" validate --path <record> --kind decisions|design` proves the header: exit 0 is `status: valid`, exit 1 is `code: invalid-record` or `io-error`, exit 2 is usage.
+`bun "<GSD_ROOT>/tools/gsd-record.mjs" validate --path <record> --kind decisions|design` proves the header: exit 0 is `status: valid`, exit 1 is `code: invalid-record` or `io-error`, exit 2 is usage.
 The terminal gate runs it on every owned record before the squash. `AGENTS.md` gains one `## Decisions` and one `## Design` section, upserted without duplication.
 
 ## Canonical Markdown contract
@@ -205,9 +205,9 @@ It contains one or two sequential tasks with unique structured paths and a real 
 `lib/gsd-contract.mjs` is the single executable Markdown grammar. Repository tests import it directly; lifecycle owners use its thin agent-facing CLI. Substitute the injected `GSD_ROOT` value for `<GSD_ROOT>` at call time: it reaches the session as bootstrap text, not an exported shell variable, so a literal `$GSD_ROOT` resolves to an empty path. The absolute script path is required because the lifecycle runs in workspaces that are not the GSD checkout, where a repo-relative path reaches no CLI; packet resolution stays relative to the workspace `cwd`.
 
 ```text
-node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
-node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex> --expected-base <base_ref>
-node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
+bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
+bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex> --expected-base <base_ref>
+bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
 ```
 
 The first command validates a new canonical full plan and returns its exact SHA-256; it also revalidates a full-plan amendment before rebinding. The second requires the bytes to match an approved hash, so a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/`; symlinks, escaped paths, feature mismatch, and malformed grammar fail closed.
@@ -266,7 +266,7 @@ IDs are positive sequential `M1..MN`; slugs are unique lowercase kebab-case; goa
 
 ### Milestone Ledger completion contract
 
-Only the `Milestone WIP gate` may complete ledger lifecycle state. `gsd-executing-plans` treats the selected first-pending row and all ledger bytes as read-only during task work. At terminal verification, `gsd-verify` proves the selected row still matches the approved milestone and remains first pending with `node "<GSD_ROOT>/tools/gsd-milestone.mjs" validate --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>`, then applies the transition with `... complete ...` under the same binding.
+Only the `Milestone WIP gate` may complete ledger lifecycle state. `gsd-executing-plans` treats the selected first-pending row and all ledger bytes as read-only during task work. At terminal verification, `gsd-verify` proves the selected row still matches the approved milestone and remains first pending with `bun "<GSD_ROOT>/tools/gsd-milestone.mjs" validate --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>`, then applies the transition with `... complete ...` under the same binding.
 
 - **Non-final milestone:** change exactly the selected row's status from `pending` to `done`; preserve every other byte.
 - **Final milestone:** delete `docs/gsd/<feature>/milestones.md` instead of writing an all-`done` ledger.
@@ -450,11 +450,11 @@ Cross-machine sync carries the committed WIP branch and exact `.scratch/<feature
 
 ### Base derivation and merge target
 
-At packet creation, before `wip/<feature>` exists, run `node "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed `base:` branch in both `plan.md` § Base and `state.toon` `base_ref`; every bound validator call passes `--expected-base <base_ref>`, so the two records cannot diverge. It reads `git symbolic-ref --quiet --short HEAD`, never `git rev-parse --abbrev-ref HEAD`, which prints the literal `HEAD` when detached. Exit 1 with `code: detached-head` fails packet creation closed instead of recording a commit oid, because the base is the branch that must hold the squash.
+At packet creation, before `wip/<feature>` exists, run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed `base:` branch in both `plan.md` § Base and `state.toon` `base_ref`; every bound validator call passes `--expected-base <base_ref>`, so the two records cannot diverge. It reads `git symbolic-ref --quiet --short HEAD`, never `git rev-parse --abbrev-ref HEAD`, which prints the literal `HEAD` when detached. Exit 1 with `code: detached-head` fails packet creation closed instead of recording a commit oid, because the base is the branch that must hold the squash.
 
 A repository default, upstream branch, or naming convention is authoritative only when it is the checked-out branch; a linked worktree records its own branch; the base is never `wip/<feature>`.
 
-Before the squash run `node "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`. Exit 0 prints `status: ready` with the observed base, WIP branch, attached HEAD, and a tree clean outside `.scratch/`; exit 1 prints `status: blocked` and a `code:` naming the drift, which blocks as Spec escalation, because a blocked gate never retargets the merge. Exit 2 corrects only the invocation.
+Before the squash run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`. Exit 0 prints `status: ready` with the observed base, WIP branch, attached HEAD, and a tree clean outside `.scratch/`; exit 1 prints `status: blocked` and a `code:` naming the drift, which blocks as Spec escalation, because a blocked gate never retargets the merge. Exit 2 corrects only the invocation.
 
 The blocking codes are `detached-head`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `no-git-identity`, `unusable-branch-name`, `not-a-work-tree`, `state-unusable`, `git-query-failed`, and `git-unavailable`: a Git query that cannot answer blocks rather than reporting ready, because an unanswered query proves nothing.
 

@@ -1,4 +1,4 @@
-import test from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
@@ -52,7 +52,7 @@ function canonicalPlan(feature = "valid-plan") {
     "- **Satisfies:** AC-1",
     "- **Files:**",
     "  - `tools/gsd-contract.mjs` — create: expose canonical plan validation",
-    "- **Test:** `node --test test/gsd-contract.test.js`",
+    "- **Test:** `bun test test/gsd-contract.test.js`",
     "- **Status:** pending",
     "",
   ].join("\n");
@@ -136,7 +136,7 @@ test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks
       .replace("Documentation:** none", "Documentation:** update-existing");
   const codeLine = "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation";
   const shardLine = "  - `docs/domain/gsd.md` \u2014 modify: record the corrected production behavior";
-  const t1Tail = "- **Test:** `node --test test/gsd-contract.test.js`\n- **Status:** pending";
+  const t1Tail = "- **Test:** `bun test test/gsd-contract.test.js`\n- **Status:** pending";
   const appendTask = (plan, lines) => plan.replace(t1Tail, [t1Tail, ...lines].join("\n"));
   // A second live task needs its own active criterion, since every active AC is covered
   // exactly once and that check runs before shard ownership.
@@ -167,7 +167,7 @@ test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks
     "- **Files:**",
     "  - `lib/gsd-contract.mjs` \u2014 modify: pass the corrected value through",
     shardLine,
-    "- **Test:** `node --test test/gsd-contract.test.js`",
+    "- **Test:** `bun test test/gsd-contract.test.js`",
     "- **Status:** pending",
   ]);
   // The only shard owner is superseded, so no task that runs ever writes the shard.
@@ -176,7 +176,7 @@ test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks
     "- **Satisfies:** AC-1",
     "- **Files:**",
     shardLine,
-    "- **Test:** `node --test test/gsd-contract.test.js`",
+    "- **Test:** `bun test test/gsd-contract.test.js`",
     "- **Status:** superseded",
   ]);
   // The shard rides a prose-only task, so the semantic checkpoint stays undocumented.
@@ -186,7 +186,7 @@ test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks
     "- **Files:**",
     "  - `AGENTS.md` \u2014 modify: record the corrected agent instruction",
     shardLine,
-    "- **Test:** `node --test test/gsd-contract.test.js`",
+    "- **Test:** `bun test test/gsd-contract.test.js`",
     "- **Status:** pending",
   ]);
   // A valid semantic owner exists, but a later documentation-only task re-owns the shard:
@@ -196,7 +196,7 @@ test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks
     "- **Satisfies:** AC-2",
     "- **Files:**",
     shardLine.replace("record the corrected", "restate the corrected"),
-    "- **Test:** `node --test test/gsd-contract.test.js`",
+    "- **Test:** `bun test test/gsd-contract.test.js`",
     "- **Status:** pending",
   ]);
   // `docs/domain/index.md` and `AGENTS.md` follow the same ownership rule as a shard: a
@@ -206,7 +206,7 @@ test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks
     "- **Satisfies:** AC-2",
     "- **Files:**",
     "  - `docs/domain/index.md` \u2014 modify: keep the index current",
-    "- **Test:** `node --test test/gsd-contract.test.js`",
+    "- **Test:** `bun test test/gsd-contract.test.js`",
     "- **Status:** pending",
   ]);
 
@@ -445,7 +445,7 @@ test("usage and unsafe plan inputs fail through the structured CLI surface", () 
 
 test("the CLI names a runnable invocation in every help and error surface", () => {
   // Help text is the most operative instruction an owner sees after a mis-invocation, so a
-  // repo-relative `node tools/gsd-contract.mjs` here re-teaches exactly the form that never
+  // repo-relative `bun tools/gsd-contract.mjs` here re-teaches exactly the form that never
   // resolves outside this checkout. The CLI knows where it was loaded from, so it names that
   // absolute path instead of a placeholder no shell expands.
   const { workspace, planPath } = makePlanWorkspace("cli-help", "# Plan\n");
@@ -469,11 +469,11 @@ test("the CLI names a runnable invocation in every help and error surface", () =
       const invocation = JSON.parse(field.slice(field.indexOf(": ") + 2));
       assert.doesNotMatch(
         invocation,
-        /node tools\/gsd-contract\.mjs/,
+        /bun tools\/gsd-contract\.mjs/,
         `${surface.label} must not instruct a repo-relative invocation`,
       );
       assert.ok(
-        invocation.startsWith(`node ${JSON.stringify(CLI)}`),
+        invocation.startsWith(`bun ${JSON.stringify(CLI)}`),
         `${surface.label} must name the resolved absolute script path, got ${invocation}`,
       );
     }
@@ -519,7 +519,7 @@ function quickFixPlan(feature = "quick-fix-plan") {
     "### T1: Apply bounded fix",
     "- **Files:**",
     "  - `src/fix.js` — modify: correct the bounded observable behavior",
-    "- **Test:** `node --test test/fix.test.js`",
+    "- **Test:** `bun test test/fix.test.js`",
     "",
   ].join("\n");
 }
@@ -748,23 +748,23 @@ test("Quick-fix domain shard ownership is enforced per task, not plan-wide", () 
 
   // The shard is split into a separate trailing task, so no task owns both.
   const splitTask = semantic.replace(
-    "- **Test:** `node --test test/fix.test.js`\n",
-    `- **Test:** \`node --test test/fix.test.js\`\n### T2: Document the shard\n- **Files:**\n${shardLine}\n- **Test:** \`node --test test/skills.test.js\`\n`,
+    "- **Test:** `bun test test/fix.test.js`\n",
+    `- **Test:** \`bun test test/fix.test.js\`\n### T2: Document the shard\n- **Files:**\n${shardLine}\n- **Test:** \`bun test test/skills.test.js\`\n`,
   );
   assert.notEqual(splitTask, semantic);
 
   // A later task pairs the shard with different code, leaving T1's semantic change
   // undocumented at its own green checkpoint.
   const laterCodeTask = semantic.replace(
-    "- **Test:** `node --test test/fix.test.js`\n",
-    `- **Test:** \`node --test test/fix.test.js\`\n### T2: Adjust the caller\n- **Files:**\n  - \`src/caller.js\` \u2014 modify: pass the corrected value through\n${shardLine}\n- **Test:** \`node --test test/caller.test.js\`\n`,
+    "- **Test:** `bun test test/fix.test.js`\n",
+    `- **Test:** \`bun test test/fix.test.js\`\n### T2: Adjust the caller\n- **Files:**\n  - \`src/caller.js\` \u2014 modify: pass the corrected value through\n${shardLine}\n- **Test:** \`bun test test/caller.test.js\`\n`,
   );
   assert.notEqual(laterCodeTask, semantic);
 
   // The shard rides with prose only, so the semantic change stays undocumented.
   const proseOnlyTask = semantic.replace(
-    "- **Test:** `node --test test/fix.test.js`\n",
-    `- **Test:** \`node --test test/fix.test.js\`\n### T2: Note the change\n- **Files:**\n  - \`AGENTS.md\` \u2014 modify: record the corrected agent instruction\n${shardLine}\n- **Test:** \`node --test test/skills.test.js\`\n`,
+    "- **Test:** `bun test test/fix.test.js`\n",
+    `- **Test:** \`bun test test/fix.test.js\`\n### T2: Note the change\n- **Files:**\n  - \`AGENTS.md\` \u2014 modify: record the corrected agent instruction\n${shardLine}\n- **Test:** \`bun test test/skills.test.js\`\n`,
   );
   assert.notEqual(proseOnlyTask, semantic);
 
@@ -773,16 +773,16 @@ test("Quick-fix domain shard ownership is enforced per task, not plan-wide", () 
   const testOnlyTask = semantic
     .replace(codeLine, `  - \`test/fix.test.js\` \u2014 create: pin the corrected observable behavior\n${shardLine}`)
     .replace(
-      "- **Test:** `node --test test/fix.test.js`\n",
-      `- **Test:** \`node --test test/fix.test.js\`\n### T2: Correct the source\n- **Files:**\n${codeLine}\n- **Test:** \`node --test test/fix.test.js\`\n`,
+      "- **Test:** `bun test test/fix.test.js`\n",
+      `- **Test:** \`bun test test/fix.test.js\`\n### T2: Correct the source\n- **Files:**\n${codeLine}\n- **Test:** \`bun test test/fix.test.js\`\n`,
     );
   assert.notEqual(testOnlyTask, semantic);
 
   // A trailing task changes more production code, so its own semantic change lands
   // at a green checkpoint that no shard edit accompanies.
   const trailingCodeTask = sameTask.replace(
-    "- **Test:** `node --test test/fix.test.js`\n",
-    "- **Test:** `node --test test/fix.test.js`\n### T2: Adjust the caller\n- **Files:**\n  - `src/caller.js` \u2014 modify: pass the corrected value through\n- **Test:** `node --test test/caller.test.js`\n",
+    "- **Test:** `bun test test/fix.test.js`\n",
+    "- **Test:** `bun test test/fix.test.js`\n### T2: Adjust the caller\n- **Files:**\n  - `src/caller.js` \u2014 modify: pass the corrected value through\n- **Test:** `bun test test/caller.test.js`\n",
   );
   assert.notEqual(trailingCodeTask, sameTask);
 
@@ -852,7 +852,7 @@ test("lifecycle owners use the production validator and document inert legacy te
   for (const [label, content] of files) {
     assert.doesNotMatch(
       content,
-      /node tools\/gsd-contract\.mjs/,
+      /bun tools\/gsd-contract\.mjs/,
       `${label} must not instruct a repo-relative validator invocation`,
     );
   }
@@ -872,7 +872,7 @@ test("lifecycle owners use the production validator and document inert legacy te
 
 test("the validator resolves a foreign workspace by absolute script path", () => {
   // The lifecycle runs in workspaces that are not this checkout, where a repo-relative
-  // `node tools/gsd-contract.mjs` resolves against the wrong root and never reaches the
+  // `bun tools/gsd-contract.mjs` resolves against the wrong root and never reaches the
   // CLI. Packet resolution is already `cwd`-relative, so the absolute script path is the
   // whole fix: this pins both halves so the documented form cannot regress to the bare one.
   const plan = canonicalPlan("foreign-workspace");
@@ -907,7 +907,7 @@ test("the validator resolves a foreign workspace by absolute script path", () =>
     );
     assert.notEqual(repoRelative.status, 0);
     assert.equal(repoRelative.stdout, "");
-    assert.match(repoRelative.stderr, /Cannot find module/);
+    assert.match(repoRelative.stderr, /Module not found/);
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }
@@ -994,9 +994,9 @@ function runWaves(planPath, workspace, extraArgs = []) {
 
 test("analyze-waves groups file- and check-disjoint tasks into one parallel wave", () => {
   const plan = wavePlan("wave-join", [
-    { title: "A", ac: "A", file: "src/a.js", test: "node --test test/a.test.js" },
-    { title: "B", ac: "B", file: "src/b.js", test: "node --test test/b.test.js" },
-    { title: "C", ac: "C", file: "src/c.js", test: "node --test test/c.test.js" },
+    { title: "A", ac: "A", file: "src/a.js", test: "bun test test/a.test.js" },
+    { title: "B", ac: "B", file: "src/b.js", test: "bun test test/b.test.js" },
+    { title: "C", ac: "C", file: "src/c.js", test: "bun test test/c.test.js" },
   ]);
   const { workspace, planPath } = makePlanWorkspace("wave-join", plan);
   try {
@@ -1015,19 +1015,19 @@ test("analyze-waves splits waves on shared files and shared checks", () => {
     {
       name: "shared-file",
       tasks: [
-        { title: "A", ac: "A", file: "src/a.js", test: "node --test test/a.test.js" },
-        { title: "B", ac: "B", file: "src/b.js", test: "node --test test/b.test.js" },
-        { title: "C", ac: "C", file: "src/a.js", test: "node --test test/c.test.js" },
-        { title: "D", ac: "D", file: "src/d.js", test: "node --test test/d.test.js" },
+        { title: "A", ac: "A", file: "src/a.js", test: "bun test test/a.test.js" },
+        { title: "B", ac: "B", file: "src/b.js", test: "bun test test/b.test.js" },
+        { title: "C", ac: "C", file: "src/a.js", test: "bun test test/c.test.js" },
+        { title: "D", ac: "D", file: "src/d.js", test: "bun test test/d.test.js" },
       ],
       waves: "T1,T2|T3,T4",
     },
     {
       name: "shared-check",
       tasks: [
-        { title: "A", ac: "A", file: "src/a.js", test: "node --test test/a.test.js" },
-        { title: "B", ac: "B", file: "src/b.js", test: "node --test test/a.test.js" },
-        { title: "C", ac: "C", file: "src/c.js", test: "node --test test/c.test.js" },
+        { title: "A", ac: "A", file: "src/a.js", test: "bun test test/a.test.js" },
+        { title: "B", ac: "B", file: "src/b.js", test: "bun test test/a.test.js" },
+        { title: "C", ac: "C", file: "src/c.js", test: "bun test test/c.test.js" },
       ],
       waves: "T1|T2,T3",
     },
@@ -1049,10 +1049,10 @@ test("analyze-waves skips superseded tasks without letting them break a wave", (
   // T2 is superseded and shares a file with T1; if it participated it would split the
   // wave, so the surviving active tasks T1, T3, T4 must still group together.
   const plan = wavePlan("wave-superseded", [
-    { title: "A", ac: "A", file: "src/a.js", test: "node --test test/a.test.js", status: "pending" },
-    { title: "B", ac: "B", file: "src/a.js", test: "node --test test/b.test.js", status: "superseded" },
-    { title: "C", ac: "B", file: "src/c.js", test: "node --test test/c.test.js", status: "pending", satisfies: "AC-2" },
-    { title: "D", ac: "C", file: "src/b.js", test: "node --test test/b.test.js", status: "pending", satisfies: "AC-3" },
+    { title: "A", ac: "A", file: "src/a.js", test: "bun test test/a.test.js", status: "pending" },
+    { title: "B", ac: "B", file: "src/a.js", test: "bun test test/b.test.js", status: "superseded" },
+    { title: "C", ac: "B", file: "src/c.js", test: "bun test test/c.test.js", status: "pending", satisfies: "AC-2" },
+    { title: "D", ac: "C", file: "src/b.js", test: "bun test test/b.test.js", status: "pending", satisfies: "AC-3" },
   ]);
   const { workspace, planPath } = makePlanWorkspace("wave-superseded", plan);
   try {
@@ -1066,8 +1066,8 @@ test("analyze-waves skips superseded tasks without letting them break a wave", (
 
 test("analyze-waves accepts the bound hash and fails closed on drift", () => {
   const plan = wavePlan("wave-bound", [
-    { title: "A", ac: "A", file: "src/a.js", test: "node --test test/a.test.js" },
-    { title: "B", ac: "B", file: "src/b.js", test: "node --test test/b.test.js" },
+    { title: "A", ac: "A", file: "src/a.js", test: "bun test test/a.test.js" },
+    { title: "B", ac: "B", file: "src/b.js", test: "bun test test/b.test.js" },
   ]);
   const { workspace, planPath } = makePlanWorkspace("wave-bound", plan);
   try {
@@ -1101,7 +1101,7 @@ test("analyze-waves rejects quick-fix grammar and enforces usage", () => {
     "### T1: Fix the value",
     "- **Files:**",
     "  - `src/a.js` — modify: correct the value",
-    "- **Test:** `node --test test/a.test.js`",
+    "- **Test:** `bun test test/a.test.js`",
     "",
   ].join("\n");
   const { workspace, planPath } = makePlanWorkspace("wave-quick", quickFix);

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 import { fileURLToPath } from "node:url";
 import { analyzeParallelWaves, validatePlanFile } from "../lib/gsd-contract.mjs";
 
@@ -9,7 +9,7 @@ const COMMANDS = new Set(["validate-plan", "validate-quick-fix", "analyze-waves"
 // would re-teach the one invocation that never resolves outside the GSD checkout, and a
 // `<GSD_ROOT>` placeholder is bootstrap text no shell expands.
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `node ${JSON.stringify(SCRIPT_PATH)}`;
+const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
 
 function quote(value) {
   return JSON.stringify(String(value));

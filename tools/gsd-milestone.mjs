@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // Milestone ledger grammar and lifecycle completion. The ledger's status column was
 // prose-controlled, so nothing could tell a session that completed a feature from one that
 // silently left every row `pending`. This tool parses the canonical UTF-8/LF grammar
@@ -13,7 +13,7 @@ const COMMANDS = new Set(["validate", "complete"]);
 const VALUE_FLAGS = new Set(["--path", "--expected-feature", "--expected-base"]);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `node ${JSON.stringify(SCRIPT_PATH)}`;
+const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
 
 function quote(value) {
   return JSON.stringify(String(value));

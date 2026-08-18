@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test, describe } from "bun:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, mkdtempSync, writeFileSync, mkdirSync, rmSync, symlinkSync, realpathSync, lstatSync, unlinkSync } from "node:fs";
 import { join, dirname, isAbsolute } from "node:path";
@@ -148,9 +148,9 @@ function testIndependentRenderer(features, gsdRoot) {
 
   return capsule;
 }
-test("capsule extension production API contract", async (t) => {
+describe("capsule extension production API contract", () => {
   // 1. Proving byte identity with the generic skill contract
-  await t.test("proves byte identity between REFERENCE.md template and JS extension", () => {
+  test("proves byte identity between REFERENCE.md template and JS extension", () => {
     const referenceContent = readFileSync(REFERENCE_PATH, "utf8");
     
     // Extract the text block under #### Compaction Recovery Capsule
@@ -164,7 +164,7 @@ test("capsule extension production API contract", async (t) => {
   });
 
   // 2. Bounded output
-  await t.test("proves capsule output is bounded in size", () => {
+  test("proves capsule output is bounded in size", () => {
     const capsule1 = createCapsule(["feature-a"], ROOT);
     assert.ok(capsule1.length > 200, "Capsule too short");
     assert.ok(Buffer.byteLength(capsule1, 'utf8') < 4000, "Capsule too long");
@@ -174,7 +174,7 @@ test("capsule extension production API contract", async (t) => {
   });
 
   // 3. Exact order
-  await t.test("proves exact order of rehydration steps is preserved", () => {
+  test("proves exact order of rehydration steps is preserved", () => {
     const capsule = createCapsule(["feature-a"], ROOT);
     
     const routingIdx = capsule.indexOf("If resuming, follow the bootstrap routing in ");
@@ -186,7 +186,7 @@ test("capsule extension production API contract", async (t) => {
   });
 
   // 4. Safe serialization of feature names/paths and hardening
-  await t.test("proves safe serialization of feature names and paths", () => {
+  test("proves safe serialization of feature names and paths", () => {
     // Empty feature list should throw
     assert.throws(() => {
       createCapsule([], ROOT);
@@ -248,14 +248,14 @@ test("capsule extension production API contract", async (t) => {
   });
 
   // 5. Workspace inventory and current-request-preservation language
-  await t.test("proves workspace inventory and current-request-preservation language exists", () => {
+  test("proves workspace inventory and current-request-preservation language exists", () => {
     const capsule = createCapsule(["feature-a"], ROOT);
     assert.ok(capsule.includes("workspace inventory only"), "Workspace inventory language missing");
     assert.ok(capsule.includes("Compaction MUST preserve and continue the current user request"), "Current request preservation language missing");
   });
 
   // 6. No model-specific wording
-  await t.test("proves no model-specific wording exists in the capsule", () => {
+  test("proves no model-specific wording exists in the capsule", () => {
     const capsule = createCapsule(["feature-a"], ROOT);
     
     // List of model-specific keywords to ban
@@ -269,7 +269,7 @@ test("capsule extension production API contract", async (t) => {
 
 
   // 7. Test production extension factory with filesystem fixtures and fake OMP API
-  await t.test("tests production extension factory with filesystem fixtures and fake OMP API", async (childT) => {
+  test("tests production extension factory with filesystem fixtures and fake OMP API", async () => {
     // Set up temp workspace directory
     const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-test-"));
     const scratchDir = join(tempDir, ".scratch");
@@ -538,7 +538,7 @@ test("capsule extension production API contract", async (t) => {
       rmSync(emptyTempDir, { recursive: true, force: true });
 
       // Regression: compaction preserves current user request as separate context item
-      await childT.test("preserves last user request as separate context item during compaction", async () => {
+      {
         const featureDir = join(tempDir, ".scratch", "active-plan");
         mkdirSync(featureDir, { recursive: true });
         writeFileSync(join(featureDir, "plan.md"), "# Plan\n## Feature\n`active-plan`\n");
@@ -615,7 +615,7 @@ test("capsule extension production API contract", async (t) => {
         const oneMoreRequest = oneMoreResult.context[1].replace("[GSD Current Request]\n", "");
         assert.ok(Buffer.byteLength(oneMoreRequest, "utf8") <= 500,
           "Two-emoji string must still be truncated to ≤500 bytes");
-      });
+      }
     } finally {
       // Clean up tempDir workspace
       rmSync(tempDir, { recursive: true, force: true });
@@ -623,10 +623,10 @@ test("capsule extension production API contract", async (t) => {
   });
 });
 
-test("T3 Review Fixes detailed behavior", async (t) => {
+describe("T3 Review Fixes detailed behavior", () => {
   // 1. Symlink root derivation test:
   // "Update behavioral tests to prove absolute real-root emission via a symlink-loaded extension"
-  await t.test("proves absolute real-root emission via a symlink-loaded extension", async () => {
+  test("proves absolute real-root emission via a symlink-loaded extension", async () => {
     const symlinkDir = mkdtempSync(join(tmpdir(), "omp-gsd-symlink-"));
     const symlinkPath = join(symlinkDir, "gsd-context-symlink.js");
     const realExtensionPath = join(ROOT, "extensions/gsd-context.js");
@@ -676,7 +676,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
   });
 
   // 2. Exact byte identity and no filesystem rediscovery divergence test:
-  await t.test("proves exact byte identity between both hooks and no filesystem rediscovery divergence", async () => {
+  test("proves exact byte identity between both hooks and no filesystem rediscovery divergence", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-identity-"));
     const scratchDir = join(tempDir, ".scratch");
     mkdirSync(scratchDir);
@@ -716,7 +716,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
   });
 
   // 3. Over-cap lifecycle behavior and stable ambiguity test:
-  await t.test("proves over-cap lifecycle behavior and stable ambiguity", async () => {
+  test("proves over-cap lifecycle behavior and stable ambiguity", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-overcap-"));
     const scratchDir = join(tempDir, ".scratch");
     mkdirSync(scratchDir);
@@ -763,7 +763,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
   });
 
   // 4. Regular-file / symlink impostor inertness test:
-  await t.test("proves regular-file/symlink impostor inertness", async () => {
+  test("proves regular-file/symlink impostor inertness", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-inertness-"));
     const scratchDir = join(tempDir, ".scratch");
     mkdirSync(scratchDir);
@@ -806,7 +806,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
   // The matrix splits on plan.md: "Malformed residual bytes without a `plan.md`" routes
   // ordinarily, while a full malformed packet fails closed. A defective state.toon was
   // throwing before plan.md was known, so plan-less residue took down every prompt.
-  await t.test("proves a defective state.toon fails closed only beside a real plan.md", () => {
+  test("proves a defective state.toon fails closed only beside a real plan.md", () => {
     const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-residual-"));
     const scratchDir = join(tempDir, ".scratch");
     mkdirSync(scratchDir);
@@ -833,7 +833,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
   });
 
   // 5. recursion/repeated capsule instructions test:
-  await t.test("proves no recursion/repeated capsule instructions in master or handoff", () => {
+  test("proves no recursion/repeated capsule instructions in master or handoff", () => {
     const master = readFileSync(join(ROOT, "skills/gsd/SKILL.md"), "utf8");
     const handoff = readFileSync(join(ROOT, "skills/gsd-handoff/SKILL.md"), "utf8");
     const reference = readFileSync(join(ROOT, "skills/gsd/REFERENCE.md"), "utf8");
@@ -849,7 +849,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
   });
 
   // 6. five maximum-length valid slugs through both hooks test:
-  await t.test("proves five maximum-length valid slugs through both hooks", async () => {
+  test("proves five maximum-length valid slugs through both hooks", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-maxlen-"));
     const scratchDir = join(tempDir, ".scratch");
     mkdirSync(scratchDir);
@@ -888,7 +888,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
   });
 
   // 7. result.toon directory/symlink impostors test:
-  await t.test("proves result.toon directory/symlink impostor inertness", async () => {
+  test("proves result.toon directory/symlink impostor inertness", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-result-impostor-"));
     const scratchDir = join(tempDir, ".scratch");
     mkdirSync(scratchDir);
@@ -918,7 +918,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
   });
 
   // 8. exact generic/OMP canonical renderer equality including over-cap ambiguity test:
-  await t.test("proves exact generic/OMP canonical renderer equality including over-cap ambiguity", async () => {
+  test("proves exact generic/OMP canonical renderer equality including over-cap ambiguity", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-equality-"));
     const scratchDir = join(tempDir, ".scratch");
     mkdirSync(scratchDir);
@@ -1015,7 +1015,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
-  await t.test("proves production lifecycle coverage for 1001 candidates without failure", async () => {
+  test("proves production lifecycle coverage for 1001 candidates without failure", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-1001-"));
     const scratchDir = join(tempDir, ".scratch");
     mkdirSync(scratchDir);
@@ -1057,7 +1057,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
   });
 
   // 10. Invalid relative/multiline/control roots:
-  await t.test("proves rejection of relative, multiline, and control character roots", () => {
+  test("proves rejection of relative, multiline, and control character roots", () => {
     const validFeatures = ["feat-a"];
 
     // Relative root
@@ -1088,7 +1088,7 @@ test("T3 Review Fixes detailed behavior", async (t) => {
   });
 
   // 11. Literal replacement-metacharacter/placeholder paths:
-  await t.test("proves literal insertion of special path characters without replacement pattern expansion", () => {
+  test("proves literal insertion of special path characters without replacement pattern expansion", () => {
     const specialRoot = "/path/with/$&/and/$'/and/`backticks`/and/<resume_instruction>/and/日本語";
     const capsule = createCapsule(["feat-a"], specialRoot);
 
@@ -1105,7 +1105,7 @@ Compaction MUST preserve and continue the current user request. Only resume an a
   });
 
   // 12. Independent generic discovery and byte formula verification:
-  await t.test("proves byte budget formula breakdown and exact accounting", () => {
+  test("proves byte budget formula breakdown and exact accounting", () => {
     const realRootPath = realpathSync(ROOT);
     const { template, normalInstruction, ambiguityInstruction } = getContractFromReference();
     const fixedText = template
@@ -1153,7 +1153,7 @@ Compaction MUST preserve and continue the current user request. Only resume an a
     assert.ok(actualBytes6 <= 4000, "Bounded-Ambiguity capsule must be within the 4000-byte cap");
   });
 });
-test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
+describe("automatic GSD bootstrap metadata and catalog contract", () => {
   const makeRoot = () => {
     const root = mkdtempSync(join(tmpdir(), "omp-gsd-bootstrap-"));
     mkdirSync(join(root, "skills"), { recursive: true });
@@ -1168,7 +1168,7 @@ test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
     );
   };
 
-  await t.test("parses strict single-line metadata", () => {
+  test("parses strict single-line metadata", () => {
     assert.deepEqual(
       parseSkillMetadata(
         '---\nname: gsd-example\ndescription: "Example activation"\nhide: true\n---\n\n# Example\n',
@@ -1194,7 +1194,7 @@ test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
     );
   });
 
-  await t.test("discovers a deterministic visible catalog and renders only the hidden master body", () => {
+  test("discovers a deterministic visible catalog and renders only the hidden master body", () => {
     const root = makeRoot();
     try {
       writeSkill(root, "gsd", "Hidden bootstrap", "# Hidden Bootstrap\nAlready loaded.", "hide: true\n");
@@ -1226,7 +1226,7 @@ test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
     }
   });
 
-  await t.test("rejects incomplete, mismatched, and non-regular catalogs", () => {
+  test("rejects incomplete, mismatched, and non-regular catalogs", () => {
     const root = makeRoot();
     try {
       writeSkill(root, "gsd", "Hidden bootstrap", "# Bootstrap", "hide: true\n");
@@ -1250,7 +1250,7 @@ test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
     }
   });
 
-  await t.test("requires Ponytail to remain hidden before injecting its context path", () => {
+  test("requires Ponytail to remain hidden before injecting its context path", () => {
     const root = makeRoot();
     try {
       writeSkill(root, "gsd", "Hidden bootstrap", "# Bootstrap", "hide: true\n");
@@ -1268,7 +1268,7 @@ test("automatic GSD bootstrap metadata and catalog contract", async (t) => {
     }
   });
 
-  await t.test("finds the first non-compaction message", () => {
+  test("finds the first non-compaction message", () => {
     assert.equal(firstNonCompactionSummaryIndex([]), 0);
     assert.equal(firstNonCompactionSummaryIndex([
       { role: "compactionSummary", summary: "one" },
@@ -1539,7 +1539,7 @@ test("state.toon lifecycle checkpoint contract", async () => {
     assert.notEqual(nextActionOffset, -1);
     invalidUtf8Bytes[nextActionOffset] = 0xff;
     writeFileSync(statePath, invalidUtf8Bytes);
-    assert.throws(() => readStateFile(statePath), /UTF-8|decode|encoded data/i);
+    assert.throws(() => readStateFile(statePath), /Invalid byte sequence/i);
     assert.deepEqual(readFileSync(statePath), invalidUtf8Bytes, "invalid UTF-8 state bytes must remain unchanged");
     writeStateAtomic(featureDir, baseFields);
 
@@ -2404,7 +2404,7 @@ test("readStateFile rejects FIFO instead of blocking", () => {
     }
   `;
   try {
-    execFileSync(process.execPath, ["--input-type=module", "-e", childScript], {
+    execFileSync(process.execPath, ["-e", childScript], {
       timeout: 10_000,
       stdio: "pipe",
     });
@@ -2466,7 +2466,7 @@ test("readStateFile rejects state.toon swap after feature dir pin", () => {
     }
   `;
   try {
-    execFileSync(process.execPath, ["--input-type=module", "-e", childScript], {
+    execFileSync(process.execPath, ["-e", childScript], {
       timeout: 10_000,
       stdio: "pipe",
     });

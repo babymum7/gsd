@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { read, skillNames, visibleSkillNames, parseAgentFrontmatter, ROOT } from "./support/skills-fixtures.js";
 import { readdirSync } from "node:fs";

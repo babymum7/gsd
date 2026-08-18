@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // Domain model Markdown contract validator. The index/shard/AGENTS schemas in
 // skills/gsd-domain-modeling/SKILL.md § Markdown contracts were prose-enforced, so a session
 // could silently ship a malformed index, an orphaned shard, or a duplicate AGENTS section.
@@ -17,7 +17,7 @@ const COMMANDS = new Set(["validate"]);
 const VALUE_FLAGS = new Set(["--index", "--agents"]);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `node ${JSON.stringify(SCRIPT_PATH)}`;
+const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
 
 function quote(value) {
   return JSON.stringify(String(value));

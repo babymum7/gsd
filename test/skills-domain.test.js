@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { read, skillNames, filesUnder, ROOT } from "./support/skills-fixtures.js";
 import { existsSync, readFileSync, readdirSync } from "node:fs";

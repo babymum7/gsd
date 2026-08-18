@@ -115,7 +115,7 @@ export const canonicalPacket = () => ({
     "- **Satisfies:** AC-1",
     "- **Files:**",
     "  - `test/skills.test.js` — modify: exercise the canonical parser fixture",
-    "- **Test:** `node --test test/skills.test.js`",
+    "- **Test:** `bun test test/skills.test.js`",
     "- **Status:** pending",
     "",
   ].join("\n"),
@@ -125,7 +125,7 @@ export const canonicalPacket = () => ({
 // against these constants so a drifted literal fails loudly instead of no-oping.
 export const FILES_BLOCK = "- **Files:**\n  - `test/skills.test.js` — modify: exercise the canonical parser fixture";
 export const filesBlockWith = (...entries) => [FILES_BLOCK, ...entries].join("\n");
-export const T1_BLOCK = `### T1: Parse plan\n- **Satisfies:** AC-1\n${FILES_BLOCK}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** pending`;
+export const T1_BLOCK = `### T1: Parse plan\n- **Satisfies:** AC-1\n${FILES_BLOCK}\n- **Test:** \`bun test test/skills.test.js\`\n- **Status:** pending`;
 export const INTERFACE_ROW = "| AC-1 | parser | `test/skills.test.js` | none |";
 export const replaceOnce = (source, needle, replacement) => {
   const count = source.split(needle).length - 1;

@@ -128,26 +128,26 @@ skills/
 
 `extensions/gsd-context.d.ts` is a hand-maintained public type surface for `gsd-context.js`; `test/gsd-context-dts.test.js` asserts the facade's runtime exports stay mirrored in it.
 
-Development checks: `npm test` runs the full suite; `npm run lint` runs Biome with the repository rule set (currently zero diagnostics); `npm run format -- <path>` reformats the passed JS/MJS/JSON files through Biome (the existing hand-formatted tree is intentionally not bulk-reformatted); `npm run lint:shell` checks `install.sh` and requires a `shellcheck` install.
+Development checks: `bun test --timeout=30000 test/*.test.js` runs the full suite; `bun run lint` runs Biome with the repository rule set (currently zero diagnostics); `bun run format -- <path>` reformats the passed JS/MJS/JSON files through Biome (the existing hand-formatted tree is intentionally not bulk-reformatted); `bun run lint:shell` checks `install.sh` and requires a `shellcheck` install.
 
 ## Plan contract validation
 
 The lifecycle validates actual plan authority through one production parser. New full plans use:
 
 ```bash
-node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md
+bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md
 ```
 
 Execution resume, terminal entry, and pre-squash bind the same command to approved bytes:
 
 ```bash
-node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex>
+bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex>
 ```
 
 Quick fixes select their distinct grammar:
 
 ```bash
-node "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md
+bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md
 ```
 
 Successful plan validation emits minimal deterministic TOON with the plan kind, feature, SHA-256, and task count. Artifact failures emit structured TOON on stdout and exit 1, separating an unreadable file (`code: io-error`) from malformed authority (`code: invalid-artifact`); invalid invocations exit 2. The validator reads only a bounded real `.scratch/<feature>/plan.md` and never mutates plan, state, domain, or Git data.
@@ -157,15 +157,15 @@ Successful plan validation emits minimal deterministic TOON with the plan kind, 
 Run the deterministic repository contracts through the published script:
 
 ```bash
-npm test
+bun test --timeout=30000 test/*.test.js
 ```
 
-That script runs `node --test test/*.test.js`, which is also the direct form when no manifest is installed.
+That command is the published script body, which is also the direct form when no manifest is installed.
 
 The supplementary model evaluator checks 40 workspace-state + prompt fixtures against the production bootstrap and visible catalog. It requires the strict JSON object `{ "decision": "...", "action": "...", "primarySkill": "gsd-..." | null }`; extra keys or prose fail.
 
 ```bash
-node test/eval/activation-eval.mjs
+bun test/eval/activation-eval.mjs
 ```
 
 A non-zero exit is not automatically a routing regression: a chatty model can emit the exact expected decision and then append prose, which the strict contract rejects as `invalid exact JSON reply`. Read the reported prefix before treating a failure as a dispatch defect, and re-run that fixture with `--only <id>` to separate a deterministic refusal from an intermittent one.

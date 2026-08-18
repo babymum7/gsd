@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { read, skillNames, filesUnder, ROOT, SKILLS } from "./support/skills-fixtures.js";
 import { existsSync } from "node:fs";
@@ -84,13 +84,50 @@ test("AC-11: the repository manifest publishes the deterministic contract suite"
   // able to run it from the manifest instead of copying a command out of prose.
   assert.equal(manifest.type, "module", "the manifest declares ES module semantics");
   assert.equal(manifest.private, true, "the manifest is private and never published");
-  assert.match(manifest.scripts.test, /node --test/, "the test script runs the node test runner");
+  assert.match(manifest.scripts.test, /bun test/, "the test script runs the bun test runner");
   assert.match(manifest.scripts.test, /test\/\*\.test\.js/, "the test script runs every contract suite file");
   assert.ok(!manifest.dependencies, "the contract suite carries no runtime dependency");
   assert.ok(!manifest.devDependencies, "the contract suite carries no development dependency");
 
   // README is the human entry point for the same command, so the two must not drift.
-  assert.match(read("README.md"), /npm test/, "the README names the published script");
+  assert.match(read("README.md"), /bun test/, "the README names the bun test command");
+});
+
+test("AC-2: Bun is the sole runtime across engines, shebangs, and prose", () => {
+  const manifest = JSON.parse(read("package.json"));
+  assert.equal(manifest.engines.bun, ">=1.3.14", "engines.bun declares the validated Bun minimum");
+  assert.equal(manifest.engines.node, undefined, "Node is no longer a runtime prerequisite");
+  assert.match(manifest.scripts.lint, /^bunx --yes @biomejs\/biome@2\.5\.8 lint \.$/, "lint runs through bunx");
+  assert.match(manifest.scripts.format, /^bunx --yes @biomejs\/biome@2\.5\.8 format --write$/, "format runs through bunx");
+  assert.equal(existsSync(join(ROOT, ".nvmrc")), false, "no Node version pin remains");
+
+  const executables = [
+    "tools/gsd-contract.mjs",
+    "tools/gsd-domain.mjs",
+    "tools/gsd-git.mjs",
+    "tools/gsd-milestone.mjs",
+    "tools/gsd-record.mjs",
+    "tools/gsd-state.mjs",
+    "test/eval/activation-eval.mjs",
+    "test/eval/eval-models.mjs",
+  ];
+  for (const path of executables) {
+    const body = read(path);
+    assert.equal(body.split("\n")[0], "#!/usr/bin/env bun", `${path} uses the Bun shebang`);
+    assert.doesNotMatch(body, /INVOCATION = `node /, `${path} must not emit a node invocation`);
+    assert.doesNotMatch(body, /\bnode\s+test\//, `${path} must not invoke node in usage prose`);
+  }
+
+  const prose = [
+    "README.md",
+    "skills/gsd/REFERENCE.md",
+    ...skillNames().map((name) => `skills/${name}/SKILL.md`),
+  ];
+  for (const path of prose) {
+    const body = read(path);
+    assert.doesNotMatch(body, /node\s+"/, `${path} must not invoke node with a quoted tool path`);
+    assert.doesNotMatch(body, /node --test/, `${path} must not invoke the node test runner`);
+  }
 });
 
 test("T1 session-owner execution contract and lifecycle roles", () => {

@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // Optional live-LLM activation evaluation for the exact production GSD bootstrap.
 //
 // Backend selection (see selectEvalBackend):
@@ -9,7 +9,7 @@
 //   GSD_EVAL_URL      OpenAI-compatible base URL (default https://api.openai.com/v1)
 //   GSD_EVAL_MODEL    comma-separated model list; every model is evaluated
 //
-// Usage: node test/eval/activation-eval.mjs [--only <fixture-id>]
+// Usage: bun test/eval/activation-eval.mjs [--only <fixture-id>]
 import { spawn } from "node:child_process";
 import { readFileSync, statSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";

@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
   mkdtempSync,
@@ -24,7 +24,7 @@ function git(args, cwd) {
 }
 
 function cli(args, cwd, env = {}) {
-  const result = spawnSync("node", [CLI, ...args], {
+  const result = spawnSync(process.execPath, [CLI, ...args], {
     cwd,
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -500,7 +500,7 @@ test("usage errors name the flag and exit 2", () => {
     // The lifecycle runs from a project checkout, not from here, so help must name a
     // runnable absolute path.
     const general = cli(["--help"], root);
-    assert.match(general.stdout, new RegExp(`node "${CLI.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
+    assert.match(general.stdout, new RegExp(`bun "${CLI.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}"`));
     assert.equal(cli(["preflight", "--feature-dir", relative], root).status, 0);
   } finally {
     rmSync(root, { recursive: true, force: true });

@@ -1,4 +1,4 @@
-import { test } from "node:test";
+import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
   canonicalPacket, structuredPacket, FILES_BLOCK, filesBlockWith, T1_BLOCK, INTERFACE_ROW,
@@ -139,7 +139,7 @@ test("Quick-fix Domain Impact grammar is exact and domain-owned", () => {
     "### T1: Correct header behavior",
     "- **Files:**",
     "  - `src/header.js` — modify: correct header normalization at the public API",
-    "- **Test:** `node --test test/header.test.js`",
+    "- **Test:** `bun test test/header.test.js`",
   ].join("\n");
 
   const parsed = parseQuickFixPlan({ "plan.md": quickFixPlan });
@@ -236,7 +236,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("## Summary\nValidate Markdown plan.", "## Summary\n") }), /Summary section must not be empty or blank/);
   assert.throws(() => parseMarkdownPacket({ ...files, "proposal.md": "" }), /legacy multi-file state/);
   assert.throws(() => parseMarkdownPacket({ ...files, "spec.md": "" }), /legacy multi-file state/);
-  assert.doesNotThrow(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("`node --test test/skills.test.js`", "`none`") }));
+  assert.doesNotThrow(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("`bun test test/skills.test.js`", "`none`") }));
   // Negative parse tests for Feature extra line, unbackticked Base, and prose Scope.
   const featureExtraLinePlan = files["plan.md"].replace("## Feature\n`canonical-fixture`", "## Feature\n`canonical-fixture`\nextra line");
   assert.throws(() => parseMarkdownPacket({ "plan.md": featureExtraLinePlan }), /Feature must be/);
@@ -301,7 +301,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
     )
     .replace(
       T1_BLOCK,
-      `### T1: Parse plan\n- **Satisfies:** AC-1\n${filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger')}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** pending\n### T2: Another task\n- **Satisfies:** AC-2\n${filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger')}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** pending`
+      `### T1: Parse plan\n- **Satisfies:** AC-1\n${filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger')}\n- **Test:** \`bun test test/skills.test.js\`\n- **Status:** pending\n### T2: Another task\n- **Satisfies:** AC-2\n${filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger')}\n- **Test:** \`bun test test/skills.test.js\`\n- **Status:** pending`
     );
   assert.throws(
     () => parseMarkdownPacket({ "plan.md": duplicateOwnersPlan }),
@@ -313,7 +313,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
     .replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/milestones.md`")
     .replace(
       T1_BLOCK,
-      `### T1: Parse plan\n- **Satisfies:** AC-1\n${filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger')}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** superseded\n### T2: Another task\n- **Satisfies:** AC-1\n${FILES_BLOCK}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** pending`
+      `### T1: Parse plan\n- **Satisfies:** AC-1\n${filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger')}\n- **Test:** \`bun test test/skills.test.js\`\n- **Status:** superseded\n### T2: Another task\n- **Satisfies:** AC-1\n${FILES_BLOCK}\n- **Test:** \`bun test test/skills.test.js\`\n- **Status:** pending`
     );
   assert.throws(
     () => parseMarkdownPacket({ "plan.md": supersededOnlyOwnerPlan }),
@@ -419,7 +419,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   );
   
   // Negative tests for Tasks Test command backticked format
-  assert.throws(() => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** node --test test/skills.test.js") }), /Test must be one fully backticked/);
+  assert.throws(() => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** bun test test/skills.test.js") }), /Test must be one fully backticked/);
 
   // Decisions assertions
   // 1. returns explicit empty for None.
@@ -649,31 +649,31 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": trailingBlankPub }), /Publication section must not have trailing blank/);
 
   // Vague backticked Test values
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** `todo`") }), /Test must not be vague/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** `TBD`") }), /Test must not be vague/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** `run tests`") }), /Test must not be vague/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** `works correctly`") }), /Test must not be vague/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** `valid`") }), /Test must not be vague/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** `covered`") }), /Test must not be vague/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** `success`") }), /Test must not be vague/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** `todo`") }), /Test must not be vague/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** `TBD`") }), /Test must not be vague/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** `run tests`") }), /Test must not be vague/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** `works correctly`") }), /Test must not be vague/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** `valid`") }), /Test must not be vague/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** `covered`") }), /Test must not be vague/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** `success`") }), /Test must not be vague/);
 
   // Whitespace-only, leading/trailing space, and padded vague Test commands
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** ` `") }), /Test must be one fully backticked/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** `   `") }), /Test must be one fully backticked/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** ` node --test test/skills.test.js`") }), /Test must be one fully backticked/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** `node --test test/skills.test.js `") }), /Test must be one fully backticked/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** ` run tests `") }), /Test must be one fully backticked/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** ` todo`") }), /Test must be one fully backticked/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** `TBD `") }), /Test must be one fully backticked/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** none") }), /Test must be one fully backticked/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** ` `") }), /Test must be one fully backticked/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** `   `") }), /Test must be one fully backticked/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** ` bun test test/skills.test.js`") }), /Test must be one fully backticked/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** `bun test test/skills.test.js `") }), /Test must be one fully backticked/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** ` run tests `") }), /Test must be one fully backticked/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** ` todo`") }), /Test must be one fully backticked/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** `TBD `") }), /Test must be one fully backticked/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** none") }), /Test must be one fully backticked/);
   // Extra outer space negatives for Test and other fields
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:**  `node --test test/skills.test.js`") }), /Test must not have leading or trailing whitespace/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:** `node --test test/skills.test.js` ") }), /Test must not have leading or trailing whitespace/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `node --test test/skills.test.js`", "- **Test:**  `node --test test/skills.test.js` ") }), /Test must not have leading or trailing whitespace/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:**  `bun test test/skills.test.js`") }), /Test must not have leading or trailing whitespace/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** `bun test test/skills.test.js` ") }), /Test must not have leading or trailing whitespace/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:**  `bun test test/skills.test.js` ") }), /Test must not have leading or trailing whitespace/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **State:** active", "- **State:**  active") }), /State must not have leading or trailing whitespace/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **State:** active", "- **State:** active ") }), /State must not have leading or trailing whitespace/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Status:** pending", "- **Status:**  pending") }), /Status must not have leading or trailing whitespace/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Status:** pending", `- **Status:** pending \n### T2: Another task\n- **Satisfies:** AC-1\n${FILES_BLOCK}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** superseded`) }), /Status must not have leading or trailing whitespace/);
+  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Status:** pending", `- **Status:** pending \n### T2: Another task\n- **Satisfies:** AC-1\n${FILES_BLOCK}\n- **Test:** \`bun test test/skills.test.js\`\n- **Status:** superseded`) }), /Status must not have leading or trailing whitespace/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **I-1:** Approved source bytes remain immutable.", "- **I-1:**  Approved source bytes remain immutable.") }), /text must not have leading or trailing whitespace/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **I-1:** Approved source bytes remain immutable.", "- **I-1:** Approved source bytes remain immutable. \n- **I-2:** Second invariant.") }), /text must not have leading or trailing whitespace/);
   // Retain the AC-10 multi-path Interfaces case
@@ -848,7 +848,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
       )
       .replace(
         "- **Status:** pending",
-        `- **Status:** pending\n### T2: Task 2\n- **Satisfies:** AC-2\n${FILES_BLOCK}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** pending`
+        `- **Status:** pending\n### T2: Task 2\n- **Satisfies:** AC-2\n${FILES_BLOCK}\n- **Test:** \`bun test test/skills.test.js\`\n- **Status:** pending`
       );
   };
   const twoAcPlan = addAc2(files["plan.md"]);
@@ -921,7 +921,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
     const filesList = i === 10
       ? "  - `test/skills.test.js` — modify: exercise the canonical parser fixture\n  - `test/another.test.js` — modify: exercise the second pinned path"
       : "  - `test/skills.test.js` — modify: exercise the canonical parser fixture";
-    taskBlocks += `### T${i}: Task ${i}\n- **Satisfies:** AC-${i}\n- **Files:**\n${filesList}\n- **Test:** \`node --test test/skills.test.js\`\n- **Status:** pending\n`;
+    taskBlocks += `### T${i}: Task ${i}\n- **Satisfies:** AC-${i}\n- **Files:**\n${filesList}\n- **Test:** \`bun test test/skills.test.js\`\n- **Status:** pending\n`;
   }
   taskBlocks = taskBlocks.trim();
 

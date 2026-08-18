@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // Observed Git state, never asserted Git state. Base derivation and the pre-squash gate were
 // prose-only rules, so nothing could tell a session that followed them from one that assumed
 // `main`. This tool answers both questions from the work tree and never writes: every Git
@@ -46,7 +46,7 @@ export function assertReadOnlyGit(args) {
 }
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `node ${JSON.stringify(SCRIPT_PATH)}`;
+const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
 
 function write_(lines) {
   process.stdout.write(lines.join("\n") + "\n");

@@ -1,8 +1,8 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // Two-pass activation eval: first-attempt accuracy + correction pass for failures.
 //
 // Usage:
-//   GSD_EVAL_BACKEND=omp node test/eval/eval-models.mjs
+//   GSD_EVAL_BACKEND=omp bun test/eval/eval-models.mjs
 //
 // Pass 1: every model answers every fixture (first-attempt accuracy).
 // Pass 2: failures get a correction hint ("your routing may be off, reconsider").

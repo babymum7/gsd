@@ -1,4 +1,4 @@
-#!/usr/bin/env node
+#!/usr/bin/env bun
 // Durable record grammar validator (docs/decisions/ and docs/design/).
 // Parses canonical UTF-8/LF records and verifies mandatory header grammar:
 // # NNNN — Title, Status, Date, and non-empty Decision section.
@@ -14,7 +14,7 @@ const COMMANDS = new Set(["validate"]);
 const VALUE_FLAGS = new Set(["--path", "--kind"]);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `node ${JSON.stringify(SCRIPT_PATH)}`;
+const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
 
 function quote(value) {
   return JSON.stringify(String(value));
