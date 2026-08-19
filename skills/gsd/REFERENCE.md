@@ -23,8 +23,8 @@ Canonical dispatch authority for the 9 visible GSD skills. Shared semantics live
 | Skill | Role | Intent | Prerequisites | Do-not-load | Transition | Helper-when |
 | --- | --- | --- | --- | --- | --- | --- |
 | `gsd-brainstorming` | owner | Resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract | Explicit design intent or load-bearing Spec-gap return | Read-only questions, pure mechanical edits, known single-spot quick fix | On convergence load `gsd-to-plan` | — |
-| `gsd-to-plan` | owner | Create or finalize canonical `plan.md` with bound Domain Impact after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unapproved plan | Design decisions still open; Nano edits | On approval use `gsd-state.mjs write-state` to write `state.toon` and load `gsd-executing-plans` | — |
-| `gsd-executing-plans` | owner | Implement approved plan tasks and owned domain docs on `wip/<feature>`, inline or as parallel waves of independent tasks | Valid approved `plan.md` and bound `state.toon` whose pending work the prompt names | No bound plan/state; a bare resume naming no work; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
+| `gsd-to-plan` | owner | Create or finalize canonical `plan.md` with bound Domain Impact after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unfinalized plan | Design decisions still open; Nano edits | On `validate-plan` success use `gsd-state.mjs write-state` to write `state.toon` and load `gsd-executing-plans` | — |
+| `gsd-executing-plans` | owner | Implement bound plan tasks and owned domain docs on `wip/<feature>`, inline or as parallel waves of independent tasks | Valid bound `plan.md` and bound `state.toon` whose pending work the prompt names | No bound plan/state; a bare resume naming no work; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
 | `gsd-handoff` | owner | Pause, save, resume, or recover from a valid `state.toon`, ledger, or capsule | Valid `state.toon`, ledger, or capsule; every bare resume naming no work enters here first | Missing/malformed state used to invent work | Load the peer named by validated `next_action` | — |
 | `gsd-verify` | owner | Review a diff/PR or prove planned or Quick-fix code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; Quick-fix: exact Quick-fix `plan.md`; standalone: supplied diff | Invent completion without deterministic gates | Planned or Quick-fix green path: squash, cleanup, optional retain/archive | — |
 | `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | An unlocated or non-obvious cause needing evidence | A located failure: the prompt names the file/line or exact failure signature | Return evidence to execution or an architectural cause to `gsd-codebase-architecture` | — |
@@ -63,7 +63,7 @@ The terminal gate runs it on every owned record before the squash. `AGENTS.md` g
 
 ### Authority
 
-The sole pre-approval human/agent contract is the canonical UTF-8/LF `plan.md` in `.scratch/<feature>/`, created by `gsd-to-plan` and amended in place by its executing owner.
+The sole plan contract is the canonical UTF-8/LF `plan.md` in `.scratch/<feature>/`, created by `gsd-to-plan` and amended in place by its executing owner.
 
 The `plan.md` is the only authority for intent, acceptance, task order, seams, files, and focused checks. Any legacy `proposal.md`, `spec.md`, or `design.md` is rejected and stops automatic selection with a Spec escalation. Root or scratch `proposal.toon`, `spec.toon`, `design.toon`, and `plan.toon` are stale non-authoritative files: never derive scope, recovery, acceptance, or task order from them.
 
@@ -83,12 +83,12 @@ Implementation is the only lifecycle work GSD may dispatch, and only as **parall
 The session owner remains sole lifecycle authority; a dispatched result carries no authority until the owner reconciles and commits it.
 
 A **wave** is a maximal contiguous run of non-superseded tasks in strict heading order where every pair is independent: disjoint `Files` path sets, disjoint `Satisfies` criteria, and differing focused `Test` commands.
-`analyze-waves` computes the waves deterministically; two or more tasks in one wave are dispatchable, and a single-task wave runs inline.
+`analyze-waves` computes the waves deterministically; multi-task waves dispatch to sub-agents, and a single-task wave runs inline.
 
 Each sub-agent receives one complete validated task slice rebuilt from `plan.md`, never invented; MUST run Fast TDD RED→GREEN→refactor; update every affected domain shard in the same commit as its semantic code; and commit only green task-owned changes on its own `wip/<feature>/t<n>` branch cut from the wave base.
 A sub-agent MUST NOT mutate `state.toon`, amend `plan.md`, merge, decide lifecycle, or run Deferred Slow E2E.
 
-The owner reconciles the wave in strict plan order into one green checkpoint, then writes `state.toon` through the `gsd-state.mjs` CLI; `Tn+1` after the wave begins only from that committed checkpoint.
+The owner reconciles the wave in strict plan order into one green checkpoint, then writes `state.toon` through the `gsd-state.mjs` CLI; `Tn+1` after the wave begins only from that committed checkpoint. A single-task wave is never dispatched: the owner runs it inline.
 A failed or red sub-agent task returns to the owner for bounded inline repair. Terminal conformance still proves the unchanged final commit, and plan-ordered diffs hold because the owner merges in plan order.
 
 ### Packet grammar
@@ -165,7 +165,7 @@ An AC ID is a positive sequential integer.
 
 Canonical task parsing accepts only structured task blocks. Structured `Files` entries require a unique safe repository-relative path, one `create|modify|delete` operation, and concise non-vague intent.
 
-`gsd-to-plan` single-writes and approves only plans containing canonical `Domain Impact`, and the parser accepts exactly that grammar. A plan missing `Domain Impact`, or using the single-line path-only task form, is rejected in every validation path whether or not a recorded SHA-256 binding matches.
+`gsd-to-plan` single-writes and binds only plans containing canonical `Domain Impact`, and the parser accepts exactly that grammar. A plan missing `Domain Impact`, or using the single-line path-only task form, is rejected in every validation path whether or not a recorded SHA-256 binding matches.
 
 ### Quick-fix plan exception
 
@@ -197,7 +197,7 @@ It contains one or two sequential tasks with unique structured paths and a real 
   - `Broad bootstrap` stays `not-offered` and non-`none` impact bootstraps the feature-scoped shard inline in that same task.
   - Only an explicitly requested broad bootstrap exits the bounded route for normal discovery.
 - Only the Quick-fix WIP verifier consumes this plan.
-- It has no proposal/spec/design source set, no normal-packet approval binding, and no normal-packet authority. Its `state.toon` records the validated hash; since `validate-quick-fix` takes no `--expected-sha256`, the gate compares its unbound revalidation against that record.
+- It has no proposal/spec/design source set, no normal-packet plan binding, and no normal-packet authority. Its `state.toon` records the validated hash; since `validate-quick-fix` takes no `--expected-sha256`, the gate compares its unbound revalidation against that record.
 - Ordinary packet validation MUST NOT classify it as malformed converged state or dispatch normal execution from it; its `gsd-verify` gate owns it until landing or a blocker.
 
 ### Executable contract validator
@@ -210,7 +210,7 @@ bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
 ```
 
-The first command validates a new canonical full plan and returns its exact SHA-256; it also revalidates a full-plan amendment before rebinding. The second requires the bytes to match an approved hash, so a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/`; symlinks, escaped paths, feature mismatch, and malformed grammar fail closed.
+The first command validates a new canonical full plan and returns its exact SHA-256; it also revalidates a full-plan amendment before rebinding. The second requires the bytes to match a bound hash, so a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/`; symlinks, escaped paths, feature mismatch, and malformed grammar fail closed.
 
 
 Success emits only deterministic scalar TOON:
@@ -221,18 +221,18 @@ Structured actionable failures also use TOON on stdout:
 - Usage failures exit 2 and help exits 0.
 - No command writes plan, state, domain, or Git data.
 
-### Approval binding
+### Plan binding and auto-execution
 
-`gsd-to-plan` validates canonical structured `plan.md`, prints its task/AC/Domain Impact summary, calculates SHA-256, and presents the single post-plan action surface.
-- Approval records feature, exact plan path/hash, base/WIP identity, no completed task, canonical preferences, and checkpoint revision in atomic `schema:v4` `state.toon`, then reads it back before loading `gsd-executing-plans`.
-- A fresh approval after Spec escalation atomically supersedes the older binding.
-- Full semantic parse and binding checks run only at approval, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use the retained validated slice.
+`gsd-to-plan` validates canonical structured `plan.md`, prints its task/AC/Domain Impact summary, calculates SHA-256, and immediately binds it for execution — there is no approval prompt and no post-plan menu.
+- Binding records feature, exact plan path/hash, base/WIP identity, no completed task, canonical preferences, and checkpoint revision in atomic `schema:v4` `state.toon` with `phase=approved` (the retained enum value, now meaning plan-bound automatically), then reads it back before loading `gsd-executing-plans`.
+- A fresh binding after Spec escalation atomically supersedes the older binding.
+- Full semantic parse and binding checks run only at binding, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use the retained validated slice.
 
-The validator runs unbound at new-plan approval and when revalidating an amendment before rebinding; every other full-plan call uses the bound-hash form. Once `state.toon` exists, every call also passes `--expected-base <state.base_ref>`, so a plan whose § Base drifted from the recorded merge target fails closed instead of sending the squash elsewhere. Quick-fix verification and resume use `validate-quick-fix`.
+The validator runs unbound at new-plan binding and when revalidating an amendment before rebinding; every other full-plan call uses the bound-hash form. Once `state.toon` exists, every call also passes `--expected-base <state.base_ref>`, so a plan whose § Base drifted from the recorded merge target fails closed instead of sending the squash elsewhere. Quick-fix verification and resume use `validate-quick-fix`.
 
 Because `state.toon` records no grammar kind, resume probes `validate-quick-fix` first and only then the full-plan form; a bound call checks the hash before parsing, so an unbound revalidation is what separates moved bytes from malformed grammar. The probe proves the recorded grammar only on a hash match; on any difference the prior kind is unprovable, so resume asks before rebinding to the current grammar.
 
-No model, agent, or persistent session identity participates in approval. The current top-level session is the sole lifecycle authority; a later session assumes that role only through canonical rehydration.
+No model, agent, or persistent session identity participates in binding. The current top-level session is the sole lifecycle authority; a later session assumes that role only through canonical rehydration.
 
 ### Convergence Ledger publication contract
 
@@ -259,14 +259,14 @@ The canonical UTF-8/LF grammar is:
 ```
 
 IDs are positive sequential `M1..MN`; slugs are unique lowercase kebab-case; goals are non-empty, concrete single-line text without `|`; status is exactly `pending` or `done`.
-- Feature must equal the directory slug, Base must name the approved base branch, headings and columns are exact, and no extra sections, rows, or columns are allowed.
+- Feature must equal the directory slug, Base must name the recorded base branch, headings and columns are exact, and no extra sections, rows, or columns are allowed.
 - Rows consist of a possibly empty `done` prefix followed by a non-empty `pending` suffix.
 - Creation or convergence-time append preserves every existing row byte-for-byte and adds only new `pending` rows.
 - A ledger with no pending row is a stale lifecycle residual, not a completed canonical ledger.
 
 ### Milestone Ledger completion contract
 
-Only the `Milestone WIP gate` may complete ledger lifecycle state. `gsd-executing-plans` treats the selected first-pending row and all ledger bytes as read-only during task work. At terminal verification, `gsd-verify` proves the selected row still matches the approved milestone and remains first pending with `bun "<GSD_ROOT>/tools/gsd-milestone.mjs" validate --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>`, then applies the transition with `... complete ...` under the same binding.
+Only the `Milestone WIP gate` may complete ledger lifecycle state. `gsd-executing-plans` treats the selected first-pending row and all ledger bytes as read-only during task work. At terminal verification, `gsd-verify` proves the selected row still matches the bound milestone and remains first pending with `bun "<GSD_ROOT>/tools/gsd-milestone.mjs" validate --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>`, then applies the transition with `... complete ...` under the same binding.
 
 - **Non-final milestone:** change exactly the selected row's status from `pending` to `done`; preserve every other byte.
 - **Final milestone:** delete `docs/gsd/<feature>/milestones.md` instead of writing an all-`done` ledger.
@@ -314,7 +314,7 @@ Every checkpoint write creates a complete temporary file in the same feature dir
 Persist only:
 
 - draft plan existence
-- approval binding (`phase=approved`)
+- plan binding (`phase=approved`)
 - green task commit (`last_green_task` / `last_green_commit`)
 - pause or automatic context pressure (`phase=paused`)
 - terminal entry, repair, or current-commit conformance (`phase=verifying|repair`)
@@ -326,6 +326,7 @@ Do not write active-task, numbered-history, reload-manifest, or persistent ident
 
 A bound-hash mismatch means the bytes moved, never a stop; only a missing or malformed-grammar `plan.md` fails closed. Drift never diverts prompt-named work to `gsd-handoff`: the executing owner amends it, revalidates unbound with its grammar's validator (`validate-plan`, or `validate-quick-fix` for a Quick-fix), and rebinds the returned hash into `state.toon` with an incremented `checkpoint_revision`. No branch closes and no fresh feature opens.
 - Bookkeeping amendments are self-service: recording a file the task touches, fixing a path or intent, splitting or reordering pending tasks, or sharpening wording that leaves acceptance intact.
+- A user-stated requirement change mid-execution is an amendment, never a new feature: amend, revalidate, rebind, and continue without a re-ask.
 - Material amendments ask one question first, then proceed with the chosen option: changing an active criterion's Outcome/Action/Expected, weakening an invariant or non-goal, changing `Domain Impact`, replacing an interface pin, or rewriting a completed task's record. Ask before rebinding.
 - A mismatch the owner cannot account for asks one question naming the affected sections; the answer picks rebind or restore.
 - Uncertainty is one question with a recommended default, never a stop or new plan.
@@ -430,9 +431,9 @@ Apply this matrix only before non-direct lifecycle work. Strictly validate every
 
 Terminal state never blocks unrelated direct work, and uncertain relatedness asks one question instead of stopping. An active or `merged-cleanup-pending` packet is never terminal history, so new work unrelated to one is plain `ordinary-routing`. Malformed bytes cannot be parsed, so only the `.scratch/<feature>/` directory name is a trusted relatedness signal. Terminal mtimes never compete with active packets; generic `continue` never selects them.
 
-## Post-approval pipeline contract
+## Post-plan pipeline contract
 
-After approval, the top-level owner runs ordered tasks with Fast TDD RED→GREEN→refactor and commits green checkpoints; independent tasks may be dispatched only as parallel waves under [§ Parallel wave dispatch](#parallel-wave-dispatch). `Tn+1` requires committed green `Tn` (after a wave, the owner's merged checkpoint). Mutations and Deferred Slow E2E never overlap.
+After binding, the top-level owner runs ordered tasks with Fast TDD RED→GREEN→refactor and commits green checkpoints; independent tasks may be dispatched only as parallel waves under [§ Parallel wave dispatch](#parallel-wave-dispatch). `Tn+1` requires committed green `Tn` (after a wave, the owner's merged checkpoint). Mutations and Deferred Slow E2E never overlap.
 
 After green checks, `gsd-verify` proves deterministic cumulative conformance on the unchanged commit: exact binding, one task/interface mapping per active AC, owned paths, plan-ordered diffs, decisions/invariants/non-goals, and focused evidence. Only malformed binding, ownership/coverage mismatch, explicit contract contradiction, unresolved change, or a red deterministic check blocks.
 
@@ -468,7 +469,7 @@ For explicit abandon/drop/delete: confirm the feature name, inspect whether the 
 
 ### Terminal scratch disposition
 
-Before final terminal review/squash, the user may explicitly select retain or archive-and-delete; omission defaults to delete after a green merge. There is no mandatory terminal cleanup prompt. Persist `cleanup_preference` in `state.toon` when explicitly chosen (via `gsd-state.mjs write-state`; see `gsd-handoff` § Write). After a green merge, use the same CLI invocation to write `phase=merged-cleanup-pending` and remove scratch unless retain or archive-and-delete was selected; crash recovery resumes only that cleanup decision. The pre-squash archive opportunity is not reopened after merge.
+During discuss the user may select retain or archive-and-delete; omission defaults to delete after a green merge. There is no mandatory cleanup prompt. Persist `cleanup_preference` in `state.toon` when explicitly chosen (via `gsd-state.mjs write-state`; see `gsd-handoff` § Write). After a green merge, use the same CLI invocation to write `phase=merged-cleanup-pending` and remove scratch unless retain or archive-and-delete was selected; crash recovery resumes only that cleanup decision. The pre-squash archive opportunity is not reopened after merge.
 
 - **delete (default):** after the green squash, remove `.scratch/<feature>/`.
 - **retain:** keep `.scratch/<feature>/` and set `phase=completed-retained` with `next_action=none`.
@@ -479,11 +480,11 @@ Before final terminal review/squash, the user may explicitly select retain or ar
 Archive output is non-authoritative historical reference. During the active cycle, `.scratch/<feature>/plan.md` remains the sole execution/design authority; archived files never reopen execution and are never treated as active authority.
 
 When archive-and-delete is selected:
-1. Copy the exact approved `.scratch/<feature>/plan.md` bytes to `docs/gsd/<feature>/archive/plan.md`.
+1. Copy the exact bound `.scratch/<feature>/plan.md` bytes to `docs/gsd/<feature>/archive/plan.md`.
 2. Write `docs/gsd/<feature>/archive/implementation.md` summarizing the feature outcome, changed paths, acceptance outcomes, and verification evidence.
 3. Do not copy legacy handoffs, immutable attempts, `result.toon`, or other rejected runtime history.
 4. If either archive destination already exists, fail closed and preserve prior content; never overwrite.
-5. Materialize and review the archive before squash so it lands in the same green one-feature/one-squash commit with the implementation; never create a second documentation commit after squash. The pre-squash `gsd-git.mjs preflight` verifies `archive/plan.md` is byte-for-byte the approved plan and `archive/implementation.md` is non-empty.
+5. Materialize and review the archive before squash so it lands in the same green one-feature/one-squash commit with the implementation; never create a second documentation commit after squash. The pre-squash `gsd-git.mjs preflight` verifies `archive/plan.md` is byte-for-byte the bound plan and `archive/implementation.md` is non-empty.
 6. After publication, delete `.scratch/<feature>/` as with ordinary delete disposition.
 
 Existing one-squash branch cleanup and scratch cleanup contracts remain intact.
@@ -491,13 +492,13 @@ Existing one-squash branch cleanup and scratch cleanup contracts remain intact.
 
 ## Contextual disclosure templates
 
-Pre-approval post-plan action surface:
+Planning has no post-plan menu: once the plan validates it binds and execution starts automatically, so the discuss phase is the only interactive surface.
+
+Discuss phase surfaces the next human decision directly:
 
 ```text
-Next steps (reply with number or text):
-1. Approve and execute
-2. Revise the plan
-3. Pause & save progress
+Next steps:
+- <recommendation and the next decision to make>
 ```
 
 Directly selected skills use natural-language actions:
@@ -507,4 +508,4 @@ Next steps:
 - Continue the active work or save progress.
 ```
 
-Inline helper loading appends nothing. Post-approval pipeline output reports factual progress or blockers only; blocker stops never imply merge success.
+Inline helper loading appends nothing. Post-plan pipeline output reports factual progress or blockers only; blocker stops never imply merge success.

@@ -217,7 +217,7 @@ test("activation fixtures and response parser enforce lazy primary-skill selecti
   const documentedFixtureCount = read("README.md").match(/(\d+) workspace-state \+ prompt fixtures/);
   assert.ok(documentedFixtureCount);
   assert.equal(fixtures.length, Number(documentedFixtureCount[1]));
-  assert.match(fixtureText, /approved plan\.md exist|state\.toon/);
+  assert.match(fixtureText, /bound plan\.md exist|state\.toon/);
   assert.doesNotMatch(fixtureText, /proposal\.toon|spec\.toon|design\.toon|plan\.toon/);
   assert.doesNotMatch(fixtureText, /"route"|"skill"/);
   assert.doesNotMatch(fixtureText, /handoff-\d+\.toon|result\.toon/);

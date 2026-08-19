@@ -9,25 +9,25 @@ consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AG
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
 - Do-not-load: open design decisions; Nano edits
-- Transition: on approval write state fields to `.scratch/<feature>/.state-input.json`, then use `bun "<GSD_ROOT>/tools/gsd-state.mjs" write-state --feature-dir .scratch/<feature> --json-file .scratch/<feature>/.state-input.json` to write `state.toon` (never the `write` tool directly); delete `.state-input.json` after the CLI succeeds or fails. Then load `gsd-executing-plans`
+- Transition: on `validate-plan` success write state fields to `.scratch/<feature>/.state-input.json`, then use `bun "<GSD_ROOT>/tools/gsd-state.mjs" write-state --feature-dir .scratch/<feature> --json-file .scratch/<feature>/.state-input.json` to write `state.toon` (never the `write` tool directly); delete `.state-input.json` after the CLI succeeds or fails. Then load `gsd-executing-plans` without a prompt
 
 # To Plan
 
-> **Invocation guard** — load after `gsd-brainstorming` converges or when validated unapproved plan state requires finalization. Select an Invocation Mode from explicit intent and entry context before validating only that row’s Required artifacts. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
+> **Invocation guard** — load after `gsd-brainstorming` converges or when validated unfinalized plan state requires finalization. Select an Invocation Mode from explicit intent and entry context before validating only that row’s Required artifacts. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
 
 ## Invocation modes
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
 | Initial converged creation | — | `state.toon`; `docs/gsd/<feature>/milestones.md` | `plan.md`; `state.toon` | — |
-| Resume/finalize | `plan.md` | `state.toon`; `docs/gsd/<feature>/milestones.md` | `plan.md`; `state.toon` | Stop and load `gsd-brainstorming` to recover the missing contract before recreating `plan.md`; never synthesize a contract or read legacy pre-approval TOON |
+| Resume/finalize | `plan.md` | `state.toon`; `docs/gsd/<feature>/milestones.md` | `plan.md`; `state.toon` | Stop and load `gsd-brainstorming` to recover the missing contract before recreating `plan.md`; never synthesize a contract or read legacy pre-binding TOON |
 
 ## Intake
 
 In `Resume/finalize` mode, read the canonical `plan.md` from `.scratch/<feature>/`.
 - Parse and validate it under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Canonical Markdown contract.
 - Any legacy `proposal.md`, `spec.md`, or `design.md` is rejected.
-- Root or scratch pre-approval `proposal.toon`, `spec.toon`, `design.toon`, and `plan.toon` are stale non-authoritative files and cannot provide missing scope, ACs, task order, or recovery.
+- Root or scratch pre-binding `proposal.toon`, `spec.toon`, `design.toon`, and `plan.toon` are stale non-authoritative files and cannot provide missing scope, ACs, task order, or recovery.
 - In `Initial converged creation` mode, there is no required plan and optional draft state/context is consumed.
 - We proceed to write the initial `plan.md` without reading an existing one.
 
@@ -43,11 +43,11 @@ Consume the converged `Domain Impact`.
 
 ## Write plan.md
 
-Write `.scratch/<feature>/plan.md` exactly from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Packet grammar. This skill is the sole writer at creation and finalization; after approval the executing owner amends the same file in place under § Plan amendment. Use canonical section order, exact `Domain Impact`, concrete Outcome/Action/Expected criteria, ordered Decisions, one public interface pin per active criterion, optional Publication, and structured tasks with unique path operation/intents, focused checks, and pending status.
+Write `.scratch/<feature>/plan.md` exactly from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Packet grammar. This skill is the sole writer at creation and finalization; after binding the executing owner amends the same file in place under § Plan amendment. Use canonical section order, exact `Domain Impact`, concrete Outcome/Action/Expected criteria, ordered Decisions, one public interface pin per active criterion, optional Publication, and structured tasks with unique path operation/intents, focused checks, and pending status.
 
 Read `plan.md` § Base from the work tree, never from convention: before `wip/<feature>` exists run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed branch, so a linked worktree records its own branch. Exit 1 with `code: detached-head` stops packet creation until the user checks out a branch, because a commit oid can hold no squash. Never read the base by hand with `git rev-parse --abbrev-ref HEAD`, which prints the literal `HEAD` when detached. See [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Base derivation and merge target.
 
-After every initial write or resume/finalize revision, run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md`. Only exit 0 with `kind: plan`, the matching feature, exact source `sha256`, and expected task count may reach the post-plan action surface. Exit 1 returns malformed authority to Discussion; exit 2 corrects the invocation. Use the returned hash for approval binding and never calculate a competing interpretation.
+After every initial write or resume/finalize revision, run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md`. Only exit 0 with `kind: plan`, the matching feature, exact source `sha256`, and expected task count may reach execution. Exit 1 returns malformed authority to Discussion; exit 2 corrects the invocation. Use the returned hash for plan binding and never calculate a competing interpretation.
 
 Tasks are sequential `T1`…`TN`; order encodes dependencies. Every active AC occurs exactly once across tasks. A task spanning ACs requires identical seam, test path, and lower-seam reason. For non-`none` Domain Impact, bind every exact affected `docs/domain/<scope>.md`, any required `docs/domain/index.md`, and canonical `AGENTS.md` upsert to the same owning task as the semantic code change; never create a trailing documentation-only task. The validator rejects any shard owner that changes no semantic code.
 
@@ -61,19 +61,13 @@ Plan complete observable behavior, not layers.
 - Browser/GUI, external-network, long-lived, large-fixture, and material-cost checks are Deferred Slow E2E, not focused task checks.
 - Any vague check, unowned or duplicate AC/path, missing reference, contradictory Domain Impact, or unresolved decision returns to Discussion.
 
-## Post-plan action surface
+## Auto-execution handoff
 
 The parser accepts only structured task blocks carrying canonical `Domain Impact`. This planner single-writes exactly that grammar; a path-only task form, missing Domain Impact, or malformed fields return to Discussion instead of receiving a binding.
 
-Present exactly one post-plan action surface for every complete draft plan and every feature type:
-
-1. Approve and execute
-2. Revise the plan
-3. Pause & save progress
-
-This is the last planning prompt: Approve and execute ends planning; no later planning menu or approval confirmation appears. Scratch cleanup defaults to automatic delete after green merge; retain or archive-and-delete only when explicitly selected before final review, and that choice never reopens planning or any other menu.
-
-On approval, immediately load `gsd-handoff` in `Execution state write` mode and atomically write canonical `schema:v4` `state.toon` with plan path/hash, `phase=approved`, no completed task, base/WIP identity, canonical preferences, checkpoint revision, and `next_action` set to `start/continue task`. Read it back and verify the binding before execution. A fresh approval after Spec escalation supersedes older binding state by atomic overwrite; there is no numbered handoff history. Never leave partial state bytes. Then load `gsd-executing-plans` without another prompt.
+Planning is the last interactive step of the discuss phase. There is no approval prompt and no post-plan menu: once `validate-plan` exits 0, immediately load `gsd-handoff` in `Execution state write` mode and atomically write canonical `schema:v4` `state.toon` with plan path/hash, `phase=approved`, no completed task, base/WIP identity, canonical preferences, checkpoint revision, and `next_action` set to `start/continue task`.
+Read it back and verify the binding before execution. A fresh binding after Spec escalation supersedes older binding state by atomic overwrite; there is no numbered handoff history. Never leave partial state bytes.
+Then load `gsd-executing-plans` without another prompt. Scratch cleanup defaults to automatic delete after green merge; retain or archive-and-delete is recorded only when selected during discuss, and that choice never reopens planning or any menu.
 ## Contextual disclosure
 
 Use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates. Inline firing appends nothing.

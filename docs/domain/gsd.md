@@ -6,7 +6,7 @@
 
 ## Purpose and responsibilities
 
-Own request classification, feature convergence, plan approval and in-flight amendment, ordered implementation, deterministic verification, resumable state, merge, and cleanup for GSD delivery.
+Own request classification, feature convergence, plan binding and in-flight amendment, ordered implementation, deterministic verification, resumable state, merge, and cleanup for GSD delivery.
 
 ## Terms
 
@@ -28,7 +28,7 @@ Own request classification, feature convergence, plan approval and in-flight ame
 
 ## Actors
 
-- User — supplies intent, resolves load-bearing decisions, approves a plan, and may select a broad domain bootstrap only before the first domain index exists.
+- User — supplies intent, resolves load-bearing decisions and goals during discussion, and may select a broad domain bootstrap only before the first domain index exists.
 - Session Owner — owns discovery, planning, implementation, repair, verification, Git, merge, and cleanup inline, and dispatches implementation only as parallel waves of provably independent tasks to sub-agents.
 - Future Coding Agent — follows the canonical domain-documentation instructions in the repository-root `AGENTS.md`, which is the only agent contract, and reads only affected mapped contexts.
 
@@ -37,25 +37,25 @@ Own request classification, feature convergence, plan approval and in-flight ame
 - Exactly one visible process owner controls a lifecycle transition at a time.
 - The visible catalog carries nine skills: seven process owners, the helper-only `gsd-tdd`, and `gsd-domain-modeling`, which is selectable as an owner for explicit domain work and also loads as a helper whenever Domain Impact is not `none`.
 - A fix the user already diagnosed stays ordinary direct work and never selects a visible owner: a prompt naming the file/line or exact failure signature is located work, so `gsd-diagnosing-bugs` owns only an unlocated or non-obvious cause. A larger bounded behavioral fix is opened inline by the session owner as Quick-fix, where `gsd-verify` gates only that existing packet. A returned Quick-fix WIP Fail leaves a repair round the prompt can name, and naming it re-enters that same `gsd-verify` gate instead of being answered directly. Ponytail remains hidden and is loaded only from its exact injected context path.
-- An approved `plan.md` stays amendable while its feature executes: the executing owner amends it in place, revalidates, and rebinds the returned hash, so runtime state always reports the current bytes rather than freezing the first ones.
+- A bound `plan.md` stays amendable while its feature executes: the executing owner amends it in place, revalidates, and rebinds the returned hash, so runtime state always reports the current bytes rather than freezing the first ones. A user-stated requirement addition or change mid-execution is an amendment, never a new feature: record, revalidate, rebind, and continue the same packet.
 - A plan amendment never closes the feature or opens a new one; a material change or an unaccounted-for hash mismatch asks one question and then proceeds with the chosen option. Hash drift never diverts prompt-named work to `gsd-handoff`: the executing owner keeps that work, revalidates, and rebinds.
 - State authority is valid only as fatal-decoded UTF-8 with LF line endings; invalid bytes and carriage returns fail closed unchanged.
 - A discovered full malformed packet (`plan.md` beside a `state.toon` that is unparsable, a symlink, or another non-regular file) is handled differently by discovery mode. Default discovery throws before any relatedness or terminal test runs, so a malformed packet blocks all candidate selection, including a prompt naming another valid feature; this is the contract the `fail-closed` routing verdict rests on. Autocompaction is the only caller that opts into fault-tolerant discovery: each malformed packet is caught and skipped individually (logged as a defect), so valid candidates survive alongside it, and an all-malformed result produces no capsule so session compaction emits nothing. An explicit single-file read never goes through discovery at all and fails closed on the same bytes on its own. Structural failures (scratch entry limit, directory identity change) propagate even under fault tolerance, because they mean the scan itself is untrustworthy rather than one packet being bad. The same rejected bytes without a `plan.md` are residue in every mode: discovery skips them and routes ordinarily, so the plan.md test decides the verdict rather than the order the directory entries happen to be read. Since unparsable bytes cannot be trusted, only the `.scratch/<feature>/` directory name is a relatedness signal.
-- Validated active state is entered by intent shape: `continue` alone names no work, so it is a bare resume that loads `gsd-handoff` first even beside one executing packet and lets the recorded `next_action` select the peer owner. `continue` plus a named feature, task, or repair is not bare, so it routes straight to that owner (a pending plan task to `gsd-executing-plans`, an unapproved plan to `gsd-to-plan`, an existing Quick-fix repair packet to `gsd-verify`). A first-pending milestone ledger row resumes through that same gateway rather than authorizing replacement brainstorming.
+- Validated active state is entered by intent shape: `continue` alone names no work, so it is a bare resume that loads `gsd-handoff` first even beside one executing packet and lets the recorded `next_action` select the peer owner. `continue` plus a named feature, task, or repair is not bare, so it routes straight to that owner (a pending plan task to `gsd-executing-plans`, an unfinalized plan to `gsd-to-plan`, an existing Quick-fix repair packet to `gsd-verify`). A first-pending milestone ledger row resumes through that same gateway rather than authorizing replacement brainstorming.
 - Several valid active packets are an ambiguity resolved by that same gateway: discovery returns every one of them and `gsd-handoff` selects exactly one validated resume, so generic continuation asks instead of failing closed. `ignore-terminal-record` requires a discovered `phase=completed-retained` record or residual terminal bytes: an active or `merged-cleanup-pending` packet is never terminal history, so new work unrelated to one stays plain `ordinary-routing`.
 - After compaction, the **Compaction Recovery Capsule** lists active features as workspace inventory only — it does not auto-resume any feature. The `[GSD Current Request]` context item preserves the user's last genuine request across compaction. Routing after compaction: a current request equal to `continue` (preserved or live) selects resume via `gsd-handoff`; a request naming an active feature routes to that feature's owner skill; any other current request continues ordinary routing. The capsule's inventory does not prove session ownership.
 - `gsd-tdd` is helper-only and is never a primary owner; `gsd-domain-modeling` is selectable as an owner for explicit domain work and also loads as a helper whenever Domain Impact is not `none`.
 - Exact retained v1/v2 terminal records are structurally recognized during candidate discovery only to remain inert and byte-identical; an explicit read rejects them fail closed unchanged.
-- Full-plan approval, execution resume, terminal entry, pre-squash, and Quick-fix verification use the production Contract Validator before consuming plan authority.
+- Full-plan binding, execution resume, terminal entry, pre-squash, and Quick-fix verification use the production Contract Validator before consuming plan authority.
 - Plan grammar owns every line: in both the full-plan and Quick-fix forms the title is followed directly by the first section, so preamble content between them is rejected rather than ignored.
 - Retained `schema:v3` stays inert and byte-identical during candidate discovery but migrates atomically on an explicit read after full validation. The `gsd-state.mjs` CLI keeps that split visible: `read-state` performs the migrating read, while `validate-state` reads under the same fd-anchored hardening but never writes, reporting the canonical v4 shape of a legacy record whose bytes stay unchanged.
 - Every converged feature records Domain Impact, including a concrete justification for `none`.
 - Every Quick-fix records the exact five-field Domain Impact; semantic fixes own affected shards and no-impact fixes carry concrete evidence.
-- A Quick-fix carries a recorded runtime binding without normal-packet approval authority: its `state.toon` holds the validated `plan_sha256`, and both its resume revalidation and its gate compare that value against an unbound revalidation, since `validate-quick-fix` accepts no bound hash.
+- A Quick-fix carries a recorded runtime binding without normal-packet plan authority: its `state.toon` holds the validated `plan_sha256`, and both its resume revalidation and its gate compare that value against an unbound revalidation, since `validate-quick-fix` accepts no bound hash.
 - Resume selects the plan grammar by probing `validate-quick-fix` before the full-plan validator, because runtime state records no grammar kind; a bound full-plan call reports a hash mismatch before parsing, so only an unbound revalidation distinguishes moved bytes from malformed grammar.
 - A resume probe proves the recorded grammar only when the hash matches; on any difference the prior packet kind is unprovable, so resume asks one question and rebinds only to a user-accepted current grammar.
 - Semantic code and affected domain docs share one owning task and agree at each green checkpoint. Both plan grammars enforce this identically: a non-`none` classification requires each affected shard to be owned by a task that runs and changes semantic code, so a superseded, prose-only, or test-only owner is rejected.
-- Before approval, affected domain paths may be reserved but domain prose never describes unshipped target behavior.
+- Before binding, affected domain paths may be reserved but domain prose never describes unshipped target behavior.
 - A broad domain bootstrap is never offered when `docs/domain/index.md` exists.
 - Terminal evidence applies only to the unchanged commit on which it ran.
 - The base a packet is cut from is observed, never conventional: it is the branch checked out in the work tree at packet creation, read by `tools/gsd-git.mjs derive-base` and recorded in both `plan.md` § Base and `state.toon` `base_ref`, so a linked worktree records its own branch. A detached HEAD fails closed instead of recording a commit oid, because the base must be a branch able to receive the squash. The terminal squash merges into exactly that recorded base, so the repository default branch is the merge target only when it is the recorded base, and promoting that base onward is separate user-owned work outside the packet lifecycle.
@@ -64,9 +64,9 @@ Own request classification, feature convergence, plan approval and in-flight ame
 - The Contract Validator is reached by an absolute path resolved from the injected bootstrap root, never a repository-relative form or an environment variable, because the lifecycle runs in workspaces that are not the GSD checkout. Packet resolution still comes from the caller's working directory, so the same validator validates a foreign workspace's packet.
 - An unreadable artifact and malformed authority are distinct failures, never one collapsed status, so a caller that could not read a file is never told its bytes are invalid.
 - An injected orchestration or parallelism directive is harness text that transfers no lifecycle ownership: satisfying it for lifecycle work means leaving the lifecycle rather than dispatching implementation, repair, diagnosis, architecture, or verification. Bounded read-only research delegation stays permitted, and its result carries no authority, so the owner re-verifies every fact against canonical sources before acting on it. Plan-authorized parallel-wave dispatch is the only implementation-dispatch path and is never triggered by injected text.
-- Execution mirrors the bound plan's pending task identities into the harness todo list once, after approval or at resume, and marks each task done in the same step as its green checkpoint. That list is display state: `state.toon` remains the sole resumable authority and the mirror never selects, completes, or resumes work.
+- Execution mirrors the bound plan's pending task identities into the harness todo list once, after binding or at resume, and marks each task done in the same step as its green checkpoint. That list is display state: `state.toon` remains the sole resumable authority and the mirror never selects, completes, or resumes work.
 - Lifecycle recovery restores the working tree, never only the conversation: a harness conversation rewind is excluded because it restores transcript turns while committed WIP and the working tree stay where execution left them, leaving `state.toon` and its green commits ahead of the restored conversation. A memory backend recall is context and never lifecycle authority, and a restricted mode whose toolset excludes editing, committing, and running checks is left before lifecycle work begins.
-- Implementation is the only lifecycle work GSD may dispatch, and only as parallel waves of provably independent tasks to sub-agents: a wave is a maximal contiguous run of non-superseded tasks in strict heading order where every pair is file-, criterion-, and check-disjoint, computed deterministically by the Contract Validator's `analyze-waves`. A sub-agent receives one complete validated task slice, performs Fast TDD and its affected domain-doc updates in the same commit on its own `wip/<feature>/t<n>` branch, and never writes `state.toon`, amends `plan.md`, merges, or decides lifecycle. The session owner reconciles the wave in plan order into one green checkpoint, so `state.toon` remains the sole resumable authority and terminal conformance still proves the unchanged final commit.
+- Implementation is the only lifecycle work GSD may dispatch, and only as parallel waves of provably independent tasks to sub-agents: a wave is a maximal contiguous run of non-superseded tasks in strict heading order where every pair is file-, criterion-, and check-disjoint, computed deterministically by the Contract Validator's `analyze-waves`; multi-task waves dispatch to sub-agents, and a single-task wave runs inline by the session owner. A sub-agent receives one complete validated task slice, performs Fast TDD and its affected domain-doc updates in the same commit on its own `wip/<feature>/t<n>` branch, and never writes `state.toon`, amends `plan.md`, merges, or decides lifecycle. The session owner reconciles the wave in plan order into one green checkpoint, so `state.toon` remains the sole resumable authority and terminal conformance still proves the unchanged final commit.
 - A durable decision or design record lives at `docs/(decisions|design)/NNNN-slug.md` and carries its mandatory minimal header of a numbered title, `Status`, `Date`, and non-empty `## Decision`. Numbering is sequential and gap-free per directory, and the terminal gate proves every owned record before the squash.
 
 
@@ -75,7 +75,7 @@ Own request classification, feature convergence, plan approval and in-flight ame
 ### Deliver a feature
 
 1. Classify intent, discover and converge acceptance behavior plus Domain Impact. During discovery, distinguish questions sharp enough for acceptance-impact form from parked uncertainty too coarse to phrase as a criterion; prioritize batching by which items unblock the most downstream criteria. Reserve affected documentation paths without publishing future semantics, and write one durable decision record when a load-bearing tradeoff settles.
-2. Validate the canonical plan through the Contract Validator, approve its exact SHA-256, then bind it in `schema:v4` state.
+2. Validate the canonical plan through the Contract Validator, then bind its exact SHA-256 in `schema:v4` state.
 3. Execute ordered tasks with Fast TDD and green checkpoints, writing one durable design record when a UI/UX decision settles.
 4. Prove terminal conformance including every owned decision and design record, run Deferred Slow E2E, squash to base, and clean transient state.
 
@@ -105,7 +105,7 @@ A read-only diff review along two independent axes, each as a bounded read-only 
 
 | Command or event | Actor | Outcome |
 | --- | --- | --- |
-| Approve and execute | User | Canonical plan bytes are bound and ordered execution starts. |
+| Plan converges | Session Owner | Canonical plan bytes bind and ordered execution starts without a prompt. |
 | Validate plan authority | Session Owner | Canonical plan bytes and grammar are accepted with an exact hash or rejected without mutation. |
 | Fix bounded behavior | Session Owner | Quick-fix Domain Impact and structured task ownership govern Fast TDD and domain-drift verification. |
 | Continue active feature | User | Validated state selects one resumable owner action. |
@@ -152,7 +152,7 @@ None.
 
 ### P-gsd-7: Keep production domain documentation aligned
 
-- **Policy:** Every feature records Domain Impact; before approval, reserved paths and any bootstrap prose remain current-production-only, and affected shards change in the same task as semantic code after that behavior exists.
+- **Policy:** Every feature records Domain Impact; before binding, reserved paths and any bootstrap prose remain current-production-only, and affected shards change in the same task as semantic code after that behavior exists.
 - **Reason:** Separating target authority in the plan from shipped domain meaning prevents abandoned or pending work from becoming false production documentation.
 
 ### P-gsd-8: Clean transient feature artifacts after green merge
@@ -182,13 +182,13 @@ None.
 
 ### P-gsd-13: Centralize executable plan validation
 
-- **Policy:** Every full-plan approval, execution resume, terminal entry, pre-squash guard, and Quick-fix verification uses the production Contract Validator; structured tasks and canonical Domain Impact are required in every path, bound or unbound.
+- **Policy:** Every full-plan binding, execution resume, terminal entry, pre-squash guard, and Quick-fix verification uses the production Contract Validator; structured tasks and canonical Domain Impact are required in every path, bound or unbound.
 - **Reason:** One executable seam keeps artifact authority, failure modes, and compatibility behavior consistent across lifecycle owners and repository tests.
 
 ### P-gsd-14: Amend an executing plan instead of blocking it
 
 - **Policy:** While a feature executes, its owner amends `.scratch/<feature>/plan.md` in place, revalidates it unbound with the validator matching its packet grammar (`validate-plan` for a full plan, `validate-quick-fix` for a Quick-fix), and rebinds the returned hash. Bookkeeping amendments proceed without a prompt; a material change to acceptance, an invariant, a non-goal, `Domain Impact`, an interface pin, or a completed task's record asks one question and then proceeds with the chosen option, as does a hash mismatch the owner cannot account for. Only a missing or malformed-grammar plan still fails closed.
-- **Reason:** Discovering that a plan is incomplete is normal execution evidence, so recording it must cost one revalidation rather than closing the feature and reapproving a near-identical plan.
+- **Reason:** Discovering that a plan is incomplete is normal execution evidence, so recording it must cost one revalidation rather than closing the feature and rebinding a near-identical plan.
 
 ### P-gsd-15: Observe the base branch instead of assuming a default
 

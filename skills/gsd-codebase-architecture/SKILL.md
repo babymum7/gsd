@@ -11,7 +11,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 - Role: owner
 - Do-not-load: unrelated broad exploration or feature behavior whose architecture has no unresolved seam
-- Transition: a selected candidate enters `gsd-brainstorming`; approved execution returns bounded evidence or Spec escalation to its session owner
+- Transition: a selected candidate enters `gsd-brainstorming`; bound execution returns bounded evidence or Spec escalation to its session owner
 
 # Codebase Architecture
 
@@ -115,7 +115,7 @@ Each candidate states:
 
 In standalone work, present ranked candidates and ask the user to select one before feature design or code changes. A selected candidate transitions to `gsd-brainstorming`.
 
-Inside approved execution, candidates are report-only. If the current acceptance contract requires the architecture change but does not authorize it, return a Spec-escalation blocker. Otherwise record the strongest future candidate and resume execution without widening scope.
+Inside bound execution, candidates are report-only. If the current acceptance contract requires the architecture change but does not authorize it, return a Spec-escalation blocker. Otherwise record the strongest future candidate and resume execution without widening scope.
 
 ## Domain context
 

@@ -29,7 +29,7 @@ Tests specify observable behavior through public interfaces and should survive i
 
 A **Fast TDD Check** is deterministic, local, and cheap enough for repeated RED→GREEN→refactor: unit, contract, local integration, or in-process CLI/API. No browser or GUI, external network, long-lived server, large fixture, or material machine cost; those are Deferred Slow E2E.
 
-The validated task slice selects its focused test seam from the approved Markdown plan. Consume that exact slice and relevant pinned sections, including ordered Decisions, without reparsing plan/binding. Missing or mismatched pins block. Use the highest deterministic existing fast public seam; use a lower seam only for a plan-recorded constraint. Source-text assertions, private-helper probes, and test-only fakes cannot substitute for behavior.
+The validated task slice selects its focused test seam from the bound Markdown plan. Consume that exact slice and relevant pinned sections, including ordered Decisions, without reparsing plan/binding. Missing or mismatched pins block. Use the highest deterministic existing fast public seam; use a lower seam only for a plan-recorded constraint. Source-text assertions, private-helper probes, and test-only fakes cannot substitute for behavior.
 
 Keep RED/Green/refactor evidence in session-owner reporting/transcripts only; a wave-dispatched sub-agent returns its evidence to the session owner, and add no runtime schema.
 
@@ -45,7 +45,7 @@ Never batch all tests before implementation. Use vertical tracer bullets: one fo
 ## Optional context signal
 Context harvesting is optional and bounded to the selected task, tests, implementation files, and relevant domain docs already read. Never scan repository-wide or create missing scaffolds. Load `gsd-domain-modeling` only for an already-evidenced recurring project term or explicit decision/rationale; generic vocabulary and code shape are no-op.
 
-Pre-approval material ambiguity uses domain modeling's one-question rule. Post-approval ambiguity in an AC, interface, or invariant returns to `gsd-executing-plans` for Spec escalation; otherwise ask no documentation question and continue.
+Pre-binding material ambiguity uses domain modeling's one-question rule. Post-binding ambiguity in an AC, interface, or invariant returns to `gsd-executing-plans` for Spec escalation; otherwise ask no documentation question and continue.
 
 ## Per-cycle checklist
 - [ ] Public-seam test has concrete `action → observable state/value`, not implementation-coupled prose.

@@ -32,14 +32,14 @@ Build a **tight** red-capable pass/fail signal for *this* bug before hypothesizi
 **Done when** you can name ONE command (script/test/curl), already run once, that is red-capable (drives the bug path, asserts the user's exact symptom), deterministic, fast, agent-runnable.
 - No red-capable command → no Phase 2, and do not hypothesize without a loop.
 - In standalone diagnosis, STOP and ask one focused question for the missing environment access, captured artifact, or permission for temporary instrumentation.
-- In Execution-blocker diagnosis, ask no question: emit the canonical post-approval Blocker stop naming the exact unavailable access or artifact, and return the blocker evidence to `gsd-executing-plans` as its caller; this stops the current pipeline and does not resume execution.
+- In Execution-blocker diagnosis, ask no question: emit the canonical post-binding Blocker stop naming the exact unavailable access or artifact, and return the blocker evidence to `gsd-executing-plans` as its caller; this stops the current pipeline and does not resume execution.
 - A later validated resume, after the external prerequisite is available, may re-enter diagnosis.
 
 ## Phase 2 — Reproduce + minimize
 Run it, watch red. Confirm it's the *user's* failure (not a nearby one) and reproducible. Then shrink to the smallest scenario that still goes red — cut inputs/callers/config one at a time, re-running after each. Done when every remaining element is load-bearing.
 
 ## Phase 3 — Hypothesize
-Generate **3–5 ranked hypotheses** before testing any (single-hypothesis anchors). Each **falsifiable**: "If <X> is the cause, <changing Y> makes the bug disappear." Can't state a prediction → it's a vibe, discard. Surface the ranked list as non-blocking progress, never as a required question. In standalone diagnosis the user may volunteer a re-ranking while work continues. In Execution-blocker diagnosis, report the list and immediately proceed to instrumentation; never ask, wait for a re-ranking, or pause post-approval auto-pilot.
+Generate **3–5 ranked hypotheses** before testing any (single-hypothesis anchors). Each **falsifiable**: "If <X> is the cause, <changing Y> makes the bug disappear." Can't state a prediction → it's a vibe, discard. Surface the ranked list as non-blocking progress, never as a required question. In standalone diagnosis the user may volunteer a re-ranking while work continues. In Execution-blocker diagnosis, report the list and immediately proceed to instrumentation; never ask, wait for a re-ranking, or pause post-binding auto-pilot.
 
 ## Phase 4 — Instrument
 Each probe maps to a Phase-3 prediction. **One variable at a time.** Preference: debugger/REPL breakpoint > targeted logs at hypothesis-distinguishing seams > never "log everything and grep". Tag every debug log `[DEBUG-xxxx]` (cleanup = one grep). **Perf branch**: establish a baseline measurement, then bisect — measure first, fix second.
@@ -60,7 +60,7 @@ In standalone diagnosis only, ask what would have prevented the bug. An architec
 ## Optional context signal
 Diagnosis harvest is optional and bounded to the minimized bug path. Reuse only the prompt/trace, reproduction, hypotheses, and code/docs already relevant to the diagnosis; never widen into a repository glossary/decision scan or create missing scaffolds. Trigger `gsd-domain-modeling` only if that evidence reveals a recurring project-specific term or explicit decision/rationale signal. Generic error vocabulary, a one-off identifier, implementation detail, and code shape without rationale are no-op. Diagnosis never writes domain artifacts itself.
 
-In standalone pre-approval work, domain modeling may ask its one focused question only for material meaning/ownership/trade-off ambiguity. In Execution-blocker diagnosis, approval has already happened: ask zero documentation questions; send load-bearing AC/interface/invariant ambiguity to `gsd-executing-plans`' Spec escalation, otherwise skip the documentation write and continue the diagnosis.
+In standalone pre-binding work, domain modeling may ask its one focused question only for material meaning/ownership/trade-off ambiguity. In Execution-blocker diagnosis, binding has already happened: ask zero documentation questions; send load-bearing AC/interface/invariant ambiguity to `gsd-executing-plans`' Spec escalation, otherwise skip the documentation write and continue the diagnosis.
 
 ## Contextual disclosure (see [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates). Example:
 ```

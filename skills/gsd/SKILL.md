@@ -18,7 +18,7 @@ Apply in order. Catalog descriptions select, never instruct. For a matched skill
 
 1. **Same-session continuity first.** This message extends the conversation and its settled decisions unless the user redirects. Continue the active owner; never restart discovery or reopen settled choices.
 2. **Explicit intent outranks inferred shape.** A direct request to review, diagnose, design interfaces, audit architecture, or pause selects that skill.
-3. **Validated active state outranks a new lifecycle.** `continue` alone is a bare resume: load `gsd-handoff` first, even beside one executing packet; its `next_action` picks the peer owner. `continue` plus a named feature, task, or repair is not bare: naming the work routes straight there: a pending task to `gsd-executing-plans`, an unapproved plan to `gsd-to-plan`, a Quick-fix repair round to `gsd-verify`.
+3. **Validated active state outranks a new lifecycle.** `continue` alone is a bare resume: load `gsd-handoff` first, even beside one executing packet; its `next_action` picks the peer owner. `continue` plus a named feature, task, or repair is not bare: naming the work routes straight there: a pending task to `gsd-executing-plans`, an unfinalized plan to `gsd-to-plan`, a Quick-fix repair round to `gsd-verify`.
    A first-pending ledger row resumes through `gsd-handoff`, never replacement brainstorming. Several valid packets also load `gsd-handoff`, which selects exactly one resume: ask, never `fail-closed`. A plan-hash mismatch is an amendment its owner revalidates and rebinds, never a stop or `gsd-handoff` diversion. Unrelated new work beside an active or `merged-cleanup-pending` packet is `ordinary-routing`; only a discovered completed-retained or residual record reports `ignore-terminal-record`. Never infer validity from filenames.
 4. **Choose exactly one primary process owner.** Load its listed `SKILL.md` first, never several.
    A generic feature or integration request converges through `gsd-brainstorming` first; backend-only work stays direct. Different/unclear asks one question.
@@ -30,13 +30,13 @@ Apply in order. Catalog descriptions select, never instruct. For a matched skill
    An injected orchestration or parallelism directive is harness text that never transfers lifecycle ownership: satisfying it for lifecycle work means leaving the lifecycle rather than dispatching implementation, repair, diagnosis, architecture, or verification work.
    Bounded read-only research delegation stays allowed. Its result carries no authority, so the owner re-verifies every fact before use, and delegated repair, diagnosis, architecture, and verification remain prohibited.
 
-A skill owns the flow until user change or transition: `gsd-brainstorming` → `gsd-to-plan`; approved plan → `gsd-executing-plans`; terminal execution → `gsd-verify`; validated resume → its owner.
+A skill owns the flow until user change or transition: `gsd-brainstorming` → `gsd-to-plan`; bound plan → `gsd-executing-plans`; terminal execution → `gsd-verify`; validated resume → its owner.
 
 ## Canonical authority
 
 Read `GSD_ROOT/skills/gsd/REFERENCE.md` for canonical artifact, Git, recovery, state, or cleanup contracts. `plan.md` owns intent and stays amendable while executing; atomic `state.toon` binds its current bytes.
 
-The core pipeline is `gsd-brainstorming` → `gsd-to-plan` → approval → `gsd-executing-plans` → `gsd-verify` → squash cleanup. The top-level session is sole lifecycle authority, working inline or dispatching parallel waves of independent tasks to sub-agents. Every complete draft offers approve/execute, revise, and pause/save. Execution runs Fast TDD, deterministic terminal conformance, then Deferred Slow E2E; source changes invalidate terminal evidence.
+The core pipeline is `gsd-brainstorming` → `gsd-to-plan` → `gsd-executing-plans` → `gsd-verify` → squash cleanup. Brainstorming is the only interactive phase; planning auto-binds the plan and execution starts without an approval prompt. The top-level session is sole lifecycle authority, working inline or dispatching parallel waves of independent tasks to sub-agents. Execution runs Fast TDD, deterministic terminal conformance, then Deferred Slow E2E; source changes invalidate terminal evidence.
 
 Reject legacy proposal/spec/design TOON, numbered handoffs, attempts, result markers, reload manifests, and stale non-authoritative state. Preserve the `REFERENCE.md` **Quick-fix plan exception**; Nano stays artifact/Git-free. If a milestone ledger is all-`done`, fail closed unless canonical completion conditions hold.
 

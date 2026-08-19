@@ -45,7 +45,7 @@ If the checkout, hidden bootstrap, or visible catalog cannot be validated, the e
 flowchart LR
     U["Build X"] --> B[Discovery and stress-test]
     B --> P[plan.md with acceptance criteria]
-    P -->|approved| E[Ordered session-owner execution on wip/]
+    P -->|auto-bind| E[Ordered session-owner execution on wip/]
     E --> V[Deterministic terminal conformance]
     V -->|green| S[Deferred Slow E2E]
     S -->|green| M[Squash to base]
@@ -54,8 +54,8 @@ flowchart LR
 ```
 
 1. **Discovery.** `gsd-brainstorming` explores only relevant code, exposes risks and missing decisions, and converges on the smallest sufficient contract. Every feature classifies `Domain Impact`. When `docs/domain/index.md` exists, only affected mapped contexts are read and no broad domain scan is offered. When it is absent, semantic work bootstraps the feature context and may independently offer a broad bootstrap.
-2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with exact Domain Impact, observable acceptance criteria, structured file operations and intents, interfaces, focused checks, and a SHA-256 binding. Domain paths belong to the same task as semantic code. The single post-plan action surface offers approve and execute, revise, and pause/save. Approval writes atomic `schema:v4` `.scratch/<feature>/state.toon`.
-3. **Execution.** The current top-level session owner uses `gsd-executing-plans` to select `T1..TN` in order, rebuild each complete validated task slice, load `gsd-tdd` for observable work, perform Fast TDD Checks (RED→GREEN→refactor; no browser/resource-heavy task loops), update affected domain docs to current production behavior in the same owning task, commit each green checkpoint, and update `state.toon`. Independent tasks may be dispatched as parallel waves to sub-agents only when the contract validator proves them file-, criterion-, and check-disjoint; the owner reconciles the waves in plan order. GSD dispatches no child lifecycle work outside validated waves and never overlaps lifecycle work.
+2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with exact Domain Impact, observable acceptance criteria, structured file operations and intents, interfaces, focused checks, and a SHA-256 binding. Domain paths belong to the same task as semantic code. The validated plan binds automatically — no approval prompt — and writes atomic `schema:v4` `.scratch/<feature>/state.toon` before ordered execution starts.
+3. **Execution.** The current top-level session owner uses `gsd-executing-plans` to select `T1..TN` in order, rebuild each complete validated task slice, load `gsd-tdd` for observable work, perform Fast TDD Checks (RED→GREEN→refactor; no browser/resource-heavy task loops), update affected domain docs to current production behavior in the same owning task, commit each green checkpoint, and update `state.toon`. Independent multi-task waves are dispatched to sub-agents when the contract validator proves them file-, criterion-, and check-disjoint; single-task waves run inline by the owner, who reconciles every dispatched wave in plan order. GSD dispatches no child lifecycle work outside validated waves and never overlaps lifecycle work.
 4. **Verification.** `gsd-verify` deterministically checks the exact plan/state binding, active-criterion/interface/task coverage, changed-path ownership, Domain Impact, code/domain drift, plan-ordered task diffs, explicit decisions/invariants/non-goals, and current-commit focused-check evidence. Only deterministic contract failures block.
 5. **E2E gates.** Current-commit session-owner verification precedes Deferred Slow E2E.
 
@@ -87,12 +87,12 @@ Every converged plan includes `Domain Impact`. Semantic code and its affected do
 
 ## Session-owner authority
 
-The current top-level session is the sole lifecycle authority. It interprets the approved plan, edits the canonical WIP, runs checks, commits, checkpoints, verifies conformance, runs Deferred Slow E2E, merges, and cleans up. A later top-level session assumes the same role only after canonical rehydration from `state.toon`, bound `plan.md`, and Git. No persistent model identity or custom agent configuration participates in authority.
+The current top-level session is the sole lifecycle authority. It interprets the bound plan, edits the canonical WIP, runs checks, commits, checkpoints, verifies conformance, runs Deferred Slow E2E, merges, and cleans up. A later top-level session assumes the same role only after canonical rehydration from `state.toon`, bound `plan.md`, and Git. No persistent model identity or custom agent configuration participates in authority.
 
 ## State and repository layout
 
 - `.scratch/` is ignored and machine-local by default.
-- `plan.md` remains the human-readable pre-approval authority. The atomic `state.toon` snapshot binds its bytes and carries runtime progress; it does not replace design authority.
+- `plan.md` remains the human-readable plan authority. The atomic `state.toon` snapshot binds its bytes and carries runtime progress; it does not replace design authority.
 - Each feature executes on `wip/<feature>` and reaches the base branch as one squash commit.
 - Durable multi-milestone publication uses `docs/gsd/<feature>/milestones.md`; final completion removes the ledger in the same green squash.
 - A portable pause can explicitly synchronize committed WIP state and the exact feature scratch packet (`plan.md`, `state.toon`). Dirty-path snapshots require explicit consent; automatic context-pressure checkpoints stay local.
@@ -138,7 +138,7 @@ The lifecycle validates actual plan authority through one production parser. New
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md
 ```
 
-Execution resume, terminal entry, and pre-squash bind the same command to approved bytes:
+Execution resume, terminal entry, and pre-squash bind the same command to bound bytes:
 
 ```bash
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex>

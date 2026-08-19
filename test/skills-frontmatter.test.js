@@ -46,7 +46,7 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
     "Packet grammar",
     "Parallel wave dispatch",
     "Plan amendment",
-    "Post-approval pipeline contract",
+    "Post-plan pipeline contract",
     "Runtime state contract",
     "Skill derivation from phase and next_action",
   ];
@@ -159,7 +159,7 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
   const handoff = read("skills/gsd-handoff/SKILL.md");
   const tdd = read("skills/gsd-tdd/SKILL.md");
 
-  assert.match(master, /gsd-brainstorming` → `gsd-to-plan` → approval/);
+  assert.match(master, /gsd-brainstorming` → `gsd-to-plan` → `gsd-executing-plans`/);
   assert.match(master, /stale non-authoritative state/);
   assert.match(reference, /Canonical Markdown contract/);
   assert.match(reference, /SHA-256/);
@@ -170,7 +170,7 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
   }
   assert.match(execution, /amend `\.scratch\/<feature>\/plan\.md` under § Plan amendment, revalidate, rebind/i);
   assert.match(handoff, /writes atomically to `\.scratch\/<feature>\/state\.toon`/i);
-  assert.match(tdd, /focused test seam from the approved Markdown plan/);
+  assert.match(tdd, /focused test seam from the bound Markdown plan/);
   assert.match(tdd, /consume the exact validated task slice and relevant pinned sections/);
   assert.doesNotMatch(tdd, /proposal\.toon|spec\.toon|plan\.toon/);
   assert.match(reference, /Quick-fix plan exception/);
@@ -182,7 +182,7 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
   assert.match(verify, /final milestone deletes the ledger/);
   assert.match(handoff, /Malformed, duplicate, or invalid known values fail closed/i);
   assert.match(handoff, /discover active candidates/i);
-  assert.match(planner, /fresh approval after Spec escalation supersedes older binding state/);
+  assert.match(planner, /fresh binding after Spec escalation supersedes older binding state/);
   assert.match(execution, /Reject legacy proposal\/spec\/design files, numbered handoffs/);
   assert.match(handoff, /Execution resume \| `state\.toon`; `plan\.md`/);
   assert.match(reference, /session owner rebuilds complete task or terminal slices from canonical plan\/state\/Git/i);
@@ -370,7 +370,7 @@ test("AC-4: Concision preserves semantic parity", () => {
   const handoff = read("skills/gsd-handoff/SKILL.md");
   assert.match(planner, /REFERENCE\.md[^.\n]*§ Packet grammar/);
   assert.match(handoff, /REFERENCE\.md[^.\n]*§ Runtime state contract/);
-  assert.match(verify, /REFERENCE\.md[^.\n]*§ Post-approval pipeline contract/);
+  assert.match(verify, /REFERENCE\.md[^.\n]*§ Post-plan pipeline contract/);
   assert.doesNotMatch(planner, /```md\n# Plan/);
   assert.doesNotMatch(handoff, /schema:v4\nfeature:/);
   assert.match(reference, /### Fast TDD and task-loop constraints/);
@@ -509,7 +509,7 @@ test("AC-4 repair: diagnosing no-red-loop blocker vs access ask", () => {
   );
   assert.match(
     skill,
-    /In Execution-blocker diagnosis[\s\S]{0,120}ask no question[\s\S]{0,200}canonical post-approval Blocker stop|Blocker stop/i,
+    /In Execution-blocker diagnosis[\s\S]{0,120}ask no question[\s\S]{0,200}canonical post-binding Blocker stop|Blocker stop/i,
   );
   assert.match(skill, /return the blocker evidence to `gsd-executing-plans`/i);
   // Must not universally ask for access regardless of mode
@@ -553,7 +553,7 @@ test("AC-4 repair: architecture Explore friction and domain boundaries", () => {
   assert.match(skill, /## Explore and design/);
   assert.match(skill, /duplicated policy, concepts bouncing across shallow modules, leaky seams, wrong dependency direction/i);
   assert.match(skill, /bounded context is a semantic and language boundary/i);
-  assert.match(skill, /Inside approved execution[\s\S]{0,260}Spec-escalation blocker/i);
+  assert.match(skill, /Inside bound execution[\s\S]{0,260}Spec-escalation blocker/i);
 });
 
 test("AC-4 repair: architecture targetless guard and framework discipline", () => {

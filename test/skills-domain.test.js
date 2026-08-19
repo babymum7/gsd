@@ -56,10 +56,10 @@ test("domain modeling keeps preapproval writes current-only and reads affected s
   const modeler = read("skills/gsd-domain-modeling/SKILL.md");
   const planner = read("skills/gsd-to-plan/SKILL.md");
 
-  assert.doesNotMatch(modeler, /Write target behavior before approval/i);
-  assert.match(modeler, /Before approval[\s\S]{0,180}return[\s\S]{0,120}exact affected paths[\s\S]{0,180}write no target behavior/i);
+  assert.doesNotMatch(modeler, /Write target behavior before binding/i);
+  assert.match(modeler, /Before binding[\s\S]{0,180}return[\s\S]{0,120}exact affected paths[\s\S]{0,180}write no target behavior/i);
   assert.match(modeler, /unrelated mappings[\s\S]{0,180}metadata[\s\S]{0,180}never read unrelated shard bodies/i);
-  assert.match(brainstorm, /Before approval[\s\S]{0,200}exact affected paths[\s\S]{0,160}writes no future behavior/i);
+  assert.match(brainstorm, /Before binding[\s\S]{0,200}exact affected paths[\s\S]{0,160}writes no future behavior/i);
   assert.match(planner, /reserved[\s\S]{0,120}domain-documentation paths[\s\S]{0,180}plan owns target behavior/i);
 });
 

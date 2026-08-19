@@ -41,7 +41,7 @@
   },
   {
     "id": "resume-handoff",
-    "state": ".scratch/oauth-login/state.toon (phase=executing) and approved plan.md exist",
+    "state": ".scratch/oauth-login/state.toon (phase=executing) and bound plan.md exist",
     "prompt": "continue",
     "decision": "ordinary-routing",
     "expectedAction": "load",
@@ -113,8 +113,8 @@
   },
   {
     "id": "converged-spec",
-    "state": ".scratch/oauth-login/plan.md contains an unapproved draft plan; state.toon has no approval binding",
-    "prompt": "continue with the unapproved OAuth login plan to finalize and bind it",
+    "state": ".scratch/oauth-login/plan.md contains an unfinalized draft plan; state.toon has no binding",
+    "prompt": "continue with the unfinalized OAuth login plan to finalize and bind it",
     "decision": "ordinary-routing",
     "expectedAction": "load",
     "expectedPrimarySkill": "gsd-to-plan"
@@ -145,7 +145,7 @@
   },
   {
     "id": "plan-binding-drift",
-    "state": ".scratch/oauth-login has an approved plan.md and state.toon, but plan.md no longer matches the recorded SHA-256 binding",
+    "state": ".scratch/oauth-login has a bound plan.md and state.toon, but plan.md no longer matches the recorded SHA-256 binding",
     "prompt": "implement the next OAuth task",
     "decision": "ordinary-routing",
     "expectedAction": "load",
@@ -249,7 +249,7 @@
   },
   {
     "id": "result-malformed-with-active",
-    "state": ".scratch/oauth-login is a full packet with plan.md and malformed state.toon; .scratch/csv-export has a valid state.toon and approved plan",
+    "state": ".scratch/oauth-login is a full packet with plan.md and malformed state.toon; .scratch/csv-export has a valid state.toon and bound plan",
     "prompt": "continue csv-export",
     "decision": "fail-closed",
     "expectedAction": "stop",
@@ -257,7 +257,7 @@
   },
   {
     "id": "result-retained-newer-than-active",
-    "state": ".scratch/oauth-login has a newer completed-retained state.toon; .scratch/csv-export has an older valid state.toon and approved plan",
+    "state": ".scratch/oauth-login has a newer completed-retained state.toon; .scratch/csv-export has an older valid state.toon and bound plan",
     "prompt": "continue",
     "decision": "ignore-terminal-record",
     "expectedAction": "load",
@@ -297,7 +297,7 @@
   },
   {
     "id": "plan-binding-drift-continue",
-    "state": ".scratch/oauth-login has an approved plan.md and state.toon, but plan.md no longer matches the recorded SHA-256 binding",
+    "state": ".scratch/oauth-login has a bound plan.md and state.toon, but plan.md no longer matches the recorded SHA-256 binding",
     "prompt": "continue",
     "decision": "ordinary-routing",
     "expectedAction": "load",

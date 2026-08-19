@@ -1,6 +1,6 @@
 ---
 name: gsd-executing-plans
-description: "Use when a valid approved plan and resumable state.toon have pending work that the prompt names."
+description: "Use when a valid bound plan and resumable state.toon have pending work that the prompt names."
 produces: [state.toon, docs/gsd/<feature>/milestones.md]
 consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md, docs/gsd/<feature>/milestones.md]
 ---
@@ -13,7 +13,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 # Executing Plans
 
-> **Invocation guard** — load only for validated approved plan state selected automatically or by `gsd-handoff`. Select the Invocation Mode before validating its Required artifacts; missing Optional state is normal. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
+> **Invocation guard** — load only for validated bound plan state selected automatically or by `gsd-handoff`. Select the Invocation Mode before validating its Required artifacts; missing Optional state is normal. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
 
 ## Invocation modes
 
@@ -29,17 +29,18 @@ Perform one full parse and binding check at execution entry or resume: validate 
 
 At execution entry or resume run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>` before building the retained slice. Exit 0 must report the matching feature, bound hash, and recorded base. Exit 1 on malformed grammar or a base mismatch is Spec escalation; exit 1 on a hash mismatch alone means the plan bytes moved, so resolve it through [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment instead of stopping. Exit 2 corrects only the invocation.
 
-Execution reads only structured task blocks carrying canonical `Domain Impact`. A path-only task form or missing Domain Impact is malformed authority, not a compatibility case, and execution never creates or approves it.
+Execution reads only structured task blocks carrying canonical `Domain Impact`. A path-only task form or missing Domain Impact is malformed authority, not a compatibility case, and execution never creates or binds it.
 
-Select the next task in strict heading order from bound state and Git evidence, never mutable plan Status. Work on approved `wip/<feature>` and follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics. A missing or malformed `plan.md` is Spec escalation.
+Select the next task in strict heading order from bound state and Git evidence, never mutable plan Status. Work on `wip/<feature>` and follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics. A missing or malformed `plan.md` is Spec escalation.
 
-The plan stays amendable while the feature executes. When the work shows the plan is wrong or incomplete, amend `.scratch/<feature>/plan.md` under § Plan amendment, revalidate, rebind the returned hash, and continue the same task; never close the plan or open a fresh feature to record a correction. Routine bookkeeping needs no prompt. Before a material change to acceptance, an invariant, a non-goal, `Domain Impact`, an interface pin, or a completed task's record, ask one question and then proceed with the chosen option. Anything uncertain is also one question, never a block.
+The plan stays amendable while the feature executes. When the work shows the plan is wrong or incomplete, amend `.scratch/<feature>/plan.md` under § Plan amendment, revalidate, rebind the returned hash, and continue the same task; never close the plan or open a fresh feature to record a correction. Routine bookkeeping needs no prompt.
+A user-stated requirement addition or change mid-execution is the same amendment flow: update `plan.md`, revalidate, rebind, and continue the same packet — the user already decided it, so no confirmation question re-asks it; only genuinely new product scope exits to discovery. For a material change the owner discovers to acceptance, an invariant, a non-goal, `Domain Impact`, an interface pin, or a completed task's record, ask one question first, then proceed with the chosen option. Anything uncertain is also one question, never a block.
 
 ## Per-task loop
 
-Initialize one phase in the harness todo list from the exact pending `T1..TN` identities of the bound plan, once after approval or at resume. That list is display state: `state.toon` remains the sole resumable authority and the todo list never selects, completes, or resumes work.
+Initialize one phase in the harness todo list from the exact pending `T1..TN` identities of the bound plan, once after binding or at resume. That list is display state: `state.toon` remains the sole resumable authority and the todo list never selects, completes, or resumes work.
 
-1. Select only the next task in strict heading order and verify every structured file path, operation, intent, active AC, interface pin, focused check, invariant, non-goal, `Domain Impact` field, and source fact from `plan.md`. At selection, run `analyze-waves` under [§ Parallel wave dispatch](#parallel-wave-dispatch) to determine whether the next tasks form a dispatchable wave.
+1. Select only the next task in strict heading order and verify every structured file path, operation, intent, active AC, interface pin, focused check, invariant, non-goal, `Domain Impact` field, and source fact from `plan.md`. Compute the wave schedule once at entry or resume under [§ Parallel wave dispatch](#parallel-wave-dispatch) and reuse it across tasks; recompute only after a plan amendment.
 2. Build and retain a validated task slice from the plan: task identity, structured file operations and intents, verbatim active criteria, lossless ordered Decisions, Domain Impact, constraints, targets, focused checks, and safety facts. A "None." decisions block in the plan is represented as an explicit empty decisions marker in the slice. Do not write task-attempt TOON files, status into `plan.md`, or synthetic task briefs.
 3. The current top-level session owner consumes the validated slice and implements or repairs the task inline, or dispatches it within a parallel wave under [§ Parallel wave dispatch](#parallel-wave-dispatch). GSD dispatches no repair task, generic child task, or parallel lifecycle work outside validated waves.
    Every observable task loads `gsd-tdd` and performs direct RED before implementation, GREEN after implementation, then refactor after green — inline or in its sub-agent. Run deterministic local unit, integration, CLI, contract, or fast acceptance checks only; browser, resource-heavy, slow, whole-acceptance, and E2E suites stay outside the task loop.
@@ -49,7 +50,7 @@ Initialize one phase in the harness todo list from the exact pending `T1..TN` id
 
 Write one `docs/design/NNNN-slug.md` record with the minimal header from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Durable decision and design records when a UI/UX decision settles in the owning task; measurement sections stay optional.
 
-In `Milestone plan execution`, keep the authoritative ledger byte-for-byte read-only throughout the per-task loop. Revalidate the selected milestone is still the matching first-pending row before every task by running `bun "<GSD_ROOT>/tools/gsd-milestone.mjs" validate --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>`; execution never marks a row `done` or deletes the ledger (only the `Milestone WIP gate` does, via `complete`).
+In `Milestone plan execution`, keep the authoritative ledger byte-for-byte read-only throughout the per-task loop. Validate the selected milestone is the matching first-pending row once at entry or resume by running `bun "<GSD_ROOT>/tools/gsd-milestone.mjs" validate --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>`; execution never marks a row `done` or deletes the ledger (only the `Milestone WIP gate` does, via `complete`).
 
 Only after every non-superseded task and Fast TDD Check is green, atomically set `next_action=enter terminal verification/repair` and load `gsd-verify`. The session owner then performs deterministic cumulative conformance before Deferred Slow E2E.
 
@@ -57,12 +58,12 @@ Only after every non-superseded task and Fast TDD Check is green, atomically set
 
 Independent tasks may run in parallel sub-agents; the session owner remains sole lifecycle authority and reconciles every result. The canonical contract is [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Parallel wave dispatch.
 
-1. At task selection, run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>`. Exit 0 prints `waves: T1,T2|T3|...`; a wave of two or more tasks is dispatchable, and single-task waves run inline. Exit 1 resolves like a bound validation failure; exit 2 corrects the invocation.
-2. For a dispatchable wave, fan out one task per sub-agent. Each sub-agent receives the full validated slice for exactly one task (step 2 of the per-task loop), the plan path, and the base/WIP identity, rebuilt from `plan.md` — never invented.
+1. At entry or resume, run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>`. Exit 0 prints `waves: T1,T2|T3|...`; dispatch multi-task waves to sub-agents, and run a single-task wave inline through the per-task loop. Exit 1 resolves like a bound validation failure; exit 2 corrects the invocation.
+2. For a dispatchable wave (two or more tasks), fan out one task per sub-agent. Each sub-agent receives the full validated slice for exactly one task (step 2 of the per-task loop), the plan path, and the base/WIP identity, rebuilt from `plan.md` — never invented.
 3. A sub-agent MUST perform Fast TDD RED before implementation, GREEN after, then refactor; update every affected domain shard in the same commit as its semantic code; and commit only green task-owned changes on its own branch `wip/<feature>/t<n>` cut from the wave base. It MUST NOT mutate `state.toon`, amend `plan.md`, merge, decide lifecycle, or run Deferred Slow E2E.
 4. Reconcile the wave: merge each sub-agent branch into `wip/<feature>` in strict plan order, commit one green checkpoint, then write `state.toon` through the `gsd-state.mjs` CLI exactly as step 6 with `last_green_task` set to the wave's last task. Mark the wave's tasks done in the todo list in the same step.
 5. A failed or red sub-agent task returns to the session owner for bounded inline repair under this skill, `gsd-handoff`, and `gsd-tdd`; re-dispatch only when the validator again proves the task independent of the remaining wave.
 
 ## Auto-pilot
 
-Approval is the last normal planning prompt. During execution report factual progress and blockers only; do not open unrelated menus or confirmations. Manual pause or automatic context-pressure writes `phase=paused` and preserves the interrupted executable `next_action`. A hard blocker sets `next_action` to `Discussion/Spec-escalation` with pause/block `phase`. Both use atomic `state.toon` writes via `gsd-handoff`.
+Plan binding is the last planning step and there is no approval prompt. During execution report factual progress and blockers only; do not open unrelated menus or confirmations. Manual pause or automatic context-pressure writes `phase=paused` and preserves the interrupted executable `next_action`. A hard blocker sets `next_action` to `Discussion/Spec-escalation` with pause/block `phase`. Both use atomic `state.toon` writes via `gsd-handoff`.

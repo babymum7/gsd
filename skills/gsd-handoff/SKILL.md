@@ -29,7 +29,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 **Always use the CLI tool** `bun "<GSD_ROOT>/tools/gsd-state.mjs" write-state --feature-dir .scratch/<feature> --json-file .scratch/<feature>/.state-input.json` to write state.toon. Write the state fields to `.scratch/<feature>/.state-input.json`, pass its path via `--json-file`, then delete the temp file — both on success and on failure. Never write state.toon directly using the `write` tool; direct writes bypass validation and produce malformed files that break autocompact and resume. The CLI validates, serializes, writes atomically, and readbacks automatically.
 The CLI writes atomically to `.scratch/<feature>/state.toon` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Runtime state contract: same-directory temp, fsync, rename, directory fsync where supported, then validated readback.
-- Approval first writes `phase=approved`.
+- Plan binding first writes `phase=approved`.
 - Canonical `schema:v4` gives the session owner only lifecycle, plan/Git binding, green checkpoint, runtime preferences, and revision.
 - Exact active v1, v2, and v3 records migrate atomically after full validation; v1/v2 terminal records fail closed unchanged.
 - The exact v3 `completed-retained` compatibility case remains inert during candidate discovery, while an explicit read validates and migrates it atomically to `schema:v4`.
@@ -48,7 +48,7 @@ Known preference fields on `state.toon` are unique scalars: `autosync` accepts o
 
 At the first user-requested pause with a remote and `autosync=none`, ask once: `no`→`off`, `always`→`on`, one-time `yes` leaves `none`. `on` syncs only at user-requested pause/portable handoff or a clean completed-task boundary; dirty and context-pressure checkpoints stay local.
 
-Cross-machine handoff may snapshot only explicitly approved dirty non-scratch paths, then sync committed WIP plus exact feature `plan.md` and `state.toon` to `origin/wip/<feature>`. Never sweep unrelated paths. Without a remote, cross-machine resume is unavailable.
+Cross-machine handoff may snapshot only explicitly selected dirty non-scratch paths, then sync committed WIP plus exact feature `plan.md` and `state.toon` to `origin/wip/<feature>`. Never sweep unrelated paths. Without a remote, cross-machine resume is unavailable.
 
 ## Resume
 
@@ -56,7 +56,7 @@ Without a supplied path, discover active candidates via [../gsd/REFERENCE.md](..
 - Master is already loaded from bootstrap and is never reloaded: validate state, then load the peer owner named by `next_action` and execute it without circular re-entry, capsule execution, or duplicated action.
 - Reject an unknown `phase`; preserve an opaque `next_action` only when structurally valid.
 - Malformed state fails closed, and a missing or malformed-grammar plan is Spec escalation. A plan whose bytes moved is not drift to stop on: revalidate and rebind it under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment, asking one question only when the change is material or unaccounted for.
-- Never reconstruct from dirty files, plan status, conversation, or legacy pre-approval TOON.
+- Never reconstruct from dirty files, plan status, conversation, or legacy pre-binding TOON.
 
 For every Execution resume, after state validation and before deriving the peer owner, select the validator by probe: `schema:v4` records no grammar kind, so never assume one.
 

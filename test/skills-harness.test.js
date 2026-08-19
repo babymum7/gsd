@@ -7,9 +7,9 @@ test("AC-5/AC-6: injected orchestration keeps ownership and read-only research s
   const bootstrap = read("skills/gsd/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
   const pipeline = reference.match(
-    /## Post-approval pipeline contract\n[\s\S]*?(?=\n## Git\/base\/WIP\/scratch mechanics)/,
+    /## Post-plan pipeline contract\n[\s\S]*?(?=\n## Git\/base\/WIP\/scratch mechanics)/,
   );
-  assert.ok(pipeline, "REFERENCE must keep its post-approval pipeline contract");
+  assert.ok(pipeline, "REFERENCE must keep its post-plan pipeline contract");
   for (const [label, body] of [
     ["bootstrap", bootstrap],
     ["reference", pipeline[0]],
@@ -52,8 +52,8 @@ test("AC-7/AC-8: execution mirrors tasks into the harness todo and slow suites s
   const verify = read("skills/gsd-verify/SKILL.md");
   assert.match(
     execution,
-    /one phase[\s\S]{0,200}pending `T1\.\.TN`[\s\S]{0,120}after approval/i,
-    "execution initializes one todo phase from the exact pending task identities after approval",
+    /one phase[\s\S]{0,200}pending `T1\.\.TN`[\s\S]{0,120}after binding/i,
+    "execution initializes one todo phase from the exact pending task identities after binding",
   );
   assert.match(
     execution,
@@ -142,12 +142,12 @@ test("an executing owner amends the plan in place instead of blocking", () => {
   assert.doesNotMatch(resume, /same proven grammar/);
   assert.match(domain, /prior packet kind is unprovable/);
 
-  // A Quick-fix carries no normal-packet approval authority, yet its state records
+  // A Quick-fix carries no normal-packet plan authority, yet its state records
   // and rebinds a validated `plan_sha256` — both merged Quick-fix features did. The
   // exception must say which binding is absent instead of denying binding outright.
   const quickFix = reference.match(/### Quick-fix plan exception\n[\s\S]*?(?=\n### Executable contract validator)/)[0];
-  assert.doesNotMatch(quickFix, /set, no approval binding, and/);
-  assert.match(quickFix, /no normal-packet approval binding/);
+  assert.doesNotMatch(quickFix, /set, no plan binding, and/);
+  assert.match(quickFix, /no normal-packet plan binding/);
   assert.match(quickFix, /`state\.toon`/);
   assert.match(quickFix, /does not accept `--expected-sha256`|unbound/);
   assert.match(domain, /Quick-fix[^.\n]{0,160}runtime binding|runtime binding[^.\n]{0,160}Quick-fix/);

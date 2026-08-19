@@ -13,7 +13,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 # Verify
 
-> **Invocation guard** — automatic selection loads standalone review; active owners load planned/quick-fix/milestone gates. Select an Invocation Mode and validate only its Required state under [REFERENCE.md § Post-approval pipeline contract](../gsd/REFERENCE.md#post-approval-pipeline-contract) and § Artifact Contract.
+> **Invocation guard** — automatic selection loads standalone review; active owners load planned/quick-fix/milestone gates. Select an Invocation Mode and validate only its Required state under [REFERENCE.md § Post-plan pipeline contract](../gsd/REFERENCE.md#post-plan-pipeline-contract) and § Artifact Contract.
 
 ## Invocation modes
 
@@ -42,7 +42,7 @@ After all tasks and Fast TDD Checks are green, the session owner performs determ
 6. A blocker keeps `phase=repair` and `next_action=enter terminal verification/repair`; repair only plan-owned source, run affected Fast TDD Checks, and repeat invalidated proofs. Any source change invalidates prior conformance.
 7. Run the complete feature-affected Deferred Slow E2E suite only after current-commit conformance. Any server, watcher, or daemon that suite needs starts as a supervised named process with an observed readiness condition, never a bare shell launch, and every such process is torn down before the merge gate. Failure returns to repair, affected fast checks, invalidated conformance, then the complete slow suite. Merge requires full slow/E2E GREEN on the same unchanged commit.
 
-For squash, scratch disposition, archive, and cleanup use § Git/base/WIP/scratch mechanics and § Feature cleanup. Archive-and-delete materializes the exact approved plan and outcome before conformance so canonical archive destinations are terminal-cleanup-owned lifecycle paths in changed-path proof; every other changed path must be task-owned.
+For squash, scratch disposition, archive, and cleanup use § Git/base/WIP/scratch mechanics and § Feature cleanup. Archive-and-delete materializes the exact bound plan and outcome before conformance so canonical archive destinations are terminal-cleanup-owned lifecycle paths in changed-path proof; every other changed path must be task-owned.
 
 The merge target is exactly the recorded `state.toon` `base_ref`; never ask whether to merge into `main` and never widen to the repository default. Before the squash run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`: only `status: ready` proceeds, which also proves no path outside `.scratch/` is staged, modified, or untracked, so the squash carries only reviewed bytes; any `status: blocked` code is Spec escalation that stops the gate instead of retargeting the merge. Promoting that base onward is separate user-owned work after this packet ends green.
 

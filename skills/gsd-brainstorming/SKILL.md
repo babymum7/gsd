@@ -13,7 +13,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 # GSD Brainstorming
 
-> **Invocation guard** — this skill owns pre-approval discovery and convergence only. It creates no plan, state, or TOON artifact; its one durable write is a decision record for a settled load-bearing tradeoff. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract after selecting an invocation mode. Read-only questions, Nano edits, known single-spot fixes, bounded delegated tasks, and already-converged approved work do not enter this skill.
+> **Invocation guard** — this skill owns pre-binding discovery and convergence only. It creates no plan, state, or TOON artifact; its one durable write is a decision record for a settled load-bearing tradeoff. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract after selecting an invocation mode. Read-only questions, Nano edits, known single-spot fixes, bounded delegated tasks, and already-converged bound work do not enter this skill.
 
 ## Invocation modes
 
@@ -61,17 +61,17 @@ Domain impact is mandatory for every converged feature:
 2. When `docs/domain/index.md` exists, validate it and read only mapped shards for the affected contexts. Do not offer or suggest a broad codebase/domain scan. Existing unrelated contexts stay unread.
 3. When `docs/domain/index.md` is absent and the feature changes production semantics, feature-scoped context bootstrap is mandatory. After bounding that required context, offer one independent broad-bootstrap choice. If declined, still load `gsd-domain-modeling` for the required feature-scoped context; declining broad bootstrap never skips affected-context documentation.
 4. Reuse only evidence already needed for the selected design. Generic vocabulary, one-off identifiers, reversible preferences, and code shape without production meaning are no-op. Existing docs are navigation hints, not authority over production code, schemas, contracts, or tests.
-5. Load `gsd-domain-modeling` as sole writer for every non-`none` classification. Before approval, material ambiguity about meaning, ownership, or a boundary asks one focused question and writes nothing. Otherwise it returns the exact affected paths for the eventual owning code task and writes no future behavior; any preapproval documentation write may describe only behavior already shipped.
-6. After approval, load-bearing ambiguity returns through the session owner's Spec-gap transition. Non-load-bearing prose uncertainty never widens scope, but required current-behavior documentation remains part of the owning task.
+5. Load `gsd-domain-modeling` as sole writer for every non-`none` classification. Before binding, material ambiguity about meaning, ownership, or a boundary asks one focused question and writes nothing. Otherwise it returns the exact affected paths for the eventual owning code task and writes no future behavior; any pre-binding documentation write may describe only behavior already shipped.
+6. After binding, load-bearing ambiguity returns through the session owner's Spec-gap transition. Non-load-bearing prose uncertainty never widens scope, but required current-behavior documentation remains part of the owning task.
 
 ## Large-feature decomposition
 
 Use a Milestone Ledger only when the converged work has independently releasable milestones or explicitly requires portable multi-session publication. Each milestone must have a user-visible outcome and dependency order; do not split by file, layer, or arbitrary task count. Set the eventual plan's `## Publication` to the exact `docs/gsd/<feature>/milestones.md` path only for an intentional publication whose slug equals `## Feature`; otherwise use `null`.
 
-Do not create the ledger here. `gsd-to-plan` owns the canonical plan and binds any intentional publication. A ledger is completion metadata, never pre-approval design authority.
+Do not create the ledger here. `gsd-to-plan` owns the canonical plan and binds any intentional publication. A ledger is completion metadata, never pre-binding design authority.
 
 ## Convergence transition
 
-When requirements, tradeoffs, criteria, invariants, non-goals, and test seams are converged, load `gsd-to-plan` in its initial converged-creation or spec-gap-revision mode. Pass the conversational contract; write no Markdown yourself. `gsd-to-plan` remains the sole `plan.md` writer and the sole owner of the approval question.
+When requirements, tradeoffs, criteria, invariants, non-goals, and test seams are converged, load `gsd-to-plan` in its initial converged-creation or spec-gap-revision mode. Pass the conversational contract; write no Markdown yourself. `gsd-to-plan` remains the sole `plan.md` writer; after it binds the plan, execution starts automatically.
 
 Before that transition, summarize the current recommendation and expose only the next human decision; do not add a separate command menu or technical skill names as user choices here.
