@@ -149,7 +149,9 @@ test("T1 session-owner execution contract and lifecycle roles", () => {
   assert.match(execution, /implements or repairs the task inline/);
   assert.match(execution, /next task in strict heading order/);
   assert.match(execution, /dispatches no[\s\S]{0,120}generic child task/);
-  assert.match(reference, /current top-level session owner implements and repairs each ordered task inline and sequentially/i);
+  // Authorship moved to sub-agents, so the pin has to say who authors and who stays
+  // responsible: a dispatched task still returns to the owner for inline sequential repair.
+  assert.match(reference, /authored by sub-agents[\s\S]{0,180}repairs each returned task inline and sequentially/i);
   assert.match(execution, /Task `Tn\+1` begins only from the committed green checkpoint of `Tn`/);
   assert.match(execution, /Source mutations never overlap task\/repair or Deferred Slow E2E/i);
   assert.match(verify, /No free-form critique or model-generated verdict is terminal authority/);

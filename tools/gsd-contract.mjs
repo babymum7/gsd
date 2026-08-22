@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { fileURLToPath } from "node:url";
-import { analyzeParallelWaves, validatePlanFile } from "../lib/gsd-contract.mjs";
+import { analyzeWaves, validatePlanFile } from "../lib/gsd-contract.mjs";
 
 const COMMANDS = new Set(["validate-plan", "validate-quick-fix", "analyze-waves"]);
 
@@ -140,7 +140,7 @@ if (input.usageError) {
       `tasks: ${result.tasks}`,
     ];
     if (input.command === "analyze-waves") {
-      const waves = analyzeParallelWaves(result.parsed.tasks)
+      const waves = analyzeWaves(result.parsed.tasks)
         .map((wave) => wave.tasks.join(","))
         .join("|");
       lines.push(`waves: ${waves}`);

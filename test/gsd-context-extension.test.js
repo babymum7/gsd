@@ -1540,9 +1540,15 @@ test("state.toon lifecycle checkpoint contract", async () => {
     invalidUtf8Bytes[nextActionOffset] = 0xff;
     writeFileSync(statePath, invalidUtf8Bytes);
     // The contract is that invalid UTF-8 state bytes are rejected as an io-error and left
-    // untouched; the decoder's own wording is engine-specific (Node and Bun differ, and Bun
-    // changed it in 1.4), so pin the failure, not one runtime's sentence.
-    assert.throws(() => readStateFile(statePath), /Invalid byte sequence|not valid for encoding/i);
+    // untouched. The reader owns that sentence instead of surfacing the decoder's, whose
+    // wording is engine-specific (Node and Bun differ, and Bun changed it in 1.4), and the
+    // `io-error` tag is what separates an unreadable file from malformed authority, so pin both.
+    assert.throws(
+      () => readStateFile(statePath),
+      (error) =>
+        error.contractFailure === "io-error" &&
+        /state\.toon:[\s\S]*file must be valid UTF-8/.test(error.message),
+    );
     assert.deepEqual(readFileSync(statePath), invalidUtf8Bytes, "invalid UTF-8 state bytes must remain unchanged");
     writeStateAtomic(featureDir, baseFields);
 
