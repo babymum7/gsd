@@ -49,9 +49,14 @@ RESTORE_EXPECTED_SOURCE=""
 RESTORE_BACKUP_TARGET=""
 APPROVED_BACKUP_LINK_TARGET=""
 APPROVED_BACKUP_INODE=""
+# Pre-seeded default state variables assigned dynamically via eval in preflight_legacy_agent_target
+# shellcheck disable=SC2034
 LEGACY_EXEC_ACTION="none"
+# shellcheck disable=SC2034
 LEGACY_EXEC_LINK_TARGET=""
+# shellcheck disable=SC2034
 LEGACY_REVIEW_ACTION="none"
+# shellcheck disable=SC2034
 LEGACY_REVIEW_LINK_TARGET=""
 read_link_exact() {
   local link_path="$1"
@@ -573,6 +578,8 @@ preflight_managed_target() {
         # - Must be absolute: [[ "$link_target" == /* ]]
         # - Must match shape: [[ "$link_target" == $shape_pattern ]]
         # - Must be dangling: [ ! -e "$target" ]
+        # Intentional glob match against shape pattern (pattern is data)
+        # shellcheck disable=SC2053
         if [[ "$link_target" == /* ]] && [[ "$link_target" == $shape_pattern ]] && [ ! -e "$target" ]; then
           return 0
         else
@@ -705,6 +712,8 @@ sync_managed_target() {
       return 1
     fi
 
+    # Intentional glob match against shape pattern (pattern is data)
+    # shellcheck disable=SC2053
     if [[ "$curr_link_target" != /* ]] || [[ "$curr_link_target" != $shape_pattern ]]; then
       printf "error: unmanaged collision: %s already exists and is not recognizable; move or remove it.\n" "$target" >&2
       rm -f "$tmp_symlink"

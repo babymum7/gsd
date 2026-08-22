@@ -345,10 +345,13 @@ test("AC-4: Concision preserves semantic parity", () => {
   // and the sub-agent MUST/MUST-NOT and owner-reconcile rules are the same kind of executable
   // contract. Raised again to 6300 in 2026-08 for durable decision and design records: the
   // record grammar, the gsd-record validator CLI and exit codes, and the terminal-gate
-  // ownership proof are executable contracts of the same kind. The cap exists so the canon
+  // ownership proof are executable contracts of the same kind. Raised again to 6400 in
+  // 2026-08 for amended-plan grammar: superseded tasks keeping their criterion references
+  // and the named test-path conventions are executable grammar of the same kind. The cap
+  // exists so the canon
   // stays one on-demand read, so raising it again requires the same kind of stated reason,
   // never a silent bump to fit new prose.
-  const MAX_REFERENCE_WORDS = 6300;
+  const MAX_REFERENCE_WORDS = 6400;
   const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
   assert.equal(visible.length, 9);

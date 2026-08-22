@@ -161,6 +161,8 @@ An AC ID is a positive sequential integer.
 - A lower seam is valid only with a concrete reason that the higher production boundary is absent or cannot deterministically isolate the criterion.
 - Task IDs are positive sequential integers in heading order.
 - Every active AC appears exactly once across non-superseded task `Satisfies` fields.
+- A `superseded` task may keep its original references even when those criteria are themselves `superseded`; live tasks satisfy only `active` criteria.
+- Structured `Files` entries under `test/`, `tests/`, `__tests__/`, or `spec/` directories, or with `*.test.*` / `*.spec.*` filenames, count as observation-only for shard ownership.
 - Every task owns at least one exact repository-relative path and one focused command; `none` is valid only for truly non-observable mechanical work.
 
 Canonical task parsing accepts only structured task blocks. Structured `Files` entries require a unique safe repository-relative path, one `create|modify|delete` operation, and concise non-vague intent.

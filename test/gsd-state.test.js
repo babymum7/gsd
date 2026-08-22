@@ -623,3 +623,31 @@ test("detectCandidates surfaces a ledger-only feature for milestone recovery", (
 
   rmSync(dir, { recursive: true, force: true });
 });
+
+test("detectCandidates attributes discovery defects to feature directory in fault-tolerant and strict modes", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-defect-label-"));
+  try {
+    const scratch = join(dir, ".scratch", "label-check");
+    mkdirSync(scratch, { recursive: true });
+    writeFileSync(join(scratch, "plan.md"), "# Plan\n");
+    writeFileSync(join(scratch, "state.toon"), "schema:v9\nnot-a-real-field: x\n");
+
+    const result = detectCandidates(dir, { faultTolerant: true });
+    assert.equal(result.candidates.length, 0);
+    assert.equal(result.defects.length, 1);
+    assert.match(result.defects[0], /^state\.toon \(label-check\):/);
+    assert.match(result.defects[0], /unknown key: not-a-real-field/);
+
+    assert.throws(
+      () => detectCandidates(dir),
+      (err) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /^state\.toon \(label-check\):/);
+        assert.match(err.message, /unknown key: not-a-real-field/);
+        return true;
+      }
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

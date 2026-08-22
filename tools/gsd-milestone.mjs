@@ -5,7 +5,8 @@
 // (skills/gsd/REFERENCE.md § Convergence Ledger publication contract) and performs the only
 // two status transitions the contract allows: mark the first pending row `done`, or delete the
 // ledger when that row is the final milestone.
-import { readFileSync, rmSync, writeFileSync } from "node:fs";
+import { closeSync, constants, fsyncSync, fstatSync, lstatSync, openSync, readFileSync, renameSync, rmSync, unlinkSync, writeSync } from "node:fs";
+import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { MILESTONE_BRANCH_RE, MILESTONE_SLUG_RE, parseMilestoneLedger } from "../lib/gsd-milestone.mjs";
 
@@ -182,10 +183,52 @@ if (input.usageError) {
         failLedger(`failed to mark ${firstPending.id} done`, input.command);
       } else {
         ledger.lines[ledger.rowLines[firstPendingIndex]] = updated;
+        const targetPath = input.path;
+        const tempPath = join(dirname(targetPath), `.milestones.${process.pid}.${Date.now()}.tmp`);
+        const content = ledger.lines.join("\n") + "\n";
+        let fd;
+        let tempIdentity = null;
         try {
-          writeFileSync(input.path, ledger.lines.join("\n") + "\n");
+          fd = openSync(tempPath, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o644);
+          const opened = fstatSync(fd);
+          tempIdentity = { dev: opened.dev, ino: opened.ino };
+          writeSync(fd, content);
+          fsyncSync(fd);
+          closeSync(fd);
+          fd = undefined;
+          renameSync(tempPath, targetPath);
+          try {
+            const directoryFd = openSync(dirname(targetPath), constants.O_RDONLY | (constants.O_DIRECTORY ?? 0));
+            try {
+              fsyncSync(directoryFd);
+            } finally {
+              closeSync(directoryFd);
+            }
+          } catch {}
         } catch (error) {
-          failIo(`cannot write ${input.path}: ${error.message}`, input.command);
+          if (fd !== undefined) {
+            try {
+              closeSync(fd);
+            } catch {}
+          }
+          try {
+            const residue = lstatSync(tempPath);
+            if (residue.isFile() && residue.dev === tempIdentity?.dev && residue.ino === tempIdentity?.ino) {
+              unlinkSync(tempPath);
+            }
+          } catch {}
+          failIo(`cannot write ${targetPath}: ${error.message}`, input.command);
+        }
+        if (process.exitCode !== 1) {
+          try {
+            const verifiedContent = readFileSync(targetPath, "utf8");
+            const parsed = parseMilestoneLedger(verifiedContent);
+            if (parsed.lines.join("\n") + "\n" !== content) {
+              failIo(`verification failed for ${targetPath}: written content mismatch`, input.command);
+            }
+          } catch (error) {
+            failIo(`verification failed for ${targetPath}: ${error.message}`, input.command);
+          }
         }
         if (process.exitCode !== 1) {
           write(["status: done", `done: ${firstPending.id}`]);

@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 import { fileURLToPath } from "node:url";
-import { analyzeWaves, validatePlanFile } from "../lib/gsd-contract.mjs";
+import { analyzeWaves, isSafeBranchRef, validatePlanFile } from "../lib/gsd-contract.mjs";
 
 const COMMANDS = new Set(["validate-plan", "validate-quick-fix", "analyze-waves"]);
 
@@ -113,8 +113,8 @@ function parseArguments(argv) {
   if (command === "validate-quick-fix" && expectedSha256 !== null) {
     return { usageError: `${command} does not accept --expected-sha256`, command };
   }
-  if (expectedBase !== null && !/^[a-zA-Z0-9_./-]+$/.test(expectedBase)) {
-    return { usageError: "--expected-base must be one branch name", command };
+  if (expectedBase !== null && !isSafeBranchRef(expectedBase)) {
+    return { usageError: "--expected-base must be one Git branch name able to receive a merge", command };
   }
   return { command, planPath, expectedSha256, expectedBase };
 }

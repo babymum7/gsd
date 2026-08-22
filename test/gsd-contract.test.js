@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
+import { analyzeWaves, parseQuickFixPlan } from "../lib/gsd-contract.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(ROOT, "tools", "gsd-contract.mjs");
@@ -644,6 +645,8 @@ test("--expected-base rejects a malformed value and a repeat as usage errors", (
   try {
     for (const args of [
       ["--expected-base", "not a branch"],
+      ["--expected-base", "-main"],
+      ["--expected-base", "main..wip"],
       ["--expected-base", "main", "--expected-base", "main"],
       ["--expected-base"],
     ]) {
@@ -1120,4 +1123,186 @@ test("analyze-waves rejects quick-fix grammar and enforces usage", () => {
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }
+});
+
+test("an amended plan allows superseded tasks to reference superseded criteria while live tasks satisfy active criteria", () => {
+  const buildAmended = (feature = "amended-plan") => {
+    return canonicalPlan(feature)
+      .replace("- **State:** active", "- **State:** superseded")
+      .replace(
+        "## Decisions",
+        [
+          "### AC-2: Validate amended plan",
+          "- **State:** active",
+          "- **Outcome:** The amended plan is accepted through the production command.",
+          "- **Action:** Run the validator against the plan fixture.",
+          "- **Expected:** The command reports the feature and exact source hash.",
+          "## Decisions",
+        ].join("\n"),
+      )
+      .replace(
+        "| AC-1 | production validator CLI | `tools/gsd-contract.mjs` | none |",
+        "| AC-2 | production validator CLI | `tools/gsd-contract.mjs` | none |",
+      )
+      .replace(
+        "- **Status:** pending",
+        [
+          "- **Status:** superseded",
+          "### T2: Validate amended plan",
+          "- **Satisfies:** AC-2",
+          "- **Files:**",
+          "  - `lib/gsd-contract.mjs` — modify: accept superseded task criterion references",
+          "- **Test:** `bun test test/gsd-contract.test.js`",
+          "- **Status:** pending",
+        ].join("\n"),
+      );
+  };
+
+  const validAmended = buildAmended("valid-amended");
+  const { workspace: w1, planPath: p1 } = makePlanWorkspace("valid-amended", validAmended);
+  try {
+    const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", p1], {
+      cwd: w1,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /^status: valid\nkind: plan\nfeature: valid-amended\n/);
+    assert.match(result.stdout, /tasks: 2/);
+  } finally {
+    rmSync(w1, { recursive: true, force: true });
+  }
+
+  const liveReferencingSuperseded = buildAmended("live-superseded").replace(
+    "- **Satisfies:** AC-2",
+    "- **Satisfies:** AC-1",
+  );
+  const { workspace: w2, planPath: p2 } = makePlanWorkspace("live-superseded", liveReferencingSuperseded);
+  try {
+    const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", p2], {
+      cwd: w2,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/);
+    assert.match(result.stdout, /must satisfy an active criterion/);
+  } finally {
+    rmSync(w2, { recursive: true, force: true });
+  }
+
+  const unknownCriterion = buildAmended("unknown-criterion").replace(
+    "- **Satisfies:** AC-2",
+    "- **Satisfies:** AC-9",
+  );
+  const { workspace: w3, planPath: p3 } = makePlanWorkspace("unknown-criterion", unknownCriterion);
+  try {
+    const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", p3], {
+      cwd: w3,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/);
+    assert.match(result.stdout, /unknown criterion/);
+  } finally {
+    rmSync(w3, { recursive: true, force: true });
+  }
+});
+
+test("analyzeWaves groups criteria-less parsed tasks by file and check disjointness without raising", () => {
+  const task1 = {
+    id: "T1",
+    title: "Task 1",
+    fileIntents: [{ path: "src/a.js", operation: "modify", intent: "modify a" }],
+    files: ["src/a.js"],
+    test: "bun test test/a.test.js",
+  };
+  const task2 = {
+    id: "T2",
+    title: "Task 2",
+    fileIntents: [{ path: "src/b.js", operation: "modify", intent: "modify b" }],
+    files: ["src/b.js"],
+    test: "bun test test/b.test.js",
+  };
+  const task3SameFile = {
+    id: "T3",
+    title: "Task 3",
+    fileIntents: [{ path: "src/a.js", operation: "modify", intent: "modify a again" }],
+    files: ["src/a.js"],
+    test: "bun test test/c.test.js",
+  };
+  const task4SameCheck = {
+    id: "T4",
+    title: "Task 4",
+    fileIntents: [{ path: "src/d.js", operation: "modify", intent: "modify d" }],
+    files: ["src/d.js"],
+    test: "bun test test/b.test.js",
+  };
+  const task5NoCheck = {
+    id: "T5",
+    title: "Task 5",
+    fileIntents: [{ path: "src/e.js", operation: "modify", intent: "modify e" }],
+    files: ["src/e.js"],
+    test: "none",
+  };
+  const task6NoCheck = {
+    id: "T6",
+    title: "Task 6",
+    fileIntents: [{ path: "src/f.js", operation: "modify", intent: "modify f" }],
+    files: ["src/f.js"],
+    test: "none",
+  };
+
+  // Disjoint criteria-less tasks share one wave
+  const disjointWaves = analyzeWaves([task1, task2]);
+  assert.deepEqual(disjointWaves, [{ tasks: ["T1", "T2"] }]);
+
+  // Overlapping files split into separate waves
+  const overlappingFileWaves = analyzeWaves([task1, task3SameFile]);
+  assert.deepEqual(overlappingFileWaves, [{ tasks: ["T1"] }, { tasks: ["T3"] }]);
+
+  // Overlapping checks split into separate waves
+  const overlappingCheckWaves = analyzeWaves([task2, task4SameCheck]);
+  assert.deepEqual(overlappingCheckWaves, [{ tasks: ["T2"] }, { tasks: ["T4"] }]);
+
+  // Criteria-less tasks with test: "none" share a wave when files are disjoint
+  const noCheckWaves = analyzeWaves([task5NoCheck, task6NoCheck]);
+  assert.deepEqual(noCheckWaves, [{ tasks: ["T5", "T6"] }]);
+
+  // Multi-task grouping
+  const multiWaves = analyzeWaves([task1, task2, task3SameFile]);
+  assert.deepEqual(multiWaves, [{ tasks: ["T1", "T2"] }, { tasks: ["T3"] }]);
+});
+
+test("Quick-fix shard ownership treats __tests__/ and spec/ as observation-only test paths", () => {
+  const semantic = quickFixPlan()
+    .replace("Classification:** none", "Classification:** change-existing-context")
+    .replace("Contexts:** none", "Contexts:** gsd")
+    .replace("Documentation:** none", "Documentation:** update-existing");
+
+  const codeLine = "  - `src/fix.js` — modify: correct the bounded observable behavior";
+  const shardLine = "  - `docs/domain/gsd.md` — modify: record the corrected production behavior";
+
+  const makeFixture = (testPath) =>
+    semantic
+      .replace(codeLine, `  - \`${testPath}\` — create: pin the corrected observable behavior\n${shardLine}`)
+      .replace(
+        "- **Test:** `bun test test/fix.test.js`\n",
+        `- **Test:** \`bun test test/fix.test.js\`\n### T2: Correct the source\n- **Files:**\n${codeLine}\n- **Test:** \`bun test test/fix.test.js\`\n`,
+      );
+
+  const testsCase = makeFixture("__tests__/x.js");
+  const specCase = makeFixture("spec/x.js");
+  const controlCase = semantic.replace(codeLine, `${codeLine}\n${shardLine}`);
+
+  assert.throws(
+    () => parseQuickFixPlan({ "plan.md": testsCase }),
+    /must own affected domain shard.*docs\/domain\/gsd\.md/i,
+  );
+  assert.throws(
+    () => parseQuickFixPlan({ "plan.md": specCase }),
+    /must own affected domain shard.*docs\/domain\/gsd\.md/i,
+  );
+
+  const parsed = parseQuickFixPlan({ "plan.md": controlCase });
+  assert.equal(parsed.feature, "quick-fix-plan");
+  assert.equal(parsed.tasks.length, 1);
 });

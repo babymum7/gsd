@@ -1,6 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync, rmSync, existsSync, readdirSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -156,6 +156,35 @@ test("complete on an invalid ledger fails without mutating the file", () => {
   assert.equal(readFileSync(path, "utf8"), before);
   rmSync(dir, { recursive: true, force: true });
 });
+test("complete rewrites ledger atomically through same-directory temp rename leaving no residue", () => {
+  const { dir, path } = tmpLedger([
+    ["M1", "auth-login", "Add password login", "pending"],
+    ["M2", "auth-mfa", "Add MFA enrollment", "pending"],
+  ]);
+  const result = run(["complete", "--path", path, "--expected-feature", "demo-feature", "--expected-base", "main"]);
+  assert.equal(result.status, 0);
+  assert.match(result.stdout, /status: done/);
+  assert.match(result.stdout, /done: M1/);
+
+  const after = readFileSync(path, "utf8");
+  assert.match(after, /\| M1 \| auth-login \| Add password login \| done \|/);
+  assert.match(after, /\| M2 \| auth-mfa \| Add MFA enrollment \| pending \|/);
+
+  const files = readdirSync(dir);
+  assert.equal(files.includes("milestones.md"), true);
+  const tmpFiles = files.filter((f) => f.includes(".tmp"));
+  assert.deepEqual(tmpFiles, []);
+
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("complete uses atomic write with temp rename and no writeFileSync", () => {
+  const source = readFileSync(CLI, "utf8");
+  assert.equal(source.includes("writeFileSync"), false, "writeFileSync should not be used in tools/gsd-milestone.mjs");
+  assert.match(source, /O_CREAT/);
+  assert.match(source, /renameSync/);
+});
+
 
 test("usage errors exit 2 and help exits 0", () => {
   const missing = run(["validate"]);
