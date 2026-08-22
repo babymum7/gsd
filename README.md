@@ -55,7 +55,7 @@ flowchart LR
 
 1. **Discovery.** `gsd-brainstorming` explores only relevant code, exposes risks and missing decisions, and converges on the smallest sufficient contract. Every feature classifies `Domain Impact`. When `docs/domain/index.md` exists, only affected mapped contexts are read and no broad domain scan is offered. When it is absent, semantic work bootstraps the feature context and may independently offer a broad bootstrap.
 2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with exact Domain Impact, observable acceptance criteria, structured file operations and intents, interfaces, focused checks, and a SHA-256 binding. Domain paths belong to the same task as semantic code. The validated plan binds automatically — no approval prompt — and writes atomic `schema:v4` `.scratch/<feature>/state.toon` before ordered execution starts.
-3. **Execution.** The current top-level session owner uses `gsd-executing-plans` to select `T1..TN` in order, rebuild each complete validated task slice, load `gsd-tdd` for observable work, perform Fast TDD Checks (RED→GREEN→refactor; no browser/resource-heavy task loops), update affected domain docs to current production behavior in the same owning task, commit each green checkpoint, and update `state.toon`. Independent multi-task waves are dispatched to sub-agents when the contract validator proves them file-, criterion-, and check-disjoint; single-task waves run inline by the owner, who reconciles every dispatched wave in plan order. GSD dispatches no child lifecycle work outside validated waves and never overlaps lifecycle work.
+3. **Execution.** The current top-level session owner uses `gsd-executing-plans` to select `T1..TN` in order, rebuild each complete validated task slice, load `gsd-tdd` for observable work, perform Fast TDD Checks (RED→GREEN→refactor; no browser/resource-heavy task loops), update affected domain docs to current production behavior in the same owning task, commit each green checkpoint, and update `state.toon`. Every wave the contract validator proves file-, criterion-, and check-disjoint is dispatched to sub-agents by default — a single-task wave included — so the owner orchestrates, reconciles in plan order, and verifies; inline execution is the fallback when dispatch is unavailable. GSD dispatches no child lifecycle work outside validated waves and never overlaps lifecycle work.
 4. **Verification.** `gsd-verify` deterministically checks the exact plan/state binding, active-criterion/interface/task coverage, changed-path ownership, Domain Impact, code/domain drift, plan-ordered task diffs, explicit decisions/invariants/non-goals, and current-commit focused-check evidence. Only deterministic contract failures block.
 5. **E2E gates.** Current-commit session-owner verification precedes Deferred Slow E2E.
 
@@ -116,7 +116,7 @@ skills/
 ├── gsd/                              # hidden session bootstrap + canonical reference
 ├── gsd-brainstorming/                # discovery and requirements convergence
 ├── gsd-to-plan/                      # executable Markdown plan
-├── gsd-executing-plans/              # ordered task execution, inline or parallel waves
+├── gsd-executing-plans/              # ordered task execution, wave-dispatched by default
 ├── gsd-verify/                       # deterministic conformance and acceptance gate
 ├── gsd-handoff/                      # pause, recovery, and portable resume
 ├── gsd-tdd/                          # mandatory Fast TDD RED→GREEN→refactor for observable tasks

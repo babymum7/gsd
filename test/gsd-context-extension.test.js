@@ -1539,7 +1539,10 @@ test("state.toon lifecycle checkpoint contract", async () => {
     assert.notEqual(nextActionOffset, -1);
     invalidUtf8Bytes[nextActionOffset] = 0xff;
     writeFileSync(statePath, invalidUtf8Bytes);
-    assert.throws(() => readStateFile(statePath), /Invalid byte sequence/i);
+    // The contract is that invalid UTF-8 state bytes are rejected as an io-error and left
+    // untouched; the decoder's own wording is engine-specific (Node and Bun differ, and Bun
+    // changed it in 1.4), so pin the failure, not one runtime's sentence.
+    assert.throws(() => readStateFile(statePath), /Invalid byte sequence|not valid for encoding/i);
     assert.deepEqual(readFileSync(statePath), invalidUtf8Bytes, "invalid UTF-8 state bytes must remain unchanged");
     writeStateAtomic(featureDir, baseFields);
 
