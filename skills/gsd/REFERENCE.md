@@ -57,6 +57,7 @@ Domain docs describe current production behavior after the task, while the plan 
 
 Decision records capture load-bearing tradeoffs settled during convergence; design records capture UI/UX decisions settled during execution. Both carry one mandatory minimal header: `# NNNN — Title`, exactly one `- **Status:** Accepted|Rejected|Superseded by NNNN`, exactly one `- **Date:** YYYY-MM-DD`, and a non-empty `## Decision` section; measurement sections stay optional.
 `bun "<GSD_ROOT>/tools/gsd-record.mjs" validate --path <record> --kind decisions|design` proves the header: exit 0 is `status: valid`, exit 1 is `code: invalid-record` or `io-error`, exit 2 is usage.
+Record naming is opt-in per file: only a path under `docs/decisions/` or `docs/design/` whose basename starts with digits must match the canonical `NNNN-slug.md` form; ordinary prose in those directories (for example pre-existing surface specs) keeps its repository's own naming.
 The terminal gate runs it on every owned record before the squash. `AGENTS.md` gains one `## Decisions` and one `## Design` section, upserted without duplication.
 
 ## Canonical Markdown contract
