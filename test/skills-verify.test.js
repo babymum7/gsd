@@ -49,6 +49,8 @@ test("AC-4: Cross-references, None. explicit, repair evidence not duplicated, an
   assert.match(execution, /A "None\." decisions block[\s\S]{0,100}explicit empty decisions marker/i);
   assert.match(reference, /Decisions[\s\S]{0,120}`None\.`[\s\S]{0,120}(?:sequential\s+)?D(?:-\d+)? blocks/i);
   assert.match(execution, /rerun only checks[\s\S]{0,60}invalidated by the repair/i);
+  assert.match(reference, /`<features>`[\s\S]{0,40}serialized as all names joined/i);
+  assert.match(reference, /first 5 sorted features[\s\S]{0,60}omittedCount/i);
   assert.match(reference, /serialized once only[\s\S]{0,60}without repeating/i);
   assert.match(reference, /`<resume_instruction>`[\s\S]{0,120}single string/i);
   assert.match(reference, /omitted from this list[\s\S]{0,10}stop and select exactly one active feature before resuming/i);
