@@ -209,8 +209,8 @@ test("planner single-writes structured task file intents", () => {
   assert.match(reference, /- \*\*Files:\*\*\n\s+- `<path>` — (?:create\|modify\|delete|<create\|modify\|delete>)/);
   assert.match(planner, /REFERENCE\.md[^.\n]*§ Packet grammar/);
   assert.match(planner, /single-writes exactly that grammar/i);
-  assert.match(reference, /accepts[\s\S]{0,300}structured task/i);
-  assert.match(reference, /rejected[\s\S]{0,300}validation/i);
+  assert.match(reference, /accepts[\s\S]{0,60}only structured task/i);
+  assert.match(reference, /rejected[\s\S]{0,60}every validation path/i);
   assert.match(execution, /reads only structured task blocks/i);
   assert.doesNotMatch(reference, /dual-read/i);
   assert.doesNotMatch(execution, /legacy task blocks/i);
