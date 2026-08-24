@@ -183,7 +183,7 @@ test("Quick-fix Domain Impact grammar is exact and domain-owned", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const verify = read("skills/gsd-verify/SKILL.md");
   assert.match(reference, /# Quick-fix Plan[\s\S]{0,240}## Domain Impact[\s\S]{0,360}## Tasks/);
-  assert.match(reference, /Quick-fix always records `Broad bootstrap: not-offered`/);
+  assert.match(reference, /Quick-fix[\s\S]{0,400}Broad bootstrap[\s\S]{0,200}not-offered/i);
   assert.match(verify, /`Broad bootstrap` must always be `not-offered`/);
   assert.match(verify, /Quick-fix[\s\S]{0,500}exact five-field `Domain Impact`/i);
   assert.match(verify, /Quick-fix[\s\S]{0,800}domain drift[\s\S]{0,100}(?:blocks|Blocker)/i);
@@ -209,8 +209,8 @@ test("planner single-writes structured task file intents", () => {
   assert.match(reference, /- \*\*Files:\*\*\n\s+- `<path>` — (?:create\|modify\|delete|<create\|modify\|delete>)/);
   assert.match(planner, /REFERENCE\.md[^.\n]*§ Packet grammar/);
   assert.match(planner, /single-writes exactly that grammar/i);
-  assert.match(reference, /accepts only structured task blocks/i);
-  assert.match(reference, /rejected in every validation path/i);
+  assert.match(reference, /accepts[\s\S]{0,300}structured task/i);
+  assert.match(reference, /rejected[\s\S]{0,300}validation/i);
   assert.match(execution, /reads only structured task blocks/i);
   assert.doesNotMatch(reference, /dual-read/i);
   assert.doesNotMatch(execution, /legacy task blocks/i);

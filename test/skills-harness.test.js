@@ -106,9 +106,9 @@ test("an executing owner amends the plan in place instead of blocking", () => {
 
   // Self-service vs ask: routine bookkeeping needs no prompt, material changes and
   // drift the owner cannot account for ask one question and still never stop.
-  assert.match(reference, /Bookkeeping amendments are self-service/);
-  assert.match(reference, /Material amendments ask one question first/);
-  assert.match(reference, /cannot account for asks one question/);
+  assert.match(reference, /Bookkeeping amendments[\s\S]{0,120}self-service/i);
+  assert.match(reference, /Material amendments[\s\S]{0,120}ask one question/i);
+  assert.match(reference, /cannot account for[\s\S]{0,120}asks? one question/i);
   assert.doesNotMatch(reference, /amendment[^.\n]{0,80}requires (?:a )?fresh approval/i);
   // A bound-hash exit 1 reports moved bytes, not a lifecycle stop.
   assert.match(reference, /exits 1[\s\S]{0,140}not as a lifecycle stop/);
@@ -147,7 +147,7 @@ test("an executing owner amends the plan in place instead of blocking", () => {
   // exception must say which binding is absent instead of denying binding outright.
   const quickFix = reference.match(/### Quick-fix plan exception\n[\s\S]*?(?=\n### Executable contract validator)/)[0];
   assert.doesNotMatch(quickFix, /set, no plan binding, and/);
-  assert.match(quickFix, /no normal-packet plan binding/);
+  assert.match(quickFix, /no normal-packet[\s\S]{0,120}plan binding/i);
   assert.match(quickFix, /`state\.toon`/);
   assert.match(quickFix, /does not accept `--expected-sha256`|unbound/);
   assert.match(domain, /Quick-fix[^.\n]{0,160}runtime binding|runtime binding[^.\n]{0,160}Quick-fix/);

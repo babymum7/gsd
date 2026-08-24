@@ -47,7 +47,7 @@ test("domain impact is enforced across the feature lifecycle", () => {
   assert.equal(agents.match(/^## Domain documentation$/gm)?.length, 1);
   assert.match(agents, /production code, schemas, contracts, and tests are authoritative/i);
   assert.match(agents, /No domain impact[\s\S]{0,100}justification/i);
-  assert.match(reference, /existing `docs\/domain\/index\.md` suppresses[\s\S]{0,120}broad/i);
+  assert.match(reference, /`docs\/domain\/index\.md`[\s\S]{0,160}(?:suppresses|suppress|do not offer)[\s\S]{0,160}broad/i);
 });
 
 

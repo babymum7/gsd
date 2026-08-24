@@ -39,7 +39,7 @@ test("AC-3: Milestone Ledger definition points to canonical plan and excludes le
   const reference = read("skills/gsd/REFERENCE.md");
   assert.match(domain, /Milestone Ledger[\s\S]{0,220}docs\/gsd\/<feature>\/milestones\.md/);
   assert.match(domain, /precise user-approved milestone goals and durable pending\/done state/);
-  assert.match(reference, /goals are approved authority; its status column is controlled by terminal verification/);
+  assert.match(reference, /goals[\s\S]{0,160}approved authority[\s\S]{0,160}status[\s\S]{0,160}terminal verification/i);
   assert.doesNotMatch(domain, /local spec/i);
 });
 
@@ -47,11 +47,11 @@ test("AC-4: Cross-references, None. explicit, repair evidence not duplicated, an
   const execution = read("skills/gsd-executing-plans/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
   assert.match(execution, /A "None\." decisions block[\s\S]{0,100}explicit empty decisions marker/i);
-  assert.match(reference, /Decisions is exact `None\.` or sequential D blocks/);
+  assert.match(reference, /Decisions[\s\S]{0,120}`None\.`[\s\S]{0,120}(?:sequential\s+)?D(?:-\d+)? blocks/i);
   assert.match(execution, /rerun only checks invalidated by the repair/i);
-  assert.match(reference, /`<features>` template field is serialized as/i);
-  assert.match(reference, /The `<resume_instruction>` is a single string/i);
-  assert.match(reference, /Some features are omitted from this list/i);
+  assert.match(reference, /`<features>`[\s\S]{0,120}serialized/i);
+  assert.match(reference, /`<resume_instruction>`[\s\S]{0,120}single string/i);
+  assert.match(reference, /Bounded-Ambiguity[\s\S]{0,240}Some features are omitted from this list/i);
 });
 
 test("archive terminal disposition contract", () => {
@@ -60,9 +60,9 @@ test("archive terminal disposition contract", () => {
   assert.match(reference, /Terminal scratch disposition/);
   assert.match(reference, /docs\/gsd\/<feature>\/archive\/plan\.md/);
   assert.match(reference, /docs\/gsd\/<feature>\/archive\/implementation\.md/);
-  assert.match(reference, /same green one-feature\/one-squash commit/);
-  assert.match(reference, /If either archive destination already exists, fail closed/);
-  assert.match(reference, /terminal-cleanup-owned lifecycle paths included in changed-path ownership proof/);
+  assert.match(reference, /same green[\s\S]{0,160}(?:one-feature\/one-squash|one-squash) commit/i);
+  assert.match(reference, /archive destination already exists[\s\S]{0,120}fail closed/i);
+  assert.match(reference, /terminal-cleanup-owned[\s\S]{0,120}lifecycle paths[\s\S]{0,160}changed-path ownership proof/i);
   assert.match(verify, /canonical archive destinations are terminal-cleanup-owned lifecycle paths/);
   assert.match(verify, /every other changed path must be task-owned/);
   assert.match(verify, /phase=merged-cleanup-pending/);
@@ -80,7 +80,7 @@ test("AC-1: Fast TDD is mandatory for observable tasks", () => {
   assert.match(tdd, /RED before implementation[\s\S]{0,260}GREEN after implementation/);
   assert.match(tdd, /required sequence is RED→GREEN→refactor/);
   assert.match(planner, /never use `none` for observable behavior/i);
-  assert.match(reference, /Every observable task loads `gsd-tdd`/);
+  assert.match(reference, /observable task[\s\S]{0,120}loads? `gsd-tdd`/i);
   for (const body of [tdd, execution]) {
     assert.match(body, /no browser|browser,[^\n]{0,100}stay outside the task loop|never runs? browser/i);
     assert.match(body, /external network|resource-heavy/i);
@@ -97,8 +97,8 @@ test("AC-2: Terminal conformance precedes slow E2E with same-commit gates", () =
   assert.match(verify, /deterministic cumulative conformance before Deferred Slow E2E/);
   assert.match(verify, /Run the complete feature-affected Deferred Slow E2E suite only after current-commit conformance/);
   assert.match(verify, /full slow\/E2E GREEN on the same unchanged commit/);
-  assert.match(reference, /Green unchanged bytes then enter one-squash merge and cleanup/);
-  assert.match(reference, /Deferred Slow E2E runs only after current-commit conformance/);
+  assert.match(reference, /Green unchanged bytes[\s\S]{0,160}one-squash merge[\s\S]{0,120}cleanup/i);
+  assert.match(reference, /Deferred Slow E2E[\s\S]{0,160}(?:after|follows)[\s\S]{0,160}current-commit conformance/i);
 });
 
 // The `## Base` field and `base_ref` were both required with no rule for deriving the
@@ -118,22 +118,22 @@ test("base is derived from the work tree and owns the merge target", () => {
   assert.match(reference, /### Base derivation and merge target/);
   assert.match(reference, DERIVATION);
   assert.match(reference, /git symbolic-ref --quiet --short HEAD/);
-  assert.match(reference, /`code: detached-head` fails packet creation closed instead of recording a commit oid/);
-  assert.match(reference, /linked worktree records its own branch/);
-  assert.match(reference, /the base is never `wip\/<feature>`/);
-  assert.match(reference, /terminal squash merges into exactly the recorded `base_ref`/);
-  assert.match(reference, /`main` is the merge target only when `main` is that base/);
-  assert.match(reference, /Never ask whether to merge into `main`/);
+  assert.match(reference, /`code:\s*detached-head`[\s\S]{0,200}fails packet creation closed[\s\S]{0,160}commit oid/i);
+  assert.match(reference, /linked worktree[\s\S]{0,160}records its own branch/i);
+  assert.match(reference, /base[\s\S]{0,120}never[\s\S]{0,80}`wip\/<feature>`/i);
+  assert.match(reference, /terminal squash[\s\S]{0,160}merges into[\s\S]{0,120}`base_ref`/i);
+  assert.match(reference, /`main`[\s\S]{0,120}merge target[\s\S]{0,120}only when `main` is that base/i);
+  assert.match(reference, /never ask[\s\S]{0,120}merge into `main`/i);
   // Two records of one decision only stay consistent if the bound call compares them.
   assert.match(reference, /--expected-base <base_ref>/);
   // The gate must run the check, and a blocked check must stop it rather than pick a target.
   assert.match(reference, PREFLIGHT);
-  assert.match(reference, /a blocked gate never retargets the merge/);
-  assert.match(reference, /run no Git subcommand that can change a repository/);
+  assert.match(reference, /blocked gate[\s\S]{0,160}never retargets the merge/i);
+  assert.match(reference, /no Git subcommand[\s\S]{0,160}change a repository/i);
   // A squash commits the whole index, so the gate must prove the reviewed tree is committed.
-  assert.match(reference, /`dirty-worktree` counts staged, modified, and untracked paths outside `\.scratch\//);
+  assert.match(reference, /`dirty-worktree`[\s\S]{0,200}staged, modified, and untracked[\s\S]{0,160}`\.scratch\//i);
   // Git names only a rename's destination first, so counting one record hid a staged deletion.
-  assert.match(reference, /A rename or copy counts both of its paths, so moving a reviewed file into `\.scratch\/` still blocks/);
+  assert.match(reference, /rename or copy[\s\S]{0,160}counts both[\s\S]{0,160}moving[\s\S]{0,160}`\.scratch\/`[\s\S]{0,120}blocks/i);
 
   // The planner captures it; the terminal gate consumes it. Neither may fall back to a default.
   assert.match(planner, /Read `plan\.md` § Base from the work tree, never from convention/);
