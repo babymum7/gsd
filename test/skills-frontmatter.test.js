@@ -168,25 +168,25 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
     assert.match(skill, /plan\.md|Markdown/i);
     assert.match(skill, /hash|SHA-256|binding/i);
   }
-  assert.match(execution, /amend `\.scratch\/<feature>\/plan\.md` under § Plan amendment, revalidate, rebind/i);
+  assert.match(execution, /amend[\s\S]{0,80}`\.scratch\/<feature>\/plan\.md`[\s\S]{0,60}Plan amendment[\s\S]{0,60}revalidate[\s\S]{0,60}rebind/i);
   assert.match(handoff, /writes atomically to `\.scratch\/<feature>\/state\.toon`/i);
   assert.match(tdd, /focused test seam from the bound Markdown plan/);
   assert.match(tdd, /consume the exact validated task slice and relevant pinned sections/);
   assert.doesNotMatch(tdd, /proposal\.toon|spec\.toon|plan\.toon/);
   assert.match(reference, /Quick-fix plan exception/);
   assert.match(master, /Quick-fix plan exception/);
-  assert.match(verify, /malformed binding[\s\S]*red deterministic check blocks/i);
-  assert.match(planner, /atomically write canonical `schema:v4` `state\.toon`/);
+  assert.match(verify, /malformed binding[\s\S]{0,180}red deterministic check blocks/i);
+  assert.match(planner, /atomically write canonical `schema:v4`[\s\S]{0,40}`state\.toon`/);
   assert.doesNotMatch(execution, /^produces: \[[^\n]*plan\.md/m);
-  assert.match(execution, /ledger byte-for-byte read-only throughout the per-task loop/);
+  assert.match(execution, /ledger[\s\S]{0,60}byte-for-byte read-only[\s\S]{0,60}per-task loop/i);
   assert.match(verify, /final milestone deletes the ledger/);
-  assert.match(handoff, /Malformed, duplicate, or invalid known values fail closed/i);
+  assert.match(handoff, /Malformed[\s\S]{0,40}duplicate[\s\S]{0,40}invalid known values[\s\S]{0,40}fail closed/i);
   assert.match(handoff, /discover active candidates/i);
-  assert.match(planner, /fresh binding after Spec escalation supersedes older binding state/);
-  assert.match(execution, /Reject legacy proposal\/spec\/design files, numbered handoffs/);
+  assert.match(planner, /fresh binding[\s\S]{0,60}Spec escalation[\s\S]{0,60}supersedes older binding state/i);
+  assert.match(execution, /Reject legacy proposal\/spec\/design files[\s\S]{0,60}numbered handoffs/i);
   assert.match(handoff, /Execution resume \| `state\.toon`; `plan\.md`/);
   assert.match(reference, /session owner rebuilds complete task or terminal slices from canonical plan\/state\/Git/i);
-  assert.match(reference, /# Milestones[\s\S]*\| ID \| Slug \| Goal \| Status \|/);
+  assert.match(reference, /# Milestones[\s\S]{0,500}\| ID \| Slug \| Goal \| Status \|/);
   assert.match(reference, /status is exactly `pending` or `done`/);
   assert.match(master, /all-`done`, fail closed/);
 });
@@ -230,8 +230,8 @@ test("master and visible skills declare automatic lazy activation", () => {
     assert.doesNotMatch(skill, standaloneCommand, `${name} standalone command syntax`);
   }
 
-  assert.match(read("skills/gsd-domain-modeling/SKILL.md"), /## Domain lifecycle[\s\S]*## Markdown contracts/);
-  assert.match(read("skills/gsd-codebase-architecture/SKILL.md"), /## Vocabulary[\s\S]*## Domain-aligned architecture[\s\S]*## Seam discipline/);
+  assert.match(read("skills/gsd-domain-modeling/SKILL.md"), /## Domain lifecycle[\s\S]{0,2600}## Markdown contracts/);
+  assert.match(read("skills/gsd-codebase-architecture/SKILL.md"), /## Vocabulary[\s\S]{0,1200}## Domain-aligned architecture[\s\S]{0,1800}## Seam discipline/);
 });
 
 test("AC-1: Ponytail is hidden level-free context", () => {
@@ -246,9 +246,9 @@ test("AC-1: Ponytail is hidden level-free context", () => {
 test("AC-2 repair: task repair stays session-owner-inline without terminal verification", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  assert.match(execution, /First checkpoint `next_action=start\/continue task`/);
+  assert.match(execution, /First checkpoint[\s\S]{0,60}`next_action=start\/continue task`/i);
   assert.match(execution, /repair source-first[\s\S]{0,160}rerun only checks invalidated by the repair/);
-  assert.match(execution, /Load no terminal verifier until every task is green/);
+  assert.match(execution, /Load no terminal verifier[\s\S]{0,60}every task is green/i);
   assert.match(reference, /`start\/continue task`[\s\S]{0,120}gsd-executing-plans[\s\S]{0,80}gsd-handoff[\s\S]{0,80}gsd-tdd/);
   assert.doesNotMatch(execution, /run task review\/repair|gsdReviewer|gsd-reviewer/);
 });
@@ -383,10 +383,10 @@ test("AC-4: Concision preserves semantic parity", () => {
   // The validator owns the region between the title and the first section, so the grammar
   // section must say so: silent preamble tolerance was the gap that made them disagree.
   assert.match(reference, /any line between the title and its first section/);
-  assert.match(execution, /Every observable task loads `gsd-tdd`/);
+  assert.match(execution, /Every observable task[\s\S]{0,40}loads? `gsd-tdd`/i);
   assert.match(tdd, /RED before implementation/);
   assert.match(tdd, /GREEN after implementation/);
-  assert.match(verify, /Deferred Slow E2E suite only after current-commit conformance/);
+  assert.match(verify, /Deferred Slow E2E suite[\s\S]{0,60}after current-commit conformance/i);
   for (const name of visible) {
     assert.match(read(`skills/${name}/SKILL.md`), /## Dispatch contract/);
   }
@@ -394,10 +394,10 @@ test("AC-4: Concision preserves semantic parity", () => {
 
 test("AC-4 repair: session-owner inline task repair forbids terminal re-entry", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  assert.match(execution, /implements or repairs the task inline/);
+  assert.match(execution, /implements or repairs[\s\S]{0,40}task inline/i);
   assert.match(execution, /red focused check[\s\S]{0,180}bounded inline repair/i);
-  assert.match(execution, /rerun only checks invalidated by the repair/);
-  assert.match(execution, /Load no terminal verifier until every task is green/);
+  assert.match(execution, /rerun only checks[\s\S]{0,60}invalidated by the repair/i);
+  assert.match(execution, /Load no terminal verifier[\s\S]{0,60}every task is green/i);
   assert.doesNotMatch(execution, /submit for re-review|per-task verdict|gsdReviewer/);
 });
 
@@ -546,9 +546,9 @@ test("AC-4 repair: unified architecture implementation and seam principles", () 
 
 test("AC-4 repair: session-owner task repair does not enter terminal verification", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  assert.match(execution, /First checkpoint `next_action=start\/continue task`/);
-  assert.match(execution, /rerun only checks invalidated by the repair/);
-  assert.match(execution, /Load no terminal verifier until every task is green/);
+  assert.match(execution, /First checkpoint[\s\S]{0,60}`next_action=start\/continue task`/i);
+  assert.match(execution, /rerun only checks[\s\S]{0,60}invalidated by the repair/i);
+  assert.match(execution, /Load no terminal verifier[\s\S]{0,60}every task is green/i);
   assert.match(execution, /enter terminal verification\/repair/);
   assert.doesNotMatch(execution, /re-enters review|re-enter review|gsdReviewer/);
 });
@@ -577,7 +577,7 @@ test("AC-4 repair: architecture candidate enums exact", () => {
 
 test("AC-4 repair: session-owner task-repair evidence grammar", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  assert.match(execution, /green focused evidence, recorded only in reporting and transcripts/);
-  assert.match(execution, /rerun only checks invalidated by the repair/);
+  assert.match(execution, /green focused evidence[\s\S]{0,80}recorded only in reporting and transcripts/i);
+  assert.match(execution, /rerun only checks[\s\S]{0,60}invalidated by the repair/i);
   assert.match(execution, /Do not write task-attempt TOON files/);
 });

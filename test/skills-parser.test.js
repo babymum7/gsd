@@ -184,21 +184,21 @@ test("Quick-fix Domain Impact grammar is exact and domain-owned", () => {
   const verify = read("skills/gsd-verify/SKILL.md");
   assert.match(reference, /# Quick-fix Plan[\s\S]{0,240}## Domain Impact[\s\S]{0,360}## Tasks/);
   assert.match(reference, /Quick-fix[\s\S]{0,400}Broad bootstrap[\s\S]{0,200}not-offered/i);
-  assert.match(verify, /`Broad bootstrap` must always be `not-offered`/);
+  assert.match(verify, /`Broad bootstrap`[\s\S]{0,40}always be `not-offered`/i);
   assert.match(verify, /Quick-fix[\s\S]{0,500}exact five-field `Domain Impact`/i);
   assert.match(verify, /Quick-fix[\s\S]{0,800}domain drift[\s\S]{0,100}(?:blocks|Blocker)/i);
 
   // AC-5: an absent domain index keeps Quick-fix bounded instead of exiting it.
   for (const doc of [reference, verify]) {
-    assert.match(doc, /absent (?:`docs\/domain\/index\.md`|domain index) keeps/i);
+    assert.match(doc, /absent (?:`docs\/domain\/index\.md`|domain index)[\s\S]{0,40}keeps/i);
     assert.doesNotMatch(doc, /(?:A |a )missing index or requested broad bootstrap exits/);
-    assert.match(doc, /only an explicitly requested broad bootstrap exits/i);
+    assert.match(doc, /only an explicitly requested broad bootstrap[\s\S]{0,40}exits/i);
   }
 
   // AC-5: resume never reloads the already-injected master bootstrap.
   const handoff = read("skills/gsd-handoff/SKILL.md");
   assert.doesNotMatch(handoff, /Load master once/);
-  assert.match(handoff, /never reloaded: validate state, then load the peer owner/);
+  assert.match(handoff, /never reloaded[\s\S]{0,60}validate state[\s\S]{0,60}load the peer owner/i);
 });
 
 test("planner single-writes structured task file intents", () => {

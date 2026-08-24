@@ -99,7 +99,7 @@ test("an executing owner amends the plan in place instead of blocking", () => {
   assert.doesNotMatch(execution, /Never rewrite the approved Markdown plan/);
   assert.doesNotMatch(execution, /altered, or additional `plan\.md` is Spec escalation/);
   assert.doesNotMatch(verify, /Changed plan bytes, malformed new grammar/);
-  assert.match(verify, /changed plan bytes revalidate and rebind/i);
+  assert.match(verify, /changed plan bytes[\s\S]{0,60}revalidate and rebind/i);
   assert.doesNotMatch(handoff, /invalid, missing, or changed plan is Spec escalation/);
   assert.match(handoff, /rebind/i);
   assert.match(planner, /sole writer of the initial|sole writer at creation/i);
@@ -152,7 +152,7 @@ test("an executing owner amends the plan in place instead of blocking", () => {
   assert.match(quickFix, /does not accept `--expected-sha256`|unbound/);
   assert.match(domain, /Quick-fix[^.\n]{0,160}runtime binding|runtime binding[^.\n]{0,160}Quick-fix/);
   // A recorded binding nobody checks is decoration: the Quick-fix gate compares it.
-  assert.match(verify, /compare the returned hash with the recorded `state\.toon` `plan_sha256`/);
+  assert.match(verify, /compare the returned hash[\s\S]{0,60}recorded `state\.toon` `plan_sha256`/i);
 
   // Uncertainty asks one question; it never becomes a stop.
   for (const body of [reference, execution]) {

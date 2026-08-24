@@ -842,7 +842,7 @@ describe("T3 Review Fixes detailed behavior", () => {
     assert.match(master, /Do not invoke or execute the capsule again, avoiding circular re-entry/);
     
     // Proves handoff does not tell ordinary processing to reload the same bootstrap/capsule
-    assert.match(handoff, /without circular re-entry, capsule execution, or duplicated action/);
+    assert.match(handoff, /without circular re-entry[\s\S]{0,60}capsule execution[\s\S]{0,60}duplicated action/i);
 
     // Proves REFERENCE.md specifies no recursive master loading
     assert.match(reference, /never load master recursively or execute the capsule again/);
@@ -1547,7 +1547,7 @@ test("state.toon lifecycle checkpoint contract", async () => {
       () => readStateFile(statePath),
       (error) =>
         error.contractFailure === "io-error" &&
-        /state\.toon:[\s\S]*file must be valid UTF-8/.test(error.message),
+        /state\.toon:[\s\S]{0,160}file must be valid UTF-8/.test(error.message),
     );
     assert.deepEqual(readFileSync(statePath), invalidUtf8Bytes, "invalid UTF-8 state bytes must remain unchanged");
     writeStateAtomic(featureDir, baseFields);

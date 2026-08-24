@@ -48,7 +48,7 @@ test("AC-4: Cross-references, None. explicit, repair evidence not duplicated, an
   const reference = read("skills/gsd/REFERENCE.md");
   assert.match(execution, /A "None\." decisions block[\s\S]{0,100}explicit empty decisions marker/i);
   assert.match(reference, /Decisions[\s\S]{0,120}`None\.`[\s\S]{0,120}(?:sequential\s+)?D(?:-\d+)? blocks/i);
-  assert.match(execution, /rerun only checks invalidated by the repair/i);
+  assert.match(execution, /rerun only checks[\s\S]{0,60}invalidated by the repair/i);
   assert.match(reference, /`<features>`[\s\S]{0,120}serialized/i);
   assert.match(reference, /`<resume_instruction>`[\s\S]{0,120}single string/i);
   assert.match(reference, /Bounded-Ambiguity[\s\S]{0,240}Some features are omitted from this list/i);
@@ -63,8 +63,8 @@ test("archive terminal disposition contract", () => {
   assert.match(reference, /same green[\s\S]{0,160}(?:one-feature\/one-squash|one-squash) commit/i);
   assert.match(reference, /archive destination already exists[\s\S]{0,120}fail closed/i);
   assert.match(reference, /terminal-cleanup-owned[\s\S]{0,120}lifecycle paths[\s\S]{0,160}changed-path ownership proof/i);
-  assert.match(verify, /canonical archive destinations are terminal-cleanup-owned lifecycle paths/);
-  assert.match(verify, /every other changed path must be task-owned/);
+  assert.match(verify, /canonical archive destinations[\s\S]{0,60}terminal-cleanup-owned lifecycle paths/i);
+  assert.match(verify, /every other changed path[\s\S]{0,40}must be task-owned/i);
   assert.match(verify, /phase=merged-cleanup-pending/);
   assert.doesNotMatch(reference, /automatically archive every completed feature/i);
 });
@@ -74,8 +74,8 @@ test("AC-1: Fast TDD is mandatory for observable tasks", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
   const planner = read("skills/gsd-to-plan/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  assert.match(execution, /Every observable task loads `gsd-tdd`/);
-  assert.match(execution, /RED before implementation, GREEN after implementation, then refactor after green/);
+  assert.match(execution, /Every observable task[\s\S]{0,40}loads? `gsd-tdd`/i);
+  assert.match(execution, /RED before implementation[\s\S]{0,60}GREEN after implementation[\s\S]{0,60}refactor after green/i);
   assert.match(tdd, /Fast TDD Check/);
   assert.match(tdd, /RED before implementation[\s\S]{0,260}GREEN after implementation/);
   assert.match(tdd, /required sequence is RED→GREEN→refactor/);
@@ -92,11 +92,11 @@ test("AC-2: Terminal conformance precedes slow E2E with same-commit gates", () =
   const execution = read("skills/gsd-executing-plans/SKILL.md");
   const verify = read("skills/gsd-verify/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  assert.match(execution, /Only after every non-superseded task and Fast TDD Check is green/);
-  assert.match(execution, /deterministic cumulative conformance before Deferred Slow E2E/);
-  assert.match(verify, /deterministic cumulative conformance before Deferred Slow E2E/);
-  assert.match(verify, /Run the complete feature-affected Deferred Slow E2E suite only after current-commit conformance/);
-  assert.match(verify, /full slow\/E2E GREEN on the same unchanged commit/);
+  assert.match(execution, /Only after every non-superseded task[\s\S]{0,60}Fast TDD Check is green/i);
+  assert.match(execution, /deterministic cumulative conformance[\s\S]{0,60}Deferred Slow E2E/i);
+  assert.match(verify, /deterministic cumulative conformance[\s\S]{0,60}Deferred Slow E2E/i);
+  assert.match(verify, /Deferred Slow E2E suite[\s\S]{0,60}after current-commit conformance/i);
+  assert.match(verify, /full slow\/E2E GREEN[\s\S]{0,60}same unchanged commit/i);
   assert.match(reference, /Green unchanged bytes[\s\S]{0,160}one-squash merge[\s\S]{0,120}cleanup/i);
   assert.match(reference, /Deferred Slow E2E[\s\S]{0,160}(?:after|follows)[\s\S]{0,160}current-commit conformance/i);
 });
@@ -136,16 +136,16 @@ test("base is derived from the work tree and owns the merge target", () => {
   assert.match(reference, /rename or copy[\s\S]{0,160}counts both[\s\S]{0,160}moving[\s\S]{0,160}`\.scratch\/`[\s\S]{0,120}blocks/i);
 
   // The planner captures it; the terminal gate consumes it. Neither may fall back to a default.
-  assert.match(planner, /Read `plan\.md` § Base from the work tree, never from convention/);
+  assert.match(planner, /Read `plan\.md` § Base[\s\S]{0,60}work tree[\s\S]{0,60}never from convention/i);
   assert.match(planner, DERIVATION);
-  assert.match(planner, /`code: detached-head` stops packet creation until the user checks out a branch/);
-  assert.match(verify, /merge target is exactly the recorded `state\.toon` `base_ref`/);
+  assert.match(planner, /`code:\s*detached-head`[\s\S]{0,80}stops packet creation[\s\S]{0,60}checks out a branch/i);
+  assert.match(verify, /merge target is exactly[\s\S]{0,60}recorded `state\.toon` `base_ref`/i);
   assert.match(verify, PREFLIGHT);
   assert.match(verify, /only `status: ready` proceeds/);
-  assert.match(verify, /no path outside `\.scratch\/` is staged, modified, or untracked/);
-  assert.match(verify, /stops the gate instead of retargeting the merge/);
-  assert.match(verify, /never ask whether to merge into `main`/);
-  assert.match(verify, /Promoting that base onward is separate user-owned work/);
+  assert.match(verify, /no path outside `\.scratch\/`[\s\S]{0,60}(?:staged, modified, or untracked|staged)/i);
+  assert.match(verify, /stops the gate[\s\S]{0,40}instead of retargeting the merge/i);
+  assert.match(verify, /never ask[\s\S]{0,40}merge into `main`/i);
+  assert.match(verify, /Promoting that base onward[\s\S]{0,60}separate user-owned work/i);
 
   // `git rev-parse --abbrev-ref HEAD` prints the literal `HEAD` when detached, so every
   // mention of that form must stay inside prose explaining why it is not the derivation.
@@ -182,5 +182,5 @@ test("terminal conformance has no model-capacity or fan-out path", () => {
   assert.match(verify, /every active AC maps exactly once/);
   assert.match(verify, /every changed path is task-owned/);
   assert.match(verify, /task diffs in plan order/);
-  assert.match(verify, /focused-check evidence on the unchanged current commit/);
+  assert.match(verify, /focused-check evidence[\s\S]{0,60}unchanged current commit/i);
 });

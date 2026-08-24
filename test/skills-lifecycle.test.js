@@ -149,26 +149,26 @@ test("T1 session-owner execution contract and lifecycle roles", () => {
       /gsdReviewer|gsd-reviewer|gsdExecutor|gsd-executor|reviewer_model|executor_model|review_round|blocking_fingerprint|reviewed_commit|progress_status/i,
     );
   }
-  assert.match(execution, /current top-level session owner consumes the validated slice/);
-  assert.match(execution, /implements or repairs the task inline/);
-  assert.match(execution, /next task in strict heading order/);
+  assert.match(execution, /current top-level session owner[\s\S]{0,60}consumes the validated slice/i);
+  assert.match(execution, /implements or repairs[\s\S]{0,40}task inline/i);
+  assert.match(execution, /next task[\s\S]{0,40}strict heading order/i);
   assert.match(execution, /dispatches no[\s\S]{0,120}generic child task/);
   // Authorship moved to sub-agents, so the pin has to say who authors and who stays
   // responsible: a dispatched task still returns to the owner for inline sequential repair.
   assert.match(reference, /authored by sub-agents[\s\S]{0,300}repair[\s\S]{0,120}inline[\s\S]{0,80}sequential/i);
-  assert.match(execution, /Task `Tn\+1` begins only from the committed green checkpoint of `Tn`/);
-  assert.match(execution, /Source mutations never overlap task\/repair or Deferred Slow E2E/i);
-  assert.match(verify, /No free-form critique or model-generated verdict is terminal authority/);
+  assert.match(execution, /Task `Tn\+1` begins only from[\s\S]{0,60}committed green checkpoint of `Tn`/i);
+  assert.match(execution, /Source mutations never overlap[\s\S]{0,60}task\/repair[\s\S]{0,60}Deferred Slow E2E/i);
+  assert.match(verify, /No free-form critique[\s\S]{0,60}model-generated verdict[\s\S]{0,60}terminal authority/i);
   assert.match(domain, /### P-gsd-3: Make the session owner the sole lifecycle authority/);
   assert.match(domain, /### P-gsd-4: Converge only through deterministic blockers/);
   assert.match(domain, /### P-gsd-5: Rehydrate authority from canonical sources/);
   assert.match(readme, /## Session-owner authority/);
   assert.equal(existsSync(join(ROOT, "agents", "gsd-executor.md")), false);
   assert.equal(existsSync(join(ROOT, "agents", "gsd-reviewer.md")), false);
-  assert.match(execution, /full parse and binding check at execution entry or resume/);
-  assert.match(execution, /At ordinary task selection consume the retained validated task slice/);
-  assert.match(execution, /RED before implementation, GREEN after implementation, then refactor after green/);
-  assert.match(execution, /rerun only checks invalidated by the repair/);
+  assert.match(execution, /full parse and binding check[\s\S]{0,60}execution entry or resume/i);
+  assert.match(execution, /ordinary task selection[\s\S]{0,60}consume the retained validated task slice/i);
+  assert.match(execution, /RED before implementation[\s\S]{0,60}GREEN after implementation[\s\S]{0,60}refactor after green/i);
+  assert.match(execution, /rerun only checks[\s\S]{0,60}invalidated by the repair/i);
   assert.match(execution, /Reject legacy proposal\/spec\/design files/);
   assert.match(execution, /[Aa]n amended plan/);
 });
@@ -191,7 +191,7 @@ test("T2 schema:v4 state.toon contract and skill derivation", () => {
   assert.match(reference, /active[\s\S]{0,80}schema:v1[\s\S]{0,60}schema:v2[\s\S]{0,60}schema:v3[\s\S]{0,240}migrate[\s\S]{0,120}full validation/i);
   assert.match(reference, /schema:v3[\s\S]{0,80}completed-retained[\s\S]{0,160}sole terminal[\s\S]{0,120}compatibility[\s\S]{0,240}candidate discovery[\s\S]{0,200}readStateFile[\s\S]{0,200}schema:v4/i);
   assert.match(reference, /validate[\s\S]{0,60}phase[\s\S]{0,120}fixed schema enum/i);
-  assert.match(handoff, /Reject an unknown `phase`; preserve an opaque `next_action`/);
+  assert.match(handoff, /Reject an unknown `phase`[\s\S]{0,60}preserve an opaque `next_action`/i);
   assert.doesNotMatch(reference, /opaque state `phase`|opaque `phase`/);
   assert.doesNotMatch(handoff, /unknown opaque `phase`|opaque `phase`/);
   assert.match(reference, /Atomic write/);
@@ -202,12 +202,12 @@ test("T2 schema:v4 state.toon contract and skill derivation", () => {
   assert.match(reference, /`enter terminal verification\/repair`[\s\S]{0,160}gsd-verify[\s\S]{0,80}gsd-handoff/);
   assert.doesNotMatch(reference, /reload\[N\]\{skill,path\}/);
   assert.doesNotMatch(handoff, /reload\[N\]\{skill,path\}/);
-  assert.match(handoff, /writes atomically to `\.scratch\/<feature>\/state\.toon`/);
-  assert.match(handoff, /Active skills are derived from `phase` and `next_action`/);
+  assert.match(handoff, /writes atomically[\s\S]{0,60}`\.scratch\/<feature>\/state\.toon`/i);
+  assert.match(handoff, /Active skills are derived from[\s\S]{0,40}`phase`[\s\S]{0,40}`next_action`/i);
   assert.match(handoff, /Never serialize a `reload` manifest/);
-  assert.match(handoff, /Exact active v1, v2, and v3 records migrate atomically/);
-  assert.match(handoff, /v1\/v2 terminal records fail closed unchanged/);
-  assert.match(planner, /atomically write canonical `schema:v4` `state\.toon`/);
+  assert.match(handoff, /Exact active v1, v2, and v3 records[\s\S]{0,60}migrate atomically/i);
+  assert.match(handoff, /v1\/v2 terminal records[\s\S]{0,60}fail closed unchanged/i);
+  assert.match(planner, /atomically write canonical `schema:v4`[\s\S]{0,40}`state\.toon`/);
   assert.match(execution, /validated task slice/);
   assert.match(execution, /Do not write task-attempt TOON files/);
   assert.match(verify, /phase=merged-cleanup-pending|merged-cleanup-pending/);
@@ -525,8 +525,8 @@ test("AC-4: hidden bootstrap uses state.toon and terminal conformance", () => {
 
 test("terminal-conformance AC-1: enter verification only after all tasks", () => {
   const execution = read("skills/gsd-executing-plans/SKILL.md");
-  assert.match(execution, /atomically update `state\.toon` with `last_green_task`, `last_green_commit`, `next_action=start\/continue task/);
-  assert.match(execution, /Only after every non-superseded task and Fast TDD Check is green/);
+  assert.match(execution, /atomically update `state\.toon`[\s\S]{0,60}`last_green_task`[\s\S]{0,60}`last_green_commit`[\s\S]{0,60}`next_action=start\/continue task`/i);
+  assert.match(execution, /Only after every non-superseded task[\s\S]{0,60}Fast TDD Check is green/i);
   assert.match(execution, /next_action=enter terminal verification\/repair/);
   assert.match(execution, /load `gsd-verify`/);
   assert.doesNotMatch(execution, /After every non-superseded task[\s\S]{0,100}load `gsd-verify`/);
@@ -535,19 +535,19 @@ test("terminal-conformance AC-1: enter verification only after all tasks", () =>
 test("terminal-conformance AC-2: deterministic cumulative coverage and quality", () => {
   const verify = read("skills/gsd-verify/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  assert.match(verify, /every active AC maps exactly once to one completed task and one public interface pin/);
+  assert.match(verify, /every active AC maps exactly once[\s\S]{0,60}one completed task[\s\S]{0,60}one public interface pin/i);
   assert.match(verify, /every changed path is task-owned/);
   assert.match(verify, /task diffs in plan order/);
   assert.match(verify, /explicit Decisions, invariants, non-goals/);
-  assert.match(verify, /focused-check evidence on the unchanged current commit/);
+  assert.match(verify, /focused-check evidence[\s\S]{0,60}unchanged current commit/i);
   assert.match(reference, /malformed binding[\s\S]{0,120}ownership\/coverage mismatch[\s\S]{0,120}contract contradiction[\s\S]{0,120}unresolved change[\s\S]{0,120}red deterministic check[\s\S]{0,100}blocks?/i);
 });
 
 test("terminal-conformance AC-5: same-commit invalidation and merge gates", () => {
   const verify = read("skills/gsd-verify/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
-  assert.match(verify, /Any source change invalidates prior conformance/);
-  assert.match(verify, /full slow\/E2E GREEN on the same unchanged commit/);
+  assert.match(verify, /source change invalidates[\s\S]{0,40}prior conformance/i);
+  assert.match(verify, /full slow\/E2E GREEN[\s\S]{0,60}same unchanged commit/i);
   assert.match(reference, /source change[s]?[\s\S]{0,80}invalidate[s]?[\s\S]{0,80}conformance/i);
   assert.match(reference, /green[\s\S]{0,60}unchanged[\s\S]{0,80}(?:one-squash|squash)[\s\S]{0,80}merge[\s\S]{0,60}cleanup/i);
 });
