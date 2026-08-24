@@ -223,7 +223,7 @@ Success emits only deterministic scalar TOON:
 Structured actionable failures also use TOON on stdout:
 - An unreadable file reports `code: io-error`; malformed authority reports `code: invalid-artifact`. Both exit 1.
 - Usage failures exit 2 and help exits 0.
-- Every semantic rejection prints a `help:` line naming the concrete fix (align or split for pin conflicts, the exact field to reorder, the canonical shape to write); only unreadable-file errors fall back to command usage.
+- Every semantic rejection prints a `help:` line naming the concrete fix (align or split for pin conflicts, the exact field to reorder, the canonical shape to write); only I/O errors, readable or writable, fall back to command usage.
 - No command writes plan, state, domain, or Git data, except `normalize-plan --write` which mutates only `plan.md` for sanctioned surface-only fixes and `gsd-state.mjs set` which writes `state.toon`.
 ### Plan binding and auto-execution
 
