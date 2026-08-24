@@ -31,7 +31,7 @@ In `Resume/finalize` mode, read canonical `.scratch/<feature>/plan.md`.
 
 Consume converged `Domain Impact` fields in exact order:
 `Classification`, `Contexts`, `Documentation`, `Broad bootstrap`, `Evidence`.
-- `classification=none` requires `contexts=none`, `documentation=none`, and concrete no-impact evidence; other classifications require sorted context slugs and documentation actions.
+- `classification=none` requires `contexts=none`, `documentation=none`, and concrete no-impact evidence; every other classification requires sorted context slugs and documentation actions.
 - Bind exact reserved domain-documentation paths returned by `gsd-domain-modeling` to the same tasks as their implementing code; the plan owns target behavior until implementation, while existing domain prose remains current-production-only.
 - `Broad bootstrap` must be `not-offered` when the domain index exists; when absent, record user `selected` or `declined` choice after mandatory paths are set. Never reconstruct paths by scanning docs or dirty files.
 ## Write plan.md
