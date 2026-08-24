@@ -259,11 +259,11 @@ test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks
 test("plan-owned durable records enforce NNNN-slug.md and allow prose-only ownership", () => {
   const badRecord = canonicalPlan("bad-record").replace(
     "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation",
-    "  - `docs/decisions/bad-name.md` \u2014 create: record architecture decision",
+    "  - `docs/decisions/0001_bad-name.md` \u2014 create: record architecture decision",
   );
   const badDesignRecord = canonicalPlan("bad-design").replace(
     "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation",
-    "  - `docs/design/bad_name.md` \u2014 create: record system design",
+    "  - `docs/design/0001_bad_name.md` \u2014 create: record system design",
   );
   const validRecord = canonicalPlan("valid-record").replace(
     "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation",
@@ -1305,4 +1305,182 @@ test("Quick-fix shard ownership treats __tests__/ and spec/ as observation-only 
   const parsed = parseQuickFixPlan({ "plan.md": controlCase });
   assert.equal(parsed.feature, "quick-fix-plan");
   assert.equal(parsed.tasks.length, 1);
+});
+
+test("semantic validator failures attach actionable remediation help lines", () => {
+  // 1. Multi-AC interface pin conflict: T1 satisfies AC-1 and AC-2, but AC-1 is CLI and AC-2 is other seam
+  const pinConflictPlan = canonicalPlan("pin-conflict")
+    .replace(
+      "### AC-1: Validate canonical plan\n- **State:** active\n- **Outcome:** The canonical plan is accepted through the production command.\n- **Action:** Run the validator against the plan fixture.\n- **Expected:** The command reports the feature and exact source hash.",
+      "### AC-1: Validate canonical plan\n- **State:** active\n- **Outcome:** The canonical plan is accepted through the production command.\n- **Action:** Run the validator against the plan fixture.\n- **Expected:** The command reports the feature and exact source hash.\n### AC-2: Second criterion\n- **State:** active\n- **Outcome:** The second criterion is accepted.\n- **Action:** Run the second check.\n- **Expected:** The second check reports success.",
+    )
+    .replace(
+      "| AC-1 | production validator CLI | `tools/gsd-contract.mjs` | none |",
+      "| AC-1 | production validator CLI | `tools/gsd-contract.mjs` | none |\n| AC-2 | other seam | `tools/other.mjs` | none |",
+    )
+    .replace(
+      "- **Satisfies:** AC-1\n- **Files:**\n  - `tools/gsd-contract.mjs` — create: expose canonical plan validation",
+      "- **Satisfies:** AC-1, AC-2\n- **Files:**\n  - `tools/gsd-contract.mjs` — create: expose canonical plan validation\n  - `tools/other.mjs` — create: other helper",
+    );
+
+  const { workspace: pinWs, planPath: pinPlanPath } = makePlanWorkspace("pin-conflict", pinConflictPlan);
+
+  // 2. Field-ordering failure in task fields
+  const fieldOrderPlan = canonicalPlan("field-order")
+    .replace(
+      "- **Satisfies:** AC-1\n- **Files:**\n  - `tools/gsd-contract.mjs` — create: expose canonical plan validation\n- **Test:** `bun test test/gsd-contract.test.js`\n- **Status:** pending",
+      "- **Satisfies:** AC-1\n- **Test:** `bun test test/gsd-contract.test.js`\n- **Files:**\n  - `tools/gsd-contract.mjs` — create: expose canonical plan validation\n- **Status:** pending",
+    );
+
+  const { workspace: orderWs, planPath: orderPlanPath } = makePlanWorkspace("field-order", fieldOrderPlan);
+
+  try {
+    const pinResult = spawnSync(process.execPath, [CLI, "validate-plan", "--path", pinPlanPath], {
+      cwd: pinWs,
+      encoding: "utf8",
+    });
+    assert.equal(pinResult.status, 1);
+    assert.match(pinResult.stdout, /^status: error\ncode: invalid-artifact\n/);
+    assert.match(pinResult.stdout, /Task T1 satisfies multiple ACs but their interface pins/);
+    assert.match(pinResult.stdout, /AC-1 and AC-2 conflict/);
+    assert.match(pinResult.stdout, /^help: ".*make the interface rows identical or split the task into two tasks.*"$/m);
+
+    const orderResult = spawnSync(process.execPath, [CLI, "validate-plan", "--path", orderPlanPath], {
+      cwd: orderWs,
+      encoding: "utf8",
+    });
+    assert.equal(orderResult.status, 1);
+    assert.match(orderResult.stdout, /^status: error\ncode: invalid-artifact\n/);
+    assert.match(orderResult.stdout, /structured task fields must be exactly ordered: Satisfies, Files, Test, Status/);
+    assert.match(orderResult.stdout, /^help: ".*reorder fields to match the canonical order.*"$/m);
+  } finally {
+    rmSync(pinWs, { recursive: true, force: true });
+    rmSync(orderWs, { recursive: true, force: true });
+  }
+});
+
+test("normalize-plan reports surface-form defects as a reviewable patch without touching the file (AC-2)", () => {
+  const defectivePlan = canonicalPlan("defective-feature")
+    .replace("## Feature\n`defective-feature`", "## Feature\ndefective-feature")
+    .replace("- **Status:** pending\n", "- **Status:** pending   \n");
+
+  const { workspace, planPath } = makePlanWorkspace("defective-feature", defectivePlan);
+  const relPath = join(".scratch", "defective-feature", "plan.md");
+  try {
+    const beforeBytes = readFileSync(planPath);
+    const result = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    const afterBytes = readFileSync(planPath);
+
+    assert.equal(result.status, 0);
+    assert.match(result.stdout, new RegExp(`^--- a/${relPath.replace(/\./g, "\\.")}\\n\\+\\+\\+ b/${relPath.replace(/\./g, "\\.")}\\n`));
+    assert.match(result.stdout, /-defective-feature\n\+`defective-feature`/);
+    assert.match(result.stdout, /-- \*\*Status:\*\* pending   \n\+- \*\*Status:\*\* pending/);
+    assert.deepEqual(afterBytes, beforeBytes);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("normalize-plan --write converges a defective plan to canonical form idempotently (AC-3)", () => {
+  const defectivePlan = canonicalPlan("converging-feature")
+    .replace("## Feature\n`converging-feature`", "## Feature\nconverging-feature")
+    .replace("## Base\n`main`", "## Base\nmain")
+    .replace("- **Status:** pending\n", "- **Status:** pending   \n");
+
+  const { workspace, planPath } = makePlanWorkspace("converging-feature", defectivePlan);
+  const relPath = join(".scratch", "converging-feature", "plan.md");
+  try {
+    // First run with --write rewrites the file with fixed bytes
+    const firstRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath, "--write"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(firstRun.status, 0);
+    assert.equal(firstRun.stdout, "");
+
+    const fixedBytes = readFileSync(planPath, "utf8");
+    assert.match(fixedBytes, /## Feature\n`converging-feature`\n/);
+    assert.match(fixedBytes, /## Base\n`main`\n/);
+    assert.match(fixedBytes, /- \*\*Status:\*\* pending\n/);
+    assert.doesNotMatch(fixedBytes, /pending   /);
+
+    // Second run reports zero fixes and does not alter file
+    const secondRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath, "--write"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(secondRun.status, 0);
+    assert.equal(secondRun.stdout, "");
+
+    const secondBytes = readFileSync(planPath, "utf8");
+    assert.equal(secondBytes, fixedBytes);
+
+    // validate-plan accepts the normalized plan
+    const validateResult = spawnSync(process.execPath, [CLI, "validate-plan", "--path", relPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(validateResult.status, 0);
+    assert.match(validateResult.stdout, /^status: valid\nkind: plan\nfeature: converging-feature\nbase: main\n/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("normalize-plan on a clean canonical plan reports zero fixes", () => {
+  const cleanPlan = canonicalPlan("clean-feature");
+  const { workspace } = makePlanWorkspace("clean-feature", cleanPlan);
+  const relPath = join(".scratch", "clean-feature", "plan.md");
+  try {
+    const dryRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(dryRun.status, 0);
+    assert.equal(dryRun.stdout, "");
+
+    const writeRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath, "--write"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(writeRun.status, 0);
+    assert.equal(writeRun.stdout, "");
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("normalize-plan enforces usage and rejects unknown flags or unreadable files", () => {
+  const { workspace } = makePlanWorkspace("usage-feature", canonicalPlan("usage-feature"));
+  const relPath = join(".scratch", "usage-feature", "plan.md");
+  try {
+    // Missing --path
+    const missingPath = spawnSync(process.execPath, [CLI, "normalize-plan"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(missingPath.status, 2);
+    assert.match(missingPath.stdout, /^status: error\ncode: usage\n/);
+
+    // Unknown flag --expected-sha256
+    const unexpectedSha = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath, "--expected-sha256", "a".repeat(64)], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(unexpectedSha.status, 2);
+    assert.match(unexpectedSha.stdout, /^status: error\ncode: usage\n/);
+
+    // Missing file
+    const missingFile = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", ".scratch/non-existent/plan.md"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(missingFile.status, 1);
+    assert.match(missingFile.stdout, /^status: error\ncode: invalid-artifact\n/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
 });

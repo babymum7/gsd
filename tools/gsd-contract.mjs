@@ -1,8 +1,8 @@
 #!/usr/bin/env bun
 import { fileURLToPath } from "node:url";
-import { analyzeWaves, isSafeBranchRef, validatePlanFile } from "../lib/gsd-contract.mjs";
+import { analyzeWaves, isSafeBranchRef, normalizePlanFile, validatePlanFile } from "../lib/gsd-contract.mjs";
 
-const COMMANDS = new Set(["validate-plan", "validate-quick-fix", "analyze-waves"]);
+const COMMANDS = new Set(["validate-plan", "validate-quick-fix", "analyze-waves", "normalize-plan"]);
 
 // The lifecycle runs in workspaces that are not this checkout, so every help and error
 // surface names the path this process was actually loaded from. A repo-relative form here
@@ -29,7 +29,10 @@ function commandUsage(command) {
   if (command === "analyze-waves") {
     return `${INVOCATION} analyze-waves --path .scratch/<feature>/plan.md [--expected-sha256 <64-hex>] [--expected-base <branch>]`;
   }
-  return `${INVOCATION} <validate-plan|validate-quick-fix|analyze-waves> --path <artifact>`;
+  if (command === "normalize-plan") {
+    return `${INVOCATION} normalize-plan --path .scratch/<feature>/plan.md [--write]`;
+  }
+  return `${INVOCATION} <validate-plan|validate-quick-fix|analyze-waves|normalize-plan> --path <artifact>`;
 }
 
 function emitHelp(command) {
@@ -58,11 +61,16 @@ function failArtifact(error, command) {
   // Only the library's own tag selects `io-error`; anything else stays malformed
   // authority, so an unexpected tag value can never invent a third code.
   const code = error?.contractFailure === "io-error" ? "io-error" : "invalid-artifact";
+  // A semantic rejection carries its own remediation: it replaces the generic usage
+  // on the `help:` line so the agent reads the fix, not the flag list.
+  const remediation = error?.hint
+    ? String(error.hint).replace(/[\x00-\x1F\x7F]+/g, " ").trim()
+    : commandUsage(command);
   write([
     "status: error",
     `code: ${code}`,
     `error: ${quote(message)}`,
-    `help: ${quote(commandUsage(command))}`,
+    `help: ${quote(remediation)}`,
   ]);
   process.exitCode = 1;
 }
@@ -76,11 +84,22 @@ function parseArguments(argv) {
   let planPath = null;
   let expectedSha256 = null;
   let expectedBase = null;
-  const FLAGS = new Set(["--path", "--expected-sha256", "--expected-base"]);
+  let write = false;
+  const FLAGS = new Set(["--path", "--expected-sha256", "--expected-base", "--write"]);
   for (let index = 0; index < args.length; index += 1) {
     const flag = args[index];
     if (!FLAGS.has(flag)) {
       return { usageError: `unknown argument: ${flag}`, command };
+    }
+    if (flag === "--write") {
+      if (command !== "normalize-plan") {
+        return { usageError: `${command} does not accept --write`, command };
+      }
+      if (write) {
+        return { usageError: "--write may be supplied only once", command };
+      }
+      write = true;
+      continue;
     }
     const value = args[index + 1];
     if (value === undefined || value.startsWith("--")) {
@@ -104,6 +123,10 @@ function parseArguments(argv) {
   }
 
   if (planPath === null) return { usageError: "--path is required", command };
+  if (command === "normalize-plan") {
+    if (expectedSha256 !== null) return { usageError: `${command} does not accept --expected-sha256`, command };
+    if (expectedBase !== null) return { usageError: `${command} does not accept --expected-base`, command };
+  }
   if (expectedSha256 !== null && !/^[a-f0-9]{64}$/.test(expectedSha256)) {
     return {
       usageError: "--expected-sha256 must be exactly 64 lowercase hexadecimal characters",
@@ -116,7 +139,7 @@ function parseArguments(argv) {
   if (expectedBase !== null && !isSafeBranchRef(expectedBase)) {
     return { usageError: "--expected-base must be one Git branch name able to receive a merge", command };
   }
-  return { command, planPath, expectedSha256, expectedBase };
+  return { command, planPath, expectedSha256, expectedBase, write };
 }
 
 const input = parseArguments(process.argv.slice(2));
@@ -124,6 +147,15 @@ if (input.usageError) {
   failUsage(input.usageError, input.command);
 } else if (input.help) {
   emitHelp(input.command);
+} else if (input.command === "normalize-plan") {
+  try {
+    const result = normalizePlanFile(input.planPath, { write: input.write });
+    if (!input.write && result.diff) {
+      process.stdout.write(result.diff);
+    }
+  } catch (error) {
+    failArtifact(error, input.command);
+  }
 } else {
   try {
     const result = validatePlanFile(input.planPath, {

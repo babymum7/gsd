@@ -50,6 +50,12 @@ export const COMPLETED_STATE_PHASES: readonly CompletedPhase[];
 /** Frozen canonical v4 field order for a state.toon packet. */
 export const STATE_FIELD_ORDER: readonly (keyof State)[];
 
+/** Frozen per-phase default `next_action` values for canonical state writes. */
+export const DEFAULT_PHASE_NEXT_ACTIONS: Readonly<Record<Phase, string>>;
+
+/** Return the canonical default `next_action` for a phase, or null when unknown. */
+export function defaultNextActionForPhase(phase: Phase): string | null;
+
 /** The raw capsule template string with unreplaced tokens. */
 export const CAPSULE_TEMPLATE: string;
 

@@ -211,19 +211,19 @@ It contains one or two sequential tasks with unique structured paths and a real 
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex> --expected-base <base_ref>
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
+bun "<GSD_ROOT>/tools/gsd-contract.mjs" normalize-plan --path .scratch/<feature>/plan.md [--write]
 ```
-
 The first command validates a new canonical full plan and returns its exact SHA-256; it also revalidates a full-plan amendment before rebinding. The second requires the bytes to match a bound hash, so a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. The third selects only the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath a real `.scratch/<feature>/`; symlinks, escaped paths, feature mismatch, and malformed grammar fail closed.
 
 
 Success emits only deterministic scalar TOON:
 - A plan returns `status`, `kind`, `feature`, `base`, `sha256`, and `tasks`.
+- `normalize-plan [--write]` proposes or applies the closed set of surface-only fixes (backtick wrapping for Feature/Base, line trailing whitespace stripping, single terminal newline) as a reviewable unified diff.
 
 Structured actionable failures also use TOON on stdout:
 - An unreadable file reports `code: io-error`; malformed authority reports `code: invalid-artifact`. Both exit 1.
 - Usage failures exit 2 and help exits 0.
-- No command writes plan, state, domain, or Git data.
-
+- No command writes plan, state, domain, or Git data, except `normalize-plan --write` which mutates only `plan.md` for sanctioned surface-only fixes and `gsd-state.mjs set` which writes `state.toon`.
 ### Plan binding and auto-execution
 
 `gsd-to-plan` validates canonical structured `plan.md`, prints its task/AC/Domain Impact summary, calculates SHA-256, and immediately binds it for execution — there is no approval prompt and no post-plan menu.
@@ -311,6 +311,8 @@ Exact v1/v2 `completed-retained` records are structurally recognized during cand
 ### Atomic write
 
 Every checkpoint write creates a complete temporary file in the same feature directory, fsyncs it, atomically renames it over `state.toon`, fsyncs the directory where supported, then reads back and validates before reporting the checkpoint complete. Reject symlink or non-directory feature paths; require the feature directory basename to equal `state.feature` under a real `.scratch` parent; require `plan_path` to equal `.scratch/<feature>/plan.md` when bound. No dispatch occurs from unvalidated or partially written `state.toon`.
+
+State updates are recorded through `gsd-state.mjs write-state` or `gsd-state.mjs set` with derived defaults.
 
 ### Checkpoint cadence
 

@@ -1,17 +1,20 @@
 #!/usr/bin/env bun
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ACTIVE_STATE_PHASES,
   COMPLETED_STATE_PHASES,
   STATE_FIELD_ORDER,
+  defaultNextActionForPhase,
   inspectStateFile,
   readStateFile,
   writeStateAtomic,
 } from "../lib/gsd-state.mjs";
 
-const COMMANDS = new Set(["read-state", "write-state", "validate-state"]);
+const COMMANDS = new Set(["read-state", "write-state", "validate-state", "set"]);
 const VALUE_FLAGS = new Set(["--path", "--feature-dir", "--json", "--json-file"]);
+const STATE_FIELD_SET = new Set(STATE_FIELD_ORDER);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
@@ -30,7 +33,10 @@ function commandUsage(command) {
   if (command === "validate-state") {
     return `${INVOCATION} validate-state --path .scratch/<feature>/state.toon`;
   }
-  return `${INVOCATION} <read-state|write-state|validate-state> [options]`;
+  if (command === "set") {
+    return `${INVOCATION} set --feature-dir .scratch/<feature> [key=value...]`;
+  }
+  return `${INVOCATION} <read-state|write-state|validate-state|set> [options]`;
 }
 
 function emitHelp(command) {
@@ -91,6 +97,31 @@ function emitHelp(command) {
     ]);
     return;
   }
+  if (command === "set") {
+    write_([
+      "Usage: " + usage,
+      "",
+      "Set state fields atomically with validation and derived defaults.",
+      "Accepts key=value pairs for canonical v4 state fields.",
+      "",
+      "Options:",
+      "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
+      "",
+      "Fields:",
+      ...STATE_FIELD_ORDER.map((f) => `  ${f}`),
+      "",
+      "Defaults:",
+      "  schema                 v4",
+      "  feature                basename of --feature-dir",
+      "  next_action            derived from phase when omitted",
+      "  plan_path              .scratch/<feature>/plan.md (when phase != draft)",
+      "  wip_branch             wip/<feature> (when phase != draft)",
+      "  checkpoint_revision    incremented if existing state.toon, else 1",
+      "",
+      "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
+    ]);
+    return;
+  }
   write_([
     "Usage: " + INVOCATION + " <command> [options]",
     "",
@@ -98,7 +129,7 @@ function emitHelp(command) {
     "  read-state       Read and validate a state.toon file (migrates legacy schemas)",
     "  write-state      Write state.toon atomically with validation",
     "  validate-state   Validate a state.toon file without writing",
-    "",
+    "  set              Set state fields atomically with validation and defaults",
     "Use --help (or -h) <command> for command-specific help.",
   ]);
 }
@@ -123,7 +154,7 @@ function failArtifact(error, command) {
 }
 
 function parseArguments(argv) {
-  const result = { command: null, help: false, path: null, featureDir: null, json: null, jsonFile: null };
+  const result = { command: null, help: false, path: null, featureDir: null, json: null, jsonFile: null, pairs: [] };
 
   let i = 0;
   if (i < argv.length && (argv[i] === "--help" || argv[i] === "-h")) {
@@ -157,6 +188,23 @@ function parseArguments(argv) {
       else if (arg === "--feature-dir") result.featureDir = value;
       else if (arg === "--json") result.json = value;
       else result.jsonFile = value;
+      i++;
+      continue;
+    }
+    if (result.command === "set") {
+      if (arg.startsWith("-")) {
+        failUsage(`unknown argument: ${arg}`, result.command);
+      }
+      const eqIdx = arg.indexOf("=");
+      if (eqIdx <= 0) {
+        failUsage(`expected key=value, got: ${arg}`, result.command);
+      }
+      const key = arg.slice(0, eqIdx);
+      const value = arg.slice(eqIdx + 1);
+      if (!STATE_FIELD_SET.has(key)) {
+        failUsage(`unknown key: ${key}`, result.command);
+      }
+      result.pairs.push({ key, value });
       i++;
       continue;
     }
@@ -213,5 +261,73 @@ if (input.usageError) {
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
   } catch (error) {
     failArtifact(error, "write-state");
+  }
+} else if (input.command === "set") {
+  if (!input.featureDir) failUsage("--feature-dir is required", "set");
+  const featureMetaName = path.basename(path.resolve(input.featureDir));
+  const statePath = path.join(path.resolve(input.featureDir), "state.toon");
+  const updateKeys = new Set(input.pairs.map((p) => p.key));
+
+  let baseState;
+  const exists = existsSync(statePath);
+  if (exists) {
+    try {
+      baseState = inspectStateFile(statePath);
+    } catch (error) {
+      failArtifact(error, "set");
+    }
+  } else {
+    baseState = {
+      schema: "v4",
+      feature: featureMetaName,
+      phase: "draft",
+      next_action: "none",
+      plan_path: "none",
+      plan_sha256: "none",
+      base_ref: "none",
+      wip_branch: "none",
+      last_green_task: "none",
+      last_green_commit: "none",
+      autosync: "none",
+      cleanup_preference: "none",
+      checkpoint_revision: "1",
+    };
+  }
+
+  const state = { ...baseState };
+  for (const { key, value } of input.pairs) {
+    state[key] = value;
+  }
+
+  if (exists) {
+    if (!updateKeys.has("checkpoint_revision")) {
+      state.checkpoint_revision = (BigInt(baseState.checkpoint_revision) + 1n).toString();
+    }
+    if (!updateKeys.has("next_action") && updateKeys.has("phase")) {
+      const defaultNext = defaultNextActionForPhase(state.phase);
+      if (defaultNext != null) {
+        state.next_action = defaultNext;
+      }
+    }
+  } else {
+    if (!updateKeys.has("plan_path") && state.phase !== "draft") {
+      state.plan_path = `.scratch/${state.feature}/plan.md`;
+    }
+    if (!updateKeys.has("wip_branch") && state.phase !== "draft") {
+      state.wip_branch = `wip/${state.feature}`;
+    }
+    if (!updateKeys.has("next_action")) {
+      const defaultNext = defaultNextActionForPhase(state.phase);
+      if (defaultNext != null) {
+        state.next_action = defaultNext;
+      }
+    }
+  }
+
+  try {
+    const result = writeStateAtomic(input.featureDir, state);
+    process.stdout.write(JSON.stringify(result, null, 2) + "\n");
+  } catch (error) {
+    failArtifact(error, "set");
   }
 }

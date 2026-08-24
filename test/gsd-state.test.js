@@ -14,7 +14,9 @@ import {
   validateState,
   STATE_FIELD_ORDER,
   detectCandidates,
-} from "../extensions/gsd-context.js";
+  DEFAULT_PHASE_NEXT_ACTIONS,
+  defaultNextActionForPhase,
+} from "../lib/gsd-state.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI = join(__dirname, "..", "tools", "gsd-state.mjs");
@@ -650,4 +652,240 @@ test("detectCandidates attributes discovery defects to feature directory in faul
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// ─── State set command & default next_action ─────────────────────────────
+
+test("DEFAULT_PHASE_NEXT_ACTIONS defines required canonical defaults", () => {
+  assert.equal(DEFAULT_PHASE_NEXT_ACTIONS.draft, "converge acceptance criteria");
+  assert.equal(DEFAULT_PHASE_NEXT_ACTIONS.approved, "start/continue task");
+  assert.equal(DEFAULT_PHASE_NEXT_ACTIONS.executing, "start/continue task");
+  assert.equal(DEFAULT_PHASE_NEXT_ACTIONS.paused, "start/continue task");
+  assert.equal(DEFAULT_PHASE_NEXT_ACTIONS.verifying, "enter terminal verification/repair");
+  assert.equal(DEFAULT_PHASE_NEXT_ACTIONS.repair, "enter terminal verification/repair");
+  assert.equal(
+    DEFAULT_PHASE_NEXT_ACTIONS["merged-cleanup-pending"],
+    "complete delete cleanup of the scratch packet and wip branch"
+  );
+  assert.equal(DEFAULT_PHASE_NEXT_ACTIONS["completed-retained"], "none");
+  assert.equal(defaultNextActionForPhase("approved"), "start/continue task");
+  assert.equal(defaultNextActionForPhase("unknown-phase"), null);
+});
+
+test("CLI set creates new approved packet with default next_action and matches write-state bytes (AC-4)", () => {
+  const { scratch: scratchSet } = tmpFeatureDir("test-feature");
+  const { scratch: scratchWrite } = tmpFeatureDir("test-feature");
+  const sha = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
+
+  // 1. Invocation 1: set new approved packet omitting next_action
+  const rSet1 = cli([
+    "set",
+    "--feature-dir", scratchSet,
+    "phase=approved",
+    `plan_sha256=${sha}`,
+    "base_ref=main",
+  ]);
+  assert.equal(rSet1.exitCode, 0, `set failed: ${rSet1.stderr || rSet1.stdout}`);
+  const parsedSet1 = JSON.parse(rSet1.stdout);
+  assert.equal(parsedSet1.phase, "approved");
+  assert.equal(parsedSet1.next_action, "start/continue task");
+  assert.equal(parsedSet1.feature, "test-feature");
+  assert.equal(parsedSet1.checkpoint_revision, "1");
+
+  // Equivalent write-state for comparison
+  const expectedState1 = {
+    schema: "v4",
+    feature: "test-feature",
+    phase: "approved",
+    next_action: "start/continue task",
+    plan_path: ".scratch/test-feature/plan.md",
+    plan_sha256: sha,
+    base_ref: "main",
+    wip_branch: "wip/test-feature",
+    last_green_task: "none",
+    last_green_commit: "none",
+    autosync: "none",
+    cleanup_preference: "none",
+    checkpoint_revision: "1",
+  };
+  const rWrite1 = cli([
+    "write-state",
+    "--feature-dir", scratchWrite,
+    "--json", JSON.stringify(expectedState1),
+  ]);
+  assert.equal(rWrite1.exitCode, 0);
+  const rawSet1 = readFileSync(join(scratchSet, "state.toon"), "utf8");
+  const rawWrite1 = readFileSync(join(scratchWrite, "state.toon"), "utf8");
+  assert.equal(rawSet1, rawWrite1, "set and write-state must produce byte-identical state.toon for approved phase");
+
+  // 2. Invocation 2: advance same packet to merged-cleanup-pending omitting next_action
+  const rSet2 = cli([
+    "set",
+    "--feature-dir", scratchSet,
+    "phase=merged-cleanup-pending",
+  ]);
+  assert.equal(rSet2.exitCode, 0, `set advance failed: ${rSet2.stderr || rSet2.stdout}`);
+  const parsedSet2 = JSON.parse(rSet2.stdout);
+  assert.equal(parsedSet2.phase, "merged-cleanup-pending");
+  assert.equal(
+    parsedSet2.next_action,
+    "complete delete cleanup of the scratch packet and wip branch"
+  );
+  assert.equal(parsedSet2.checkpoint_revision, "2");
+
+  // Equivalent write-state for merged-cleanup-pending
+  const expectedState2 = {
+    ...expectedState1,
+    phase: "merged-cleanup-pending",
+    next_action: "complete delete cleanup of the scratch packet and wip branch",
+    checkpoint_revision: "2",
+  };
+  const rWrite2 = cli([
+    "write-state",
+    "--feature-dir", scratchWrite,
+    "--json", JSON.stringify(expectedState2),
+  ]);
+  assert.equal(rWrite2.exitCode, 0);
+  const rawSet2 = readFileSync(join(scratchSet, "state.toon"), "utf8");
+  const rawWrite2 = readFileSync(join(scratchWrite, "state.toon"), "utf8");
+  assert.equal(
+    rawSet2,
+    rawWrite2,
+    "set and write-state must produce byte-identical state.toon for merged-cleanup-pending phase"
+  );
+});
+
+test("CLI set allows explicit next_action override", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  const sha = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
+  const r = cli([
+    "set",
+    "--feature-dir", scratch,
+    "phase=approved",
+    `plan_sha256=${sha}`,
+    "base_ref=main",
+    "next_action=custom start action",
+  ]);
+  assert.equal(r.exitCode, 0);
+  const parsed = JSON.parse(r.stdout);
+  assert.equal(parsed.next_action, "custom start action");
+});
+
+test("CLI set rejects unknown keys with usage error", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  const r = cli([
+    "set",
+    "--feature-dir", scratch,
+    "phase=approved",
+    "unknown_key=foo",
+  ]);
+  assert.equal(r.exitCode, 2, "unknown key must exit 2 (usage error)");
+  assert.match(r.stdout, /unknown key/);
+});
+
+test("CLI set rejects missing feature-dir", () => {
+  const r = cli(["set", "phase=approved"]);
+  assert.equal(r.exitCode, 2);
+  assert.match(r.stdout, /--feature-dir is required/);
+});
+
+test("CLI set rejects argument without '='", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  const r = cli(["set", "--feature-dir", scratch, "invalidarg"]);
+  assert.equal(r.exitCode, 2);
+  assert.match(r.stdout, /expected key=value/);
+});
+
+test("CLI set --help documents command usage", () => {
+  const r = cli(["--help", "set"]);
+  assert.equal(r.exitCode, 0);
+  assert.match(r.stdout, /set --feature-dir/);
+});
+
+test("CLI set updates checkpoint fields without phase change and preserves existing next_action", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  const sha = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
+  const commit = "a".repeat(40);
+  
+  // Setup initial approved packet
+  const rInit = cli([
+    "set",
+    "--feature-dir", scratch,
+    "phase=approved",
+    `plan_sha256=${sha}`,
+    "base_ref=main",
+    "next_action=custom action",
+  ]);
+  assert.equal(rInit.exitCode, 0);
+  
+  // Update last green task/commit without touching phase
+  const rUpdate = cli([
+    "set",
+    "--feature-dir", scratch,
+    "last_green_task=T1",
+    `last_green_commit=${commit}`,
+  ]);
+  assert.equal(rUpdate.exitCode, 0);
+  const parsed = JSON.parse(rUpdate.stdout);
+  assert.equal(parsed.last_green_task, "T1");
+  assert.equal(parsed.last_green_commit, commit);
+  assert.equal(parsed.checkpoint_revision, "2");
+  assert.equal(parsed.next_action, "custom action", "next_action should be preserved when phase is unchanged");
+});
+
+test("CLI set creates draft packet with draft defaults", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  const r = cli([
+    "set",
+    "--feature-dir", scratch,
+    "phase=draft",
+  ]);
+  assert.equal(r.exitCode, 0);
+  const parsed = JSON.parse(r.stdout);
+  assert.equal(parsed.phase, "draft");
+  assert.equal(parsed.next_action, "converge acceptance criteria");
+  assert.equal(parsed.plan_path, "none");
+  assert.equal(parsed.plan_sha256, "none");
+  assert.equal(parsed.base_ref, "none");
+  assert.equal(parsed.wip_branch, "none");
+});
+
+test("CLI set creates completed-retained packet with next_action=none", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  const sha = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
+  const rInit = cli([
+    "set",
+    "--feature-dir", scratch,
+    "phase=approved",
+    `plan_sha256=${sha}`,
+    "base_ref=main",
+  ]);
+  assert.equal(rInit.exitCode, 0);
+
+  const rRetained = cli([
+    "set",
+    "--feature-dir", scratch,
+    "phase=completed-retained",
+  ]);
+  assert.equal(rRetained.exitCode, 0);
+  const parsed = JSON.parse(rRetained.stdout);
+  assert.equal(parsed.phase, "completed-retained");
+  assert.equal(parsed.next_action, "none");
+});
+
+test("CLI set rejects invalid field values with artifact error (exit 1)", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  const r = cli([
+    "set",
+    "--feature-dir", scratch,
+    "phase=invalid_phase",
+  ]);
+  assert.equal(r.exitCode, 1, "validation failure should exit 1");
+  assert.match(r.stdout, /unsupported phase/);
+});
+
+test("CLI set rejects --feature-dir without value (exit 2)", () => {
+  const r = cli(["set", "--feature-dir"]);
+  assert.equal(r.exitCode, 2);
+  assert.match(r.stdout, /--feature-dir requires a value/);
 });
