@@ -63,9 +63,18 @@ function failArtifact(error, command) {
   const code = error?.contractFailure === "io-error" ? "io-error" : "invalid-artifact";
   // A semantic rejection carries its own remediation: it replaces the generic usage
   // on the `help:` line so the agent reads the fix, not the flag list.
-  const remediation = error?.hint
+  let remediation = error?.hint
     ? String(error.hint).replace(/[\x00-\x1F\x7F]+/g, " ").trim()
-    : commandUsage(command);
+    : null;
+  if (!remediation) {
+    if (/hash mismatch/i.test(message)) {
+      remediation = "revalidate unbound and rebind through the amendment flow, never silently overwrite";
+    } else if (/does not match recorded base_ref/i.test(message)) {
+      remediation = "align --expected-base with plan § Base";
+    } else {
+      remediation = commandUsage(command);
+    }
+  }
   write([
     "status: error",
     `code: ${code}`,

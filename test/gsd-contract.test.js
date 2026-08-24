@@ -455,7 +455,6 @@ test("the CLI names a runnable invocation in every help and error surface", () =
       { label: "help", args: ["validate-plan", "--help"], status: 0 },
       { label: "usage", args: ["validate-plan"], status: 2 },
       { label: "unknown-command", args: ["validate-nothing"], status: 2 },
-      { label: "artifact", args: ["validate-plan", "--path", planPath], status: 1 },
     ];
     for (const surface of surfaces) {
       const result = spawnSync(process.execPath, [CLI, ...surface.args], {
@@ -1356,6 +1355,105 @@ test("semantic validator failures attach actionable remediation help lines", () 
   } finally {
     rmSync(pinWs, { recursive: true, force: true });
     rmSync(orderWs, { recursive: true, force: true });
+  }
+});
+
+test("semantic validator failures attach concrete remediation help lines across representative failure classes", () => {
+  // 1. Required-field class: missing/empty Summary field
+  const missingFieldPlan = canonicalPlan("missing-summary")
+    .replace("## Summary\nValidate one canonical GSD plan through the production command.", "## Summary\n");
+  const { workspace: fieldWs, planPath: fieldPlanPath } = makePlanWorkspace("missing-summary", missingFieldPlan);
+
+  // 2. Unsafe-path class: traversal path in task files
+  const unsafePathPlan = canonicalPlan("unsafe-path")
+    .replace(
+      "- `tools/gsd-contract.mjs` — create: expose canonical plan validation",
+      "- `../tools/gsd-contract.mjs` — create: expose canonical plan validation",
+    );
+  const { workspace: pathWs, planPath: pathPlanPath } = makePlanWorkspace("unsafe-path", unsafePathPlan);
+
+  // 3. Domain-impact class: unsorted Contexts list
+  const unsortedContextsPlan = canonicalPlan("unsorted-contexts")
+    .replace(
+      "- **Classification:** none\n- **Contexts:** none\n- **Documentation:** none\n- **Broad bootstrap:** not-offered\n- **Evidence:** This validation fixture changes no production term, invariant, workflow, outcome, relationship, policy, or context boundary.",
+      "- **Classification:** change-existing-context\n- **Contexts:** zebra-context, alpha-context\n- **Documentation:** update-existing\n- **Broad bootstrap:** not-offered\n- **Evidence:** This validation fixture updates domain docs for zebra and alpha contexts.",
+    )
+    .replace(
+      "- `tools/gsd-contract.mjs` — create: expose canonical plan validation",
+      "- `tools/gsd-contract.mjs` — create: expose canonical plan validation\n  - `docs/domain/zebra-context.md` — modify: update zebra docs\n  - `docs/domain/alpha-context.md` — modify: update alpha docs",
+    );
+  const { workspace: domainWs, planPath: domainPlanPath } = makePlanWorkspace("unsorted-contexts", unsortedContextsPlan);
+
+  // 4. Bound-hash mismatch via CLI spawn
+  const validPlan = canonicalPlan("hash-mismatch");
+  const { workspace: hashWs, planPath: hashPlanPath } = makePlanWorkspace("hash-mismatch", validPlan);
+
+  // 5. Base mismatch via CLI spawn
+  const basePlan = canonicalPlan("base-mismatch");
+  const { workspace: baseWs, planPath: basePlanPath } = makePlanWorkspace("base-mismatch", basePlan);
+
+  try {
+    // 1. Required-field test
+    const fieldResult = spawnSync(process.execPath, [CLI, "validate-plan", "--path", fieldPlanPath], {
+      cwd: fieldWs,
+      encoding: "utf8",
+    });
+    assert.equal(fieldResult.status, 1);
+    assert.match(fieldResult.stdout, /^status: error\ncode: invalid-artifact\n/);
+    assert.match(fieldResult.stdout, /^help: "add content under ## Summary"$/m);
+    // 2. Unsafe-path test
+    const pathResult = spawnSync(process.execPath, [CLI, "validate-plan", "--path", pathPlanPath], {
+      cwd: pathWs,
+      encoding: "utf8",
+    });
+    assert.equal(pathResult.status, 1);
+    assert.match(pathResult.stdout, /^status: error\ncode: invalid-artifact\n/);
+    assert.match(pathResult.stdout, /contains dot\/traversal/);
+    assert.match(pathResult.stdout, /^help: "use one repository-relative path without backslashes, dot segments, \.scratch, or \.toon"$/m);
+
+    // 3. Domain-impact unsorted contexts test
+    const domainResult = spawnSync(process.execPath, [CLI, "validate-plan", "--path", domainPlanPath], {
+      cwd: domainWs,
+      encoding: "utf8",
+    });
+    assert.equal(domainResult.status, 1);
+    assert.match(domainResult.stdout, /^status: error\ncode: invalid-artifact\n/);
+    assert.match(domainResult.stdout, /Domain Impact Contexts must be sorted/);
+    assert.match(domainResult.stdout, /^help: ".*sort contexts alphabetically in ascending order.*"$/m);
+
+    // 4. Bound-hash mismatch via CLI spawn
+    const hashResult = spawnSync(
+      process.execPath,
+      [CLI, "validate-plan", "--path", hashPlanPath, "--expected-sha256", "0000000000000000000000000000000000000000000000000000000000000000"],
+      {
+        cwd: hashWs,
+        encoding: "utf8",
+      },
+    );
+    assert.equal(hashResult.status, 1);
+    assert.match(hashResult.stdout, /^status: error\ncode: invalid-artifact\n/);
+    assert.match(hashResult.stdout, /hash mismatch after approval/);
+    assert.match(hashResult.stdout, /^help: ".*revalidate unbound and rebind through the amendment flow, never silently overwrite.*"$/m);
+
+    // 5. Base mismatch via CLI spawn
+    const baseResult = spawnSync(
+      process.execPath,
+      [CLI, "validate-plan", "--path", basePlanPath, "--expected-base", "other-base-branch"],
+      {
+        cwd: baseWs,
+        encoding: "utf8",
+      },
+    );
+    assert.equal(baseResult.status, 1);
+    assert.match(baseResult.stdout, /^status: error\ncode: invalid-artifact\n/);
+    assert.match(baseResult.stdout, /does not match recorded base_ref/);
+    assert.match(baseResult.stdout, /^help: ".*align --expected-base with plan § Base.*"$/m);
+  } finally {
+    rmSync(fieldWs, { recursive: true, force: true });
+    rmSync(pathWs, { recursive: true, force: true });
+    rmSync(domainWs, { recursive: true, force: true });
+    rmSync(hashWs, { recursive: true, force: true });
+    rmSync(baseWs, { recursive: true, force: true });
   }
 });
 
