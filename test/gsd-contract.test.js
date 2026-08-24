@@ -449,7 +449,7 @@ test("the CLI names a runnable invocation in every help and error surface", () =
   // repo-relative `bun tools/gsd-contract.mjs` here re-teaches exactly the form that never
   // resolves outside this checkout. The CLI knows where it was loaded from, so it names that
   // absolute path instead of a placeholder no shell expands.
-  const { workspace, planPath } = makePlanWorkspace("cli-help", "# Plan\n");
+  const { workspace } = makePlanWorkspace("cli-help", "# Plan\n");
   try {
     const surfaces = [
       { label: "help", args: ["validate-plan", "--help"], status: 0 },
