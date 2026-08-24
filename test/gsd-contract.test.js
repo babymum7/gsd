@@ -1484,3 +1484,38 @@ test("normalize-plan enforces usage and rejects unknown flags or unreadable file
     rmSync(workspace, { recursive: true, force: true });
   }
 });
+
+test("normalize-plan proposes and fixes missing terminal newline with no-newline marker", () => {
+  const cleanPlan = canonicalPlan("missing-newline");
+  const noNewlinePlan = cleanPlan.endsWith("\n") ? cleanPlan.slice(0, -1) : cleanPlan;
+  const { workspace, planPath } = makePlanWorkspace("missing-newline", noNewlinePlan);
+  const relPath = join(".scratch", "missing-newline", "plan.md");
+  try {
+    const dryRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(dryRun.status, 0);
+    assert.match(dryRun.stdout, new RegExp(`^--- a/${relPath.replace(/\./g, "\\.")}\\n\\+\\+\\+ b/${relPath.replace(/\./g, "\\.")}\\n`));
+    assert.match(dryRun.stdout, /\\ No newline at end of file/);
+
+    const writeRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath, "--write"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(writeRun.status, 0);
+    assert.equal(writeRun.stdout, "");
+
+    const fixedBytes = readFileSync(planPath, "utf8");
+    assert.ok(fixedBytes.endsWith("\n"));
+
+    const secondRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath, "--write"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(secondRun.status, 0);
+    assert.equal(secondRun.stdout, "");
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
