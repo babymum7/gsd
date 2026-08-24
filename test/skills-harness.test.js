@@ -129,7 +129,7 @@ test("an executing owner amends the plan in place instead of blocking", () => {
   // full-plan form. A bound call checks the hash before parsing, so only an unbound
   // revalidation separates moved bytes from genuinely malformed grammar.
   const resume = handoff.match(/^For every Execution resume[\s\S]*?(?=\nA valid Execution resume)/m)[0];
-  assert.match(resume, /validate-quick-fix[\s\S]*validate-plan/);
+  assert.match(resume, /validate-quick-fix[\s\S]{0,320}validate-plan/);
   assert.match(resume, /no grammar kind/);
   assert.match(resume, /unbound/);
   assert.match(resume, /Exit 2 is never escalation/);

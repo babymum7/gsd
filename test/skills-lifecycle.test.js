@@ -29,11 +29,15 @@ test("session owner is sole lifecycle authority without model agents", () => {
       path,
     );
   }
-  assert.match(reference, /schema:v4[\s\S]*session owner/i);
-  assert.match(handoff, /schema:v4[\s\S]*session owner/i);
+  assert.match(reference, /schema:v4[\s\S]{0,3100}session owner/i);
+  assert.match(handoff, /schema:v4[\s\S]{0,60}session owner/i);
   assert.match(reference, /sole lifecycle authority/i);
-  assert.match(verify, /plan hash[\s\S]*every active AC[\s\S]*changed path[\s\S]*task diffs in plan order/i);
-  assert.match(verify, /malformed binding[\s\S]*ownership\/coverage mismatch[\s\S]*contract contradiction[\s\S]*red deterministic check/i);
+  assert.match(verify, /plan hash[\s\S]{0,60}binding/i);
+  assert.match(verify, /every active AC[\s\S]{0,120}changed path/i);
+  assert.match(verify, /changed path[\s\S]{0,80}task diffs in plan order/i);
+  assert.match(verify, /malformed binding[\s\S]{0,40}ownership\/coverage mismatch/i);
+  assert.match(verify, /ownership\/coverage mismatch[\s\S]{0,60}contract contradiction/i);
+  assert.match(verify, /contract contradiction[\s\S]{0,80}red deterministic check/i);
   assert.match(verify, /Deferred Slow E2E/i);
   assert.doesNotMatch(designTwice, /sub-?agents?|`task`/i);
   assert.match(designTwice, /three self-contained shapes/i);

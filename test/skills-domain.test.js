@@ -39,7 +39,10 @@ test("domain impact is enforced across the feature lifecycle", () => {
   assert.match(brainstorm, /read only[\s\S]{0,100}affected[\s\S]{0,100}(?:context|shard)/i);
   assert.match(brainstorm, /When `docs\/domain\/index\.md` is absent[\s\S]{0,240}feature-scoped[\s\S]{0,160}broad/i);
   assert.match(modeler, /Declining broad bootstrap never (?:waives|skips)[\s\S]{0,120}required/i);
-  assert.match(planner, /Classification[\s\S]*Contexts[\s\S]*Documentation[\s\S]*Broad bootstrap[\s\S]*Evidence/);
+  assert.match(planner, /Classification[\s\S]{0,30}Contexts/);
+  assert.match(planner, /Contexts[\s\S]{0,30}Documentation/);
+  assert.match(planner, /Documentation[\s\S]{0,30}Broad bootstrap/);
+  assert.match(planner, /Broad bootstrap[\s\S]{0,30}Evidence/);
   assert.match(planner, /bind[\s\S]{0,160}exact[\s\S]{0,120}domain-documentation paths/i);
   assert.match(execution, /same owning task[\s\S]{0,180}code[\s\S]{0,120}domain documentation/i);
   assert.match(execution, /target domain behavior[\s\S]{0,160}current production behavior/i);
