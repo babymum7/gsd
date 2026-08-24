@@ -183,7 +183,7 @@ test("Quick-fix Domain Impact grammar is exact and domain-owned", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const verify = read("skills/gsd-verify/SKILL.md");
   assert.match(reference, /# Quick-fix Plan[\s\S]{0,240}## Domain Impact[\s\S]{0,360}## Tasks/);
-  assert.match(reference, /Quick-fix[\s\S]{0,400}Broad bootstrap[\s\S]{0,200}not-offered/i);
+  assert.match(reference, /Quick-fix[\s\S]{0,20}always records[\s\S]{0,30}Broad bootstrap[\s\S]{0,40}not-offered/i);
   assert.match(verify, /`Broad bootstrap`[\s\S]{0,40}always be `not-offered`/i);
   assert.match(verify, /Quick-fix[\s\S]{0,500}exact five-field `Domain Impact`/i);
   assert.match(verify, /Quick-fix[\s\S]{0,800}domain drift[\s\S]{0,100}(?:blocks|Blocker)/i);

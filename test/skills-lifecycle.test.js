@@ -51,8 +51,8 @@ test("AC-9/AC-10: conversation-only recovery is excluded and restricted modes re
   const bootstrap = read("skills/gsd/SKILL.md");
   assert.match(
     reference,
-    /rewind[\s\S]{0,240}(?:committed WIP|working tree)/i,
-    "recovery contract excludes conversation-rewind tooling and names the tree it leaves behind",
+    /excluded from lifecycle recovery[\s\S]{0,40}rewind[\s\S]{0,60}committed WIP and working tree remain/i,
+    "recovery excludes conversation-rewind tooling while committed WIP and working tree remain",
   );
   assert.match(
     reference,
@@ -66,8 +66,8 @@ test("AC-9/AC-10: conversation-only recovery is excluded and restricted modes re
   );
   assert.match(
     reference,
-    /(?:mode|toolset)[\s\S]{0,240}(?:edit|editing)[\s\S]{0,120}(?:commit|committing)/i,
-    "the restricted-mode row names the tools the lifecycle needs",
+    /excluding[\s\S]{0,20}edits[\s\S]{0,10}commits[\s\S]{0,10}checks[\s\S]{0,40}cannot own[\s\S]{0,80}leaves/i,
+    "a restricted mode excluding edits, commits, and checks cannot own lifecycle work and is left first",
   );
   assert.match(
     bootstrap,

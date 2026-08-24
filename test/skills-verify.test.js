@@ -49,9 +49,9 @@ test("AC-4: Cross-references, None. explicit, repair evidence not duplicated, an
   assert.match(execution, /A "None\." decisions block[\s\S]{0,100}explicit empty decisions marker/i);
   assert.match(reference, /Decisions[\s\S]{0,120}`None\.`[\s\S]{0,120}(?:sequential\s+)?D(?:-\d+)? blocks/i);
   assert.match(execution, /rerun only checks[\s\S]{0,60}invalidated by the repair/i);
-  assert.match(reference, /`<features>`[\s\S]{0,120}serialized/i);
+  assert.match(reference, /serialized once only[\s\S]{0,60}without repeating/i);
   assert.match(reference, /`<resume_instruction>`[\s\S]{0,120}single string/i);
-  assert.match(reference, /Bounded-Ambiguity[\s\S]{0,240}Some features are omitted from this list/i);
+  assert.match(reference, /omitted from this list[\s\S]{0,10}stop and select exactly one active feature before resuming/i);
 });
 
 test("archive terminal disposition contract", () => {
@@ -80,7 +80,7 @@ test("AC-1: Fast TDD is mandatory for observable tasks", () => {
   assert.match(tdd, /RED before implementation[\s\S]{0,260}GREEN after implementation/);
   assert.match(tdd, /required sequence is RED→GREEN→refactor/);
   assert.match(planner, /never use `none` for observable behavior/i);
-  assert.match(reference, /observable task[\s\S]{0,120}loads? `gsd-tdd`/i);
+  assert.match(reference, /Every observable task loads `gsd-tdd`/);
   for (const body of [tdd, execution]) {
     assert.match(body, /no browser|browser,[^\n]{0,100}stay outside the task loop|never runs? browser/i);
     assert.match(body, /external network|resource-heavy/i);
