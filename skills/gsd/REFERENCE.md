@@ -84,12 +84,13 @@ Implementation is the only lifecycle work GSD dispatches, and only as validated 
 Lifecycle authority and task authorship are distinct: sub-agents author task code, while the owner retains authority because dispatched results count for nothing until inspected, reconciled, committed, and terminally verified.
 
 A **wave** is a maximal contiguous run of non-superseded tasks in strict heading order where pairs are independent: disjoint `Files` path sets, disjoint `Satisfies` criteria, and differing focused `Test` commands.
-`analyze-waves` computes waves deterministically. Every wave dispatches: single-task waves to exactly one sub-agent; two or more tasks concurrently; inline execution is the fallback when dispatch is unavailable.
+`analyze-waves` computes waves deterministically. Every wave dispatches: single-task waves to exactly one sub-agent; waves of two or more tasks concurrently, each task into its own isolated workspace on its own task branch, never two tasks in one shared working tree. When harness task isolation is unavailable or an isolated spawn fails, dispatch that wave serially in plan order, the same validated slices one task at a time; inline execution by the owner remains the fallback only when dispatch itself is unavailable.
 
-Each sub-agent receives one complete validated task slice rebuilt from `plan.md`, never invented; MUST run Fast TDD RED→GREEN→refactor; update every affected domain shard in the same commit as semantic code; and commit only green task-owned changes on its own `wip/<feature>/t<n>` branch cut from wave base.
+Each sub-agent receives one complete validated task slice rebuilt from `plan.md`, never invented; MUST run Fast TDD RED→GREEN→refactor; update every affected domain shard in the same commit as semantic code; and commit only green task-owned changes in its isolated workspace on its own task branch cut from wave base.
+Before sending any dispatch, the owner re-reads the dispatch prompt against the retained slice and rebuilds it when any slice fact is missing.
 A sub-agent MUST NOT mutate `state.toon`, amend `plan.md`, merge, decide lifecycle, or run Deferred Slow E2E.
 
-The owner reconciles waves in strict plan order into one green checkpoint, writing `state.toon` through `gsd-state.mjs` CLI; `Tn+1` after the wave begins only from that committed checkpoint.
+The owner reconciles waves in strict plan order into one green checkpoint: before merging each returned task it inspects that the diff stays inside the slice's paths and intents, re-runs the task's focused check green, and reads the diff for evident defects; a failed inspection returns to bounded inline repair exactly like a red task. The owner then merges each task branch into `wip/<feature>` in strict plan order and writes `state.toon` through `gsd-state.mjs` CLI; `Tn+1` after the wave begins only from that committed checkpoint.
 Failed or red sub-agent tasks return to the owner for bounded inline repair. Terminal conformance proves the unchanged final commit, and plan-ordered diffs hold because the owner merges in plan order.
 
 ### Packet grammar
