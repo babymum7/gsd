@@ -1563,3 +1563,117 @@ test("T4: combined regular race and post-quarantine sigterm cleanup behavior", (
     rmSync(temporary, { recursive: true, force: true });
   }
 });
+
+test("T4: vanished temp source is reported as a publish failure", () => {
+  const { temporary, home, fakeBin, repo } = makeInstallFixture();
+  writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
+
+  try {
+    const res = runInstallerAt(repo, home, fakeBin, {
+      GSD_TEST_SEAM_RACE: "vanish_source",
+    });
+
+    assert.equal(res.status, 1, "installer should exit with status 1 on vanished temp source");
+    assert.match(res.stderr, /failed to publish extension/, "stderr should contain publish-failure diagnostic");
+    assert.doesNotMatch(res.stdout, /GSD installation complete/, "stdout should not contain completion banner");
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("T4: non-collision mv failure surfaces mv diagnostic when destination parent is read-only", () => {
+  if (process.getuid && process.getuid() === 0) {
+    return;
+  }
+
+  const { temporary, home, fakeBin, repo } = makeInstallFixture();
+  writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
+
+  const extTarget = join(home, ".omp", "agent", "extensions", "gsd-context.js");
+  const extDir = dirname(extTarget);
+
+  try {
+    const res = runInstallerAt(repo, home, fakeBin, {
+      GSD_TEST_SEAM_RACE: "readonly_parent",
+    });
+
+    assert.equal(res.status, 1, "installer should exit with status 1 on read-only destination parent");
+    assert.match(res.stderr, /failed to publish extension/, "stderr should contain publish-failure diagnostic");
+    assert.match(res.stderr, /cannot move|Permission denied|mv:/i, "stderr should contain mv diagnostic");
+    assert.doesNotMatch(res.stdout, /GSD installation complete/, "stdout should not contain completion banner");
+  } finally {
+    try {
+      chmodSync(extDir, 0o755);
+    } catch {}
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("T4: pre-9.2 old-semantics mv shim keeps publish flow working", () => {
+  const { temporary, home, fakeBin, repo } = makeInstallFixture();
+  writeExecutable(join(fakeBin, "git"), "#!/bin/sh\nexit 1\n");
+  writeExecutable(join(fakeBin, "bun"), "#!/bin/sh\nexit 1\n");
+
+  const mvShimBody = `#!/usr/bin/env bash
+has_n=0
+for arg in "$@"; do
+  if [ "$arg" = "-n" ]; then
+    has_n=1
+  fi
+done
+
+if [ "$has_n" -eq 1 ]; then
+  dest="\${@: -1}"
+  if [ -e "$dest" ] || [ -L "$dest" ]; then
+    exit 0
+  fi
+fi
+
+exec /usr/bin/mv "$@"
+`;
+  const shimPath = join(fakeBin, "mv");
+  writeExecutable(shimPath, mvShimBody);
+
+  const extTarget = join(home, ".omp", "agent", "extensions", "gsd-context.js");
+  const extDir = dirname(extTarget);
+
+  try {
+    // 0. Pre-check shim semantics: collision with -n exits 0 without moving; non-collision moves.
+    const testSrc = join(temporary, "shim_src.txt");
+    const testDest = join(temporary, "shim_dest.txt");
+    writeFileSync(testSrc, "src-content");
+    writeFileSync(testDest, "dest-content");
+
+    const probeCollision = spawnSync(shimPath, ["-n", "-T", testSrc, testDest], { encoding: "utf8" });
+    assert.equal(probeCollision.status, 0, "shim must exit 0 on destination collision with -n");
+    assert.equal(readFileSync(testDest, "utf8"), "dest-content", "destination must remain unchanged on collision");
+    assert.equal(readFileSync(testSrc, "utf8"), "src-content", "source must remain unchanged on collision");
+
+    const testDestNew = join(temporary, "shim_dest_new.txt");
+    const probeMove = spawnSync(shimPath, ["-n", "-T", testSrc, testDestNew], { encoding: "utf8" });
+    assert.equal(probeMove.status, 0, "shim must exit 0 on normal move");
+    assert.equal(readFileSync(testDestNew, "utf8"), "src-content", "source must be moved to new destination");
+    assertPathAbsent(testSrc, "source must no longer exist after normal move");
+
+    // Scenario 1: Fresh install under old-semantics shim
+    const resFresh = runInstallerAt(repo, home, fakeBin);
+    assert.equal(resFresh.status, 0, `fresh install should succeed: ${resFresh.stderr}\n${resFresh.stdout}`);
+    assert.ok(lstatSync(extTarget).isSymbolicLink(), "fresh install should publish extension symlink");
+    assert.equal(readlinkSync(extTarget), join(repo, "extensions", "gsd-context.js"), "symlink should point to repo extension");
+    assert.deepEqual(readdirSync(extDir), ["gsd-context.js"], "no unexpected files in extensions dir");
+
+    // Clean up extension symlink for scenario 2
+    rmSync(extTarget);
+
+    // Scenario 2: Raced same-source symlink under old-semantics shim
+    const resSame = runInstallerAt(repo, home, fakeBin, { GSD_TEST_SEAM_RACE: "same_source" });
+    assert.equal(resSame.status, 0, `raced same_source install should succeed: ${resSame.stderr}\n${resSame.stdout}`);
+    assert.ok(lstatSync(extTarget).isSymbolicLink(), "raced same_source should leave target as a symlink");
+    assert.equal(readlinkSync(extTarget), join(repo, "extensions", "gsd-context.js"), "target should point to repo extension");
+    assert.deepEqual(readdirSync(extDir), ["gsd-context.js"], "no backup or temp artifacts should remain");
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});

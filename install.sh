@@ -41,7 +41,7 @@ fi
 # GSD_TEST_SEAM_POST_CAPTURE_REPLACE regular|symlink            Race after capture, before backup move
 # GSD_TEST_SEAM_POST_BACKUP_MOVE     regular|symlink|replace_backup_target_absent  Race after backup move
 # GSD_TEST_SEAM_MAKE_REFERENT_LIVE   (any non-empty)            Make old referent live after proof
-# GSD_TEST_SEAM_RACE                 regular|symlink|directory|same_source|sigterm  Race at publication
+# GSD_TEST_SEAM_RACE                 regular|symlink|directory|same_source|sigterm|vanish_source|readonly_parent  Race at publication
 # GSD_TEST_SEAM_POST_RM_TMP_SYMLINK  sigterm                   Signal after temp symlink removal
 # GSD_TEST_SEAM_POST_PUBLISH         sigterm                   Signal after successful publication
 # GSD_TEST_SEAM_LEGACY_SKILL_REPLACE regular                    Race replacing legacy skill links
@@ -1114,11 +1114,37 @@ sync_managed_target() {
       ln -s "$ext_source" "$target"
     elif [ "$GSD_TEST_SEAM_RACE" = "sigterm" ]; then
       kill -TERM $$
+    elif [ "$GSD_TEST_SEAM_RACE" = "vanish_source" ]; then
+      rm -f "$tmp_symlink"
+    elif [ "$GSD_TEST_SEAM_RACE" = "readonly_parent" ]; then
+      chmod 555 "$(dirname "$target")"
     fi
   fi
 
   # Publish using a no-clobber and no-target-directory operation (never use mv -f)
-  mv -n -T "$src_mv" "$dest_mv"
+  local mv_out=""
+  local mv_status=0
+  if mv_out="$(mv -n -T "$src_mv" "$dest_mv" 2>&1)"; then
+    mv_status=0
+  else
+    mv_status=$?
+  fi
+
+  if [ "$mv_status" -ne 0 ]; then
+    local is_confirmed_skip=0
+    if [ -e "$target" ] || [ -L "$target" ]; then
+      if [ -e "$tmp_symlink" ] || [ -L "$tmp_symlink" ]; then
+        is_confirmed_skip=1
+      fi
+    fi
+    if [ "$is_confirmed_skip" -eq 0 ]; then
+      if [ -n "$mv_out" ]; then
+        printf "%s\n" "$mv_out" >&2
+      fi
+      printf "error: failed to publish extension: %s -> %s\n" "$tmp_symlink" "$target" >&2
+      exit 1
+    fi
+  fi
 
   # Check if the move was skipped because of a raced-in file/directory
   if [ -e "$tmp_symlink" ] || [ -L "$tmp_symlink" ]; then
