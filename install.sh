@@ -3,6 +3,29 @@
 # Registers no command and no skills; removes supported legacy registrations
 # only after the extension has been published successfully.
 set -euo pipefail
+# On macOS, automatically use GNU coreutils if installed via Homebrew or standard locations
+if [[ "${OSTYPE:-}" == "darwin"* ]]; then
+  if command -v brew >/dev/null 2>&1; then
+    _BREW_COREUTILS_GNUBIN="$(brew --prefix coreutils 2>/dev/null || true)/libexec/gnubin"
+    if [ -n "$_BREW_COREUTILS_GNUBIN" ] && [ -d "$_BREW_COREUTILS_GNUBIN" ] && [[ ":$PATH:" != *":$_BREW_COREUTILS_GNUBIN:"* ]]; then
+      PATH="$_BREW_COREUTILS_GNUBIN:$PATH"
+    fi
+  elif [ -d "/opt/homebrew/opt/coreutils/libexec/gnubin" ] && [[ ":$PATH:" != *":/opt/homebrew/opt/coreutils/libexec/gnubin:"* ]]; then
+    PATH="/opt/homebrew/opt/coreutils/libexec/gnubin:$PATH"
+  elif [ -d "/usr/local/opt/coreutils/libexec/gnubin" ] && [[ ":$PATH:" != *":/usr/local/opt/coreutils/libexec/gnubin:"* ]]; then
+    PATH="/usr/local/opt/coreutils/libexec/gnubin:$PATH"
+  fi
+fi
+# Ensure mv supports GNU -T (no-target-directory)
+_PROBE_MV="$(mv -n -T /dev/null /dev/null 2>&1 || true)"
+if [[ "$_PROBE_MV" == *"illegal option -- T"* || "$_PROBE_MV" == *"invalid option"* || "$_PROBE_MV" == *"unrecognized option"* ]]; then
+  if [[ "${OSTYPE:-}" == "darwin"* ]]; then
+    printf "error: install.sh requires GNU coreutils on macOS (missing -T support in mv).\n" >&2
+    printf "  Please run: brew install coreutils\n" >&2
+    exit 1
+  fi
+fi
+
 
 # Test seams: deterministic race-condition injection points for install.test.js.
 # Set any GSD_TEST_SEAM_* variable to a documented value before invoking this script
