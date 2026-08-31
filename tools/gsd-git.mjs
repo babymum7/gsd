@@ -6,8 +6,17 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join } from "node:path";
-import { readFileSync, realpathSync } from "node:fs";
-import { isSafeBranchRef } from "../lib/gsd-contract.mjs";
+import {
+  closeSync,
+  constants,
+  fstatSync,
+  lstatSync,
+  openSync,
+  readSync,
+  realpathSync,
+} from "node:fs";
+import { createHash } from "node:crypto";
+import { isSafeBranchRef, PLAN_FILE_MAX_BYTES } from "../lib/gsd-contract.mjs";
 import { inspectStateFile } from "../lib/gsd-state.mjs";
 
 const COMMANDS = new Set(["derive-base", "preflight"]);
@@ -252,42 +261,94 @@ function parseArguments(argv) {
   return result;
 }
 
+function readBoundedFile(filePath, maxBytes, label) {
+  let lst;
+  try {
+    lst = lstatSync(filePath);
+  } catch (error) {
+    throw new Error(`${label}: cannot inspect file (${error.message})`);
+  }
+  if (lst.isSymbolicLink()) throw new Error(`${label}: symlink rejected`);
+  if (!lst.isFile()) throw new Error(`${label}: expected a regular file`);
+  if (lst.size > maxBytes) {
+    throw new Error(`${label}: exceeds size limit of ${maxBytes} bytes`);
+  }
+  const flags = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | constants.O_NONBLOCK;
+  let fd;
+  try {
+    fd = openSync(filePath, flags);
+  } catch (error) {
+    if (error.code === "ELOOP") throw new Error(`${label}: symlink rejected`);
+    if (error.code === "ENOENT") throw new Error(`${label}: file not found`);
+    throw new Error(`${label}: cannot open file (${error.message})`);
+  }
+  try {
+    const opened = fstatSync(fd);
+    if (!opened.isFile()) throw new Error(`${label}: expected a regular file`);
+    if (opened.dev !== lst.dev || opened.ino !== lst.ino) {
+      throw new Error(`${label}: file identity changed before open`);
+    }
+    if (opened.size > maxBytes) {
+      throw new Error(`${label}: exceeds size limit of ${maxBytes} bytes`);
+    }
+    const capacity = Math.min(maxBytes + 1, opened.size + 1);
+    const buffer = Buffer.allocUnsafe(Math.max(1, capacity));
+    let total = 0;
+    while (total < buffer.length) {
+      const bytesRead = readSync(fd, buffer, total, buffer.length - total, null);
+      if (bytesRead === 0) break;
+      total += bytesRead;
+    }
+    if (total > maxBytes) {
+      throw new Error(`${label}: exceeds size limit of ${maxBytes} bytes`);
+    }
+    const afterRead = fstatSync(fd);
+    if (
+      afterRead.dev !== opened.dev ||
+      afterRead.ino !== opened.ino ||
+      afterRead.size !== opened.size ||
+      afterRead.mtimeMs !== opened.mtimeMs ||
+      afterRead.ctimeMs !== opened.ctimeMs
+    ) {
+      throw new Error(`${label}: file changed during read`);
+    }
+    return buffer.subarray(0, total);
+  } finally {
+    if (fd !== undefined) {
+      try { closeSync(fd); } catch { /* ignore */ }
+    }
+  }
+}
+
 // Archive-and-delete materializes non-authoritative history before the squash, but the
 // contract (skills/gsd/REFERENCE.md § Feature archive contract) was prose-only, so nothing
 // could tell a correct copy from a forgotten or rewritten one. The pre-squash gate verifies
 // the archive exists and the archived plan is the exact approved bytes before it lands.
-function verifyArchive(cwd, featureDir, state) {
+function verifyArchive(cwd, state, scratchPlan) {
   if (state.cleanup_preference !== "archive-and-delete") return;
   const archiveDir = join(cwd, "docs", "gsd", state.feature, "archive");
-  const scratchPlanPath = join(cwd, featureDir, "plan.md");
   const archivePlanPath = join(archiveDir, "plan.md");
   const implementationPath = join(archiveDir, "implementation.md");
-  let scratchPlan;
   let archivePlan;
   try {
-    scratchPlan = readFileSync(scratchPlanPath);
-  } catch (error) {
-    blocked("archive-source-missing", `cannot read approved plan ${scratchPlanPath}: ${error.message}`);
-  }
-  try {
-    archivePlan = readFileSync(archivePlanPath);
+    archivePlan = readBoundedFile(archivePlanPath, PLAN_FILE_MAX_BYTES, "archive plan");
   } catch (error) {
     blocked("archive-missing", `archive-and-delete requires ${archivePlanPath}: ${error.message}`);
   }
   if (!scratchPlan.equals(archivePlan)) {
     blocked("archive-plan-mismatch", `${archivePlanPath} must be byte-for-byte the approved .scratch plan`);
   }
-  let implementation;
+  let implementationBytes;
   try {
-    implementation = readFileSync(implementationPath, "utf8");
+    implementationBytes = readBoundedFile(implementationPath, PLAN_FILE_MAX_BYTES, "archive implementation");
   } catch (error) {
     blocked("archive-missing", `archive-and-delete requires ${implementationPath}: ${error.message}`);
   }
+  const implementation = implementationBytes.toString("utf8");
   if (implementation.trim() === "") {
     blocked("archive-implementation-empty", `${implementationPath} must summarize the feature outcome`);
   }
 }
-
 function preflight(cwd, featureDir) {
   requireWorkTree(cwd);
   let state;
@@ -335,7 +396,21 @@ function preflight(cwd, featureDir) {
       `${dirty.length} non-scratch path(s) are uncommitted, so the squash would carry unreviewed bytes: ${shown}${dirty.length > 3 ? ", …" : ""}`,
     );
   }
-  verifyArchive(cwd, featureDir, state);
+  const scratchPlanPath = join(cwd, featureDir, "plan.md");
+  let scratchBytes;
+  try {
+    scratchBytes = readBoundedFile(scratchPlanPath, PLAN_FILE_MAX_BYTES, "plan");
+  } catch (error) {
+    blocked("plan-unbound", `cannot read approved plan ${scratchPlanPath}: ${error.message}`);
+  }
+  const scratchHash = createHash("sha256").update(scratchBytes).digest("hex");
+  if (scratchHash !== state.plan_sha256) {
+    blocked(
+      "plan-unbound",
+      `plan.md SHA-256 (${scratchHash}) does not match bound plan_sha256 (${state.plan_sha256})`,
+    );
+  }
+  verifyArchive(cwd, state, scratchBytes);
   write_([
     "status: ready",
     `base: ${base}`,

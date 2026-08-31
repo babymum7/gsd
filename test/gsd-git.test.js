@@ -5,6 +5,7 @@ import {
   mkdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   utimesSync,
   writeFileSync,
 } from "node:fs";
@@ -60,14 +61,16 @@ function makePacket({ feature = "git-demo", base = "main" } = {}) {
 
   const featureDir = join(root, ".scratch", feature);
   mkdirSync(featureDir, { recursive: true });
-  writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
+  const planPath = join(featureDir, "plan.md");
+  writeFileSync(planPath, "# Plan\n");
+  const plan_sha256 = createHash("sha256").update(readFileSync(planPath)).digest("hex");
   writeStateAtomic(featureDir, {
     schema: "v4",
     feature,
     phase: "verifying",
     next_action: "terminal gate",
     plan_path: `.scratch/${feature}/plan.md`,
-    plan_sha256: "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386",
+    plan_sha256,
     base_ref: base,
     wip_branch: `wip/${feature}`,
     last_green_task: "T1",
@@ -196,7 +199,6 @@ test("preflight blocks a dirty non-scratch tree and ignores scratch churn", () =
   // Review diffs exclude scratch, so the packet's own churn must never block its gate.
   const packet = makePacket({ feature: "dirty-demo", base: "trunk" });
   try {
-    writeFileSync(join(packet.root, packet.relative, "plan.md"), "# Plan\nrewritten\n");
     writeFileSync(join(packet.root, packet.relative, "scratch-note.txt"), "working note\n");
     const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
     assert.equal(result.status, 0, `scratch churn must not block: ${result.stdout}`);
@@ -268,13 +270,15 @@ test("preflight verifies archive-and-delete materialized the exact approved plan
   const { root, feature, relative } = makePacket({ feature: "archive-demo", base: "trunk" });
   const featureDir = join(root, ".scratch", feature);
   try {
+    const planPath = join(featureDir, "plan.md");
+    const plan_sha256 = createHash("sha256").update(readFileSync(planPath)).digest("hex");
     writeStateAtomic(featureDir, {
       schema: "v4",
       feature,
       phase: "verifying",
       next_action: "terminal gate",
       plan_path: `.scratch/${feature}/plan.md`,
-      plan_sha256: "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386",
+      plan_sha256,
       base_ref: "trunk",
       wip_branch: `wip/${feature}`,
       last_green_task: "T1",
@@ -308,6 +312,115 @@ test("preflight verifies archive-and-delete materialized the exact approved plan
     result = cli(["preflight", "--feature-dir", relative], root);
     assert.equal(result.status, 0, result.stdout);
     assert.match(result.stdout, /^status: ready$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("preflight blocks a rewritten plan for every cleanup disposition", () => {
+  for (const cleanup_preference of ["none", "retain", "archive-and-delete"]) {
+    const packet = makePacket({ feature: `rewritten-${cleanup_preference}`, base: "trunk" });
+    try {
+      if (cleanup_preference !== "none") {
+        const statePath = join(packet.root, packet.relative, "state.toon");
+        const updated = readFileSync(statePath, "utf8").replace(
+          /^cleanup_preference:.*$/m,
+          `cleanup_preference:${cleanup_preference}`,
+        );
+        writeFileSync(statePath, updated);
+      }
+      const planPath = join(packet.root, packet.relative, "plan.md");
+      writeFileSync(planPath, readFileSync(planPath, "utf8") + "extra\n");
+      const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
+      assert.equal(result.status, 1, `${cleanup_preference} must block: ${result.stdout}`);
+      assert.match(result.stdout, /^status: blocked$/m);
+      assert.match(result.stdout, /^code: plan-unbound$/m);
+      assert.doesNotMatch(result.stdout, /^status: ready$/m);
+    } finally {
+      rmSync(packet.root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("preflight blocks when plan.md does not exist", () => {
+  const packet = makePacket({ feature: "missing-plan", base: "trunk" });
+  try {
+    rmSync(join(packet.root, packet.relative, "plan.md"), { force: true });
+    const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
+    assert.equal(result.status, 1, `missing plan must block: ${result.stdout}`);
+    assert.match(result.stdout, /^status: blocked$/m);
+    assert.match(result.stdout, /^code: plan-unbound$/m);
+    assert.doesNotMatch(result.stdout, /^status: ready$/m);
+  } finally {
+    rmSync(packet.root, { recursive: true, force: true });
+  }
+});
+test("preflight blocks a symlinked plan and refuses to read the target", () => {
+  const packet = makePacket({ feature: "symlink-plan", base: "trunk" });
+  const outsideDir = mkdtempSync(join(tmpdir(), "gsd-symlink-target-"));
+  const outside = join(outsideDir, "outside-secret.txt");
+  try {
+    writeFileSync(outside, "SECRET_TOKEN_DO_NOT_READ\n");
+    const planPath = join(packet.root, packet.relative, "plan.md");
+    rmSync(planPath, { force: true });
+    symlinkSync(outside, planPath);
+    const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
+    assert.equal(result.status, 1, `symlink must block: ${result.stdout}`);
+    assert.match(result.stdout, /^status: blocked$/m);
+    assert.match(result.stdout, /^code: plan-unbound$/m);
+    assert.match(result.stdout, /symlink rejected/);
+    assert.doesNotMatch(result.stdout, /SECRET_TOKEN_DO_NOT_READ/);
+    assert.doesNotMatch(result.stdout, /^status: ready$/m);
+  } finally {
+    rmSync(outsideDir, { recursive: true, force: true });
+    rmSync(packet.root, { recursive: true, force: true });
+  }
+});
+test("preflight blocks an oversized plan without allocating over-bound memory", () => {
+  const packet = makePacket({ feature: "oversized-plan", base: "trunk" });
+  try {
+    const planPath = join(packet.root, packet.relative, "plan.md");
+    const large = Buffer.alloc(1024 * 1024 + 10, 0x61);
+    writeFileSync(planPath, large);
+    const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
+    assert.equal(result.status, 1, `oversized plan must block: ${result.stdout}`);
+    assert.match(result.stdout, /^status: blocked$/m);
+    assert.match(result.stdout, /^code: plan-unbound$/m);
+    assert.match(result.stdout, /exceeds size limit/);
+    assert.doesNotMatch(result.stdout, /^status: ready$/m);
+  } finally {
+    rmSync(packet.root, { recursive: true, force: true });
+  }
+});
+
+test("preflight blocks matching scratch and archive plan rewrites", () => {
+  const { root, feature, relative } = makePacket({ feature: "rewrite-exploit", base: "trunk" });
+  const featureDir = join(root, ".scratch", feature);
+  try {
+    const statePath = join(featureDir, "state.toon");
+    const updated = readFileSync(statePath, "utf8").replace(
+      /^cleanup_preference:.*$/m,
+      "cleanup_preference:archive-and-delete",
+    );
+    writeFileSync(statePath, updated);
+
+    const archiveDir = join(root, "docs", "gsd", feature, "archive");
+    mkdirSync(archiveDir, { recursive: true });
+    writeFileSync(join(archiveDir, "implementation.md"), "Feature outcome summary.\n");
+
+    const rewrittenContent = "# Rewritten Plan Same Bytes\n";
+    writeFileSync(join(featureDir, "plan.md"), rewrittenContent);
+    writeFileSync(join(archiveDir, "plan.md"), rewrittenContent);
+
+    git(["add", "-A"], root);
+    git(["commit", "-qm", "matching rewrite"], root);
+
+    const result = cli(["preflight", "--feature-dir", relative], root);
+    assert.equal(result.status, 1, `matching rewrite must block: ${result.stdout}`);
+    assert.match(result.stdout, /^status: blocked$/m);
+    assert.match(result.stdout, /^code: plan-unbound$/m);
+    assert.doesNotMatch(result.stdout, /^code: archive-plan-mismatch$/m);
+    assert.doesNotMatch(result.stdout, /^status: ready$/m);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
