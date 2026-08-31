@@ -1,6 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, readFileSync, mkdirSync, readdirSync, rmSync, existsSync } from "node:fs";
+import fs, { mkdtempSync, writeFileSync, readFileSync, mkdirSync, readdirSync, rmSync, existsSync, symlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -663,6 +663,70 @@ test("detectCandidates attributes discovery defects to feature directory in faul
       }
     );
   } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("detectCandidates surfaces packet-directory defects in strict mode and skips vanishing directories (AC-1)", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-defect-dir-"));
+  const scratch = join(dir, ".scratch");
+  mkdirSync(scratch, { recursive: true });
+
+  const escapeTarget = join(dir, "escape-target");
+  mkdirSync(escapeTarget);
+
+  const featureDir = join(scratch, "symlink-feat");
+  mkdirSync(featureDir);
+  writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
+  writeFileSync(join(featureDir, "state.toon"), "schema:v4\nfeature:symlink-feat\nphase:executing\n");
+
+  const origLstat = fs.lstatSync;
+  try {
+    // 1. Symlink defect: feature directory swapped to symlink between listing and validation
+    let swapped = false;
+    fs.lstatSync = (p, ...args) => {
+      if (p === featureDir && !swapped) {
+        swapped = true;
+        rmSync(featureDir, { recursive: true, force: true });
+        symlinkSync(escapeTarget, featureDir);
+      }
+      return origLstat.call(fs, p, ...args);
+    };
+
+    // Strict mode must throw naming the feature and indicating symlink rejection
+    assert.throws(
+      () => detectCandidates(dir),
+      (err) => {
+        assert.ok(err instanceof Error);
+        assert.match(err.message, /^state\.toon: symlink-feat: featureDir symlink rejected/);
+        return true;
+      }
+    );
+
+    // Fault-tolerant mode must NOT throw on the same symlinked fixture
+    const ftResult = detectCandidates(dir, { faultTolerant: true });
+    assert.deepEqual(ftResult.candidates, []);
+
+    // 2. Vanishing directory: feature directory removed between listing and validation
+    const vanishDir = join(scratch, "vanish-feat");
+    mkdirSync(vanishDir);
+    writeFileSync(join(vanishDir, "plan.md"), "# Plan\n");
+    writeFileSync(join(vanishDir, "state.toon"), "schema:v4\nfeature:vanish-feat\nphase:executing\n");
+
+    let deleted = false;
+    fs.lstatSync = (p, ...args) => {
+      if (p === vanishDir && !deleted) {
+        deleted = true;
+        rmSync(vanishDir, { recursive: true, force: true });
+      }
+      return origLstat.call(fs, p, ...args);
+    };
+
+    // Strict mode must NOT throw when directory vanishes (ENOENT / does not exist)
+    const vanishResult = detectCandidates(dir);
+    assert.deepEqual(vanishResult.candidates, []);
+  } finally {
+    fs.lstatSync = origLstat;
     rmSync(dir, { recursive: true, force: true });
   }
 });
