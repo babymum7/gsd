@@ -1451,11 +1451,13 @@ test("before_agent_start handles mixed prompt block shapes defensively and preve
     "object containing marker in text property must suppress duplicate policy injection",
   );
 
-  // (c) non-array systemPrompt: "raw string" -> appends once
+  // (c) non-array systemPrompt: "raw string" -> host prompt preserved, policy appended once
   const nonArrayResult = await events.before_agent_start({ systemPrompt: "raw string" });
   assert.ok(nonArrayResult, "non-array systemPrompt must normalize to array and return result");
-  assert.equal(nonArrayResult.systemPrompt.length, 1);
-  assert.match(nonArrayResult.systemPrompt[0], /gsd:system-policy:v1/);
+  assert.equal(nonArrayResult.systemPrompt.length, 2);
+  assert.equal(nonArrayResult.systemPrompt[0], "raw string",
+    "a string systemPrompt must be preserved as the first block, not dropped");
+  assert.match(nonArrayResult.systemPrompt[1], /gsd:system-policy:v1/);
 
   // (d) null/number-only blocks never throw
   const primitivePrompt = [null, 42, undefined, true];

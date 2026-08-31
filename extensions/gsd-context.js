@@ -94,7 +94,11 @@ function gsdContextExtension(pi) {
     // (AgentSession prompt setup), so this is the actual consumption boundary.
     capsuleQueuedForNextTurn = false;
     if (!injectBootstrap || (!bootstrap && !bootstrapError)) return undefined;
-    const systemPrompt = Array.isArray(event.systemPrompt) ? event.systemPrompt : [];
+    const systemPrompt = Array.isArray(event.systemPrompt)
+      ? event.systemPrompt
+      : typeof event.systemPrompt === 'string' && event.systemPrompt !== ''
+        ? [event.systemPrompt]
+        : [];
     if (
       systemPrompt.some((block) => {
         const text =
