@@ -623,6 +623,19 @@ test("detectCandidates surfaces a ledger-only feature for milestone recovery", (
   writeFileSync(join(scratch, "plan.md"), "# Plan\n");
   assert.deepEqual(detectCandidates(dir).candidates, []);
 
+  // Discovery from an explicit cwd different from process.cwd() still finds the ledger.
+  const otherDir = mkdtempSync(join(tmpdir(), "gsd-milestone-other-"));
+  const ledgerDir = join(otherDir, "docs", "gsd", "demo-feature");
+  mkdirSync(ledgerDir, { recursive: true });
+  writeFileSync(join(ledgerDir, "milestones.md"), ledger(["| M1 | auth-login | Add password login | pending |"]));
+  const previousCwd = process.cwd();
+  try {
+    assert.deepEqual(detectCandidates(otherDir).candidates, ["demo-feature"]);
+  } finally {
+    rmSync(otherDir, { recursive: true, force: true });
+    process.chdir(previousCwd);
+  }
+
   rmSync(dir, { recursive: true, force: true });
 });
 

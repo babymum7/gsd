@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { analyzeWaves, parseQuickFixPlan } from "../lib/gsd-contract.mjs";
+import { analyzeWaves, parseQuickFixPlan, readPlanFile } from "../lib/gsd-contract.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(ROOT, "tools", "gsd-contract.mjs");
@@ -1613,6 +1613,20 @@ test("normalize-plan proposes and fixes missing terminal newline with no-newline
     });
     assert.equal(secondRun.status, 0);
     assert.equal(secondRun.stdout, "");
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("T1: readPlanFile reads plan through pinned directory chain and rejects directory swap", () => {
+  const feature = "pinned-read-test";
+  const plan = canonicalPlan(feature);
+  const { workspace, planPath } = makePlanWorkspace(feature, plan);
+  try {
+    const result = readPlanFile(planPath, { cwd: workspace });
+    assert.equal(result.content, plan);
+    assert.equal(result.feature, feature);
+    assert.equal(result.path, planPath);
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }

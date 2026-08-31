@@ -1710,7 +1710,7 @@ test("atomic state writes survive feature-directory swaps", () => {
   const scratch = join(tempDir, ".scratch");
   mkdirSync(scratch, { recursive: true });
   const nodeFs = require("node:fs");
-  const realOpenSync = nodeFs.openSync;
+  const realChdir = process.chdir;
   const realRenameSync = nodeFs.renameSync;
   const realSymlinkSync = nodeFs.symlinkSync;
   try {
@@ -1721,25 +1721,26 @@ test("atomic state writes survive feature-directory swaps", () => {
     writeFileSync(join(preopenFeature, "plan.md"), "plan");
     mkdirSync(preopenEscape);
 
-    let openSwapped = false;
-    nodeFs.openSync = function(filePath, ...args) {
-      if (!openSwapped && filePath === preopenFeature) {
-        openSwapped = true;
-        realRenameSync.call(this, preopenFeature, preopenMoved);
-        realSymlinkSync.call(this, preopenEscape, preopenFeature);
+    let chdirSwapped = false;
+    process.chdir = function(dir) {
+      if (!chdirSwapped && (dir === "preopen-race" || dir === preopenFeature)) {
+        chdirSwapped = true;
+        realRenameSync.call(nodeFs, preopenFeature, preopenMoved);
+        realSymlinkSync.call(nodeFs, preopenEscape, preopenFeature);
       }
-      return realOpenSync.call(this, filePath, ...args);
+      return realChdir.call(this, dir);
     };
     assert.throws(
       () => writeActiveStateFixture(preopenFeature, "preopen-race"),
       /identity|symlink|stable|directory/i,
     );
+    assert.equal(chdirSwapped, true, "the chdir preopen hook must fire");
     assert.equal(
       readdirSync(preopenEscape).some((name) => name === "state.toon" || name.endsWith(".tmp")),
       false,
       "a swapped parent must not receive state output",
     );
-    nodeFs.openSync = realOpenSync;
+    process.chdir = realChdir;
 
     const prerenameFeature = join(scratch, "prerename-race");
     const prerenameMoved = join(scratch, "prerename-race-moved");
@@ -1766,7 +1767,7 @@ test("atomic state writes survive feature-directory swaps", () => {
       "a swapped parent must not redirect the stable directory handle",
     );
   } finally {
-    nodeFs.openSync = realOpenSync;
+    process.chdir = realChdir;
     nodeFs.renameSync = realRenameSync;
     nodeFs.symlinkSync = realSymlinkSync;
     rmSync(tempDir, { recursive: true, force: true });
@@ -2448,22 +2449,25 @@ test("readStateFile rejects state.toon swap after feature dir pin", () => {
   ].join("\n"));
 
   // Race: swap state.toon with a FIFO after the feature dir is pinned
-  // but before the file open. Hook openSync to detect the feature-dir open
-  // (2nd call: scratch dir → feature dir), then swap before the 3rd open.
+  // but before the file open. Hook process.chdir to detect the feature-dir pin,
+  // then swap state.toon with a FIFO before the file open.
   const moduleUrl = new URL("../extensions/gsd-context.js", import.meta.url).href;
   const childScript = `
     import fs from "node:fs";
     import { readStateFile } from ${JSON.stringify(moduleUrl)};
     const statePath = ${JSON.stringify(statePath)};
-    const origOpen = fs.openSync.bind(fs);
-    let openCount = 0;
+    const origChdir = process.chdir.bind(process);
+    let chdirCount = 0;
     const { execFileSync } = await import("node:child_process");
-    fs.openSync = (...args) => {
-      const result = origOpen(...args);
-      if (++openCount === 2) {
+    process.chdir = (dir) => {
+      const result = origChdir(dir);
+      if (dir === "demo" || (typeof dir === "string" && dir.endsWith("demo"))) {
+        chdirCount++;
         // Feature dir just pinned. Swap state.toon with a FIFO now.
-        fs.unlinkSync(statePath);
-        execFileSync("mkfifo", [statePath]);
+        try {
+          fs.unlinkSync(statePath);
+          execFileSync("mkfifo", [statePath]);
+        } catch {}
       }
       return result;
     };
@@ -2471,6 +2475,7 @@ test("readStateFile rejects state.toon swap after feature dir pin", () => {
       readStateFile(statePath);
       process.exit(1); // must not succeed
     } catch (e) {
+      if (chdirCount === 0) process.exit(3); // hook never fired!
       process.exit(/cannot read|expected a regular file|FIFO|pipe|identity changed/.test(e.message) ? 0 : 2);
     }
   `;

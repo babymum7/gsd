@@ -105,7 +105,7 @@ extensions/
 └── gsd-context.d.ts                  # hand-maintained public type surface
 lib/
 ├── gsd-contract.mjs                 # executable full-plan and Quick-fix grammar
-├── gsd-fs.mjs                       # fd-anchored TOCTOU-hardened file primitives
+├── gsd-fs.mjs                       # pinned directory chain TOCTOU-hardened file primitives
 ├── gsd-state.mjs                    # state.toon schema, validation, and candidate discovery
 └── gsd-bootstrap.mjs                # skill catalog, bootstrap renderer, recovery capsule, message utils
 tools/
