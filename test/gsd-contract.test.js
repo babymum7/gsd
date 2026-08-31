@@ -701,6 +701,49 @@ test("an unreadable plan is an environment failure, not malformed authority", ()
   }
 });
 
+test("inaccessible feature directory is an environment failure while missing directory is malformed authority", () => {
+  const readable = quickFixPlan("io-dir-denied");
+  const denied = makePlanWorkspace("io-dir-denied", readable);
+  const missing = makePlanWorkspace("io-missing-dir", quickFixPlan("io-missing-dir"));
+  const scratchDir = join(denied.workspace, ".scratch");
+  const missingDir = join(missing.workspace, ".scratch", "io-missing-dir");
+  rmSync(missingDir, { recursive: true, force: true });
+  chmodSync(scratchDir, 0o000);
+  try {
+    const cases = [
+      {
+        entry: denied,
+        code: "io-error",
+        expect: /feature directory cannot be inspected: EACCES|plan file cannot be read/,
+      },
+      {
+        entry: missing,
+        code: "invalid-artifact",
+        expect: /feature directory cannot be inspected: ENOENT/,
+      },
+    ];
+    for (const command of ["validate-quick-fix", "validate-plan"]) {
+      for (const fixture of cases) {
+        const result = spawnSync(
+          process.execPath,
+          [CLI, command, "--path", fixture.entry.planPath],
+          { cwd: fixture.entry.workspace, encoding: "utf8" },
+        );
+        assert.equal(result.status, 1, `${command} ${fixture.code}: ${result.stdout}${result.stderr}`);
+        assert.match(result.stdout, new RegExp(`^status: error\\ncode: ${fixture.code}\\n`));
+        assert.match(result.stdout, fixture.expect);
+        assert.doesNotMatch(result.stdout, /\n\s+at |Error:/);
+        assert.equal(result.stderr, "");
+      }
+    }
+  } finally {
+    chmodSync(scratchDir, 0o755);
+    for (const workspace of [denied.workspace, missing.workspace]) {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
 test("validate-quick-fix enforces its distinct Domain Impact contract", () => {
   const plan = quickFixPlan();
   const valid = makePlanWorkspace("quick-fix-plan", plan);
