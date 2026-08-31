@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { analyzeWaves, parseQuickFixPlan, readPlanFile } from "../lib/gsd-contract.mjs";
+import { analyzeWaves, normalizePlanFile, parseQuickFixPlan, readPlanFile } from "../lib/gsd-contract.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(ROOT, "tools", "gsd-contract.mjs");
@@ -1671,6 +1671,79 @@ test("T1: readPlanFile reads plan through pinned directory chain and rejects dir
     assert.equal(result.feature, feature);
     assert.equal(result.path, planPath);
   } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("normalizePlanFile rejects pre-created temp file collision and leaves plan and temp untouched (AC-1 pin b)", () => {
+  const defectivePlan = canonicalPlan("collision-feature").replace("- **Status:** pending\n", "- **Status:** pending   \n");
+  const { workspace, planPath } = makePlanWorkspace("collision-feature", defectivePlan);
+  const relPath = join(".scratch", "collision-feature", "plan.md");
+  const featureDir = join(workspace, ".scratch", "collision-feature");
+  const fixedTimestamp = 1700000000000;
+  const tempPath = join(featureDir, `.plan.md.${process.pid}.${fixedTimestamp}.tmp`);
+  const initialTempContent = "pre-existing-temp-content";
+  writeFileSync(tempPath, initialTempContent, "utf8");
+
+  const originalDateNow = Date.now;
+  Date.now = () => fixedTimestamp;
+  try {
+    assert.throws(
+      () => {
+        normalizePlanFile(relPath, { cwd: workspace, write: true });
+      },
+      (error) => {
+        assert.equal(error.contractFailure, "io-error");
+        assert.match(error.message, /cannot write normalized plan file/);
+        return true;
+      }
+    );
+
+    const currentPlanBytes = readFileSync(planPath, "utf8");
+    assert.equal(currentPlanBytes, defectivePlan);
+
+    const currentTempContent = readFileSync(tempPath, "utf8");
+    assert.equal(currentTempContent, initialTempContent);
+  } finally {
+    Date.now = originalDateNow;
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("normalizePlanFile rejects symlink at temp file path and prevents write-through to victim (AC-1 pin c)", () => {
+  const defectivePlan = canonicalPlan("symlink-feature").replace("- **Status:** pending\n", "- **Status:** pending   \n");
+  const { workspace, planPath } = makePlanWorkspace("symlink-feature", defectivePlan);
+  const relPath = join(".scratch", "symlink-feature", "plan.md");
+  const featureDir = join(workspace, ".scratch", "symlink-feature");
+  const victimPath = join(workspace, "victim.txt");
+  const victimContent = "innocent victim content";
+  writeFileSync(victimPath, victimContent, "utf8");
+
+  const fixedTimestamp = 1700000000000;
+  const tempPath = join(featureDir, `.plan.md.${process.pid}.${fixedTimestamp}.tmp`);
+  symlinkSync(victimPath, tempPath);
+
+  const originalDateNow = Date.now;
+  Date.now = () => fixedTimestamp;
+  try {
+    assert.throws(
+      () => {
+        normalizePlanFile(relPath, { cwd: workspace, write: true });
+      },
+      (error) => {
+        assert.equal(error.contractFailure, "io-error");
+        assert.match(error.message, /cannot write normalized plan file/);
+        return true;
+      }
+    );
+
+    const currentPlanBytes = readFileSync(planPath, "utf8");
+    assert.equal(currentPlanBytes, defectivePlan);
+
+    const currentVictimContent = readFileSync(victimPath, "utf8");
+    assert.equal(currentVictimContent, victimContent);
+  } finally {
+    Date.now = originalDateNow;
     rmSync(workspace, { recursive: true, force: true });
   }
 });
