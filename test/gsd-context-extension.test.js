@@ -573,6 +573,16 @@ describe("capsule extension production API contract", () => {
         const bootstrapMsg = { role: "user", content: "<GSD_BOOTSTRAP>\ngsd:session-bootstrap:v2\n</GSD_BOOTSTRAP>" };
         const bootstrapResult = await registeredEvents["session.compacting"]({ messages: [bootstrapMsg] }, ctxMock);
         assert.equal(bootstrapResult.context.length, 1, "Bootstrap messages must not become current request");
+        // Bootstrap error message must be filtered out
+        const errorMsg = { role: "user", content: "[GSD bootstrap unavailable] skills root vanished. Do not improvise a GSD workflow; continue with ordinary OMP behavior." };
+        const errorResult = await registeredEvents["session.compacting"]({ messages: [errorMsg] }, ctxMock);
+        assert.equal(errorResult.context.length, 1, "Bootstrap error sentinel must not become current request");
+        // Genuine request after bootstrap error must be preserved
+        const afterErrorResult = await registeredEvents["session.compacting"](
+          { messages: [errorMsg, { role: "user", content: "Fix the login bug" }] }, ctxMock);
+        assert.equal(afterErrorResult.context.length, 2, "Genuine request after bootstrap error must produce capsule + current request");
+        assert.equal(afterErrorResult.context[1], "[GSD Current Request]\nFix the login bug",
+          "Genuine request after bootstrap error must be preserved as current request");
         // Bare "continue" must be preserved as [GSD Current Request] — production real path
         const continueMsg = { role: "user", content: "continue" };
         const continueResult = await registeredEvents["session.compacting"]({ messages: [continueMsg] }, ctxMock);
