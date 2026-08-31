@@ -95,7 +95,17 @@ function gsdContextExtension(pi) {
     capsuleQueuedForNextTurn = false;
     if (!injectBootstrap || (!bootstrap && !bootstrapError)) return undefined;
     const systemPrompt = Array.isArray(event.systemPrompt) ? event.systemPrompt : [];
-    if (systemPrompt.some((block) => typeof block === 'string' && block.includes(SYSTEM_POLICY_MARKER))) {
+    if (
+      systemPrompt.some((block) => {
+        const text =
+          typeof block === 'string'
+            ? block
+            : block && typeof block === 'object' && typeof block.text === 'string'
+              ? block.text
+              : '';
+        return text.includes(SYSTEM_POLICY_MARKER);
+      })
+    ) {
       return undefined;
     }
     return { systemPrompt: [...systemPrompt, SYSTEM_POLICY] };

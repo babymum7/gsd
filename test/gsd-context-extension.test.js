@@ -1418,6 +1418,54 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
   }
 });
 
+test("before_agent_start handles mixed prompt block shapes defensively and prevents duplicates in object text", async () => {
+  const events = {};
+  const piMock = {
+    on(event, handler) {
+      events[event] = handler;
+    },
+    async sendMessage() {},
+    logger: { error() {} },
+  };
+  gsdContextExtension(piMock);
+
+  // Arm bootstrap via first context call
+  await events.context({
+    messages: [{ role: "user", content: "first prompt", timestamp: 0 }],
+  });
+
+  // (a) mixed-shape prompt -> 6 entries, last matches /gsd:system-policy:v1/, no throw
+  const mixedPrompt = ["str", { text: "hello" }, 42, null, { type: "text", text: "x" }];
+  const mixedResult = await events.before_agent_start({ systemPrompt: mixedPrompt });
+  assert.ok(mixedResult, "mixed shape prompt must return result");
+  assert.equal(mixedResult.systemPrompt.length, 6);
+  assert.deepEqual(mixedResult.systemPrompt.slice(0, 5), mixedPrompt);
+  assert.match(mixedResult.systemPrompt[5], /gsd:system-policy:v1/);
+
+  // (b) prompt with marker inside object text -> returns undefined (suppress duplicate)
+  const objectWithMarker = [{ type: "text", text: "gsd:system-policy:v1 marker in text" }];
+  const duplicateResult = await events.before_agent_start({ systemPrompt: objectWithMarker });
+  assert.equal(
+    duplicateResult,
+    undefined,
+    "object containing marker in text property must suppress duplicate policy injection",
+  );
+
+  // (c) non-array systemPrompt: "raw string" -> appends once
+  const nonArrayResult = await events.before_agent_start({ systemPrompt: "raw string" });
+  assert.ok(nonArrayResult, "non-array systemPrompt must normalize to array and return result");
+  assert.equal(nonArrayResult.systemPrompt.length, 1);
+  assert.match(nonArrayResult.systemPrompt[0], /gsd:system-policy:v1/);
+
+  // (d) null/number-only blocks never throw
+  const primitivePrompt = [null, 42, undefined, true];
+  const primitiveResult = await events.before_agent_start({ systemPrompt: primitivePrompt });
+  assert.ok(primitiveResult, "primitive blocks must not throw");
+  assert.equal(primitiveResult.systemPrompt.length, 5);
+  assert.deepEqual(primitiveResult.systemPrompt.slice(0, 4), primitivePrompt);
+  assert.match(primitiveResult.systemPrompt[4], /gsd:system-policy:v1/);
+});
+
 test("state.toon lifecycle checkpoint contract", async () => {
   const {
     parseState,
