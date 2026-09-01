@@ -589,5 +589,21 @@ test("terminal-conformance AC-4: verify gate proves owned durable records", () =
   assert.match(reference, /Durable decision and design records/);
 });
 
+test("planner skill wires init-plan scaffold and reference contract", () => {
+  const planner = read("skills/gsd-to-plan/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+
+  assert.match(
+    planner,
+    /REFERENCE\.md[^.\n]*§ Packet grammar[\s\S]{0,160}init-plan[\s\S]{0,160}refuses/i,
+    "planner SKILL.md names init-plan scaffold near canon § Packet grammar citation and notes refuse-overwrite",
+  );
+  assert.match(
+    reference,
+    /init-plan --path[^\n]+--base/,
+    "reference executable contract validator lists init-plan invocation with path and base flags",
+  );
+});
+
 
 // --- session-owner terminal conformance ---

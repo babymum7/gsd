@@ -214,8 +214,10 @@ bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex> --expected-base <base_ref>
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" normalize-plan --path .scratch/<feature>/plan.md [--write]
+bun "<GSD_ROOT>/tools/gsd-contract.mjs" init-plan --path .scratch/<feature>/plan.md --base <branch>
 ```
-The first validates a new canonical full plan and returns its SHA-256; it also revalidates amendments before rebinding. The second requires bytes to match a bound hash; a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. The third selects the Quick-fix grammar. Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath real `.scratch/<feature>/`; symlinks, escaped paths, feature mismatch, and malformed grammar fail closed.
+The first validates a new canonical full plan and returns its SHA-256; it also revalidates amendments before rebinding. The second requires bytes to match a bound hash; a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. The third selects the Quick-fix grammar. `init-plan` writes a canonical full-plan skeleton and refuses to overwrite an existing `plan.md` (usage errors exit 2).
+Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath real `.scratch/<feature>/`; symlinks, escaped paths, feature mismatch, and malformed grammar fail closed.
 
 Success emits deterministic scalar TOON:
 - Plans return `status`, `kind`, `feature`, `base`, `sha256`, and `tasks`.
@@ -225,7 +227,7 @@ Actionable failures use TOON on stdout:
 - Unreadable files report `code: io-error`; malformed authority reports `code: invalid-artifact` (both exit 1).
 - Usage errors exit 2; help exits 0.
 - Semantic rejections print `help:` naming concrete fixes (align or split pin conflicts, fields to reorder, canonical shapes); only I/O errors fall back to usage.
-- No command writes plan, state, domain, or Git data, except `normalize-plan --write` (sanctioned surface fixes on `plan.md`) and `gsd-state.mjs set` (writes `state.toon`).
+- No command writes plan, state, domain, or Git data, except `init-plan` (scaffolds `plan.md` skeleton, refusing overwrite), `normalize-plan --write` (sanctioned surface fixes on `plan.md`) and `gsd-state.mjs set` (writes `state.toon`).
 
 ### Plan binding and auto-execution
 

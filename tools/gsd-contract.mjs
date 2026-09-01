@@ -1,8 +1,16 @@
 #!/usr/bin/env bun
+import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { analyzeWaves, isSafeBranchRef, normalizePlanFile, validatePlanFile } from "../lib/gsd-contract.mjs";
+import {
+  PLAN_FEATURE_RE,
+  analyzeWaves,
+  initPlanFile,
+  isSafeBranchRef,
+  normalizePlanFile,
+  validatePlanFile,
+} from "../lib/gsd-contract.mjs";
 
-const COMMANDS = new Set(["validate-plan", "validate-quick-fix", "analyze-waves", "normalize-plan"]);
+const COMMANDS = new Set(["validate-plan", "validate-quick-fix", "analyze-waves", "normalize-plan", "init-plan"]);
 
 // The lifecycle runs in workspaces that are not this checkout, so every help and error
 // surface names the path this process was actually loaded from. A repo-relative form here
@@ -32,9 +40,11 @@ function commandUsage(command) {
   if (command === "normalize-plan") {
     return `${INVOCATION} normalize-plan --path .scratch/<feature>/plan.md [--write]`;
   }
-  return `${INVOCATION} <validate-plan|validate-quick-fix|analyze-waves|normalize-plan> --path <artifact>`;
+  if (command === "init-plan") {
+    return `${INVOCATION} init-plan --path .scratch/<feature>/plan.md --base <branch>`;
+  }
+  return `${INVOCATION} <validate-plan|validate-quick-fix|analyze-waves|normalize-plan|init-plan> --path <artifact>`;
 }
-
 function emitHelp(command) {
   write([
     `bin: ${quote(SCRIPT_PATH)}`,
@@ -60,7 +70,12 @@ function failArtifact(error, command) {
     .slice(0, 500) || "plan validation failed";
   // Only the library's own tag selects `io-error`; anything else stays malformed
   // authority, so an unexpected tag value can never invent a third code.
-  const code = error?.contractFailure === "io-error" ? "io-error" : "invalid-artifact";
+  const code =
+    error?.contractFailure === "io-error"
+      ? "io-error"
+      : error?.contractCode === "plan-exists" || error?.code === "plan-exists" || error?.contractFailure === "plan-exists"
+      ? "plan-exists"
+      : "invalid-artifact";
   // A semantic rejection carries its own remediation: it replaces the generic usage
   // on the `help:` line so the agent reads the fix, not the flag list.
   let remediation = error?.hint
@@ -97,8 +112,9 @@ function parseArguments(argv) {
   let planPath = null;
   let expectedSha256 = null;
   let expectedBase = null;
+  let base = null;
   let write = false;
-  const FLAGS = new Set(["--path", "--expected-sha256", "--expected-base", "--write"]);
+  const FLAGS = new Set(["--path", "--expected-sha256", "--expected-base", "--base", "--write"]);
   for (let index = 0; index < args.length; index += 1) {
     const flag = args[index];
     if (!FLAGS.has(flag)) {
@@ -127,18 +143,49 @@ function parseArguments(argv) {
         return { usageError: "--expected-sha256 may be supplied only once", command };
       }
       expectedSha256 = value;
-    } else {
+    } else if (flag === "--expected-base") {
       if (expectedBase !== null) {
         return { usageError: "--expected-base may be supplied only once", command };
       }
       expectedBase = value;
+    } else if (flag === "--base") {
+      if (command !== "init-plan") {
+        return { usageError: `${command} does not accept --base`, command };
+      }
+      if (base !== null) {
+        return { usageError: "--base may be supplied only once", command };
+      }
+      base = value;
     }
   }
 
   if (planPath === null) return { usageError: "--path is required", command };
+  const absolute = path.resolve(process.cwd(), planPath);
+  const relative = path.relative(process.cwd(), absolute);
+  const segments = relative.split(path.sep);
+  if (
+    relative === "" ||
+    path.isAbsolute(relative) ||
+    segments.length !== 3 ||
+    segments[0] !== ".scratch" ||
+    !PLAN_FEATURE_RE.test(segments[1]) ||
+    segments[2] !== "plan.md"
+  ) {
+    return { usageError: "--path must be formatted as .scratch/<feature>/plan.md", command };
+  }
   if (command === "normalize-plan") {
     if (expectedSha256 !== null) return { usageError: `${command} does not accept --expected-sha256`, command };
     if (expectedBase !== null) return { usageError: `${command} does not accept --expected-base`, command };
+  }
+  if (command === "init-plan") {
+    if (expectedSha256 !== null) return { usageError: `${command} does not accept --expected-sha256`, command };
+    if (expectedBase !== null) return { usageError: `${command} does not accept --expected-base`, command };
+    if (base === null) return { usageError: "--base is required", command };
+    if (!isSafeBranchRef(base)) {
+      return { usageError: "--base must be one Git branch name able to receive a merge", command };
+    }
+  } else {
+    if (base !== null) return { usageError: `${command} does not accept --base`, command };
   }
   if (expectedSha256 !== null && !/^[a-f0-9]{64}$/.test(expectedSha256)) {
     return {
@@ -152,7 +199,7 @@ function parseArguments(argv) {
   if (expectedBase !== null && !isSafeBranchRef(expectedBase)) {
     return { usageError: "--expected-base must be one Git branch name able to receive a merge", command };
   }
-  return { command, planPath, expectedSha256, expectedBase, write };
+  return { command, planPath, expectedSha256, expectedBase, base, write };
 }
 
 const input = parseArguments(process.argv.slice(2));
@@ -166,6 +213,20 @@ if (input.usageError) {
     if (!input.write && result.diff) {
       process.stdout.write(result.diff);
     }
+  } catch (error) {
+    failArtifact(error, input.command);
+  }
+} else if (input.command === "init-plan") {
+  try {
+    const result = initPlanFile(input.planPath, { base: input.base });
+    const lines = [
+      "status: created",
+      `feature: ${result.feature}`,
+      `base: ${result.base}`,
+      `path: ${input.planPath}`,
+      "exit=0",
+    ];
+    write(lines);
   } catch (error) {
     failArtifact(error, input.command);
   }

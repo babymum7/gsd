@@ -1,12 +1,12 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { analyzeWaves, normalizePlanFile, parseQuickFixPlan, readPlanFile } from "../lib/gsd-contract.mjs";
+import { analyzeWaves, initPlanFile, normalizePlanFile, parseQuickFixPlan, readPlanFile } from "../lib/gsd-contract.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(ROOT, "tools", "gsd-contract.mjs");
@@ -2296,5 +2296,210 @@ test("criteria field failures point at the offending row", () => {
     } finally {
       rmSync(workspace, { recursive: true, force: true });
     }
+  }
+});
+
+test("init-plan creates parser-valid skeleton plan and verifies with validate-plan (AC-1)", () => {
+  const workspace = mkdtempSync(join(tmpdir(), "gsd-init-plan-ac1-"));
+  try {
+    const expectedTemplate = [
+      "# Plan",
+      "## Feature",
+      "`scaffold-demo`",
+      "## Base",
+      "`main`",
+      "## Summary",
+      "<one concrete outcome>",
+      "## Context",
+      "<bounded context>",
+      "## Domain Impact",
+      "- **Classification:** none",
+      "- **Contexts:** none",
+      "- **Documentation:** none",
+      "- **Broad bootstrap:** not-offered",
+      "- **Evidence:** <concrete code/schema/contract evidence>",
+      "## Scope",
+      "- <included behavior>",
+      "## Acceptance Criteria",
+      "### AC-1: <title>",
+      "- **State:** active",
+      "- **Outcome:** <concrete behavior>",
+      "- **Action:** <concrete operation>",
+      "- **Expected:** <observable result>",
+      "## Decisions",
+      "None.",
+      "## Invariants",
+      "- **I-1:** <must remain true>",
+      "## Non-goals",
+      "- **NG-1:** <explicit exclusion>",
+      "## Interfaces",
+      "| Criterion | Seam | Path | Lower-seam reason |",
+      "| --- | --- | --- | --- |",
+      "| AC-1 | <public seam> | `<repository-relative path>` | none |",
+      "## Publication",
+      "null",
+      "## Tasks",
+      "### T1: <short task>",
+      "- **Satisfies:** AC-1",
+      "- **Files:**",
+      "  - `placeholder/path` \u2014 create: placeholder intent text",
+      "- **Test:** `bun test placeholder.test.js`",
+      "- **Status:** pending",
+      "",
+    ].join("\n");
+
+    const initResult = spawnSync(
+      process.execPath,
+      [CLI, "init-plan", "--path", ".scratch/scaffold-demo/plan.md", "--base", "main"],
+      { cwd: workspace, encoding: "utf8" }
+    );
+    assert.equal(initResult.status, 0, initResult.stderr || initResult.stdout);
+    assert.ok(initResult.stdout.includes("status: created"), `expected status: created in ${initResult.stdout}`);
+    assert.ok(initResult.stdout.includes("feature: scaffold-demo"), `expected feature: scaffold-demo in ${initResult.stdout}`);
+    assert.ok(initResult.stdout.includes("base: main"), `expected base: main in ${initResult.stdout}`);
+    assert.ok(initResult.stdout.includes("exit=0"), `expected exit=0 in ${initResult.stdout}`);
+
+    const validateResult = spawnSync(
+      process.execPath,
+      [CLI, "validate-plan", "--path", ".scratch/scaffold-demo/plan.md", "--expected-base", "main"],
+      { cwd: workspace, encoding: "utf8" }
+    );
+    assert.equal(validateResult.status, 0, validateResult.stderr || validateResult.stdout);
+    assert.ok(validateResult.stdout.includes("status: valid"), `expected status: valid in ${validateResult.stdout}`);
+    assert.ok(validateResult.stdout.includes("feature: scaffold-demo"), `expected feature: scaffold-demo in ${validateResult.stdout}`);
+    assert.ok(validateResult.stdout.includes("tasks: 1"), `expected tasks: 1 in ${validateResult.stdout}`);
+
+    const writtenBytes = readFileSync(join(workspace, ".scratch", "scaffold-demo", "plan.md"), "utf8");
+    assert.equal(writtenBytes, expectedTemplate, "written plan.md must match expected skeleton template");
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("init-plan fails closed when plan.md already exists or is a symlink (AC-2)", () => {
+  const workspace = mkdtempSync(join(tmpdir(), "gsd-init-plan-ac2-"));
+  try {
+    const sentinel = "SENTINEL_PLAN_BYTES_DO_NOT_OVERWRITE\n";
+    const featDir = join(workspace, ".scratch", "existing-feat");
+    mkdirSync(featDir, { recursive: true });
+    const planPath = join(featDir, "plan.md");
+    writeFileSync(planPath, sentinel, "utf8");
+
+    const initResult = spawnSync(
+      process.execPath,
+      [CLI, "init-plan", "--path", ".scratch/existing-feat/plan.md", "--base", "main"],
+      { cwd: workspace, encoding: "utf8" }
+    );
+    assert.equal(initResult.status, 1, initResult.stderr || initResult.stdout);
+    assert.ok(initResult.stdout.includes("code: plan-exists"), `expected code: plan-exists in ${initResult.stdout}`);
+    const remainingBytes = readFileSync(planPath, "utf8");
+    assert.equal(remainingBytes, sentinel, "sentinel bytes must not be overwritten");
+
+    const symlinkFeatDir = join(workspace, ".scratch", "symlink-feat");
+    mkdirSync(symlinkFeatDir, { recursive: true });
+    const symlinkTarget = join(workspace, "target.md");
+    writeFileSync(symlinkTarget, "# Target\n", "utf8");
+    symlinkSync(symlinkTarget, join(symlinkFeatDir, "plan.md"));
+
+    const symlinkResult = spawnSync(
+      process.execPath,
+      [CLI, "init-plan", "--path", ".scratch/symlink-feat/plan.md", "--base", "main"],
+      { cwd: workspace, encoding: "utf8" }
+    );
+    assert.equal(symlinkResult.status, 1, symlinkResult.stderr || symlinkResult.stdout);
+    assert.ok(symlinkResult.stdout.includes("status: error"), `expected status: error in ${symlinkResult.stdout}`);
+    assert.doesNotMatch(symlinkResult.stdout, /\n\s+at |Error:/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("init-plan refuses a symlinked .scratch without touching its target (AC-2)", () => {
+  const workspace = mkdtempSync(join(tmpdir(), "gsd-init-plan-ac2b-"));
+  const external = mkdtempSync(join(tmpdir(), "gsd-init-plan-ac2b-ext-"));
+  try {
+    mkdirSync(join(external, "outside"), { recursive: true });
+    symlinkSync(join(external, "outside"), join(workspace, ".scratch"));
+
+    const result = spawnSync(
+      process.execPath,
+      [CLI, "init-plan", "--path", ".scratch/scratch-link/plan.md", "--base", "main"],
+      { cwd: workspace, encoding: "utf8" }
+    );
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.ok(result.stdout.includes("must be a real directory"), `expected real-directory rejection in ${result.stdout}`);
+    assert.deepEqual(readdirSync(join(external, "outside")), [], "external scratch target must stay empty - no follow, no side effects");
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+    rmSync(external, { recursive: true, force: true });
+  }
+});
+
+test("init-plan enforces CLI usage validation for missing/unsafe base, invalid path, and disallowed flags (AC-3)", () => {
+  const workspace = mkdtempSync(join(tmpdir(), "gsd-init-plan-ac3-"));
+  try {
+    const cases = [
+      {
+        name: "missing --base",
+        args: ["init-plan", "--path", ".scratch/foo/plan.md"],
+      },
+      {
+        name: "unsafe --base",
+        args: ["init-plan", "--path", ".scratch/foo/plan.md", "--base", "main; rm -rf"],
+      },
+      {
+        name: "wrong path shape",
+        args: ["init-plan", "--path", "plan.md", "--base", "main"],
+      },
+      {
+        name: "disallowed --write",
+        args: ["init-plan", "--path", ".scratch/foo/plan.md", "--base", "main", "--write"],
+      },
+      {
+        name: "disallowed --expected-sha256",
+        args: ["init-plan", "--path", ".scratch/foo/plan.md", "--base", "main", "--expected-sha256", "a".repeat(64)],
+      },
+      {
+        name: "disallowed --expected-base",
+        args: ["init-plan", "--path", ".scratch/foo/plan.md", "--base", "main", "--expected-base", "main"],
+      },
+    ];
+
+    for (const c of cases) {
+      const result = spawnSync(process.execPath, [CLI, ...c.args], {
+        cwd: workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 2, `${c.name}: expected exit status 2, got ${result.status} (${result.stdout || result.stderr})`);
+      assert.ok(result.stdout.includes("code: usage"), `${c.name}: expected code: usage in ${result.stdout}`);
+    }
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("initPlanFile in-process direct call creates plan and fails closed on second call (AC-4)", () => {
+  const workspace = mkdtempSync(join(tmpdir(), "gsd-init-plan-ac4-"));
+  try {
+    const result = initPlanFile(".scratch/in-proc/plan.md", { base: "main", cwd: workspace });
+    assert.equal(result.feature, "in-proc");
+    assert.equal(result.base, "main");
+    assert.ok(typeof result.content === "string");
+    assert.ok(Buffer.isBuffer(result.bytes));
+    assert.equal(result.bytes.toString("utf8"), result.content);
+
+    const diskContent = readFileSync(join(workspace, ".scratch", "in-proc", "plan.md"), "utf8");
+    assert.equal(diskContent, result.content);
+
+    assert.throws(
+      () => initPlanFile(".scratch/in-proc/plan.md", { base: "main", cwd: workspace }),
+      (err) => {
+        assert.equal(err.contractCode, "plan-exists");
+        assert.match(err.message, /plan file already exists/);
+        return true;
+      }
+    );
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
   }
 });
