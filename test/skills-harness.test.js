@@ -169,4 +169,6 @@ test("single-task waves execute inline without dispatching sub-agents", () => {
   assert.doesNotMatch(execution, /single-task waves are exactly one sub-agent/i);
   assert.match(reference, /single-task wave executes inline by the session owner with `gsd-tdd`/i);
   assert.match(execution, /single-task wave is authored inline by the owner with `gsd-tdd`/i);
+  assert.match(reference, /isolation is unavailable or an isolated spawn fails/i);
+  assert.match(execution, /isolation is unavailable or an isolated spawn fails/i);
 });
