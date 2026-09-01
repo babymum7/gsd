@@ -126,7 +126,7 @@ function failUsage(message, command = null) {
 }
 
 function blocked(code, message) {
-  write_(["status: blocked", `code: ${code}`, `error: ${JSON.stringify(message)}`]);
+  write_(["status: blocked", `code: ${code}`, `error: ${JSON.stringify(message)}`, "exit=1"]);
   process.exit(1);
 }
 
@@ -380,12 +380,22 @@ function preflight(cwd, featureDir) {
     );
   }
   // A detached HEAD at the gate is not a cosmetic detail: commits made there sit on no
-  // branch, so squashing the recorded WIP branch would silently drop them.
+  // branch, so squashing the recorded WIP branch would silently drop them. The same holds
+  // when HEAD sits on any branch other than the recorded WIP branch: the gate observed that
+  // exact incident, where HEAD rested on the base while the WIP branch held the work, and
+  // the squash landed wherever HEAD pointed. Identity of HEAD with the recorded WIP branch
+  // is the proof that the squash target holds the reviewed work.
   const head = git(["symbolic-ref", "--quiet", "--short", "HEAD"], cwd);
   if (head.status !== 0 || head.stdout === "") {
     blocked(
       "detached-head",
       `HEAD is detached, so no branch holds the work about to be squashed: check out ${wip} before the gate`,
+    );
+  }
+  if (head.stdout !== wip) {
+    blocked(
+      "head-not-wip",
+      `HEAD rests on ${head.stdout} while the packet's work is recorded on ${wip}: check out ${wip} before the gate so the squash receives the reviewed work`,
     );
   }
   const dirty = dirtyNonScratchPaths(cwd);
@@ -411,12 +421,17 @@ function preflight(cwd, featureDir) {
     );
   }
   verifyArchive(cwd, state, scratchBytes);
+  // The trailing exit line is the report's own echo of the process exit code. A consumer
+  // that reads the report through a pipe sees the last stage's exit status, so without this
+  // line a blocked run can travel downstream looking successful; with it, the verdict is
+  // observable in the bytes themselves.
   write_([
     "status: ready",
     `base: ${base}`,
     `wip: ${wip}`,
     `head: ${head.stdout}`,
     "tree: clean outside .scratch/",
+    "exit=0",
   ]);
 }
 

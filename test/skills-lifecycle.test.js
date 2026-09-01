@@ -213,6 +213,16 @@ test("T2 schema:v4 state.toon contract and skill derivation", () => {
     assert.doesNotMatch(skill, /state-input\.json/, "skills never teach the temp-JSON ceremony");
     assert.match(skill, /set --feature-dir/, "skills teach the set-based write path");
   }
+  assert.match(
+    verify,
+    /preflight[^\n]{0,200}unpiped or under `set -o pipefail`[^\n]{0,200}exit=0/,
+    "verify teaches unmasked gate consumption",
+  );
+  assert.match(
+    execution,
+    /before the first task commit[^\n]{0,200}wip_branch[^\n]{0,200}plan_sha256/,
+    "execution proves binding before the first commit",
+  );
   assert.match(read("skills/gsd/REFERENCE.md"), /State updates are recorded through `gsd-state\.mjs set key=value…`/);
   assert.match(read("skills/gsd/REFERENCE.md"), /`write-state --json-file` remains the fallback/);
   assert.match(execution, /validated task slice/);

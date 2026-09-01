@@ -152,6 +152,11 @@ test("T7: the domain shard records the shipped harness-fit behavior", () => {
   assert.match(snapshot, /canonical state-write path is `gsd-state\.mjs set`/);
   assert.match(snapshot, /`write-state --json-file` remains the fallback/);
 
+  const gate = domain.split("\n").find((line) => /^- Both Git facts the base rule depends on/.test(line));
+  assert.ok(gate, "the shard records the preflight gate");
+  assert.match(gate, /HEAD rests on the recorded `wip_branch`/, "the gate proves HEAD identity");
+  assert.match(gate, /trailing `exit=` line/, "the gate report is self-describing about exits");
+
   const failure = domain.split("\n").find((line) => /^- An unreadable artifact/.test(line));
   assert.ok(failure, "the shard records the failure-class split");
   assert.match(failure, /could not read a file/, "the split names the unreadable-file class");

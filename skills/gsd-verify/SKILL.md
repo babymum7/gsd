@@ -44,7 +44,9 @@ After all tasks and Fast TDD Checks are green, the session owner performs determ
 
 For squash, scratch disposition, archive, and cleanup use § Git/base/WIP/scratch mechanics and § Feature cleanup. Archive-and-delete materializes bound plan and outcome before conformance: canonical archive destinations are terminal-cleanup-owned lifecycle paths in changed-path proof; every other changed path must be task-owned.
 
-The merge target is exactly the recorded `state.toon` `base_ref`; never ask whether to merge into `main` and never widen to repo defaults. Before squash run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`: only `status: ready` proceeds, proving no path outside `.scratch/` is staged, modified, or untracked, so squashes carry only reviewed bytes; any `status: blocked` code is Spec escalation that stops the gate instead of retargeting the merge. Promoting that base onward is separate user-owned work after this packet ends green.
+The merge target is exactly the recorded `state.toon` `base_ref`; never ask whether to merge into `main` and never widen to repo defaults.
+Before squash run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>` unpiped or under `set -o pipefail` — a piped last stage masks the gate's exit status: only `status: ready` proceeds, on exit 0 with a trailing `exit=0` line, proving HEAD rests on the recorded `wip_branch` and no path outside `.scratch/` is staged, modified, or untracked, so squashes carry only reviewed bytes; a `status: blocked` code with its `exit=1` line is Spec escalation that stops the gate instead of retargeting the merge.
+Promoting that base onward is separate user-owned work after this packet ends green.
 
 After green merge, use `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> phase=merged-cleanup-pending` to atomically write the cleanup-pending phase (never the `write` tool directly; `write-state --json-file` remains the fallback for values `key=value` cannot express).
 

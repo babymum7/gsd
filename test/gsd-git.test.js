@@ -133,6 +133,7 @@ test("preflight passes when the recorded base and WIP branch both still hold", (
         "wip: wip/ready-demo",
         "head: wip/ready-demo",
         "tree: clean outside .scratch/",
+        "exit=0",
         "",
       ].join("\n"),
     );
@@ -617,5 +618,35 @@ test("usage errors name the flag and exit 2", () => {
     assert.equal(cli(["preflight", "--feature-dir", relative], root).status, 0);
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// The incident this closes: with HEAD sitting on the base (or anywhere but the recorded WIP
+// branch), the gate reported ready and the squash landed on whatever HEAD held. Identity of
+// HEAD with the recorded WIP branch is load-bearing, not cosmetic. The trailing exit line is
+// the machine-readable echo of the process exit code, so a piped consumer can observe a
+// blocked run even where shell plumbing hides the exit status itself.
+test("preflight requires attached HEAD to be the recorded WIP branch and reports its exit line", () => {
+  const onBase = makePacket({ feature: "head-base", base: "trunk" });
+  try {
+    git(["checkout", "-q", "trunk"], onBase.root);
+    const result = cli(["preflight", "--feature-dir", onBase.relative], onBase.root);
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^status: blocked$/m);
+    assert.match(result.stdout, /^code: head-not-wip$/m);
+    assert.match(result.stdout, /^exit=1$/m);
+  } finally {
+    rmSync(onBase.root, { recursive: true, force: true });
+  }
+
+  const onStray = makePacket({ feature: "head-stray", base: "trunk" });
+  try {
+    git(["checkout", "-q", "-b", "stray-branch"], onStray.root);
+    const result = cli(["preflight", "--feature-dir", onStray.relative], onStray.root);
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^code: head-not-wip$/m);
+    assert.match(result.stdout, /^exit=1$/m);
+  } finally {
+    rmSync(onStray.root, { recursive: true, force: true });
   }
 });
