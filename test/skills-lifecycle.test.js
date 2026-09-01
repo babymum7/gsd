@@ -209,6 +209,12 @@ test("T2 schema:v4 state.toon contract and skill derivation", () => {
   assert.match(handoff, /Exact active v1, v2, and v3 records[\s\S]{0,60}migrate atomically/i);
   assert.match(handoff, /v1\/v2 terminal records[\s\S]{0,60}fail closed unchanged/i);
   assert.match(planner, /atomically write canonical `schema:v4`[\s\S]{0,40}`state\.toon`/);
+  for (const skill of [planner, execution, handoff, verify]) {
+    assert.doesNotMatch(skill, /state-input\.json/, "skills never teach the temp-JSON ceremony");
+    assert.match(skill, /set --feature-dir/, "skills teach the set-based write path");
+  }
+  assert.match(read("skills/gsd/REFERENCE.md"), /State updates are recorded through `gsd-state\.mjs set key=value…`/);
+  assert.match(read("skills/gsd/REFERENCE.md"), /`write-state --json-file` remains the fallback/);
   assert.match(execution, /validated task slice/);
   assert.match(execution, /Do not write task-attempt TOON files/);
   assert.match(verify, /phase=merged-cleanup-pending|merged-cleanup-pending/);

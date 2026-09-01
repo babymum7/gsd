@@ -23,7 +23,7 @@ Canonical dispatch authority for the 9 visible GSD skills. Shared semantics live
 | Skill | Role | Intent | Prerequisites | Do-not-load | Transition | Helper-when |
 | --- | --- | --- | --- | --- | --- | --- |
 | `gsd-brainstorming` | owner | Resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract | Explicit design intent or load-bearing Spec-gap return | Read-only questions, pure mechanical edits, known single-spot quick fix | On convergence load `gsd-to-plan` | — |
-| `gsd-to-plan` | owner | Create or finalize canonical `plan.md` with bound Domain Impact after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unfinalized plan | Design decisions still open; Nano edits | On `validate-plan` success use `gsd-state.mjs write-state` to write `state.toon` and load `gsd-executing-plans` | — |
+| `gsd-to-plan` | owner | Create or finalize canonical `plan.md` with bound Domain Impact after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unfinalized plan | Design decisions still open; Nano edits | On `validate-plan` success use `gsd-state.mjs set` to write `state.toon` and load `gsd-executing-plans` | — |
 | `gsd-executing-plans` | owner | Own bound plan tasks and domain docs on `wip/<feature>`: sub-agents author each wave's tasks, the owner reconciles and repairs | Valid bound `plan.md` and bound `state.toon` whose pending work the prompt names | No bound plan/state; a bare resume naming no work; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
 | `gsd-handoff` | owner | Pause, save, resume, or recover from a valid `state.toon`, ledger, or capsule | Valid `state.toon`, ledger, or capsule; every bare resume naming no work enters here first | Missing/malformed state used to invent work | Load the peer named by validated `next_action` | — |
 | `gsd-verify` | owner | Review a diff/PR or prove planned or Quick-fix code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; Quick-fix: exact Quick-fix `plan.md`; standalone: supplied diff | Invent completion without deterministic gates | Planned or Quick-fix green path: squash, cleanup, optional retain/archive | — |
@@ -315,7 +315,7 @@ Exact v1/v2 `completed-retained` records are structurally recognized during cand
 
 Every checkpoint write creates a complete temporary file in the feature directory, fsyncs it, atomically renames it over `state.toon`, fsyncs directory where supported, then reads back and validates before reporting completion. Reject symlink or non-directory feature paths; require feature directory basename to equal `state.feature` under real `.scratch` parent; require `plan_path` to equal `.scratch/<feature>/plan.md` when bound. No dispatch occurs from unvalidated or partially written `state.toon`.
 
-State updates are recorded through `gsd-state.mjs write-state` or `gsd-state.mjs set` with derived defaults.
+State updates are recorded through `gsd-state.mjs set key=value…` with derived defaults; `write-state --json-file` remains the fallback for values `key=value` cannot express.
 
 ### Checkpoint cadence
 
@@ -468,7 +468,7 @@ For explicit abandon/drop/delete: confirm feature name, inspect whether the work
 
 ### Terminal scratch disposition
 
-During discuss the user may select retain or archive-and-delete; omission defaults to delete after green merges. There is no mandatory cleanup prompt. Persist `cleanup_preference` in `state.toon` when explicitly chosen (via `gsd-state.mjs write-state`; see `gsd-handoff` § Write). After green merge, use the same CLI invocation to write `phase=merged-cleanup-pending` and remove scratch unless retain or archive-and-delete was selected; crash recovery resumes only that cleanup decision. The pre-squash archive opportunity is not reopened after merge.
+During discuss the user may select retain or archive-and-delete; omission defaults to delete after green merges. There is no mandatory cleanup prompt. Persist `cleanup_preference` in `state.toon` when explicitly chosen (via `gsd-state.mjs set`; see `gsd-handoff` § Write). After green merge, use the same CLI invocation to write `phase=merged-cleanup-pending` and remove scratch unless retain or archive-and-delete was selected; crash recovery resumes only that cleanup decision. The pre-squash archive opportunity is not reopened after merge.
 
 - **delete (default):** after green squash, remove `.scratch/<feature>/`.
 - **retain:** keep `.scratch/<feature>/` and set `phase=completed-retained` with `next_action=none`.

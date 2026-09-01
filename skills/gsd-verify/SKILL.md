@@ -46,7 +46,7 @@ For squash, scratch disposition, archive, and cleanup use § Git/base/WIP/scratc
 
 The merge target is exactly the recorded `state.toon` `base_ref`; never ask whether to merge into `main` and never widen to repo defaults. Before squash run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`: only `status: ready` proceeds, proving no path outside `.scratch/` is staged, modified, or untracked, so squashes carry only reviewed bytes; any `status: blocked` code is Spec escalation that stops the gate instead of retargeting the merge. Promoting that base onward is separate user-owned work after this packet ends green.
 
-After green merge, write state fields to `.scratch/<feature>/.state-input.json`, then use `bun "<GSD_ROOT>/tools/gsd-state.mjs" write-state --feature-dir .scratch/<feature> --json-file .scratch/<feature>/.state-input.json` to atomically write `phase=merged-cleanup-pending` (never the `write` tool directly); delete `.state-input.json` after CLI success or failure.
+After green merge, use `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> phase=merged-cleanup-pending` to atomically write the cleanup-pending phase (never the `write` tool directly; `write-state --json-file` remains the fallback for values `key=value` cannot express).
 
 For `Milestone WIP gate`, prove ledger matches packet and remains sequential:
 - Validate: `bun "<GSD_ROOT>/tools/gsd-milestone.mjs" validate --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>` must exit 0, reporting matching feature/base with first `pending` row as selected milestone.

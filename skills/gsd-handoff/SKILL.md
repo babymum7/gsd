@@ -27,8 +27,8 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 ## Write
 
-**Always use the CLI tool** `bun "<GSD_ROOT>/tools/gsd-state.mjs" write-state --feature-dir .scratch/<feature> --json-file .scratch/<feature>/.state-input.json` to write state.toon.
-Write state fields to `.scratch/<feature>/.state-input.json`, pass its path via `write-state --json-file`, then delete the temp file on success and failure. Never write state.toon directly using `write`: direct writes bypass validation, breaking autocompact and resume. The CLI validates, serializes, and writes atomically to `.scratch/<feature>/state.toon` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Runtime state contract: temp, fsync, rename, directory fsync, readback.
+**Always use the CLI tool** `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> key=value…` to write state.toon.
+Pass each field as a `key=value` argument; derived defaults fill `next_action` and `checkpoint_revision`. `write-state --json-file` remains the fallback for values `key=value` cannot express. Never write state.toon directly using `write`: direct writes bypass validation, breaking autocompact and resume. The CLI validates, serializes, and writes atomically to `.scratch/<feature>/state.toon` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Runtime state contract: temp, fsync, rename, directory fsync, readback.
 - Plan binding writes `phase=approved`.
 - Canonical `schema:v4` gives the session owner only lifecycle, plan/Git binding, green checkpoint, runtime preferences, and revision.
 - Exact active v1, v2, and v3 records migrate atomically after full validation; v1/v2 terminal records fail closed unchanged.

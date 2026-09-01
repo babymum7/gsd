@@ -147,6 +147,11 @@ test("T7: the domain shard records the shipped harness-fit behavior", () => {
   assert.match(invocation, /injected bootstrap root/, "the path is resolved from the injected root");
   assert.match(invocation, /workspaces that are not the GSD checkout/, "the absolute form serves foreign workspaces");
 
+  const snapshot = domain.split("\n").find((line) => /^\| Resumable State Snapshot \|/.test(line));
+  assert.ok(snapshot, "the shard records the state snapshot term");
+  assert.match(snapshot, /canonical state-write path is `gsd-state\.mjs set`/);
+  assert.match(snapshot, /`write-state --json-file` remains the fallback/);
+
   const failure = domain.split("\n").find((line) => /^- An unreadable artifact/.test(line));
   assert.ok(failure, "the shard records the failure-class split");
   assert.match(failure, /could not read a file/, "the split names the unreadable-file class");
