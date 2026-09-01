@@ -2550,3 +2550,12 @@ test("readStateFile rejects state.toon swap after feature dir pin", () => {
     rmSync(tmp, { recursive: true, force: true });
   }
 });
+
+test("extension policy summary mirrors master Quick-fix lane key phrases", () => {
+  const master = readFileSync(new URL("../skills/gsd/SKILL.md", import.meta.url), "utf8");
+  const extension = readFileSync(new URL("../extensions/gsd-context.js", import.meta.url), "utf8");
+  for (const phrase of [/three size gates/i, /validate-quick-fix/i, /one or two tasks/i]) {
+    assert.match(master, phrase, `master rule 6 must keep phrase ${phrase}`);
+    assert.match(extension, phrase, `extension summary must mirror phrase ${phrase}`);
+  }
+});

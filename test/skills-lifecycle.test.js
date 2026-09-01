@@ -517,6 +517,8 @@ test("Quick-fix owner uses the injected hidden context and deterministic gates",
   assert.match(master, /Domain Impact none or a single shard/i);
   assert.match(master, /acceptance already converged from the prompt/i);
   assert.match(master, /prior diagnosis is not required/i);
+  assert.match(master, /prove[^.\n]{0,80}validate-quick-fix/i);
+  assert.match(reference, /(?:validate-quick-fix[^.\n]{0,80}draft plan|draft plan[^.\n]{0,80}validate-quick-fix)/i);
   assert.match(reference, /single-task wave executes inline by the session owner with `gsd-tdd`/i);
   assert.match(reference, /waves of two or more tasks dispatch[\s\S]{0,120}isolated/i);
 });
