@@ -2256,3 +2256,45 @@ test("value-level rejections report their exact 1-based line", () => {
     }
   }
 });
+
+test("criteria field failures point at the offending row", () => {
+  const lineOf = (content, needle) => content.split("\n").findIndex((line) => line.includes(needle)) + 1;
+  const cases = [
+    {
+      name: "missing outcome points at the malformed row",
+      content: canonicalPlan().replace("- **Outcome:** The canonical plan is accepted through the production command.", "- **Outcom:** The canonical plan is accepted through the production command."),
+      needle: "- **Outcom:**",
+      message: /fields must be exactly ordered: State, Outcome, Action, Expected/,
+    },
+    {
+      name: "missing expected points at the malformed row",
+      content: canonicalPlan().replace("- **Expected:** The command reports the feature and exact source hash.", "- **Expecte:** The command reports the feature and exact source hash."),
+      needle: "- **Expecte:**",
+      message: /fields must be exactly ordered: State, Outcome, Action, Expected/,
+    },
+    {
+      name: "vague outcome points at the outcome row",
+      content: canonicalPlan().replace("- **Outcome:** The canonical plan is accepted through the production command.", "- **Outcome:** todo"),
+      needle: "- **Outcome:** todo",
+      message: /AC-1 outcome, action, and expected must be concrete/,
+    },
+  ];
+  for (const { name, content, needle, message } of cases) {
+    const { workspace, planPath } = makePlanWorkspace("valid-plan", content);
+    try {
+      const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], {
+        cwd: workspace,
+        encoding: "utf8",
+      });
+      const expectedRow = `line: ${lineOf(content, needle)}`;
+      assert.equal(result.status, 1, `${name}: ${result.stdout}`);
+      assert.match(result.stdout, message, name);
+      assert.ok(
+        result.stdout.includes(expectedRow),
+        `${name}: expected ${expectedRow} in output:\n${result.stdout}`
+      );
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
