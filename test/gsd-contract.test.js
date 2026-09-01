@@ -2435,6 +2435,57 @@ test("init-plan refuses a symlinked .scratch without touching its target (AC-2)"
   }
 });
 
+test("init-plan rejects a base equal to the packet's own WIP branch before writing (AC-1)", () => {
+  const workspace = mkdtempSync(join(tmpdir(), "gsd-init-plan-selfbase-"));
+  try {
+    const result = spawnSync(
+      process.execPath,
+      [CLI, "init-plan", "--path", ".scratch/selfbase/plan.md", "--base", "wip/selfbase"],
+      { cwd: workspace, encoding: "utf8" }
+    );
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.ok(
+      result.stdout.includes("never its own WIP branch wip/selfbase"),
+      `expected canonical self-base rejection in ${result.stdout}`
+    );
+    assert.deepEqual(
+      existsSync(join(workspace, ".scratch", "selfbase")),
+      false,
+      "no feature directory may be created for a rejected self-base"
+    );
+
+    const inProcess = spawnSync(
+      process.execPath,
+      [
+        "-e",
+        'const { initPlanFile } = require(process.argv[1]); try { initPlanFile(".scratch/selfbase/plan.md", { base: "wip/selfbase", cwd: process.argv[2] }); } catch (error) { console.log("thrown:", error.message); }',
+        join(ROOT, "lib", "gsd-contract.mjs"),
+        workspace,
+      ],
+      { encoding: "utf8" }
+    );
+    assert.match(inProcess.stdout, /thrown: Markdown contract: .*never its own WIP branch/);
+
+    const dotSlash = spawnSync(
+      process.execPath,
+      [CLI, "init-plan", "--path", "./.scratch/selfbase/plan.md", "--base", "wip/selfbase"],
+      { cwd: workspace, encoding: "utf8" }
+    );
+    assert.equal(dotSlash.status, 1, dotSlash.stderr || dotSlash.stdout);
+    assert.ok(dotSlash.stdout.includes("never its own WIP branch"), `expected self-base rejection via ./ path in ${dotSlash.stdout}`);
+
+    const absolutePath = spawnSync(
+      process.execPath,
+      [CLI, "init-plan", "--path", join(workspace, ".scratch", "selfbase", "plan.md"), "--base", "wip/selfbase"],
+      { cwd: workspace, encoding: "utf8" }
+    );
+    assert.equal(absolutePath.status, 1, absolutePath.stderr || absolutePath.stdout);
+    assert.ok(absolutePath.stdout.includes("never its own WIP branch"), `expected self-base rejection via absolute path in ${absolutePath.stdout}`);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 test("init-plan enforces CLI usage validation for missing/unsafe base, invalid path, and disallowed flags (AC-3)", () => {
   const workspace = mkdtempSync(join(tmpdir(), "gsd-init-plan-ac3-"));
   try {
