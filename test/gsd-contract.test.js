@@ -2106,3 +2106,90 @@ test("normalize-plan preserves complex multi-task blocks byte-for-byte during re
     rmSync(workspace, { recursive: true, force: true });
   }
 });
+
+test("location-bearing rejections report the exact 1-based line", () => {
+  const lineOf = (content, needle) => content.split("\n").findIndex((line) => line.includes(needle)) + 1;
+  const lastLineOf = (content, needle) => {
+    const lines = content.split("\n");
+    for (let index = lines.length - 1; index >= 0; index--) if (lines[index].includes(needle)) return index + 1;
+    return -1;
+  };
+  const domainImpactBlock = "## Domain Impact\n- **Classification:** none\n- **Contexts:** none\n- **Documentation:** none\n- **Broad bootstrap:** not-offered\n- **Evidence:** This validation fixture changes no production term, invariant, workflow, outcome, relationship, policy, or context boundary.\n";
+  const swappedDomainImpact = "## Domain Impact\n- **Contexts:** none\n- **Classification:** none\n- **Documentation:** none\n- **Broad bootstrap:** not-offered\n- **Evidence:** This validation fixture changes no production term, invariant, workflow, outcome, relationship, policy, or context boundary.\n";
+  const cases = [
+    {
+      name: "section out of order",
+      command: "validate-plan",
+      content: canonicalPlan().replace("## Base\n`main`\n", ""),
+      expect: (content) => lineOf(content, "## Summary"),
+      message: /sections must be exactly ordered/,
+    },
+    {
+      name: "duplicate section",
+      command: "validate-plan",
+      content: canonicalPlan().replace("## Base\n`main`\n", "## Base\n`main`\n## Summary\nDuplicate summary body.\n"),
+      expect: (content) => lastLineOf(content, "## Summary"),
+      message: /sections must be exactly ordered/,
+    },
+    {
+      name: "preamble after title",
+      command: "validate-plan",
+      content: canonicalPlan().replace("# Plan\n", "# Plan\nstray preamble\n"),
+      expect: () => 2,
+      message: /must be followed directly by the first ## section/,
+    },
+    {
+      name: "misordered domain impact fields",
+      command: "validate-plan",
+      content: canonicalPlan().replace(domainImpactBlock, swappedDomainImpact),
+      expect: (content) => lineOf(content, "- **Contexts:**"),
+      message: /fields must be exactly ordered: Classification, Contexts/,
+    },
+    {
+      name: "quick-fix task fields misordered",
+      command: "validate-quick-fix",
+      content: quickFixPlan().replace(
+        "### T1: Apply bounded fix\n- **Files:**\n",
+        "### T1: Apply bounded fix\n- **Test:** `bun test test/fix.test.js`\n- **Files:**\n  - `src/fix.js` — modify: correct the bounded observable behavior\n"
+      ),
+      expect: (content) => lineOf(content, "- **Test:**"),
+      message: /fields must be exactly ordered: Files, Test/,
+    },
+  ];
+  for (const { name, command, content, expect, message } of cases) {
+    const { workspace, planPath } = makePlanWorkspace("line-bearing", content);
+    try {
+      const result = spawnSync(process.execPath, [CLI, command, "--path", planPath], {
+        cwd: workspace,
+        encoding: "utf8",
+      });
+      const expectedRow = `line: ${expect(content)}`;
+      assert.equal(result.status, 1, `${name}: ${result.stdout}`);
+      assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/, name);
+      assert.match(result.stdout, message, name);
+      assert.ok(
+        result.stdout.includes(expectedRow),
+        `${name}: expected ${expectedRow} in output:\n${result.stdout}`
+      );
+      assert.equal(result.stderr, "", name);
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
+test("rejections without a known location emit no line row", () => {
+  const { workspace, planPath } = makePlanWorkspace("line-absent", canonicalPlan().replace("`main`", "not a branch"));
+  try {
+    const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /Base must be exactly one complete backticked branch or reference line with no extra text/);
+    assert.doesNotMatch(result.stdout, /^line: /m);
+    assert.equal(result.stderr, "");
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});

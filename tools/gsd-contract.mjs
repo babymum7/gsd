@@ -75,12 +75,16 @@ function failArtifact(error, command) {
       remediation = commandUsage(command);
     }
   }
-  write([
+  const rows = [
     "status: error",
     `code: ${code}`,
     `error: ${quote(message)}`,
-    `help: ${quote(remediation)}`,
-  ]);
+    // Advisory location for the failing construct: purely additive, emitted only
+    // when the library computed a 1-based line for the rejection.
+  ];
+  if (Number.isInteger(error?.contractLine) && error.contractLine > 0) rows.push(`line: ${error.contractLine}`);
+  rows.push(`help: ${quote(remediation)}`);
+  write(rows);
   process.exitCode = 1;
 }
 
