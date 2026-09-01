@@ -161,3 +161,12 @@ test("an executing owner amends the plan in place instead of blocking", () => {
   assert.doesNotMatch(domain, /Approved `plan\.md` bytes remain immutable/);
   assert.match(domain, /amend/i);
 });
+
+test("single-task waves execute inline without dispatching sub-agents", () => {
+  const reference = read("skills/gsd/REFERENCE.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  assert.doesNotMatch(reference, /single-task waves to exactly one sub-agent/i);
+  assert.doesNotMatch(execution, /single-task waves are exactly one sub-agent/i);
+  assert.match(reference, /single-task wave executes inline by the session owner with `gsd-tdd`/i);
+  assert.match(execution, /single-task wave is authored inline by the owner with `gsd-tdd`/i);
+});

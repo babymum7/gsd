@@ -1331,6 +1331,7 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
   assert.equal(registrationPolicy.systemPrompt[0], baseSystemPrompt[0]);
   assert.match(registrationPolicy.systemPrompt[1], /gsd:system-policy:v1/);
   assert.match(registrationPolicy.systemPrompt[1], /first action MUST be one read tool call/);
+  assert.match(registrationPolicy.systemPrompt[1], /Quick-fix[\s\S]{0,200}one or two tasks/);
   assert.equal(
     await events.before_agent_start({ systemPrompt: registrationPolicy.systemPrompt }),
     undefined,

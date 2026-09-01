@@ -32,7 +32,7 @@ Canonical dispatch authority for the 9 visible GSD skills. Shared semantics live
 | `gsd-tdd` | helper | Drive Fast TDD RED→GREEN→refactor at a public seam | Session owner is implementing or repairing observable behavior | Primary skill selection; resource-heavy browser/E2E task loops | Return green/red evidence to session owner | must load when an observable task is selected or repaired |
 | `gsd-domain-modeling` | helper | Maintain current production domain behavior for affected contexts | Domain Impact changes a context or explicit domain-model work is selected | Read-only/Nano work; uncertain or unrelated contexts | Return exact changed domain and AGENTS paths to session owner | must load when Domain Impact is not `none` or explicit domain-model work is selected |
 
-The Quick-fix route belongs to the session owner, not a visible skill: an already diagnosed fix stays ordinary direct work, while a larger bounded fix reads the exact injected Ponytail context, writes the canonical Quick-fix plan, runs RED→GREEN→refactor with `gsd-tdd`, then loads `gsd-verify` as WIP gate. A returned Quick-fix WIP Fail leaves a repair round whose prompt name loads `gsd-verify` rather than answering directly. Ponytail stays hidden and never enters the matrix or runtime state.
+The Quick-fix route belongs to the session owner, not a visible skill: an already diagnosed fix stays ordinary direct work, while a bounded fix meeting the three size gates — Quick-fix grammar fit, Domain Impact none or a single shard, acceptance converged from the prompt; prior diagnosis not required — reads the Ponytail context, writes its Quick-fix plan, runs RED→GREEN→refactor with `gsd-tdd`, then loads `gsd-verify` as WIP gate. A returned Quick-fix WIP Fail leaves a repair round whose prompt name loads `gsd-verify`. Ponytail stays hidden and never enters the matrix or runtime state.
 
 ## Durable documentation contract
 
@@ -74,7 +74,7 @@ TOON remains runtime-only: the single atomic `state.toon` snapshot. Runtime reco
 
 Every observable task loads `gsd-tdd` and uses a Fast TDD Check for RED before implementation, GREEN after implementation, and refactor after green.
 - Browser, GUI, external network, long-lived server, large fixture, and material-cost checks never run in implementation loops.
-- Planned implementation tasks are authored by sub-agents under [§ Wave dispatch](#wave-dispatch), the owner implementing inline only when dispatch is unavailable; it repairs each returned task inline and sequentially.
+- Planned implementation tasks in multi-task waves are authored by sub-agents under [§ Wave dispatch](#wave-dispatch), while single-task waves are authored inline by the owner with `gsd-tdd`; when dispatch is unavailable for a multi-task wave, the owner implements inline; it repairs each returned task inline and sequentially.
 - Task boundaries use focused green evidence kept only in reporting.
 - Planning adds the smallest real fast public seam when none exists; observable behavior never uses `none`.
 
@@ -84,7 +84,7 @@ Implementation is the only lifecycle work GSD dispatches, and only as validated 
 Lifecycle authority and task authorship are distinct: sub-agents author task code, while the owner retains authority because dispatched results count for nothing until inspected, reconciled, committed, and terminally verified.
 
 A **wave** is a maximal contiguous run of non-superseded tasks in strict heading order where pairs are independent: disjoint `Files` path sets, disjoint `Satisfies` criteria, and differing focused `Test` commands.
-`analyze-waves` computes waves deterministically. Every wave dispatches: single-task waves to exactly one sub-agent; waves of two or more tasks concurrently, each task into its own isolated workspace on its own task branch, never two tasks in one shared working tree. When harness task isolation is unavailable or an isolated spawn fails, dispatch that wave serially in plan order, the same validated slices one task at a time; inline execution by the owner remains the fallback only when dispatch itself is unavailable.
+`analyze-waves` computes waves deterministically. Waves of two or more tasks dispatch concurrently, each task into its own isolated workspace on its own task branch, never two tasks in one shared working tree; a single-task wave executes inline by the session owner with `gsd-tdd`; when harness task isolation is unavailable or an isolated spawn fails for a multi-task wave, dispatch that wave serially in plan order, the same validated slices one task at a time; inline execution by the owner remains the fallback only when dispatch itself is unavailable for a multi-task wave.
 
 Each sub-agent receives one complete validated task slice rebuilt from `plan.md`, never invented; MUST run Fast TDD RED→GREEN→refactor; update every affected domain shard in the same commit as semantic code; and commit only green task-owned changes in its isolated workspace on its own task branch cut from wave base.
 Before sending any dispatch, the owner re-reads the dispatch prompt against the retained slice and rebuilds it when any slice fact is missing.

@@ -192,3 +192,14 @@ test("T8: the domain shard and AGENTS.md record the durable decision and design 
   assert.match(agents, /docs\/decisions\/NNNN-slug\.md/);
   assert.match(agents, /docs\/design\/NNNN-slug\.md/);
 });
+
+test("domain shard records Quick-fix size gates and single-task inline wave execution", () => {
+  const domain = read("docs/domain/gsd.md");
+  assert.match(domain, /three size gates/i);
+  assert.match(domain, /Quick-fix grammar fit \(one or two tasks\)/i);
+  assert.match(domain, /Domain Impact `?none`? or a single shard/i);
+  assert.match(domain, /acceptance already converged from the prompt/i);
+  assert.match(domain, /prior diagnosis (?:is )?(?:not|no longer) required/i);
+  assert.match(domain, /single-task waves execute inline (?:by the session owner )?with `gsd-tdd`/i);
+  assert.match(domain, /waves of two or more tasks dispatch/i);
+});

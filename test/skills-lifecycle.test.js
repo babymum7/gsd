@@ -156,6 +156,7 @@ test("T1 session-owner execution contract and lifecycle roles", () => {
   // Authorship moved to sub-agents, so the pin has to say who authors and who stays
   // responsible: a dispatched task still returns to the owner for inline sequential repair.
   assert.match(reference, /authored by sub-agents[\s\S]{0,300}repair[\s\S]{0,120}inline[\s\S]{0,80}sequential/i);
+  assert.match(execution, /single-task wave[\s\S]{0,80}inline[\s\S]{0,80}waves of two or more tasks dispatch[\s\S]{0,80}isolated/i);
   assert.match(execution, /Task `Tn\+1` begins only from[\s\S]{0,60}committed green checkpoint of `Tn`/i);
   assert.match(execution, /Source mutations never overlap[\s\S]{0,60}task\/repair[\s\S]{0,60}Deferred Slow E2E/i);
   assert.match(verify, /No free-form critique[\s\S]{0,60}model-generated verdict[\s\S]{0,60}terminal authority/i);
@@ -504,13 +505,20 @@ test("Quick-fix owner uses the injected hidden context and deterministic gates",
   const reference = read("skills/gsd/REFERENCE.md");
 
   assert.match(master, /PONYTAIL_CONTEXT_PATH/);
-  assert.match(master, /session owner[\s\S]{0,220}bounded fix[\s\S]{0,220}PONYTAIL_CONTEXT_PATH/i);
+  assert.match(master, /session owner[\s\S]{0,120}bounded fix[\s\S]{0,300}PONYTAIL_CONTEXT_PATH/i);
   // A fix the user already diagnosed is direct work: both evaluated models otherwise
   // named `gsd-verify` as the primary owner for a one-line known fix.
   assert.match(master, /already diagnosed[^.\n]{0,80}direct[^.\n]{0,60}never a `primarySkill`/i);
   assert.match(master, /PONYTAIL_CONTEXT_PATH[\s\S]{0,300}gsd-tdd[\s\S]{0,240}gsd-verify/i);
   assert.match(reference, /\| `gsd-verify` \| owner \|[^|\n]*Quick-fix[^|\n]*\|[^|\n]*Quick-fix `plan\.md`[^|\n]*\|/i);
-  assert.match(reference, /Quick-fix[\s\S]{0,300}session owner[\s\S]{0,300}gsd-tdd[\s\S]{0,300}gsd-verify/i);
+  assert.match(reference, /Quick-fix[\s\S]{0,300}session owner[\s\S]{0,500}gsd-tdd[\s\S]{0,300}gsd-verify/i);
+  assert.match(master, /three size gates/i);
+  assert.match(master, /Quick-fix grammar fit[\s\S]{0,40}(?:one or two tasks|1-2 tasks)/i);
+  assert.match(master, /Domain Impact none or a single shard/i);
+  assert.match(master, /acceptance already converged from the prompt/i);
+  assert.match(master, /prior diagnosis is not required/i);
+  assert.match(reference, /single-task wave executes inline by the session owner with `gsd-tdd`/i);
+  assert.match(reference, /waves of two or more tasks dispatch[\s\S]{0,120}isolated/i);
 });
 
 test("AC-4: hidden bootstrap uses state.toon and terminal conformance", () => {

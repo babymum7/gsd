@@ -1747,3 +1747,362 @@ test("normalizePlanFile rejects symlink at temp file path and prevents write-thr
     rmSync(workspace, { recursive: true, force: true });
   }
 });
+
+test("normalize-plan proposes and applies canonical top-level section reordering", () => {
+  const feature = "reordered-feature";
+  const canonical = canonicalPlan(feature);
+
+  // Extract section blocks from canonical fixture
+  const sections = new Map();
+  const rawLines = canonical.split("\n");
+  let currentHeading = null;
+  let currentLines = [];
+  for (let i = 1; i < rawLines.length; i++) {
+    if (rawLines[i].startsWith("## ")) {
+      if (currentHeading !== null) {
+        sections.set(currentHeading, currentLines.join("\n"));
+      }
+      currentHeading = rawLines[i].slice(3);
+      currentLines = [rawLines[i]];
+    } else if (currentHeading !== null) {
+      if (i < rawLines.length - 1 || rawLines[i] !== "") {
+        currentLines.push(rawLines[i]);
+      }
+    }
+  }
+  if (currentHeading !== null) {
+    sections.set(currentHeading, currentLines.join("\n"));
+  }
+
+  const canonicalHeadings = [
+    "Feature",
+    "Base",
+    "Summary",
+    "Context",
+    "Domain Impact",
+    "Scope",
+    "Acceptance Criteria",
+    "Decisions",
+    "Invariants",
+    "Non-goals",
+    "Interfaces",
+    "Publication",
+    "Tasks",
+  ];
+
+  // Shuffle sections: Tasks before Summary, Invariants before Scope, etc.
+  const shuffledHeadings = [
+    "Tasks",
+    "Feature",
+    "Base",
+    "Invariants",
+    "Context",
+    "Domain Impact",
+    "Scope",
+    "Acceptance Criteria",
+    "Decisions",
+    "Summary",
+    "Non-goals",
+    "Interfaces",
+    "Publication",
+  ];
+
+  const shuffledPlan = ["# Plan", ...shuffledHeadings.map((h) => sections.get(h)), ""].join("\n");
+
+  const { workspace, planPath } = makePlanWorkspace(feature, shuffledPlan);
+  const relPath = join(".scratch", feature, "plan.md");
+
+  try {
+    // 1. Dry run via normalizePlanFile API reports reorder proposal
+    const apiDryRun = normalizePlanFile(relPath, { cwd: workspace });
+    assert.equal(apiDryRun.fixed, true);
+    assert.ok(apiDryRun.fixes.some((f) => f.type === "reorder-sections"));
+    assert.ok(apiDryRun.diff.length > 0);
+
+    // 2. Dry run via CLI reports patch without modifying file
+    const beforeBytes = readFileSync(planPath, "utf8");
+    const cliDryRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(cliDryRun.status, 0);
+    assert.match(cliDryRun.stdout, new RegExp(`^--- a/${relPath.replace(/\./g, "\\.")}\\n\\+\\+\\+ b/${relPath.replace(/\./g, "\\.")}\\n`));
+    assert.equal(readFileSync(planPath, "utf8"), beforeBytes);
+
+    // 3. Apply reorder via CLI --write
+    const cliWrite = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath, "--write"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(cliWrite.status, 0);
+    assert.equal(cliWrite.stdout, "");
+
+    // 4. Verify canonical section order and byte-for-byte section content preservation
+    const fixedBytes = readFileSync(planPath, "utf8");
+    const fixedHeadings = [...fixedBytes.matchAll(/^## (.+)$/gm)].map(([, h]) => h);
+    assert.deepEqual(fixedHeadings, canonicalHeadings);
+
+    // Compare each section block's bytes before vs after
+    const afterSections = new Map();
+    const afterLines = fixedBytes.split("\n");
+    let aHeading = null;
+    let aLines = [];
+    for (let i = 1; i < afterLines.length; i++) {
+      if (afterLines[i].startsWith("## ")) {
+        if (aHeading !== null) {
+          afterSections.set(aHeading, aLines.join("\n"));
+        }
+        aHeading = afterLines[i].slice(3);
+        aLines = [afterLines[i]];
+      } else if (aHeading !== null) {
+        if (i < afterLines.length - 1 || afterLines[i] !== "") {
+          aLines.push(afterLines[i]);
+        }
+      }
+    }
+    if (aHeading !== null) {
+      afterSections.set(aHeading, aLines.join("\n"));
+    }
+
+    for (const h of canonicalHeadings) {
+      assert.equal(afterSections.get(h), sections.get(h), `section ${h} must be preserved byte-for-byte`);
+    }
+
+    // 5. validate-plan exits 0 on normalized plan
+    const validateResult = spawnSync(process.execPath, [CLI, "validate-plan", "--path", relPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(validateResult.status, 0);
+    assert.match(validateResult.stdout, /^status: valid\nkind: plan\nfeature: reordered-feature\nbase: main\n/);
+
+    // 6. Second normalize-plan --write is idempotent (no fixes, no changes)
+    const secondWrite = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath, "--write"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(secondWrite.status, 0);
+    assert.equal(secondWrite.stdout, "");
+    assert.equal(readFileSync(planPath, "utf8"), fixedBytes);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("normalize-plan fails closed and does not reorder when a canonical section is missing", () => {
+  const feature = "missing-section-feature";
+  const canonical = canonicalPlan(feature);
+
+  // Omit ## Invariants section
+  const missingSectionPlan = canonical.replace(/## Invariants\n- \*\*I-1:\*\* [^\n]+\n/, "");
+  assert.doesNotMatch(missingSectionPlan, /## Invariants/);
+
+  const { workspace, planPath } = makePlanWorkspace(feature, missingSectionPlan);
+  const relPath = join(".scratch", feature, "plan.md");
+
+  try {
+    // Dry run reports no fixes (diff is empty)
+    const dryRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(dryRun.status, 0);
+    assert.equal(dryRun.stdout, "");
+
+    // Write run does not alter file
+    const writeRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath, "--write"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(writeRun.status, 0);
+    assert.equal(writeRun.stdout, "");
+    assert.equal(readFileSync(planPath, "utf8"), missingSectionPlan);
+
+    // validate-plan fails closed
+    const validateResult = spawnSync(process.execPath, [CLI, "validate-plan", "--path", relPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(validateResult.status, 1);
+    assert.match(validateResult.stdout, /sections must be exactly ordered/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("normalize-plan fails closed and does not reorder when duplicate or unknown top-level sections exist", () => {
+  const feature = "dup-unknown-feature";
+  const canonical = canonicalPlan(feature);
+
+  // 1. Duplicate section (two ## Feature sections)
+  const duplicateSectionPlan = canonical.replace("## Feature\n", "## Feature\n`dup-feature`\n## Feature\n");
+  const { workspace: dupWs, planPath: dupPlanPath } = makePlanWorkspace(feature, duplicateSectionPlan);
+  const dupRelPath = join(".scratch", feature, "plan.md");
+
+  try {
+    const dryRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", dupRelPath], {
+      cwd: dupWs,
+      encoding: "utf8",
+    });
+    assert.equal(dryRun.status, 0);
+    assert.equal(dryRun.stdout, "");
+
+    const writeRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", dupRelPath, "--write"], {
+      cwd: dupWs,
+      encoding: "utf8",
+    });
+    assert.equal(writeRun.status, 0);
+    assert.equal(writeRun.stdout, "");
+    assert.equal(readFileSync(dupPlanPath, "utf8"), duplicateSectionPlan);
+  } finally {
+    rmSync(dupWs, { recursive: true, force: true });
+  }
+
+  // 2. Unknown section
+  const unknownSectionPlan = canonical + "## Extra Section\nExtra content\n";
+  const { workspace: unkWs, planPath: unkPlanPath } = makePlanWorkspace(feature, unknownSectionPlan);
+  const unkRelPath = join(".scratch", feature, "plan.md");
+
+  try {
+    const dryRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", unkRelPath], {
+      cwd: unkWs,
+      encoding: "utf8",
+    });
+    assert.equal(dryRun.status, 0);
+    assert.equal(dryRun.stdout, "");
+
+    const writeRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", unkRelPath, "--write"], {
+      cwd: unkWs,
+      encoding: "utf8",
+    });
+    assert.equal(writeRun.status, 0);
+    assert.equal(writeRun.stdout, "");
+    assert.equal(readFileSync(unkPlanPath, "utf8"), unknownSectionPlan);
+  } finally {
+    rmSync(unkWs, { recursive: true, force: true });
+  }
+});
+
+test("normalize-plan preserves complex multi-task blocks byte-for-byte during reordering", () => {
+  const feature = "multi-task-feature";
+  const planWithMultipleTasks = canonicalPlan(feature)
+    .replace(
+      "- **Outcome:** The canonical plan is accepted through the production command.\n- **Action:** Run the validator against the plan fixture.\n- **Expected:** The command reports the feature and exact source hash.",
+      "- **Outcome:** The canonical plan is accepted through the production command.\n- **Action:** Run the validator against the plan fixture.\n- **Expected:** The command reports the feature and exact source hash.\n### AC-2: Second criterion\n- **State:** active\n- **Outcome:** Second outcome.\n- **Action:** Second action.\n- **Expected:** Second expected."
+    )
+    .replace(
+      "| AC-1 | production validator CLI | `tools/gsd-contract.mjs` | none |",
+      "| AC-1 | production validator CLI | `tools/gsd-contract.mjs` | none |\n| AC-2 | production validator CLI | `tools/gsd-contract.mjs` | none |"
+    )
+    .replace(
+      "- **Status:** pending\n",
+      "- **Status:** pending\n### T2: Second task\n- **Satisfies:** AC-2\n- **Files:**\n  - `tools/gsd-contract.mjs` — modify: support second task\n- **Test:** `bun test test/gsd-contract.test.js`\n- **Status:** pending\n"
+    );
+
+  // Extract sections
+  const sections = new Map();
+  const rawLines = planWithMultipleTasks.split("\n");
+  let currentHeading = null;
+  let currentLines = [];
+  for (let i = 1; i < rawLines.length; i++) {
+    if (rawLines[i].startsWith("## ")) {
+      if (currentHeading !== null) {
+        sections.set(currentHeading, currentLines.join("\n"));
+      }
+      currentHeading = rawLines[i].slice(3);
+      currentLines = [rawLines[i]];
+    } else if (currentHeading !== null) {
+      if (i < rawLines.length - 1 || rawLines[i] !== "") {
+        currentLines.push(rawLines[i]);
+      }
+    }
+  }
+  if (currentHeading !== null) {
+    sections.set(currentHeading, currentLines.join("\n"));
+  }
+
+  // Put Tasks first
+  const canonicalOrder = [
+    "Feature",
+    "Base",
+    "Summary",
+    "Context",
+    "Domain Impact",
+    "Scope",
+    "Acceptance Criteria",
+    "Decisions",
+    "Invariants",
+    "Non-goals",
+    "Interfaces",
+    "Publication",
+    "Tasks",
+  ];
+  const reversedHeadings = [
+    "Tasks",
+    "Publication",
+    "Interfaces",
+    "Non-goals",
+    "Invariants",
+    "Decisions",
+    "Acceptance Criteria",
+    "Scope",
+    "Domain Impact",
+    "Context",
+    "Summary",
+    "Base",
+    "Feature",
+  ];
+
+  const outOfOrderPlan = ["# Plan", ...reversedHeadings.map((h) => sections.get(h)), ""].join("\n");
+  const { workspace, planPath } = makePlanWorkspace(feature, outOfOrderPlan);
+  const relPath = join(".scratch", feature, "plan.md");
+
+  try {
+    const writeRun = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath, "--write"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(writeRun.status, 0);
+
+    // Validate that sections are in canonical order
+    const fixedBytes = readFileSync(planPath, "utf8");
+    const fixedHeadings = [...fixedBytes.matchAll(/^## (.+)$/gm)].map(([, h]) => h);
+    assert.deepEqual(fixedHeadings, canonicalOrder);
+
+    // Validate byte-for-byte preservation of Tasks section (including T1 and T2)
+    const afterSections = new Map();
+    const afterLines = fixedBytes.split("\n");
+    let aHeading = null;
+    let aLines = [];
+    for (let i = 1; i < afterLines.length; i++) {
+      if (afterLines[i].startsWith("## ")) {
+        if (aHeading !== null) {
+          afterSections.set(aHeading, aLines.join("\n"));
+        }
+        aHeading = afterLines[i].slice(3);
+        aLines = [afterLines[i]];
+      } else if (aHeading !== null) {
+        if (i < afterLines.length - 1 || afterLines[i] !== "") {
+          aLines.push(afterLines[i]);
+        }
+      }
+    }
+    if (aHeading !== null) {
+      afterSections.set(aHeading, aLines.join("\n"));
+    }
+
+    for (const h of canonicalOrder) {
+      assert.equal(afterSections.get(h), sections.get(h), `section ${h} must be preserved byte-for-byte`);
+    }
+
+    // validate-plan passes
+    const validateResult = spawnSync(process.execPath, [CLI, "validate-plan", "--path", relPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(validateResult.status, 0);
+    assert.match(validateResult.stdout, /^status: valid\nkind: plan\nfeature: multi-task-feature\nbase: main\n/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
