@@ -2193,3 +2193,66 @@ test("rejections without a known location emit no line row", () => {
     rmSync(workspace, { recursive: true, force: true });
   }
 });
+
+test("value-level rejections report their exact 1-based line", () => {
+  const lineOf = (content, needle) => content.split("\n").findIndex((line) => line.includes(needle)) + 1;
+  const cases = [
+    {
+      name: "unknown satisfies criterion",
+      content: canonicalPlan().replace("- **Satisfies:** AC-1", "- **Satisfies:** AC-9"),
+      expect: (content) => lineOf(content, "- **Satisfies:** AC-9"),
+      message: /T1 has unknown criterion: AC-9/,
+    },
+    {
+      name: "invalid task status",
+      content: canonicalPlan().replace("- **Status:** pending", "- **Status:** paused"),
+      expect: (content) => lineOf(content, "- **Status:** paused"),
+      message: /T1 has invalid status/,
+    },
+    {
+      name: "vague files intent",
+      content: canonicalPlan().replace("— create: expose canonical plan validation", "— create: todo"),
+      expect: (content) => lineOf(content, "`tools/gsd-contract.mjs` — create: todo"),
+      message: /T1 Files intent must not be vague/,
+    },
+    {
+      name: "vague invariant text",
+      content: canonicalPlan().replace("- **I-1:** Validation never mutates the source plan.", "- **I-1:** todo"),
+      expect: (content) => lineOf(content, "- **I-1:** todo"),
+      message: /I-1 text must not be vague/,
+    },
+    {
+      name: "vague decision rationale",
+      content: canonicalPlan().replace("## Decisions\nNone.", "## Decisions\n### D-1: Keep it\n- **Decision:** Use the production validator\n- **Rationale:** todo"),
+      expect: (content) => lineOf(content, "- **Rationale:** todo"),
+      message: /D-1 decision and rationale must be concrete/,
+    },
+    {
+      name: "invalid criterion state",
+      command: "validate-plan",
+      content: canonicalPlan().replace("- **State:** active", "- **State:** paused"),
+      expect: (content) => lineOf(content, "- **State:** paused"),
+      message: /AC-1 has invalid state/,
+    },
+  ];
+  for (const { name, content, expect, message } of cases) {
+    const { workspace, planPath } = makePlanWorkspace("valid-plan", content);
+    try {
+      const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], {
+        cwd: workspace,
+        encoding: "utf8",
+      });
+      const expectedRow = `line: ${expect(content)}`;
+      assert.equal(result.status, 1, `${name}: ${result.stdout}`);
+      assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/, name);
+      assert.match(result.stdout, message, name);
+      assert.ok(
+        result.stdout.includes(expectedRow),
+        `${name}: expected ${expectedRow} in output:\n${result.stdout}`
+      );
+      assert.equal(result.stderr, "", name);
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});

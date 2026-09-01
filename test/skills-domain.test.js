@@ -153,6 +153,7 @@ test("T7: the domain shard records the shipped harness-fit behavior", () => {
   assert.match(failure, /malformed authority/, "the split names the malformed-authority class");
   assert.match(failure, /never one collapsed status/, "the two classes stay distinguishable");
   assert.match(failure, /exact 1-based `line` as an additive output row/, "known-construct rejections carry a line row");
+  assert.match(failure, /value-level mistakes inside task blocks, criteria, identifier lists, and decisions/, "value-level rejections carry lines too");
   assert.match(failure, /without a computed location emits no `line` row/, "unknown-construct rejections stay line-free");
 
   const delegation = domain.split("\n").find((line) => /^- An injected orchestration/.test(line));
