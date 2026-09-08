@@ -105,12 +105,18 @@ extensions/
 └── gsd-context.d.ts                  # hand-maintained public type surface
 lib/
 ├── gsd-contract.mjs                 # executable full-plan and Quick-fix grammar
+├── gsd-domain.mjs                   # domain index/shard grammar and AGENTS.md canonical section
 ├── gsd-fs.mjs                       # pinned directory chain TOCTOU-hardened file primitives
+├── gsd-milestone.mjs                # milestone ledger grammar and deterministic completion
+├── gsd-record.mjs                   # decision and design record grammar
 ├── gsd-state.mjs                    # state.toon schema, validation, and candidate discovery
 └── gsd-bootstrap.mjs                # skill catalog, bootstrap renderer, recovery capsule, message utils
 tools/
 ├── gsd-contract.mjs                 # plan and Quick-fix validator CLI
-├── gsd-git.mjs                      # read-only derive-base and preflight queries
+├── gsd-domain.mjs                   # domain index/shard validator CLI
+├── gsd-git.mjs                      # read-only derive-base, preflight, and verify-task-branch queries
+├── gsd-milestone.mjs                # milestone ledger validate/complete CLI
+├── gsd-record.mjs                   # decision and design record validator CLI
 └── gsd-state.mjs                    # state.toon read/write/validate CLI
 skills/
 ├── gsd/                              # hidden session bootstrap + canonical reference
