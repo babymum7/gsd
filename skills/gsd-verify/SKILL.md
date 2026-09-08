@@ -1,7 +1,7 @@
 ---
 name: gsd-verify
 description: "Diff/PR review or planned/quick-fix terminal gate."
-produces: [docs/gsd/<feature>/milestones.md, docs/gsd/<feature>/archive/plan.md, docs/gsd/<feature>/archive/implementation.md, state.toon]
+produces: [docs/gsd/<feature>/milestones.md, docs/gsd/<feature>/archive/plan.md, docs/gsd/<feature>/archive/implementation.md, state.toon, plan.md]
 consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md, docs/gsd/<feature>/milestones.md]
 ---
 
@@ -21,8 +21,8 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
 | Standalone review | — | Markdown packet context | — | — |
-| Planned WIP gate | `plan.md`; bound `state.toon` | authorized ledger | `state.toon`; authorized ledger; amended `plan.md` | Stop before review/merge only if `plan.md` or `state.toon` is missing/malformed |
-| Milestone WIP gate | Planned state; authoritative ledger | — | `state.toon`; milestone ledger lifecycle state | Missing source/binding is Spec escalation; missing ledger evidence is Blocker |
+| Planned WIP gate | `plan.md`; bound `state.toon` | authorized ledger | `state.toon`; `docs/gsd/<feature>/milestones.md`; amended `plan.md`; on retain `docs/gsd/<feature>/archive/plan.md` and `docs/gsd/<feature>/archive/implementation.md` | Stop before review/merge only if `plan.md` or `state.toon` is missing/malformed |
+| Milestone WIP gate | Planned state; authoritative ledger | — | `state.toon`; `docs/gsd/<feature>/milestones.md` lifecycle state | Missing source/binding is Spec escalation; missing ledger evidence is Blocker |
 | Quick-fix WIP gate | exact Quick-fix `plan.md`; bound `state.toon` | affected domain shards; `AGENTS.md` | `state.toon`; amended `plan.md` | Missing/malformed grammar, state, or binding blocks; recover real plan, never fabricate it |
 
 ## Planned and milestone WIP gate

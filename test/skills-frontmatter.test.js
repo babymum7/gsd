@@ -177,7 +177,11 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
   assert.match(master, /Quick-fix plan exception/);
   assert.match(verify, /malformed binding[\s\S]{0,180}red deterministic check blocks/i);
   assert.match(planner, /atomically write canonical `schema:v4`[\s\S]{0,40}`state\.toon`/);
-  assert.doesNotMatch(execution, /^produces: \[[^\n]*plan\.md/m);
+  // Line 171 asserts the executing owner amends bound plan bytes, so forbidding `plan.md`
+  // in its produces contradicted the amendment contract it documents. What stays
+  // single-writer is plan creation and binding, which only the planner performs.
+  assert.match(reference, /`gsd-to-plan` single-writes and binds/);
+  assert.doesNotMatch(execution, /init-plan/, "execution never creates a plan");
   assert.match(execution, /ledger[\s\S]{0,60}byte-for-byte read-only[\s\S]{0,60}per-task loop/i);
   assert.match(verify, /final milestone deletes the ledger/);
   assert.match(handoff, /Malformed[\s\S]{0,40}duplicate[\s\S]{0,40}invalid known values[\s\S]{0,40}fail closed/i);
@@ -603,6 +607,26 @@ test("AC-9: frontmatter, capsule recovery, and design dispatch match the modes",
     assert.ok(raw, `${name} declares a produces list`);
     return raw[1].split(",").map((entry) => entry.trim()).filter(Boolean);
   };
+  // Path-shape alone let a skill declare an artifact no mode produces, or produce one it
+  // never declares: `gsd-verify` declared two archive paths its Produced cells never named
+  // and amended `plan.md` without declaring it. The frontmatter union must equal the set of
+  // artifact paths its own mode rows name, so prose synonyms ("authorized ledger") stop
+  // hiding a real write. Non-path Produced prose stays legal and contributes nothing, which
+  // is how an evidence-only owner keeps an empty list.
+  const producedArtifacts = (skill, name) => {
+    const table = skill.match(/## Invocation modes\n+([\s\S]*?)(?:\n## |\n*$)/);
+    assert.ok(table, `${name} declares invocation modes`);
+    const rows = table[1].split("\n").filter((line) => line.startsWith("|"));
+    assert.ok(rows.length > 2, `${name} declares at least one mode row`);
+    const found = new Set();
+    for (const row of rows.slice(2)) {
+      const produced = row.split("|")[4] ?? "";
+      for (const token of produced.matchAll(/`([^`]+)`/g)) {
+        if (/\.(md|toon)$/.test(token[1])) found.add(token[1]);
+      }
+    }
+    return [...found].sort();
+  };
   for (const name of visible) {
     const skill = read(`skills/${name}/SKILL.md`);
     for (const artifact of declaredArtifacts(skill, name)) {
@@ -613,6 +637,11 @@ test("AC-9: frontmatter, capsule recovery, and design dispatch match the modes",
       );
       assert.ok(skill.includes(artifact), `${name} declares ${artifact} outside its own body`);
     }
+    assert.deepEqual(
+      declaredArtifacts(skill, name).sort(),
+      producedArtifacts(skill, name),
+      `${name} frontmatter must list exactly the artifacts its mode rows produce`,
+    );
   }
   const diagnosis = read("skills/gsd-diagnosing-bugs/SKILL.md");
   assert.deepEqual(declaredArtifacts(diagnosis, "gsd-diagnosing-bugs"), []);
@@ -629,6 +658,27 @@ test("AC-9: frontmatter, capsule recovery, and design dispatch match the modes",
     /dispatches no design sub-agent/i,
     "architecture must state that design is never dispatched",
   );
+});
+
+test("the canonical dispatch route is stated identically in canon and README", () => {
+  // README is the human entry point for the same lifecycle, and it claimed every wave —
+  // "a single-task wave included" — dispatches to sub-agents, which is the exact route
+  // decision 0006 rejected and the canon executes inline.
+  const readme = read("README.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  for (const [where, body] of [["README.md", readme], ["REFERENCE.md", reference]]) {
+    assert.match(
+      body,
+      /single-task wave executes inline/i,
+      `${where} must state that a single-task wave executes inline`,
+    );
+    assert.doesNotMatch(
+      body,
+      /a single-task wave included|including single-task waves/i,
+      `${where} must not claim single-task waves are dispatched`,
+    );
+  }
+  assert.match(readme, /five-layer/i, "README must name the five-layer reconciliation gate");
 });
 
 test("AC-10: one vocabulary for one concept across the canon", () => {

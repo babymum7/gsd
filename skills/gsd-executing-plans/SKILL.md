@@ -1,7 +1,7 @@
 ---
 name: gsd-executing-plans
 description: "Use when a valid bound plan and resumable state.toon have pending work that the prompt names."
-produces: [state.toon, docs/gsd/<feature>/milestones.md]
+produces: [state.toon, docs/gsd/<feature>/milestones.md, plan.md]
 consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md, docs/gsd/<feature>/milestones.md]
 ---
 
@@ -20,7 +20,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| Normal plan execution | `plan.md`; bound `state.toon` | authorized ledger | `state.toon`; authorized ledger; amended `plan.md` | Stop only when `plan.md` or `state.toon` is missing/malformed; never synthesize source state or dispatch |
+| Normal plan execution | `plan.md`; bound `state.toon` | authorized ledger | `state.toon`; `docs/gsd/<feature>/milestones.md`; amended `plan.md` | Stop only when `plan.md` or `state.toon` is missing/malformed; never synthesize source state or dispatch |
 | Milestone plan execution | Normal required state; authoritative ledger | — | `state.toon` | Missing source/binding is Spec escalation; missing ledger evidence is Blocker |
 Select `Milestone plan execution` when `plan.md` `## Publication` is non-`null`; otherwise `Normal plan execution`.
 

@@ -123,7 +123,7 @@ None.
 
 ### P-gsd-1: Preserve mode-aware artifact authority
 
-- **Policy:** Each Invocation Mode defines its own Required, Optional, Produced, and Fallback artifacts; flat frontmatter arrays are catalog metadata.
+- **Policy:** Each Invocation Mode defines its own Required, Optional, Produced, and Missing required artifacts; a skill's flat `produces` frontmatter is catalog metadata listing exactly the artifact paths its own mode rows produce, so an evidence-only owner declares an empty list.
 - **Reason:** Mode-first validation prevents missing optional files from inventing workflow state.
 
 ### P-gsd-2: Escalate work that stops being a quick fix
