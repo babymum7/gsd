@@ -29,7 +29,7 @@ Own request classification, feature convergence, plan binding and in-flight amen
 ## Actors
 
 - User — supplies intent, resolves load-bearing decisions and goals during discussion, and may select a broad domain bootstrap only before the first domain index exists.
-- Session Owner — owns discovery, planning, repair, verification, Git, merge, and cleanup inline, executes single-task waves inline with `gsd-tdd`, dispatches waves of two or more tasks to isolated per-task sub-agents (concurrently in separate isolated workspaces on separate task branches; serially in plan order when task isolation is unavailable or an isolated spawn fails), verifies each dispatch prompt against the slice before sending, inspects each returned task before merging its task branch into `wip/<feature>` in strict plan order, and implements inline when dispatch is unavailable.
+- Session Owner — owns discovery, planning, repair, verification, Git, merge, and cleanup inline, executes single-task waves inline with `gsd-tdd`, dispatches waves of two or more tasks to isolated per-task sub-agents (concurrently in separate isolated workspaces on separate task branches; serially in plan order when task isolation is unavailable or an isolated spawn fails), verifies each dispatch prompt against the slice before sending, reconciles returned tasks through the ordered five-layer gate before merging task branches into `wip/<feature>` in strict plan order, re-runs every merged task's focused check on that tree before writing the checkpoint, and implements inline when dispatch is unavailable.
 - Future Coding Agent — follows the canonical domain-documentation instructions in the repository-root `AGENTS.md`, which is the only agent contract, and reads only affected mapped contexts.
 
 ## Invariants
@@ -133,12 +133,12 @@ None.
 
 ### P-gsd-3: Make the session owner the sole lifecycle authority
 
-- **Policy:** The current top-level session owns plan interpretation, repair, verification, E2E, Git, merge, and cleanup inline, executes single-task waves inline with `gsd-tdd`, dispatches waves of two or more tasks into separate isolated workspaces (serially in plan order, the same validated slices one task at a time, when isolation is unavailable or an isolated spawn fails), verifies each dispatch prompt against the slice before sending it, inspects each returned task — diff scope, focused check, and diff read — and then merges each task branch into `wip/<feature>` in strict plan order, keeping inline implementation as the fallback when dispatch is unavailable.
+- **Policy:** The current top-level session owns plan interpretation, repair, verification, E2E, Git, merge, and cleanup inline, executes single-task waves inline with `gsd-tdd`, dispatches waves of two or more tasks into separate isolated workspaces (serially in plan order, the same validated slices one task at a time, when isolation is unavailable or an isolated spawn fails), verifies each dispatch prompt against the slice before sending it, reconciles returned tasks through the ordered five-layer gate (sub-agent report inadmissibility, mechanical branch verification, base RED re-proof, weakened-guard scan, and post-merge integration proof on `wip/<feature>` before checkpointing), and routes integrity failures to inline repair, keeping inline implementation as the fallback when dispatch is unavailable.
 - **Reason:** Task authorship is not lifecycle authority: one reconciling owner avoids lossy handoff whether tasks are executed inline or authored by sub-agents, while canonical artifacts let a later session assume the role safely.
 
 ### P-gsd-4: Converge only through deterministic blockers
 
-- **Policy:** Repair continues only for malformed authority, ownership or coverage mismatch, explicit contradiction, domain drift, unresolved change, or a red deterministic check.
+- **Policy:** Repair continues only for malformed authority, ownership or coverage mismatch, explicit contradiction, domain drift, unresolved change, or a red deterministic check; a judgement finding blocks only by citing bound plan text (a Decision, invariant, non-goal, acceptance criterion, or file intent) or a red deterministic check, while taste, style, and unsourced verdicts never block and never persist.
 - **Reason:** Objective evidence converges without subjective verdict loops.
 
 ### P-gsd-5: Rehydrate authority from canonical sources

@@ -8,6 +8,7 @@ consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AG
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
+- Intent: review a diff/PR or prove planned or Quick-fix code-and-domain conformance before slow/E2E
 - Do-not-load: invent completion without deterministic gates; per-task terminal verification
 - Transition: planned or Quick-fix green path performs squash, automatic cleanup, and optional retain/archive
 
@@ -38,7 +39,7 @@ After all tasks and Fast TDD Checks are green, the session owner performs determ
 2. Prove `Domain Impact` against cumulative diff: `none` requires concrete evidence that no term, invariant, workflow, outcome, relationship, policy, or bounded-context meaning changed. Every non-`none` classification requires exact affected shards and index/AGENTS upserts owned by the same tasks as code; with an existing index, broad-bootstrap offers/selections are contradictory.
 3. Compare affected domain shards with production code, schemas, contracts, and tests: they must describe current production behavior, contain no obsolete or future target state, and leave unrelated contexts untouched. Domain drift blocks completion as a Blocker.
 4. Prove every owned durable decision and design record carries mandatory minimal headers: run `bun "<GSD_ROOT>/tools/gsd-record.mjs" validate --path <record> --kind decisions|design` on each owned `docs/decisions/NNNN-slug.md` and `docs/design/NNNN-slug.md`; exit 0 proves records, exit 1 blocks as a Blocker. See [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Durable decision and design records.
-5. Only a malformed binding, ownership/coverage mismatch, explicit contract contradiction, domain drift, unresolved change, or red deterministic check blocks. No free-form critique or model-generated verdict is terminal authority; green is current-commit conformance, never persisted prose.
+5. Only a malformed binding, ownership/coverage mismatch, explicit contract contradiction, domain drift, unresolved change, or red deterministic check blocks. No free-form critique or model-generated verdict is terminal authority: a judgement finding blocks only by citing bound plan text (a Decision, invariant, non-goal, acceptance criterion, or file intent) or a red deterministic check, while taste, style, and unsourced verdicts never block and never persist as prose. Green is current-commit conformance, never persisted prose.
 6. A blocker keeps `phase=repair` and `next_action=enter terminal verification/repair`; repair only plan-owned source, run affected Fast TDD Checks, and repeat invalidated proofs. Any source change invalidates prior conformance.
 7. Run the complete feature-affected Deferred Slow E2E suite only after current-commit conformance. Any needed server, watcher, or daemon starts as a supervised named process with observed readiness condition (never a bare shell launch), torn down before the merge gate. Failure returns to repair, affected fast checks, invalidated conformance, then the complete slow suite. Merge requires full slow/E2E GREEN on the same unchanged commit.
 

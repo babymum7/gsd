@@ -10,12 +10,13 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 
 - Role: owner
+- Intent: design a named seam or audit/refactor architecture with domain-aligned deep boundaries
 - Do-not-load: unrelated broad exploration or feature behavior whose architecture has no unresolved seam
 - Transition: a selected candidate enters `gsd-brainstorming`; bound execution returns bounded evidence or Spec escalation to its session owner
 
 # Codebase Architecture
 
-> **Invocation guard** — automatic selection loads this skill for explicit interface/architecture intent or diagnosis-returned architectural evidence. Select one mode before validating only that row. Missing optional domain docs never invent authority or widen scope.
+> **Invocation guard** — automatic selection loads this skill for explicit interface/architecture intent or diagnosis-returned architectural evidence (an architectural cause arrives from diagnosis before any repair lands). Select one mode before validating only that row. Missing optional domain docs never invent authority or widen scope. This skill dispatches no design sub-agent: the session owner authors every candidate and seam inline.
 
 ## Invocation modes
 
@@ -23,7 +24,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 | --- | --- | --- | --- | --- |
 | Named seam design | named module, interface, seam, or bounded area | mapped domain context | recommendation | ask one focused target question; never survey the repository to invent a target |
 | Standalone architecture audit | user-requested area or explicit whole-codebase intent | mapped domain context | ranked deepening candidates | ask one focused scope question only when no area is supplied |
-| Post-diagnosis architecture | bounded root-cause evidence | mapped domain context | candidate or execution blocker | return to diagnosis when the architectural cause is not evidenced |
+| Post-diagnosis architecture | bounded root-cause evidence (an architectural cause arrives from diagnosis before any repair lands) | mapped domain context | candidate or execution blocker | return to diagnosis when the architectural cause is not evidenced |
 
 Named seam design reads target and direct callers/dependencies only. Scoped audits read requested areas and direct dependencies. Whole-codebase walks require explicit request. Stay in tracked production paths; skip nested repos, submodules, dependencies, build outputs, vendored code, and ignored files.
 

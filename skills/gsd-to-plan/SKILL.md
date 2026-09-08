@@ -8,8 +8,9 @@ consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AG
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
+- Intent: create or finalize the canonical `plan.md` with bound Domain Impact after acceptance criteria converge
 - Do-not-load: open design decisions; Nano edits
-- Transition: on `validate-plan` success use `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> phase=approved plan_path=.scratch/<feature>/plan.md plan_sha256=<hash> base_ref=<base> wip_branch=wip/<feature>` to atomically write `state.toon` (never the `write` tool directly; derived defaults fill `next_action` and `checkpoint_revision`; `write-state --json-file` remains the fallback for values `key=value` cannot express). Then load `gsd-executing-plans` without a prompt
+- Transition: on `validate-plan` success use `gsd-state.mjs set` to write `state.toon` atomically with the invocation this skill's binding step names, never the `write` tool, then load `gsd-executing-plans` without a prompt
 
 # To Plan
 
@@ -42,7 +43,7 @@ This skill is the sole writer at creation and finalization; after binding the ex
 
 Read `plan.md` § Base from the work tree, never from convention: before `wip/<feature>` exists run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed branch, so a linked worktree records its own branch. Exit 1 with `code: detached-head` stops packet creation until the user checks out a branch, because a commit oid can hold no squash. Never read the base by hand with `git rev-parse --abbrev-ref HEAD`, which prints the literal `HEAD` when detached. See [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Base derivation and merge target.
 
-After every write or revision, run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md`. Only exit 0 with `kind: plan`, the matching feature, exact source `sha256`, and expected task count reaches execution. Exit 1 returns malformed authority to Discussion; exit 2 corrects invocation. Use the returned hash for plan binding and never calculate a competing interpretation.
+After every write or revision, run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md`. Only exit 0 with `kind: plan`, the matching feature, exact source `sha256`, and expected task count reaches execution. Exit 1 returns malformed authority to Spec escalation through `gsd-handoff`; exit 2 corrects invocation. Use the returned hash for plan binding and never calculate a competing interpretation.
 
 Tasks are sequential `T1`…`TN`; order encodes dependencies. Every active AC occurs exactly once across tasks. A task spanning ACs requires identical seam, test path, and lower-seam reason. For non-`none` Domain Impact, bind every exact affected `docs/domain/<scope>.md`, any required `docs/domain/index.md`, and canonical `AGENTS.md` upsert to the same owning task as semantic code; never create trailing documentation-only tasks. The validator rejects shard owners without semantic code changes.
 
@@ -53,12 +54,12 @@ Plan complete observable behavior, not layers.
 - Pin the highest deterministic fast public seam; never use `none` for observable behavior.
 - `none` is only for mechanically verified non-behavioral work.
 - Browser/GUI, external-network, long-lived, large-fixture, and material-cost checks are Deferred Slow E2E, not focused task checks.
-- Vague checks, unowned/duplicate ACs/paths, missing references, contradictory Domain Impact, or unresolved decisions return to Discussion.
+- Vague checks, unowned/duplicate ACs/paths, missing references, contradictory Domain Impact, or unresolved decisions return to Spec escalation through `gsd-handoff`.
 ## Auto-execution handoff
-The parser accepts only structured task blocks carrying canonical `Domain Impact`. This planner single-writes exactly that grammar; path-only task forms, missing Domain Impact, or malformed fields return to Discussion instead of receiving a binding.
+The parser accepts only structured task blocks carrying canonical `Domain Impact`. This planner single-writes exactly that grammar; path-only task forms, missing Domain Impact, or malformed fields return to Spec escalation through `gsd-handoff` instead of receiving a binding.
 
 
-Planning is the last interactive step of discuss. Without approval prompts or menus: once `validate-plan` exits 0, immediately load `gsd-handoff` in `Execution state write` mode and atomically write canonical `schema:v4` `state.toon` with plan path/hash, `phase=approved`, no completed task, base/WIP identity, canonical preferences, checkpoint revision, and `next_action` set to `start/continue task`.
+Planning is the last interactive step of discuss. Without approval prompts or menus: once `validate-plan` exits 0, atomically write canonical `schema:v4` `state.toon` with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> phase=approved plan_path=.scratch/<feature>/plan.md plan_sha256=<hash> base_ref=<base> wip_branch=wip/<feature>` (derived defaults fill `next_action=start/continue task` and `checkpoint_revision`).
 Read it back and verify binding before execution. A fresh binding after Spec escalation supersedes older binding state by atomic overwrite without numbered handoff history. Never leave partial state bytes.
 Then load `gsd-executing-plans` without another prompt. Scratch cleanup defaults to automatic delete after green merge; retain or archive-and-delete is recorded only when selected during discuss without reopening planning.
 ## Contextual disclosure

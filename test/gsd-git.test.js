@@ -528,6 +528,13 @@ test("the read-only boundary rejects every mutating Git invocation", () => {
     ["status", "--porcelain=v1", "--untracked-files=all", "-z"],
     ["--no-optional-locks", "status"],
     [],
+    ["merge-base", "main", "task-t2"],
+    ["merge-base", "--is-ancestor", "-m", "task-t2"],
+    ["merge-base", "--is-ancestor", "main", "task..t2"],
+    ["diff", "--name-only", "main"],
+    ["diff", "--name-only", "-m", "main...task-t2"],
+    ["diff", "--name-only", "main..task-t2"],
+    ["diff", "--name-only", "-o", "out", "main...task-t2"],
   ];
   for (const args of rejected) {
     assert.throws(
@@ -546,6 +553,8 @@ test("the read-only boundary rejects every mutating Git invocation", () => {
     ["worktree", "list", "--porcelain"],
     ["show-ref", "--verify", "--quiet", "refs/heads/main"],
     ["show-ref", "--verify", "--quiet", "refs/heads/release/2026.1"],
+    ["merge-base", "--is-ancestor", "main", "task-t2"],
+    ["diff", "--name-only", "main...task-t2"],
   ]) {
     assertReadOnlyGit(args);
   }
@@ -648,5 +657,435 @@ test("preflight requires attached HEAD to be the recorded WIP branch and reports
     assert.match(result.stdout, /^exit=1$/m);
   } finally {
     rmSync(onStray.root, { recursive: true, force: true });
+  }
+});
+
+function makeTaskBranchPacket({ feature = "verify-demo", base = "main" } = {}) {
+  const root = mkdtempSync(join(tmpdir(), "gsd-task-test-"));
+  git(["init", "-q", "--initial-branch", base, "."], root);
+  git(["config", "user.email", "test@example.com"], root);
+  git(["config", "user.name", "test"], root);
+  writeFileSync(join(root, "file.txt"), "base file\n");
+  mkdirSync(join(root, "src"), { recursive: true });
+  writeFileSync(join(root, "src", "app.js"), "base app\n");
+  git(["add", "-A"], root);
+  git(["commit", "-qm", "init"], root);
+
+  const featureDir = join(root, ".scratch", feature);
+  mkdirSync(featureDir, { recursive: true });
+  const planContent = [
+    "# Plan",
+    "## Feature",
+    `\`${feature}\``,
+    "## Base",
+    `\`${base}\``,
+    "## Summary",
+    "Summary for task branch test.",
+    "## Context",
+    "gsd",
+    "## Domain Impact",
+    "- **Classification:** none",
+    "- **Contexts:** none",
+    "- **Documentation:** none",
+    "- **Broad bootstrap:** not-offered",
+    "- **Evidence:** Evidence text.",
+    "## Scope",
+    "- Scope item.",
+    "## Acceptance Criteria",
+    "### AC-1: Criterion 1",
+    "- **State:** active",
+    "- **Outcome:** Outcome 1.",
+    "- **Action:** Action 1.",
+    "- **Expected:** Expected 1.",
+    "### AC-2: Criterion 2",
+    "- **State:** active",
+    "- **Outcome:** Outcome 2.",
+    "- **Action:** Action 2.",
+    "- **Expected:** Expected 2.",
+    "## Decisions",
+    "None.",
+    "## Invariants",
+    "- **I-1:** Invariant 1.",
+    "## Non-goals",
+    "- **NG-1:** Non-goal 1.",
+    "## Interfaces",
+    "| Criterion | Seam | Path | Lower-seam reason |",
+    "| --- | --- | --- | --- |",
+    "| AC-1 | seam | `path` | none |",
+    "| AC-2 | seam | `path` | none |",
+    "## Publication",
+    "null",
+    "## Tasks",
+    "### T1: First task",
+    "- **Satisfies:** AC-1",
+    "- **Files:**",
+    "  - `file.txt` — modify: update file.txt",
+    "- **Test:** `bun test`",
+    "- **Status:** pending",
+    "### T2: Second task",
+    "- **Satisfies:** AC-2",
+    "- **Files:**",
+    "  - `src/app.js` — modify: update src/app.js",
+    "- **Test:** `bun test`",
+    "- **Status:** pending",
+    "",
+  ].join("\n");
+  writeFileSync(join(featureDir, "plan.md"), planContent);
+
+  return { root, feature, relative: join(".scratch", feature) };
+}
+
+test("verify-task-branch reports ready on a compliant task branch", () => {
+  const { root, relative } = makeTaskBranchPacket();
+  try {
+    git(["checkout", "-q", "-b", "task-t2", "main"], root);
+    writeFileSync(join(root, "src", "app.js"), "updated app\n");
+    git(["commit", "-qam", "work for t2"], root);
+    git(["checkout", "-q", "main"], root);
+
+    const result = cli(
+      [
+        "verify-task-branch",
+        "--feature-dir",
+        relative,
+        "--task",
+        "T2",
+        "--branch",
+        "task-t2",
+        "--wave-base",
+        "main",
+      ],
+      root,
+    );
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /^status: ready$/m);
+    assert.match(result.stdout, /^task: T2$/m);
+    assert.match(result.stdout, /^exit=0$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verify-task-branch blocks an absent task branch", () => {
+  const { root, relative } = makeTaskBranchPacket();
+  try {
+    const result = cli(
+      [
+        "verify-task-branch",
+        "--feature-dir",
+        relative,
+        "--task",
+        "T2",
+        "--branch",
+        "non-existent-branch",
+        "--wave-base",
+        "main",
+      ],
+      root,
+    );
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout, /^status: blocked$/m);
+    assert.match(result.stdout, /^code: branch-missing$/m);
+    assert.match(result.stdout, /^exit=1$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verify-task-branch blocks a task branch not descended from the wave base", () => {
+  const { root, relative } = makeTaskBranchPacket();
+  try {
+    git(["checkout", "-q", "-b", "other-base", "main"], root);
+    writeFileSync(join(root, "file.txt"), "diverged on other-base\n");
+    git(["commit", "-qam", "diverged commit"], root);
+
+    git(["checkout", "-q", "-b", "task-t2", "main"], root);
+    writeFileSync(join(root, "src", "app.js"), "t2 change\n");
+    git(["commit", "-qam", "t2 commit"], root);
+
+    const result = cli(
+      [
+        "verify-task-branch",
+        "--feature-dir",
+        relative,
+        "--task",
+        "T2",
+        "--branch",
+        "task-t2",
+        "--wave-base",
+        "other-base",
+      ],
+      root,
+    );
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout, /^status: blocked$/m);
+    assert.match(result.stdout, /^code: base-not-ancestor$/m);
+    assert.match(result.stdout, /^exit=1$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verify-task-branch blocks an empty diff against wave base", () => {
+  const { root, relative } = makeTaskBranchPacket();
+  try {
+    git(["checkout", "-q", "-b", "task-t2-empty", "main"], root);
+
+    const result = cli(
+      [
+        "verify-task-branch",
+        "--feature-dir",
+        relative,
+        "--task",
+        "T2",
+        "--branch",
+        "task-t2-empty",
+        "--wave-base",
+        "main",
+      ],
+      root,
+    );
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout, /^status: blocked$/m);
+    assert.match(result.stdout, /^code: empty-diff$/m);
+    assert.match(result.stdout, /^exit=1$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verify-task-branch blocks a task branch modifying paths outside task plan Files", () => {
+  const { root, relative } = makeTaskBranchPacket();
+  try {
+    git(["checkout", "-q", "-b", "task-t2-outside", "main"], root);
+    writeFileSync(join(root, "file.txt"), "tampered by t2\n");
+    git(["commit", "-qam", "tampered file"], root);
+
+    const result = cli(
+      [
+        "verify-task-branch",
+        "--feature-dir",
+        relative,
+        "--task",
+        "T2",
+        "--branch",
+        "task-t2-outside",
+        "--wave-base",
+        "main",
+      ],
+      root,
+    );
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout, /^status: blocked$/m);
+    assert.match(result.stdout, /^code: out-of-slice-path$/m);
+    assert.match(result.stdout, /^exit=1$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verify-task-branch blocks a task branch mutating .scratch/", () => {
+  const { root, relative } = makeTaskBranchPacket();
+  try {
+    git(["checkout", "-q", "-b", "task-t2-scratch", "main"], root);
+    writeFileSync(join(root, "src", "app.js"), "app change\n");
+    writeFileSync(join(root, relative, "stray.txt"), "stray scratch file\n");
+    git(["add", "-A"], root);
+    git(["commit", "-qm", "stray scratch commit"], root);
+
+    const result = cli(
+      [
+        "verify-task-branch",
+        "--feature-dir",
+        relative,
+        "--task",
+        "T2",
+        "--branch",
+        "task-t2-scratch",
+        "--wave-base",
+        "main",
+      ],
+      root,
+    );
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout, /^status: blocked$/m);
+    assert.match(result.stdout, /^code: scratch-mutated$/m);
+    assert.match(result.stdout, /^exit=1$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verify-task-branch blocks when plan is missing, malformed, or does not define task", () => {
+  const { root, relative } = makeTaskBranchPacket();
+  try {
+    git(["checkout", "-q", "-b", "task-t2", "main"], root);
+    writeFileSync(join(root, "src", "app.js"), "app change\n");
+    git(["commit", "-qam", "t2 commit"], root);
+
+    const notFound = cli(
+      [
+        "verify-task-branch",
+        "--feature-dir",
+        relative,
+        "--task",
+        "T99",
+        "--branch",
+        "task-t2",
+        "--wave-base",
+        "main",
+      ],
+      root,
+    );
+    assert.equal(notFound.status, 1, notFound.stdout + notFound.stderr);
+    assert.match(notFound.stdout, /^status: blocked$/m);
+    assert.match(notFound.stdout, /^code: plan-unbound$/m);
+    assert.match(notFound.stdout, /^exit=1$/m);
+
+    writeFileSync(join(root, relative, "plan.md"), "malformed garbage\n");
+    const malformed = cli(
+      [
+        "verify-task-branch",
+        "--feature-dir",
+        relative,
+        "--task",
+        "T2",
+        "--branch",
+        "task-t2",
+        "--wave-base",
+        "main",
+      ],
+      root,
+    );
+    assert.equal(malformed.status, 1, malformed.stdout + malformed.stderr);
+    assert.match(malformed.stdout, /^status: blocked$/m);
+    assert.match(malformed.stdout, /^code: plan-unbound$/m);
+    assert.match(malformed.stdout, /^exit=1$/m);
+
+    rmSync(join(root, relative, "plan.md"));
+    const missing = cli(
+      [
+        "verify-task-branch",
+        "--feature-dir",
+        relative,
+        "--task",
+        "T2",
+        "--branch",
+        "task-t2",
+        "--wave-base",
+        "main",
+      ],
+      root,
+    );
+    assert.equal(missing.status, 1, missing.stdout + missing.stderr);
+    assert.match(missing.stdout, /^status: blocked$/m);
+    assert.match(missing.stdout, /^code: plan-unbound$/m);
+    assert.match(missing.stdout, /^exit=1$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verify-task-branch exits 2 with code: usage on unknown argument or missing required flags", () => {
+  const { root, relative } = makeTaskBranchPacket();
+  try {
+    const unknownFlag = cli(
+      [
+        "verify-task-branch",
+        "--feature-dir",
+        relative,
+        "--task",
+        "T2",
+        "--branch",
+        "task-t2",
+        "--wave-base",
+        "main",
+        "--bogus-flag",
+      ],
+      root,
+    );
+    assert.equal(unknownFlag.status, 2, unknownFlag.stdout + unknownFlag.stderr);
+    assert.match(unknownFlag.stdout, /^status: error$/m);
+    assert.match(unknownFlag.stdout, /^code: usage$/m);
+
+    const missingFlag = cli(
+      [
+        "verify-task-branch",
+        "--feature-dir",
+        relative,
+        "--task",
+        "T2",
+      ],
+      root,
+    );
+    assert.equal(missingFlag.status, 2, missingFlag.stdout + missingFlag.stderr);
+    assert.match(missingFlag.stdout, /^status: error$/m);
+    assert.match(missingFlag.stdout, /^code: usage$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verify-task-branch accepts a compliant task branch with a quick-fix plan", () => {
+  const root = mkdtempSync(join(tmpdir(), "gsd-task-qf-"));
+  const base = "main";
+  const feature = "qf-demo";
+  try {
+    git(["init", "-q", "--initial-branch", base, "."], root);
+    git(["config", "user.email", "test@example.com"], root);
+    git(["config", "user.name", "test"], root);
+    mkdirSync(join(root, "src"), { recursive: true });
+    writeFileSync(join(root, "src", "fix.js"), "original code\n");
+    git(["add", "-A"], root);
+    git(["commit", "-qm", "init"], root);
+
+    const featureDir = join(root, ".scratch", feature);
+    mkdirSync(featureDir, { recursive: true });
+    const qfContent = [
+      "# Quick-fix Plan",
+      "## Feature",
+      `\`${feature}\``,
+      "## Base",
+      `\`${base}\``,
+      "## Domain Impact",
+      "- **Classification:** none",
+      "- **Contexts:** none",
+      "- **Documentation:** none",
+      "- **Broad bootstrap:** not-offered",
+      "- **Evidence:** Evidence text.",
+      "## Tasks",
+      "### T1: Bounded fix",
+      "- **Files:**",
+      "  - `src/fix.js` — modify: fix bug",
+      "- **Test:** `bun test`",
+      "",
+    ].join("\n");
+    writeFileSync(join(featureDir, "plan.md"), qfContent);
+
+    git(["checkout", "-q", "-b", "task-t1", "main"], root);
+    writeFileSync(join(root, "src", "fix.js"), "fixed code\n");
+    git(["commit", "-qam", "apply fix"], root);
+    git(["checkout", "-q", "main"], root);
+
+    const result = cli(
+      [
+        "verify-task-branch",
+        "--feature-dir",
+        join(".scratch", feature),
+        "--task",
+        "T1",
+        "--branch",
+        "task-t1",
+        "--wave-base",
+        "main",
+      ],
+      root,
+    );
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /^status: ready$/m);
+    assert.match(result.stdout, /^task: T1$/m);
+    assert.match(result.stdout, /^exit=0$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });

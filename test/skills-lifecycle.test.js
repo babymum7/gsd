@@ -605,5 +605,201 @@ test("planner skill wires init-plan scaffold and reference contract", () => {
   );
 });
 
+test("AC-2 and AC-3: layered wave reconciliation gate and post-merge integration evidence", () => {
+  const reference = read("skills/gsd/REFERENCE.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+
+  const refWave = reference.match(/### Wave dispatch\n([\s\S]*?)(?=\n### |\n## |$)/)?.[1];
+  assert.ok(refWave, "REFERENCE.md must have a ### Wave dispatch section");
+
+  const execWave = execution.match(/## Wave dispatch\n([\s\S]*?)(?=\n## |$)/)?.[1];
+  assert.ok(execWave, "SKILL.md must have a ## Wave dispatch section");
+
+  for (const [name, text] of [["REFERENCE.md", refWave], ["SKILL.md", execWave]]) {
+    // 1. Report inadmissibility
+    assert.match(
+      text,
+      /inadmissible/i,
+      `${name} must state sub-agent reports are inadmissible as evidence`,
+    );
+
+    // 2. Mechanical proof: verify-task-branch
+    assert.match(
+      text,
+      /verify-task-branch/,
+      `${name} must require verify-task-branch mechanical proof`,
+    );
+
+    // 3. RED re-proof on wave base
+    assert.match(
+      text,
+      /RED re-proof[\s\S]{0,120}fail[s]? on (?:the )?wave base/i,
+      `${name} must require RED re-proof on wave base`,
+    );
+
+    // 4. Weakened-guard scan
+    assert.match(
+      text,
+      /weakened-guard scan[\s\S]{0,200}(?:delete|skip|rename)[\s\S]{0,80}existing test/i,
+      `${name} must require weakened-guard scan rejecting deleted/skipped/renamed tests or loosened config`,
+    );
+
+    // 5. Integration proof: post-merge focused check before checkpoint
+    assert.match(
+      text,
+      /re-runs? every merged wave task's focused check[\s\S]{0,160}(?:before|prior to)[\s\S]{0,80}gsd-state\.mjs set/i,
+      `${name} must require re-running every merged wave task's focused check on wip branch before checkpoint`,
+    );
+    assert.match(
+      text,
+      /pre-merge (?:branch )?checks? (?:are|is) never sufficient/i,
+      `${name} must state that pre-merge checks are never sufficient for a checkpoint`,
+    );
+
+    // Failure routing: never re-dispatch integrity failure
+    assert.match(
+      text,
+      /integrity failure[\s\S]{0,140}never re-dispatch/i,
+      `${name} must state integrity failures return to inline repair and are never re-dispatched`,
+    );
+
+    // Order check: layer 1 -> layer 2 -> layer 3 -> layer 4 -> layer 5 -> failure routing
+    assert.match(
+      text,
+      /inadmissible[\s\S]+verify-task-branch[\s\S]+fail[s]? on (?:the )?wave base[\s\S]+weakened-guard scan[\s\S]+re-runs? every merged wave task's focused check[\s\S]+never re-dispatch/i,
+      `${name} must present the five layers and failure routing in strict order`,
+    );
+  }
+
+  // Pre-merge checkpoint wording is deleted in executing-plans
+  assert.doesNotMatch(
+    execWave,
+    /commit one green checkpoint, then write `state\.toon`/i,
+    "SKILL.md must drop pre-merge-only checkpoint wording",
+  );
+});
+
 
 // --- session-owner terminal conformance ---
+test("AC-4: bootstrap routing has no backend escape hatch, proper quick-fix order, and clean ledger deletion", () => {
+  const master = read("skills/gsd/SKILL.md");
+
+  // Rule 4 carries no backend escape hatch
+  assert.doesNotMatch(master, /backend-only work stays direct/i, "bootstrap must not route backend work directly");
+
+  // Rule 6 orders Quick-fix plan writing before validate-quick-fix proof
+  assert.match(
+    master,
+    /write its plan[\s\S]{0,100}prove grammar fit[\s\S]{0,80}validate-quick-fix/i,
+    "bootstrap must order Quick-fix plan writing before validate-quick-fix proof",
+  );
+
+  // Rule 8 names inline single-task waves where it names wave authorship
+  assert.match(
+    master,
+    /single-task waves execute inline with `gsd-tdd`/i,
+    "bootstrap must name inline single-task waves where it names wave authorship",
+  );
+
+  // Canonical authority states final-milestone ledger deletion instead of all-done survival case
+  assert.match(
+    master,
+    /all-`done`, fail closed/i,
+    "bootstrap must keep all-done fail closed rule",
+  );
+  assert.doesNotMatch(
+    master,
+    /unless canonical completion conditions hold/i,
+    "bootstrap must drop the all-done ledger survival claim",
+  );
+  assert.match(
+    master,
+    /final milestone deletes the (?:milestone )?ledger/i,
+    "bootstrap must state final milestone deletes the ledger",
+  );
+});
+
+test("AC-5: planner binds state without detour and names reachable escalation route", () => {
+  const planner = read("skills/gsd-to-plan/SKILL.md");
+
+  // Writes state through gsd-state.mjs set and loads gsd-executing-plans with no gsd-handoff step
+  assert.match(
+    planner,
+    /gsd-state\.mjs[" ]+set[\s\S]{0,400}load `gsd-executing-plans`/i,
+    "planner must write state through gsd-state.mjs set and load gsd-executing-plans directly",
+  );
+  assert.doesNotMatch(
+    planner,
+    /load `gsd-handoff` in `Execution state write` mode/i,
+    "planner must not detour through gsd-handoff for state binding",
+  );
+
+  // Rejection paths name Spec escalation through gsd-handoff, never bare Discussion destination
+  assert.doesNotMatch(
+    planner,
+    /(?:return|returns)(?: [^.\n]+)? to Discussion/i,
+    "planner rejection paths must not use Discussion as destination",
+  );
+  assert.match(
+    planner,
+    /Spec escalation through `gsd-handoff`/i,
+    "planner rejection paths must name Spec escalation through gsd-handoff",
+  );
+});
+
+test("AC-6: diagnosis returns evidence only and routes architectural causes before repair", () => {
+  const diagnosing = read("skills/gsd-diagnosing-bugs/SKILL.md");
+  const architecture = read("skills/gsd-codebase-architecture/SKILL.md");
+
+  // Diagnosis contains no phase that implements or commits a fix
+  assert.doesNotMatch(
+    diagnosing,
+    /## Phase \d+ — Fix/i,
+    "diagnosis must not contain a phase that implements a fix",
+  );
+  assert.doesNotMatch(
+    diagnosing,
+    /commit message records/i,
+    "diagnosis must not contain a phase that commits a fix",
+  );
+
+  // States evidence-only inline scope in dispatch contract or invocation guard
+  assert.match(
+    diagnosing,
+    /diagnosis is (?:always )?performed inline in the top-level session/i,
+    "diagnosis must state inline top-level session scope up front",
+  );
+  assert.match(
+    diagnosing,
+    /evidence only|root-cause evidence only/i,
+    "diagnosis must state evidence-only scope in dispatch contract or invocation guard",
+  );
+
+  // `produces:` is the catalog's artifact union and a consumer resolves each entry as a
+  // path, so an evidence-only owner declares an empty list exactly like `gsd-tdd`; the
+  // Produced cells carry the returned evidence in prose instead.
+  assert.match(
+    diagnosing,
+    /^produces: \[\]$/m,
+    "diagnosis writes no artifact, so its produces list stays empty",
+  );
+  assert.match(
+    diagnosing,
+    /\|\s*root-cause evidence\s*\|/i,
+    "diagnosis Invocation modes Produced cells must state root-cause evidence",
+  );
+
+  // Routes architectural cause to gsd-codebase-architecture before repair
+  assert.match(
+    diagnosing,
+    /transition to `gsd-codebase-architecture` before repair|route[sd]? (?:an )?architectural cause to `gsd-codebase-architecture` before repair/i,
+    "diagnosis must route architectural causes before repair",
+  );
+
+  // Architecture skill states intake arrives before repair lands
+  assert.match(
+    architecture,
+    /architectural cause arrives from diagnosis before (?:any )?repair lands|arriving before (?:any )?repair lands/i,
+    "architecture skill must state architectural intake arrives before repair lands",
+  );
+});

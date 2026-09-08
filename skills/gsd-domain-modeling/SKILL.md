@@ -8,6 +8,7 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md]
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: helper
+- Intent: maintain current production domain behavior for affected contexts
 - Helper-when: must load when Domain Impact is not `none` or explicit domain-model work is selected; cannot be skipped while that condition holds
 - Do-not-load: read-only or Nano work; uncertain or unrelated contexts
 - Transition: return exact changed domain and AGENTS paths to the session owner
@@ -24,8 +25,9 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 | Existing-index execution update | valid `docs/domain/index.md`; every mapped affected shard | `AGENTS.md` | affected shards; canonical AGENTS sections | malformed index, missing mapped shard, orphan shard, or any other partial directory fails closed |
 | Absent-index feature bootstrap | bounded non-`none` Domain Impact | `AGENTS.md` | index; required feature-scoped shards; canonical AGENTS sections | ambiguous context ownership returns one pre-binding question or post-binding Spec escalation |
 | Absent-index broad bootstrap | explicit `Broad bootstrap: selected` plus bounded feature impact | `AGENTS.md` | index; required feature shards; additional evidenced context shards; canonical AGENTS sections | no explicit selection means feature-scoped bootstrap only |
+| Explicit standalone domain work | explicit domain-model intent; target context or scope | valid index; existing target shards; `AGENTS.md` | validated index; created or updated target shards; canonical AGENTS sections | ambiguous context asks one focused question; missing production evidence fails closed |
 
-This skill is the **sole writer** of `docs/domain/index.md`, `docs/domain/<scope>.md`, and canonical GSD sections in `AGENTS.md`. Other skills classify impact and invoke it, never editing these contracts.
+This skill is the **sole writer** and canonical author of the domain schema and rules. It composes into the owning task, so whoever authors that task — the inline session owner or its wave-dispatched sub-agent — applies these rules to write the exact bound shard paths in the same commit as semantic code. It never licenses inventing contexts or editing unrelated shards.
 
 ## Domain lifecycle
 
@@ -34,7 +36,7 @@ This skill is the **sole writer** of `docs/domain/index.md`, `docs/domain/<scope
 3. When `docs/domain/index.md` is absent, every non-`none` impact bootstraps required feature-scoped context docs. Only in this absence case may brainstorming offer a broad bootstrap. Declining broad bootstrap never waives or skips required affected-context documentation.
 4. If broad bootstrap is selected, inspect only tracked production code, schemas, contracts, and tests; skip dependencies, build output, vendored code, nested repos, and ignored paths. Create only evidenced stable contexts without altering feature acceptance scope.
 5. Before binding, return the exact affected paths and write no target behavior; pre-binding bootstrap describes only shipped production behavior. During execution, update those paths to current production behavior in the same task as implementing code, never preserving obsolete behavior as history.
-6. Upsert `## Domain documentation`, `## Decisions`, and `## Design` sections in `AGENTS.md`: preserve unrelated instructions, replace existing canonical sections, and never append duplicates.
+6. Upsert the `## Domain documentation` section in `AGENTS.md`, preserving unrelated instructions, replacing any existing canonical section, and never appending duplicates. The task owning a durable record upserts `## Decisions` and `## Design` in `AGENTS.md` under the record contract in [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Durable decision and design records; this skill upserts those two sections only when already loaded for domain work.
 7. Prove the whole model before returning: run `bun "<GSD_ROOT>/tools/gsd-domain.mjs" validate --index docs/domain/index.md --agents AGENTS.md`. Exit 0 reports a complete, sorted, well-formed model; exit 1 indicates a malformed or inconsistent model to fix before returning.
 
 ## Bounded-context rules

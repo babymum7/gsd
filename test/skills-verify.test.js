@@ -95,7 +95,8 @@ test("AC-2: Terminal conformance precedes slow E2E with same-commit gates", () =
   const verify = read("skills/gsd-verify/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
   assert.match(execution, /Only after every non-superseded task[\s\S]{0,60}Fast TDD Check is green/i);
-  assert.match(execution, /deterministic cumulative conformance[\s\S]{0,60}Deferred Slow E2E/i);
+  assert.match(execution, /next_action=enter terminal verification\/repair[\s\S]{0,40}load `gsd-verify`/i);
+  assert.doesNotMatch(execution, /deterministic cumulative conformance/);
   assert.match(verify, /deterministic cumulative conformance[\s\S]{0,60}Deferred Slow E2E/i);
   assert.match(verify, /Deferred Slow E2E suite[\s\S]{0,60}after current-commit conformance/i);
   assert.match(verify, /full slow\/E2E GREEN[\s\S]{0,60}same unchanged commit/i);
@@ -185,4 +186,33 @@ test("terminal conformance has no model-capacity or fan-out path", () => {
   assert.match(verify, /every changed path is task-owned/);
   assert.match(verify, /task diffs in plan order/);
   assert.match(verify, /focused-check evidence[\s\S]{0,60}unchanged current commit/i);
+});
+
+test("AC-8: judgement findings block only with citation and execution hands over conformance", () => {
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const domain = read("docs/domain/gsd.md");
+
+  // Verify states judgement findings block only by citing bound plan text or a red deterministic check
+  assert.match(
+    verify,
+    /judgement finding blocks only by citing bound plan text \(a Decision, invariant, non-goal, acceptance criterion, or file intent\) or a red deterministic check/i,
+  );
+  assert.match(
+    verify,
+    /taste, style, and unsourced verdicts never block and never persist as prose/i,
+  );
+
+  // Execution hands terminal conformance to gsd-verify without restating it
+  assert.doesNotMatch(
+    execution,
+    /The session owner then performs deterministic cumulative conformance before Deferred Slow E2E\./,
+  );
+  assert.doesNotMatch(execution, /deterministic cumulative conformance/);
+
+  // Domain policy P-gsd-4 includes the citation rule
+  assert.match(
+    domain,
+    /### P-gsd-4: Converge only through deterministic blockers[\s\S]{0,400}a judgement finding blocks only by citing bound plan text \(a Decision, invariant, non-goal, acceptance criterion, or file intent\) or a red deterministic check, while taste, style, and unsourced verdicts never block and never persist\./i,
+  );
 });

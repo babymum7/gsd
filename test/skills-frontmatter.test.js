@@ -85,7 +85,7 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
         }
       });
   }
-  assert.equal(canon, 40, "the canon citation layer must stay fully covered");
+  assert.equal(canon, 41, "the canon citation layer must stay fully covered");
   assert.ok(artifact >= 2, `plan-section citations must stay qualified, found ${artifact}`);
 });
 
@@ -230,7 +230,11 @@ test("master and visible skills declare automatic lazy activation", () => {
     assert.doesNotMatch(skill, standaloneCommand, `${name} standalone command syntax`);
   }
 
-  assert.match(read("skills/gsd-domain-modeling/SKILL.md"), /## Domain lifecycle[\s\S]{0,2600}## Markdown contracts/);
+  const modeler = read("skills/gsd-domain-modeling/SKILL.md");
+  assert.ok(
+    modeler.indexOf("## Domain lifecycle") < modeler.indexOf("## Markdown contracts"),
+    "domain lifecycle rules precede the Markdown contracts they constrain",
+  );
   assert.match(read("skills/gsd-codebase-architecture/SKILL.md"), /## Vocabulary[\s\S]{0,1200}## Domain-aligned architecture[\s\S]{0,1800}## Seam discipline/);
 });
 
@@ -325,6 +329,7 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
       const dropped = contentWords(canonical).filter((word) => !restated.has(word));
       assert.deepEqual(dropped, [], `${row.skill} drops canonical ${label} terms: ${dropped.join(", ")}`);
     };
+    pinRestatement("Intent", row.intent);
     pinRestatement("Do-not-load", row.doNotLoad);
     pinRestatement("Transition", row.transition);
     if (row.role === "helper") pinRestatement("Helper-when", row.helperWhen);
@@ -336,7 +341,12 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
 });
 
 test("AC-4: Concision preserves semantic parity", () => {
-  const MAX_VISIBLE_WORDS = 11000;
+  // Tightened from 11000 to 9850 in 2026-09: the five-layer reconciliation gate, the
+  // task-author domain rule, and the citation rule shipped as contract prose, and one
+  // `Intent` cell per visible skill is the last planned growth. A looser ceiling stopped
+  // being a guard once real growth ran 400 words below it, so raising this again requires
+  // the same kind of stated reason as the REFERENCE cap.
+  const MAX_VISIBLE_WORDS = 9850;
   const MAX_BOOTSTRAP_WORDS = 1200;
   // Raised from 5600 in 2026-08 when Git base derivation and the pre-squash gate became
   // executable contracts: each tool moved into canon costs an invocation, its exit codes, and
@@ -463,7 +473,8 @@ test("AC-4 repair: diagnosing-bugs red-capable flow", () => {
   assert.match(skill, /## Phase 3 — Hypothesize/);
   assert.match(skill, /3–5 ranked hypotheses|3-5 ranked hypotheses|ranked hypotheses/i);
   assert.match(skill, /## Phase 4 — Instrument/);
-  assert.match(skill, /## Phase 5 — Fix \+ regression test|## Phase 5 — Fix/);
+  assert.match(skill, /## Phase 5 — Root-cause evidence \+ regression seam/);
+  assert.doesNotMatch(skill, /^## Phase \d+ — .*\bFix\b/m, "diagnosis lands no fix phase");
   assert.match(skill, /## Phase 6 — Cleanup \+ post-mortem|## Phase 6 — Cleanup/);
   assert.match(skill, /regression test/);
   assert.match(skill, /\[DEBUG-/);
@@ -580,4 +591,71 @@ test("AC-4 repair: session-owner task-repair evidence grammar", () => {
   assert.match(execution, /green focused evidence[\s\S]{0,80}recorded only in reporting and transcripts/i);
   assert.match(execution, /rerun only checks[\s\S]{0,60}invalidated by the repair/i);
   assert.match(execution, /Do not write task-attempt TOON files/);
+});
+
+test("AC-9: frontmatter, capsule recovery, and design dispatch match the modes", () => {
+  const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
+  // `produces` is the catalog's artifact union, and a consumer resolves each entry as a
+  // path. A prose phrase there reads as an artifact that no tool can open, so evidence-only
+  // owners declare an empty list instead of naming their return value.
+  const declaredArtifacts = (skill, name) => {
+    const raw = skill.match(/^produces: \[(.*)\]$/m);
+    assert.ok(raw, `${name} declares a produces list`);
+    return raw[1].split(",").map((entry) => entry.trim()).filter(Boolean);
+  };
+  for (const name of visible) {
+    const skill = read(`skills/${name}/SKILL.md`);
+    for (const artifact of declaredArtifacts(skill, name)) {
+      assert.match(
+        artifact,
+        /^[A-Za-z0-9_.<>/-]+\.(md|toon)$/,
+        `${name} declares ${artifact}, which is not a resolvable artifact path`,
+      );
+      assert.ok(skill.includes(artifact), `${name} declares ${artifact} outside its own body`);
+    }
+  }
+  const diagnosis = read("skills/gsd-diagnosing-bugs/SKILL.md");
+  assert.deepEqual(declaredArtifacts(diagnosis, "gsd-diagnosing-bugs"), []);
+
+  // Capsule recovery is a routed entry in the bootstrap, so the skill that owns it must
+  // declare the mode rather than leave a recovering session to improvise its inputs.
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+  const handoffModes = handoff.match(/## Invocation modes\n([\s\S]*?)\n## /);
+  assert.ok(handoffModes, "handoff must declare invocation modes");
+  assert.match(handoffModes[1], /^\|.*capsule.*\|$/im, "handoff must carry a capsule-recovery mode row");
+
+  assert.match(
+    read("skills/gsd-codebase-architecture/SKILL.md"),
+    /dispatches no design sub-agent/i,
+    "architecture must state that design is never dispatched",
+  );
+});
+
+test("AC-10: one vocabulary for one concept across the canon", () => {
+  const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
+  const bodies = [
+    ["skills/gsd/SKILL.md", read("skills/gsd/SKILL.md")],
+    ["skills/gsd/REFERENCE.md", read("skills/gsd/REFERENCE.md")],
+    ...visible.map((name) => [`skills/${name}/SKILL.md`, read(`skills/${name}/SKILL.md`)]),
+  ];
+  // Each banned form is a second name for a concept the canon already names: a weaker model
+  // reading two names for one rule treats them as two rules, which is how "child repair"
+  // became a route that no skill owns.
+  for (const [where, body] of bodies) {
+    assert.doesNotMatch(body, /child repair|child agent/i, `${where} says child repair`);
+    assert.doesNotMatch(body, /self-verification/i, `${where} says self-verification`);
+    assert.doesNotMatch(body, /RED\/Green/, `${where} says RED/Green`);
+    assert.doesNotMatch(body, /subagent|sub agent\b/i, `${where} misspells sub-agent`);
+    assert.doesNotMatch(body, /`?Discussion`?[/ ]Spec-escalation/, `${where} routes through Discussion`);
+  }
+  const reference = read("skills/gsd/REFERENCE.md");
+  assert.match(reference, /- `Spec-escalation`: `gsd-handoff`\./, "the escalation route keeps one name");
+
+  // The comment is the only place the independence predicate explains dispatch, and it
+  // claimed every wave is dispatched while the canon executes single-task waves inline.
+  const contract = read("lib/gsd-contract.mjs");
+  const waveComment = contract.match(/((?:^\/\/.*\n)+)export function analyzeWaves/m);
+  assert.ok(waveComment, "analyzeWaves must keep its explanatory comment");
+  assert.match(waveComment[1], /single-task wave[\s\S]{0,80}inline/i);
+  assert.doesNotMatch(waveComment[1], /Every wave is\s*\n?\/\/\s*dispatched/i);
 });

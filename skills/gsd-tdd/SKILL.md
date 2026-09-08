@@ -8,6 +8,7 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md, plan.md, state.toon]
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: helper
+- Intent: drive Fast TDD RED→GREEN→refactor at a public seam
 - Helper-when: must load when an observable task is selected or repaired inline or in a wave-dispatched sub-agent; unskippable while condition holds
 - Do-not-load: primary skill selection; resource-heavy browser/E2E task loops
 - Transition: return green/red evidence to session owner
@@ -31,7 +32,7 @@ A **Fast TDD Check** is deterministic, local, and cheap for repeated RED→GREEN
 
 The validated task slice selects its focused test seam from the bound Markdown plan. Consume that slice and pinned sections (including ordered Decisions) without reparsing plan or binding; missing or mismatched pins block. Target the highest deterministic fast public seam; lower seams require plan-recorded constraints. Source-text assertions, private probes, and fakes cannot substitute for behavior.
 
-Keep RED/Green/refactor evidence in session-owner transcripts only; wave-dispatched sub-agents return evidence without adding runtime schemas.
+Keep RED→GREEN→refactor evidence in session-owner transcripts only; wave-dispatched sub-agents return evidence without adding runtime schemas.
 
 ## Anti-pattern: horizontal slices
 Never batch tests before implementation. Use vertical tracer bullets: one focused public-seam test → all AC-required production layers and live code → verified green; repeat. Never assume universal layer stacks or accept test-only bypasses.

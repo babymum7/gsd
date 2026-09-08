@@ -8,12 +8,13 @@ consumes: []
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
+- Intent: resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract
 - Do-not-load: read-only questions, pure mechanical edits, known single-spot quick fix
 - Transition: on convergence load `gsd-to-plan`
 
 # GSD Brainstorming
 
-> **Invocation guard** — pre-binding discovery and convergence only. Creates no plan, state, or TOON artifact; sole durable write is a decision record for a settled tradeoff. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract after selecting an invocation mode. Read-only questions, Nano edits, known fixes, delegated tasks, and bound work do not enter.
+> **Invocation guard** — pre-binding discovery and convergence only. Creates no plan, state, or TOON artifact; sole durable writes are a decision record for a settled tradeoff or pre-binding domain bootstrap when an index is absent. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract after selecting an invocation mode. Read-only questions, Nano edits, known fixes, delegated tasks, and bound work do not enter.
 
 ## Invocation modes
 
@@ -50,7 +51,7 @@ Pin one existing public test seam per active criterion before convergence:
 
 ## Durable decision records
 
-When a load-bearing tradeoff settles, write one `docs/decisions/NNNN-slug.md` record using the header from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Durable decision and design records. Records may precede implementation; `## Decision` states locked choices and `Status` is `Accepted`, `Rejected`, or `Superseded by NNNN`.
+When a load-bearing tradeoff settles, write one `docs/decisions/NNNN-slug.md` record using the header from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Durable decision and design records. Records may precede implementation; the header requires `# NNNN — Title`, exactly one `- **Status:** Accepted|Rejected|Superseded by NNNN`, exactly one `- **Date:** YYYY-MM-DD`, and a non-empty `## Decision` section stating locked choices.
 
 ## Conservative context harvest and Domain Impact
 

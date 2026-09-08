@@ -8,19 +8,21 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
+- Intent: diagnose non-obvious failures inline and produce root-cause evidence
+- Scope: diagnosis is performed inline in the top-level session and produces root-cause evidence only (never implements or commits a fix)
 - Do-not-load: a located failure whose prompt names the file/line or exact failure signature
-- Transition: return evidence to the session-owner execution flow, or hand an architectural cause to `gsd-codebase-architecture`
+- Transition: return evidence to the session-owner execution flow, or route an architectural cause to `gsd-codebase-architecture` before repair
 
 # Diagnosing Bugs
 
-> **Invocation guard** — catalog selection loads this skill. Under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract, select an Invocation Mode below and validate only its Required artifacts; missing Optional artifacts never reroute invocation.
+> **Invocation guard** — catalog selection loads this skill. Diagnosis is performed inline in the top-level session to produce root-cause evidence only, returning evidence to its caller without implementing or committing a fix. Under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract, select an Invocation Mode below and validate only its Required artifacts; missing Optional artifacts never reroute invocation.
 
 ## Invocation modes
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| standalone diagnosis | — | `docs/domain/index.md`; relevant domain shards | — | — |
-| Execution-blocker diagnosis | — | `docs/domain/index.md`; relevant domain shards | — | — |
+| standalone diagnosis | — | `docs/domain/index.md`; relevant domain shards | root-cause evidence | — |
+| Execution-blocker diagnosis | — | `docs/domain/index.md`; relevant domain shards | root-cause evidence | — |
 
 A discipline for hard bugs. Read `docs/domain/index.md` only if bug evidence signals domain impact; load only relevant indexed shards. Missing domain docs are normal. Skip phases only with explicit justification.
 
@@ -44,18 +46,17 @@ Generate **3–5 ranked hypotheses** before testing any (single-hypothesis ancho
 ## Phase 4 — Instrument
 Each probe maps to a Phase-3 prediction (**one variable at a time**). Preference: debugger/REPL breakpoint > targeted logs at hypothesis-distinguishing seams > never "log everything and grep". Tag debug logs `[DEBUG-xxxx]` (cleanup = one grep). **Perf branch**: establish baseline measurement, then bisect — measure first, fix second.
 
-## Phase 5 — Fix + regression test
-Write regression test **before** fixing — only if a **correct seam** exists (exercising real bug pattern at call site). No correct seam is a finding to note (architecture prevents locking down the bug). If a seam exists: turn minimized repro into a failing test → fail → fix → pass → re-run Phase-1 loop on original scenario.
+## Phase 5 — Root-cause evidence + regression seam
+Isolate confirmed root cause and propose a regression test seam — only if a **correct seam** exists (exercising real bug pattern at call site). No correct seam is a finding to note (architecture prevents locking down the bug). When an architectural cause prevents a clean seam or fix, route that architectural cause to `gsd-codebase-architecture` before repair. If a seam exists: turn the minimized repro into a proposed failing test pin for the caller's repair work.
 
-## Phase 6 — Cleanup + post-mortem
-- [ ] Original repro no longer reproduces.
-- [ ] Regression test passes, or the missing seam is documented.
+## Phase 6 — Cleanup + evidence return
 - [ ] All `[DEBUG-...]` instrumentation is removed.
-- [ ] Original Phase-1 signal is green.
-- [ ] Throwaway harnesses and prototypes are deleted.
-- [ ] The commit message records the confirmed hypothesis and root cause.
+- [ ] Throwaway harnesses, temporary probes, and reproduction scratch are deleted.
+- [ ] Confirmed root cause, falsified alternative hypotheses, and minimal repro command are documented.
+- [ ] Proposed regression seam (or missing-seam architectural finding) is documented.
+- [ ] Root-cause evidence is returned to the caller for repair without implementing or committing code changes.
 
-In standalone diagnosis only, ask what would have prevented the bug. Architectural causes may transition to `gsd-codebase-architecture` post-fix. In Execution-blocker mode, ask no post-mortem question: session owner returns immediately to `gsd-executing-plans` with fixed repro evidence, writing no repair-round/helper-preference field. Load-bearing AC/interface/invariant ambiguities require Spec escalation, not diagnosis guesses. Diagnosis is always performed inline in the top-level session.
+In standalone diagnosis, hand confirmed root-cause evidence and the proposed regression seam to the caller for repair; route an architectural cause to `gsd-codebase-architecture` before repair. In Execution-blocker mode, ask no post-mortem question: session owner returns immediately to `gsd-executing-plans` with root-cause evidence for inline repair, writing no repair-round/helper-preference field. Load-bearing AC/interface/invariant ambiguities require Spec escalation, not diagnosis guesses.
 
 ## Optional context signal
 Diagnosis harvest is optional and bounded to the minimized bug path. Reuse only prompt/trace, reproduction, hypotheses, and relevant code/docs; never widen into repository glossary/decision scans or create missing scaffolds. Trigger `gsd-domain-modeling` only if evidence reveals recurring project-specific terms or explicit decision/rationale signals. Generic error vocabulary, one-off identifiers, implementation details, and unreasoned code shapes are no-ops. Diagnosis never writes domain artifacts itself.

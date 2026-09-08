@@ -1025,6 +1025,9 @@ describe("T3 Review Fixes detailed behavior", () => {
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
+  // 1001 candidate fixtures cost ~2000 synchronous file writes plus a full discovery scan,
+  // which runs past Bun's 5s default on an ordinary machine. The over-cap capsule needs that
+  // many candidates, so the test declares its own budget instead of failing by machine speed.
   test("proves production lifecycle coverage for 1001 candidates without failure", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-1001-"));
     const scratchDir = join(tempDir, ".scratch");
@@ -1064,7 +1067,7 @@ describe("T3 Review Fixes detailed behavior", () => {
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
-  });
+  }, 60_000);
 
   // 10. Invalid relative/multiline/control roots:
   test("proves rejection of relative, multiline, and control character roots", () => {

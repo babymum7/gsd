@@ -11,7 +11,7 @@ Load this file only when a flow needs its policy. It defines the shared meaning 
 | Required | Must exist for the selected mode. Follow that row's recovery or blocker action when absent. |
 | Optional | Normal when absent; never reroutes a mode. |
 | Produced | May be created by the selected mode. |
-| Fallback | The documented recovery, reconstruction, or blocker path. Never invent a file or contents. |
+| Missing required | The documented recovery, reconstruction, or blocker path when a required artifact is absent. Never invent a file or contents. |
 
 Explicit intent and entry context choose the mode; artifact presence never does. Validate `phase` against fixed schema enums; preserve opaque `next_action` values on resume. A missing, malformed, or duplicate **required** artifact fails closed; optional state does not; bound-hash mismatches rebind under § Plan amendment.
 
@@ -33,6 +33,7 @@ Canonical dispatch authority for the 9 visible GSD skills. Shared semantics live
 | `gsd-domain-modeling` | helper | Maintain current production domain behavior for affected contexts | Domain Impact changes a context or explicit domain-model work is selected | Read-only/Nano work; uncertain or unrelated contexts | Return exact changed domain and AGENTS paths to session owner | must load when Domain Impact is not `none` or explicit domain-model work is selected |
 
 The Quick-fix route belongs to the session owner, not a visible skill: an already diagnosed fix stays ordinary direct work, while a bounded fix meeting the three size gates — Quick-fix grammar fit, Domain Impact none or a single shard, acceptance converged from the prompt — reads the Ponytail context, writes its Quick-fix plan, proves grammar fit on the draft plan via `validate-quick-fix`, runs RED→GREEN→refactor with `gsd-tdd`, then loads `gsd-verify` as WIP gate. A returned Quick-fix WIP Fail leaves a repair round whose prompt name loads `gsd-verify`.
+`gsd-domain-modeling` carries both roles from one row: its helper obligation binds whenever Domain Impact is not `none`, and explicit standalone domain-model work selects the same skill as a visible owner.
 Ponytail stays hidden and never enters the matrix or runtime state.
 
 ## Durable documentation contract
@@ -91,14 +92,18 @@ Each sub-agent receives one complete validated task slice rebuilt from `plan.md`
 Before sending any dispatch, the owner re-reads the dispatch prompt against the retained slice and rebuilds it when any slice fact is missing.
 A sub-agent MUST NOT mutate `state.toon`, amend `plan.md`, merge, decide lifecycle, or run Deferred Slow E2E.
 
-The owner reconciles waves in strict plan order into one green checkpoint: before merging each returned task it inspects that the diff stays inside the slice's paths and intents, re-runs the task's focused check green, and reads the diff for evident defects; a failed inspection returns to bounded inline repair exactly like a red task. The owner then merges each task branch into `wip/<feature>` in strict plan order and writes `state.toon` through `gsd-state.mjs` CLI; `Tn+1` after the wave begins only from that committed checkpoint.
-Failed or red sub-agent tasks return to the owner for bounded inline repair. Terminal conformance proves the unchanged final commit, and plan-ordered diffs hold because the owner merges in plan order.
+The owner reconciles waves in strict plan order through an ordered five-layer gate before checkpointing:
+1. Evidence rule: a sub-agent's report, summary, or self-assessment is inadmissible; only Git bytes and commands the owner runs itself count as evidence.
+2. Mechanical proof: run `bun "<GSD_ROOT>/tools/gsd-git.mjs" verify-task-branch --feature-dir .scratch/<feature> --task <Tn> --branch <task-branch> --wave-base <ref>`; only `status: ready` on exit 0 admits the branch; `status: blocked` with its `code:` (`branch-missing`, `base-not-ancestor`, `empty-diff`, `out-of-slice-path`, `scratch-mutated`, `plan-unbound`) is an integrity failure; exit 2 corrects invocation.
+3. RED re-proof: each new or changed test must fail on the wave base — the owner takes only the task's test paths onto the wave base, runs the focused check, requires a red result, and discards that probe; a test that passes without the implementation proves nothing.
+4. Weakened-guard scan: the owner rejects any diff that deletes, skips, or renames an existing test, or loosens lint, type, or CI configuration, unless the slice owns that exact path and intent.
+5. Integration proof: after merging every task branch of the wave into `wip/<feature>` in strict plan order, the owner re-runs every merged wave task's focused check on `wip/<feature>` after the last merge and before the `gsd-state.mjs set` checkpoint write; pre-merge branch checks are never sufficient. Only when all pass does the owner write `state.toon` through `gsd-state.mjs set` with `last_green_task` set to the wave's last task; `Tn+1` after the wave begins only from that committed green checkpoint.
+
+Failure routing: any failed layer is an integrity failure that returns to bounded inline owner repair under `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`, and is never re-dispatched to a sub-agent. Terminal conformance proves the unchanged final commit, and plan-ordered diffs hold because the owner merges in plan order.
 
 ### Packet grammar
 
 All fields use exact headings and labels, canonical order, UTF-8/LF, and no blank leading/trailing lines. Reject missing, duplicate, malformed, unknown, empty, vague, or reordered fields, and any line between the title and its first section. Never normalize, infer, or repair source values.
-
-`plan.md`:
 
 ```markdown
 # Plan
@@ -347,7 +352,7 @@ Active helpers are derived, never stored as reload manifests:
 
 - `start/continue task`: `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`; sub-agents author dispatched implementation, and repair remains session-owner inline.
 - `enter terminal verification/repair`: `gsd-verify` and `gsd-handoff`; opaque `next_action` resumes deterministic conformance or Deferred Slow E2E without new state keys.
-- `Discussion/Spec-escalation`: `gsd-handoff`.
+- `Spec-escalation`: `gsd-handoff`.
 - Conditional: `gsd-domain-modeling` completes mandatory affected-context documentation before checkpoint.
 
 Master (`gsd`) is already present from bootstrap and never listed as a derived reload skill. Hidden Ponytail context has no runtime mode or preference state. Recovery must never load master recursively or execute the capsule again.

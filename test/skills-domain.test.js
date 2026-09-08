@@ -217,3 +217,32 @@ test("domain shard records Quick-fix size gates and single-task inline wave exec
   assert.match(domain, /single-task waves execute inline (?:by the session owner )?with `gsd-tdd`/i);
   assert.match(domain, /waves of two or more tasks dispatch/i);
 });
+
+
+test("AC-7: domain modeling composes into owning task author, covers standalone mode, and aligns brainstorming", () => {
+  const modeler = read("skills/gsd-domain-modeling/SKILL.md");
+  const brainstorm = read("skills/gsd-brainstorming/SKILL.md");
+
+  // 1. Shard writer composition: sole writer owns schema and rules, task author writes bound shard paths
+  assert.match(modeler, /sole writer/i);
+  assert.match(modeler, /composes? into the owning task/i);
+  assert.match(modeler, /inline (?:session )?owner or (?:its )?wave-dispatched sub-agent/i);
+  assert.match(modeler, /exact bound shard paths in the same commit as semantic code/i);
+  assert.doesNotMatch(modeler, /Other skills classify impact and invoke it, never editing these contracts/);
+
+  // 2. Standalone domain work mode row
+  const modes = modeler.match(/## Invocation modes\n+([\s\S]*?)(?:\n## |\n*$)/);
+  assert.ok(modes, "invocation modes section must exist");
+  assert.match(modes[1], /\|\s*Explicit standalone domain work\s*\|/i);
+  assert.match(modes[1], /explicit domain-model intent/i);
+
+  // 3. AGENTS.md upsert responsibility
+  assert.match(modeler, /task owning a durable record upserts/i);
+
+  // 4. Brainstorming guard admits pre-binding domain bootstrap writes
+  assert.match(brainstorm, /Invocation guard[\s\S]{0,300}pre-binding domain bootstrap/i);
+  assert.match(brainstorm, /Creates no plan, state, or TOON artifact/);
+
+  // 5. Brainstorming decision record names mandatory Date header
+  assert.match(brainstorm, /-\s*\*\*Date:\*\*\s*YYYY-MM-DD/);
+});

@@ -16,11 +16,11 @@ import {
   realpathSync,
 } from "node:fs";
 import { createHash } from "node:crypto";
-import { isSafeBranchRef, PLAN_FILE_MAX_BYTES } from "../lib/gsd-contract.mjs";
+import { isSafeBranchRef, PLAN_FILE_MAX_BYTES, validatePlanFile } from "../lib/gsd-contract.mjs";
 import { inspectStateFile } from "../lib/gsd-state.mjs";
 
-const COMMANDS = new Set(["derive-base", "preflight"]);
-const VALUE_FLAGS = new Set(["--feature-dir", "--cwd"]);
+const COMMANDS = new Set(["derive-base", "preflight", "verify-task-branch"]);
+const VALUE_FLAGS = new Set(["--feature-dir", "--cwd", "--task", "--branch", "--wave-base"]);
 
 // A subcommand name is not a permission: `git symbolic-ref <name> <ref>` writes a ref and
 // `git symbolic-ref --delete <name>` removes one, so the boundary is the whole argv. These
@@ -51,6 +51,30 @@ export function assertReadOnlyGit(args) {
   ) {
     return;
   }
+  if (
+    args.length === 4 &&
+    args[0] === "merge-base" &&
+    args[1] === "--is-ancestor" &&
+    isSafeBranchRef(args[2]) &&
+    isSafeBranchRef(args[3])
+  ) {
+    return;
+  }
+  if (
+    args.length === 3 &&
+    args[0] === "diff" &&
+    args[1] === "--name-only"
+  ) {
+    const range = args[2];
+    const tripleDot = range.indexOf("...");
+    if (tripleDot > 0 && range.indexOf("...", tripleDot + 3) === -1) {
+      const base = range.slice(0, tripleDot);
+      const target = range.slice(tripleDot + 3);
+      if (isSafeBranchRef(base) && isSafeBranchRef(target)) {
+        return;
+      }
+    }
+  }
   throw new Error(`refusing a Git invocation that is not an allowed read-only query: git ${shape}`);
 }
 
@@ -64,7 +88,10 @@ function write_(lines) {
 function commandUsage(command) {
   if (command === "derive-base") return `${INVOCATION} derive-base [--cwd <dir>]`;
   if (command === "preflight") return `${INVOCATION} preflight --feature-dir .scratch/<feature> [--cwd <dir>]`;
-  return `${INVOCATION} <derive-base|preflight> [options]`;
+  if (command === "verify-task-branch") {
+    return `${INVOCATION} verify-task-branch --feature-dir .scratch/<feature> --task <id> --branch <branch> --wave-base <ref> [--cwd <dir>]`;
+  }
+  return `${INVOCATION} <derive-base|preflight|verify-task-branch> [options]`;
 }
 
 function emitHelp(command) {
@@ -107,12 +134,38 @@ function emitHelp(command) {
     ]);
     return;
   }
+  if (command === "verify-task-branch") {
+    write_([
+      "Usage: " + commandUsage(command),
+      "",
+      "Verify a completed task branch before merging or testing in the wave gate.",
+      "Reads the approved plan in .scratch/<feature>/plan.md and checks that:",
+      "",
+      "  - the task is defined in the plan",
+      "  - the task branch exists as a local branch",
+      "  - the wave base is an ancestor of the task branch",
+      "  - the diff against wave base is non-empty",
+      "  - no path under .scratch/ was touched",
+      "  - every changed path is within the task's structured Files list",
+      "",
+      "Options:",
+      "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
+      "  --task <id>            Task identifier (e.g. T1, T2) (required)",
+      "  --branch <branch>      Task branch to verify (required)",
+      "  --wave-base <ref>      Wave base reference (required)",
+      "  --cwd <dir>            Work tree to inspect (default: current directory)",
+      "",
+      "Exit codes: 0 = ready, 1 = blocked, 2 = usage error",
+    ]);
+    return;
+  }
   write_([
     "Usage: " + commandUsage(null),
     "",
     "Commands:",
-    "  derive-base   Print the branch this work tree is on, for plan.md Base and base_ref",
-    "  preflight     Prove the recorded base and WIP branch still hold before squashing",
+    "  derive-base         Print the branch this work tree is on, for plan.md Base and base_ref",
+    "  preflight           Prove the recorded base and WIP branch still hold before squashing",
+    "  verify-task-branch  Prove task branch ancestry, diff bounds, and file scope before verification",
     "",
     "This tool only ever reads: it runs no Git subcommand that can change a repository.",
     "",
@@ -226,7 +279,15 @@ function deriveBase(cwd) {
 }
 
 function parseArguments(argv) {
-  const result = { command: null, help: false, featureDir: null, cwd: process.cwd() };
+  const result = {
+    command: null,
+    help: false,
+    featureDir: null,
+    task: null,
+    branch: null,
+    waveBase: null,
+    cwd: process.cwd(),
+  };
   let index = 0;
   if (argv[index] === "--help" || argv[index] === "-h") {
     result.help = true;
@@ -249,6 +310,9 @@ function parseArguments(argv) {
     const value = argv[index + 1];
     if (value === undefined || value.startsWith("--")) failUsage(`${flag} requires a value`, result.command);
     if (flag === "--feature-dir") result.featureDir = value;
+    else if (flag === "--task") result.task = value;
+    else if (flag === "--branch") result.branch = value;
+    else if (flag === "--wave-base") result.waveBase = value;
     else result.cwd = value;
     index += 2;
   }
@@ -257,6 +321,12 @@ function parseArguments(argv) {
   else if (!COMMANDS.has(result.command)) result.usageError = `unknown command: ${result.command}`;
   else if (result.command === "preflight" && result.featureDir === null) {
     result.usageError = "--feature-dir is required";
+  }
+  else if (result.command === "verify-task-branch") {
+    if (result.featureDir === null) result.usageError = "--feature-dir is required";
+    else if (result.task === null) result.usageError = "--task is required";
+    else if (result.branch === null) result.usageError = "--branch is required";
+    else if (result.waveBase === null) result.usageError = "--wave-base is required";
   }
   return result;
 }
@@ -435,6 +505,71 @@ function preflight(cwd, featureDir) {
   ]);
 }
 
+function verifyTaskBranch(cwd, featureDir, taskId, branch, waveBase) {
+  requireWorkTree(cwd);
+
+  const planPath = join(featureDir, "plan.md");
+  let validated;
+  try {
+    validated = validatePlanFile(planPath, { cwd, kind: "plan" });
+  } catch (planError) {
+    try {
+      validated = validatePlanFile(planPath, { cwd, kind: "quick-fix" });
+    } catch {
+      blocked("plan-unbound", `cannot read or parse approved plan at ${planPath}: ${planError.message}`);
+    }
+  }
+
+  const task = validated.parsed.tasks.find((t) => t.id === taskId);
+  if (!task) {
+    blocked("plan-unbound", `task ${taskId} is not defined in ${planPath}`);
+  }
+
+  if (!isSafeBranchRef(branch) || !localBranchExists(branch, cwd)) {
+    blocked("branch-missing", `task branch ${branch} does not exist`);
+  }
+
+  if (!isSafeBranchRef(waveBase)) {
+    blocked("base-not-ancestor", `wave base ${waveBase} is not a usable branch reference`);
+  }
+
+  const ancestorCheck = git(["merge-base", "--is-ancestor", waveBase, branch], cwd);
+  if (ancestorCheck.status !== 0) {
+    blocked("base-not-ancestor", `wave base ${waveBase} is not an ancestor of task branch ${branch}`);
+  }
+
+  const diffResult = git(["diff", "--name-only", `${waveBase}...${branch}`], cwd);
+  if (diffResult.status !== 0) {
+    blocked("git-query-failed", `git diff failed for ${waveBase}...${branch}`);
+  }
+
+  const changedPaths = diffResult.stdout.split("\n").map((p) => p.trim()).filter(Boolean);
+  if (changedPaths.length === 0) {
+    blocked("empty-diff", `task branch ${branch} has no changes against wave base ${waveBase}`);
+  }
+
+  for (const path of changedPaths) {
+    if (path.startsWith(".scratch/") || path === ".scratch") {
+      blocked("scratch-mutated", `task branch ${branch} touched protected path under .scratch/: ${path}`);
+    }
+  }
+
+  const allowedFiles = new Set(task.files);
+  for (const path of changedPaths) {
+    if (!allowedFiles.has(path)) {
+      blocked("out-of-slice-path", `task branch ${branch} touched ${path}, which is outside ${taskId} slice: ${task.files.join(", ")}`);
+    }
+  }
+
+  write_([
+    "status: ready",
+    `task: ${taskId}`,
+    `branch: ${branch}`,
+    `wave_base: ${waveBase}`,
+    "exit=0",
+  ]);
+}
+
 // Importable so the read-only boundary can be unit-tested directly; running the CLI stays the
 // only side effect of executing this file.
 function isMain() {
@@ -453,7 +588,9 @@ if (isMain()) {
     failUsage(input.usageError, input.command);
   } else if (input.command === "derive-base") {
     write_(["status: ok", `base: ${deriveBase(input.cwd)}`]);
-  } else {
+  } else if (input.command === "preflight") {
     preflight(input.cwd, input.featureDir);
+  } else {
+    verifyTaskBranch(input.cwd, input.featureDir, input.task, input.branch, input.waveBase);
   }
 }

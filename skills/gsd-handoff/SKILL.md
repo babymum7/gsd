@@ -8,6 +8,7 @@ consumes: [state.toon, plan.md, docs/gsd/<feature>/milestones.md]
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
+- Intent: pause, save, resume, or recover from a valid `state.toon`, ledger, or capsule
 - Do-not-load: invent work from missing/malformed state
 - Transition: load peer skill named by validated `next_action`
 
@@ -24,6 +25,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 | Pre-plan resume | `state.toon` | Markdown packet | — | Return once to state detection; preserve explicit intent |
 | Execution resume | `state.toon`; `plan.md` | milestone ledger | — | Recover only from valid runtime state and a valid `plan.md`; a drifted hash rebinds under § Plan amendment |
 | Milestone ledger recovery | authoritative ledger selected by automatic active-state detection | — | — | Missing/malformed/base-mismatched ledger fails closed; never invent work |
+| Capsule recovery | valid Compaction Recovery Capsule naming active features | `state.toon`; `plan.md` | — | A malformed or ambiguous capsule resolves through the completed-state matrix; never re-execute the capsule or invent replacement work |
 
 ## Write
 
