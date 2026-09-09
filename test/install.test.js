@@ -72,6 +72,27 @@ function runInstaller(home, fakeBin) {
   return runInstallerAt(ROOT, home, fakeBin);
 }
 
+/**
+ * Run `run` with `overrides` applied to this test process's env, restoring
+ * each key's prior value — or deleting keys that were originally absent —
+ * on exit, so host-carried variables survive the suite.
+ */
+function withProcessEnv(overrides, run) {
+  const keys = Object.keys(overrides);
+  const previous = {};
+  for (const key of keys) previous[key] = process.env[key];
+  Object.assign(process.env, overrides);
+  try {
+    return run();
+  } finally {
+    for (const key of keys) {
+      if (previous[key] === undefined) delete process.env[key];
+      else process.env[key] = previous[key];
+    }
+  }
+}
+
+
 
 function legacyManagedCommand(root, version = "v1") {
   const escaped = root.replace(/\\/g, "\\\\").replace(/"/g, '\\"');
@@ -1924,7 +1945,7 @@ test("installer fails closed when a relocated registration parent is a symlink",
   }
 });
 
-test("installer ignores ambient agent and profile env carried by the test process", () => {
+function runAmbientEnvScenario() {
   const { temporary, home, fakeBin } = makeHomeSandbox();
   for (const command of ["git", "bun"]) {
     writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
@@ -1933,34 +1954,80 @@ test("installer ignores ambient agent and profile env carried by the test proces
   mkdirSync(ambientAgent, { recursive: true });
   const secondHome = join(temporary, "home2");
   mkdirSync(secondHome);
+  const pinnedPath = `${fakeBin}${delimiter}/usr/bin:/bin`;
 
   try {
-    process.env.PI_CODING_AGENT_DIR = ambientAgent;
-    const res = runInstallerAt(ROOT, home, fakeBin);
-    assert.equal(res.status, 0, res.stderr);
-    assert.ok(
-      lstatSync(join(home, ".omp", "agent", "extensions", "gsd-context.js")).isSymbolicLink(),
-      "an ambient PI_CODING_AGENT_DIR must not leak into the sandbox install"
+    withProcessEnv({ PI_CODING_AGENT_DIR: ambientAgent }, () => {
+      const res = runInstallerAt(ROOT, home, fakeBin, { PATH: pinnedPath });
+      assert.equal(res.status, 0, res.stderr);
+      assert.ok(
+        lstatSync(join(home, ".omp", "agent", "extensions", "gsd-context.js")).isSymbolicLink(),
+        "an ambient PI_CODING_AGENT_DIR must not leak into the sandbox install"
+      );
+      assert.equal(
+        existsSync(join(ambientAgent, "extensions")),
+        false,
+        "nothing must be published into the ambient agent dir"
+      );
+    });
+
+    withProcessEnv({ OMP_PROFILE: "ambient-prof", PI_PROFILE: "ambient-prof" }, () => {
+      const resProfiles = runInstallerAt(ROOT, secondHome, fakeBin, { PATH: pinnedPath });
+      assert.equal(resProfiles.status, 0, resProfiles.stderr);
+      assert.ok(
+        lstatSync(join(secondHome, ".omp", "agent", "extensions", "gsd-context.js")).isSymbolicLink(),
+        "ambient profile variables must be scrubbed, not fail-closed"
+      );
+    });
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+}
+
+test("installer ignores ambient agent and profile env carried by the test process", () => {
+  runAmbientEnvScenario();
+});
+
+test("ambient-env scenario restores host-provided values instead of deleting them", () => {
+  const previousAgent = process.env.PI_CODING_AGENT_DIR;
+  const previousOmpProfile = process.env.OMP_PROFILE;
+  const previousPiProfile = process.env.PI_PROFILE;
+  try {
+    process.env.PI_CODING_AGENT_DIR = "/host-like/agent";
+    process.env.OMP_PROFILE = "host-like";
+    process.env.PI_PROFILE = "host-like";
+    runAmbientEnvScenario();
+    assert.equal(
+      process.env.PI_CODING_AGENT_DIR,
+      "/host-like/agent",
+      "the scenario must restore a host-provided PI_CODING_AGENT_DIR"
     );
     assert.equal(
-      existsSync(join(ambientAgent, "extensions")),
-      false,
-      "nothing must be published into the ambient agent dir"
+      process.env.OMP_PROFILE,
+      "host-like",
+      "the scenario must restore a host-provided OMP_PROFILE"
     );
-
-    process.env.OMP_PROFILE = "ambient-prof";
-    process.env.PI_PROFILE = "ambient-prof";
-    const resProfiles = runInstallerAt(ROOT, secondHome, fakeBin);
-    assert.equal(resProfiles.status, 0, resProfiles.stderr);
-    assert.ok(
-      lstatSync(join(secondHome, ".omp", "agent", "extensions", "gsd-context.js")).isSymbolicLink(),
-      "ambient profile variables must be scrubbed, not fail-closed"
+    assert.equal(
+      process.env.PI_PROFILE,
+      "host-like",
+      "the scenario must restore a host-provided PI_PROFILE"
     );
   } finally {
-    delete process.env.PI_CODING_AGENT_DIR;
-    delete process.env.OMP_PROFILE;
-    delete process.env.PI_PROFILE;
-    rmSync(temporary, { recursive: true, force: true });
+    if (previousAgent === undefined) {
+      delete process.env.PI_CODING_AGENT_DIR;
+    } else {
+      process.env.PI_CODING_AGENT_DIR = previousAgent;
+    }
+    if (previousOmpProfile === undefined) {
+      delete process.env.OMP_PROFILE;
+    } else {
+      process.env.OMP_PROFILE = previousOmpProfile;
+    }
+    if (previousPiProfile === undefined) {
+      delete process.env.PI_PROFILE;
+    } else {
+      process.env.PI_PROFILE = previousPiProfile;
+    }
   }
 });
 
@@ -1969,11 +2036,14 @@ test("installer fails closed when OMP_PROFILE is non-empty", () => {
   for (const command of ["git", "bun"]) {
     writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
   }
+  const relocatedAgentDir = join(temporary, "agent-relocated");
+  mkdirSync(relocatedAgentDir, { recursive: true });
 
   try {
     const res = runInstallerAt(ROOT, home, fakeBin, {
       PATH: `${fakeBin}${delimiter}/usr/bin:/bin`,
       OMP_PROFILE: "prof",
+      PI_CODING_AGENT_DIR: relocatedAgentDir,
     });
     assert.equal(res.status, 1, `expected fail-closed, got stdout: ${res.stdout}`);
     assert.match(res.stderr, /OMP_PROFILE/);
@@ -1981,6 +2051,11 @@ test("installer fails closed when OMP_PROFILE is non-empty", () => {
       existsSync(join(home, ".omp", "agent", "extensions", "gsd-context.js")),
       false,
       "no extension must be published before failing closed"
+    );
+    assert.equal(
+      existsSync(join(relocatedAgentDir, "extensions")),
+      false,
+      "a relocated target must stay unpublished when the profile guard fails closed"
     );
   } finally {
     rmSync(temporary, { recursive: true, force: true });
