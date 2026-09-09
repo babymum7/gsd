@@ -104,8 +104,8 @@ A read-only diff review along two independent axes, each as a bounded read-only 
 
 ### Install the extension
 
-1. Publish the extension symlink fail-closed from the checkout, removing only positively recognized managed legacy GSD artifacts.
-2. Resolve the effective global OMP agent config (honoring `PI_CODING_AGENT_DIR`, with absent keys defaulting to the OMP schema values), report `task.isolation.enabled`/`merge`/`apply` against decision 0004, and repair each opposing value via `omp config set` when the binary is on PATH — printing revert commands for the observed previous values — or print the exact remediation commands otherwise; the advisory check never fails the install.
+1. Publish the extension symlink fail-closed from the checkout into the effective OMP agent base — `$PI_CODING_AGENT_DIR` when it is set to an absolute path (a relative value fails closed before any publication, because omp resolves it against each session's working directory), otherwise `~/.omp/agent` — removing only positively recognized managed legacy GSD artifacts, with registration parents validated as real directories on that same base's ancestry.
+2. Resolve the effective global OMP agent config from that same base (yml before yaml, absent keys defaulting to the OMP schema values), report `task.isolation.enabled`/`merge`/`apply` against decision 0004, and repair each opposing value via `omp config set` when the binary is on PATH — printing revert commands for the observed previous values, with the notices naming the config file actually read (or the one omp creates) — or print the exact remediation commands otherwise; the advisory check never fails the install.
 
 ## Commands, events, and outcomes
 
@@ -119,7 +119,7 @@ A read-only diff review along two independent axes, each as a bounded read-only 
 | Green terminal conformance | Session Owner | Deferred Slow E2E becomes eligible on unchanged bytes. |
 | Pause and save | User | One atomic state snapshot records the next action. |
 | Scope expands | Session Owner | Quick-fix context ends and normal discovery begins. |
-| Install GSD | User | The extension publishes fail-closed, then the machine's global OMP task.isolation settings are reported and, when opposing decision 0004, repaired machine-globally with revert commands or surfaced as manual remediation. |
+| Install GSD | User | The extension publishes fail-closed into the effective OMP agent base (`$PI_CODING_AGENT_DIR` when set to an absolute path, otherwise `~/.omp/agent`; a relative value fails closed before publication), then the machine's global OMP task.isolation settings are reported and, when opposing decision 0004, repaired machine-globally with revert commands or surfaced as manual remediation. |
 
 ## Context relationships
 

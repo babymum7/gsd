@@ -50,8 +50,25 @@ fi
 REPO_WITH_SENTINEL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P && printf "x")"
 REPO="${REPO_WITH_SENTINEL%??}"
 
-OMP_DIR="${HOME}/.omp"
-OMP_AGENT_DIR="${OMP_DIR}/agent"
+# Effective OMP agent base: omp relocates its whole agent dir — config,
+# commands, agents, and extension discovery — to PI_CODING_AGENT_DIR when it
+# is set, so every publish target and the isolation check follow that one
+# base. A relative value fails closed before any publication: omp resolves it
+# against each session's working directory, so nothing published there would
+# reach later sessions.
+if [ -n "${PI_CODING_AGENT_DIR:-}" ]; then
+  if [[ "${PI_CODING_AGENT_DIR}" != /* ]]; then
+    printf "error: PI_CODING_AGENT_DIR is a relative path ('%s'); omp resolves it against each session's working directory, so GSD cannot publish there.\n" "$PI_CODING_AGENT_DIR" >&2
+    printf "  Set an absolute path or unset PI_CODING_AGENT_DIR, then rerun install.sh.\n" >&2
+    exit 1
+  fi
+  OMP_AGENT_DIR="${PI_CODING_AGENT_DIR}"
+else
+  OMP_AGENT_DIR="${HOME}/.omp/agent"
+fi
+while [[ "${OMP_AGENT_DIR}" == */ && "${OMP_AGENT_DIR}" != "/" ]]; do
+  OMP_AGENT_DIR="${OMP_AGENT_DIR%/}"
+done
 OMP_COMMANDS_DIR="${OMP_AGENT_DIR}/commands"
 OMP_TARGET="${OMP_COMMANDS_DIR}/gsd.md"
 OMP_EXTENSIONS_DIR="${OMP_AGENT_DIR}/extensions"
@@ -1318,13 +1335,15 @@ parse_isolation_config() {
 # `omp config set` when the omp binary is on PATH, or prints the exact command
 # otherwise. The check is advisory: a failed repair never fails the install.
 check_isolation_settings() {
-  local agent_dir="${PI_CODING_AGENT_DIR:-${OMP_AGENT_DIR}}"
   local config_file=""
-  if [ -f "${agent_dir}/config.yml" ]; then
-    config_file="${agent_dir}/config.yml"
-  elif [ -f "${agent_dir}/config.yaml" ]; then
-    config_file="${agent_dir}/config.yaml"
+  if [ -f "${OMP_AGENT_DIR}/config.yml" ]; then
+    config_file="${OMP_AGENT_DIR}/config.yml"
+  elif [ -f "${OMP_AGENT_DIR}/config.yaml" ]; then
+    config_file="${OMP_AGENT_DIR}/config.yaml"
   fi
+  # The file omp reads now, or creates on its first write (config.yml); the
+  # notices below name it so remediation and revert point where omp writes.
+  local notice_file="${config_file:-${OMP_AGENT_DIR}/config.yml}"
 
   parse_isolation_config "$config_file"
 
@@ -1340,7 +1359,7 @@ check_isolation_settings() {
 
   local enabled_set=0 merge_set=0 apply_set=0
   if command -v omp >/dev/null 2>&1; then
-    printf "  Set via omp (machine-global, affects every OMP session on this machine):\n"
+    printf "  Set via omp (machine-global change in %s; affects every OMP session on this machine):\n" "$notice_file"
     if [ "$ISOLATION_ENABLED" != "true" ]; then
       if ! omp config set task.isolation.enabled true; then
         printf "  warn: omp config set task.isolation.enabled true failed.\n" >&2
@@ -1373,7 +1392,7 @@ check_isolation_settings() {
       printf "    omp config set task.isolation.apply %s\n" "$ISOLATION_APPLY"
     fi
   else
-    printf "  omp not on PATH; set them manually (machine-global, affects every OMP session on this machine):\n"
+    printf "  omp not on PATH; set them manually (machine-global change in %s; affects every OMP session on this machine):\n" "$notice_file"
     if [ "$ISOLATION_ENABLED" != "true" ]; then
       printf "    omp config set task.isolation.enabled true\n"
     fi
@@ -1386,7 +1405,7 @@ check_isolation_settings() {
   fi
 }
 
-REGISTRATION_PARENTS=("$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR" "$OMP_AGENTS_DIR")
+REGISTRATION_PARENTS=("$(dirname "$OMP_AGENT_DIR")" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR" "$OMP_AGENTS_DIR")
 # Extension parents and the optional legacy-agents parent must be real directories.
 for p in "${REGISTRATION_PARENTS[@]}"; do
   check_p="$p"

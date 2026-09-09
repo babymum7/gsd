@@ -1803,3 +1803,118 @@ test("installer reads task isolation from PI_CODING_AGENT_DIR when set", () => {
     rmSync(temporary, { recursive: true, force: true });
   }
 });
+test("installer publishes and checks against the relocated agent dir when PI_CODING_AGENT_DIR is absolute", () => {
+  const { temporary, home, fakeBin } = makeHomeSandbox();
+  for (const command of ["git", "bun"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+  const callLog = join(temporary, "omp-calls.log");
+  writeOmpStub(fakeBin);
+  const relocatedAgentDir = join(temporary, "agent-relocated");
+  mkdirSync(relocatedAgentDir, { recursive: true });
+  writeFileSync(
+    join(relocatedAgentDir, "config.yaml"),
+    "task:\n  isolation:\n    enabled: false\n    merge: patch\n    apply: true\n"
+  );
+  const homeAgentDir = join(home, ".omp", "agent");
+  mkdirSync(homeAgentDir, { recursive: true });
+  writeFileSync(
+    join(homeAgentDir, "config.yml"),
+    "task:\n  isolation:\n    enabled: true\n    merge: branch\n    apply: false\n"
+  );
+  const relocatedExtTarget = join(relocatedAgentDir, "extensions", "gsd-context.js");
+
+  try {
+    const res = runInstallerAt(ROOT, home, fakeBin, {
+      OMP_STUB_LOG: callLog,
+      PI_CODING_AGENT_DIR: relocatedAgentDir,
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.ok(
+      lstatSync(relocatedExtTarget).isSymbolicLink(),
+      "extension symlink must publish into the relocated agent dir"
+    );
+    assert.equal(
+      readlinkSync(relocatedExtTarget),
+      join(ROOT, "extensions", "gsd-context.js"),
+      "symlink must point to the repo extension"
+    );
+    assert.equal(
+      existsSync(join(home, ".omp", "agent", "extensions")),
+      false,
+      "home extensions dir must not be created when the agent base is relocated"
+    );
+    assert.match(res.stdout, /enabled=false merge=patch apply=true/);
+    assert.match(res.stdout, /does not match decision 0004/);
+    assert.ok(
+      res.stdout.includes(join(relocatedAgentDir, "config.yaml")),
+      "the machine-global notice must name the relocated config file actually read"
+    );
+    assert.match(res.stdout, /omp config set task\.isolation\.enabled false/);
+    assert.match(res.stdout, /omp config set task\.isolation\.merge patch/);
+    assert.match(res.stdout, /omp config set task\.isolation\.apply true/);
+    const calls = readFileSync(callLog, "utf8").trim().split("\n");
+    assert.deepEqual(calls, [
+      "config set task.isolation.enabled true",
+      "config set task.isolation.merge branch",
+      "config set task.isolation.apply false",
+    ]);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("installer fails closed when PI_CODING_AGENT_DIR is relative", () => {
+  const { home, fakeBin, repo } = makeInstallFixture();
+  for (const command of ["git", "bun"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+
+  try {
+    const res = runInstallerAt(repo, home, fakeBin, {
+      PATH: `${fakeBin}${delimiter}/usr/bin:/bin`,
+      PI_CODING_AGENT_DIR: "some/relative/agent-dir",
+    });
+    assert.equal(res.status, 1, `expected fail-closed, got stdout: ${res.stdout}`);
+    assert.match(res.stderr, /PI_CODING_AGENT_DIR/);
+    assert.equal(
+      existsSync(join(repo, "some", "relative", "agent-dir")),
+      false,
+      "a relative value must not create anything inside the repo"
+    );
+    assert.equal(
+      existsSync(join(home, ".omp", "agent", "extensions", "gsd-context.js")),
+      false,
+      "no extension must be published before failing closed"
+    );
+  } finally {
+    rmSync(dirname(home), { recursive: true, force: true });
+  }
+});
+
+test("installer fails closed when a relocated registration parent is a symlink", () => {
+  const { temporary, home, fakeBin } = makeHomeSandbox();
+  for (const command of ["git", "bun"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+  const realAgentDir = join(temporary, "real-agent");
+  const symlinkAgentDir = join(temporary, "agent-link");
+  mkdirSync(realAgentDir, { recursive: true });
+  symlinkSync(realAgentDir, symlinkAgentDir);
+
+  try {
+    const res = runInstallerAt(ROOT, home, fakeBin, {
+      PATH: `${fakeBin}${delimiter}/usr/bin:/bin`,
+      PI_CODING_AGENT_DIR: symlinkAgentDir,
+    });
+    assert.equal(res.status, 1, `expected fail-closed, got stdout: ${res.stdout}`);
+    assert.match(res.stderr, /error: registration parent .* is a symlink/);
+    assert.equal(
+      existsSync(join(symlinkAgentDir, "extensions")),
+      false,
+      "nothing must be published through the symlinked base"
+    );
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
