@@ -56,6 +56,17 @@ REPO="${REPO_WITH_SENTINEL%??}"
 # base. A relative value fails closed before any publication: omp resolves it
 # against each session's working directory, so nothing published there would
 # reach later sessions.
+#
+# Profile variables relocate that whole agent dir too — config path,
+# extension discovery, and agents unpack — so while one is set, this
+# installer cannot coherently target the base profile sessions read while
+# its inherited `omp config set` calls would write a different one. Fail
+# closed before any publication.
+if [ -n "${OMP_PROFILE:-}" ] || [ -n "${PI_PROFILE:-}" ]; then
+  printf "error: OMP_PROFILE/PI_PROFILE is set ('%s'/'%s'); omp relocates its whole agent dir for profile sessions, so GSD cannot coherently install alongside it.\n" "${OMP_PROFILE:-}" "${PI_PROFILE:-}" >&2
+  printf "  Unset OMP_PROFILE and PI_PROFILE, then rerun install.sh.\n" >&2
+  exit 1
+fi
 if [ -n "${PI_CODING_AGENT_DIR:-}" ]; then
   if [[ "${PI_CODING_AGENT_DIR}" != /* ]]; then
     printf "error: PI_CODING_AGENT_DIR is a relative path ('%s'); omp resolves it against each session's working directory, so GSD cannot publish there.\n" "$PI_CODING_AGENT_DIR" >&2
@@ -1343,7 +1354,15 @@ check_isolation_settings() {
   fi
   # The file omp reads now, or creates on its first write (config.yml); the
   # notices below name it so remediation and revert point where omp writes.
+  # The effect scope stays honest: only the default home base is
+  # machine-global; a relocated base affects the sessions using that dir.
   local notice_file="${config_file:-${OMP_AGENT_DIR}/config.yml}"
+  local effect_notice
+  if [ -n "${PI_CODING_AGENT_DIR:-}" ]; then
+    effect_notice="affects every OMP session using this agent dir"
+  else
+    effect_notice="machine-global, affects every OMP session on this machine"
+  fi
 
   parse_isolation_config "$config_file"
 
@@ -1359,7 +1378,7 @@ check_isolation_settings() {
 
   local enabled_set=0 merge_set=0 apply_set=0
   if command -v omp >/dev/null 2>&1; then
-    printf "  Set via omp (machine-global change in %s; affects every OMP session on this machine):\n" "$notice_file"
+    printf "  Set via omp (change in %s; %s):\n" "$notice_file" "$effect_notice"
     if [ "$ISOLATION_ENABLED" != "true" ]; then
       if ! omp config set task.isolation.enabled true; then
         printf "  warn: omp config set task.isolation.enabled true failed.\n" >&2
@@ -1392,7 +1411,7 @@ check_isolation_settings() {
       printf "    omp config set task.isolation.apply %s\n" "$ISOLATION_APPLY"
     fi
   else
-    printf "  omp not on PATH; set them manually (machine-global change in %s; affects every OMP session on this machine):\n" "$notice_file"
+    printf "  omp not on PATH; set them manually (change in %s; %s):\n" "$notice_file" "$effect_notice"
     if [ "$ISOLATION_ENABLED" != "true" ]; then
       printf "    omp config set task.isolation.enabled true\n"
     fi

@@ -60,6 +60,9 @@ function runInstallerAt(repo, home, fakeBin, extraEnv = {}) {
       ...process.env,
       HOME: home,
       PATH: `${fakeBin}${delimiter}${process.env.PATH ?? ""}`,
+      PI_CODING_AGENT_DIR: "",
+      OMP_PROFILE: "",
+      PI_PROFILE: "",
       ...extraEnv,
     },
   });
@@ -1848,8 +1851,10 @@ test("installer publishes and checks against the relocated agent dir when PI_COD
     assert.match(res.stdout, /does not match decision 0004/);
     assert.ok(
       res.stdout.includes(join(relocatedAgentDir, "config.yaml")),
-      "the machine-global notice must name the relocated config file actually read"
+      "the scoped notice must name the relocated config file actually read"
     );
+    assert.match(res.stdout, /using this agent dir/);
+    assert.doesNotMatch(res.stdout, /machine-global/);
     assert.match(res.stdout, /omp config set task\.isolation\.enabled false/);
     assert.match(res.stdout, /omp config set task\.isolation\.merge patch/);
     assert.match(res.stdout, /omp config set task\.isolation\.apply true/);
@@ -1913,6 +1918,92 @@ test("installer fails closed when a relocated registration parent is a symlink",
       existsSync(join(symlinkAgentDir, "extensions")),
       false,
       "nothing must be published through the symlinked base"
+    );
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("installer ignores ambient agent and profile env carried by the test process", () => {
+  const { temporary, home, fakeBin } = makeHomeSandbox();
+  for (const command of ["git", "bun"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+  const ambientAgent = join(temporary, "ambient-agent");
+  mkdirSync(ambientAgent, { recursive: true });
+  const secondHome = join(temporary, "home2");
+  mkdirSync(secondHome);
+
+  try {
+    process.env.PI_CODING_AGENT_DIR = ambientAgent;
+    const res = runInstallerAt(ROOT, home, fakeBin);
+    assert.equal(res.status, 0, res.stderr);
+    assert.ok(
+      lstatSync(join(home, ".omp", "agent", "extensions", "gsd-context.js")).isSymbolicLink(),
+      "an ambient PI_CODING_AGENT_DIR must not leak into the sandbox install"
+    );
+    assert.equal(
+      existsSync(join(ambientAgent, "extensions")),
+      false,
+      "nothing must be published into the ambient agent dir"
+    );
+
+    process.env.OMP_PROFILE = "ambient-prof";
+    process.env.PI_PROFILE = "ambient-prof";
+    const resProfiles = runInstallerAt(ROOT, secondHome, fakeBin);
+    assert.equal(resProfiles.status, 0, resProfiles.stderr);
+    assert.ok(
+      lstatSync(join(secondHome, ".omp", "agent", "extensions", "gsd-context.js")).isSymbolicLink(),
+      "ambient profile variables must be scrubbed, not fail-closed"
+    );
+  } finally {
+    delete process.env.PI_CODING_AGENT_DIR;
+    delete process.env.OMP_PROFILE;
+    delete process.env.PI_PROFILE;
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("installer fails closed when OMP_PROFILE is non-empty", () => {
+  const { temporary, home, fakeBin } = makeHomeSandbox();
+  for (const command of ["git", "bun"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+
+  try {
+    const res = runInstallerAt(ROOT, home, fakeBin, {
+      PATH: `${fakeBin}${delimiter}/usr/bin:/bin`,
+      OMP_PROFILE: "prof",
+    });
+    assert.equal(res.status, 1, `expected fail-closed, got stdout: ${res.stdout}`);
+    assert.match(res.stderr, /OMP_PROFILE/);
+    assert.equal(
+      existsSync(join(home, ".omp", "agent", "extensions", "gsd-context.js")),
+      false,
+      "no extension must be published before failing closed"
+    );
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("installer fails closed when PI_PROFILE is non-empty", () => {
+  const { temporary, home, fakeBin } = makeHomeSandbox();
+  for (const command of ["git", "bun"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+
+  try {
+    const res = runInstallerAt(ROOT, home, fakeBin, {
+      PATH: `${fakeBin}${delimiter}/usr/bin:/bin`,
+      PI_PROFILE: "prof",
+    });
+    assert.equal(res.status, 1, `expected fail-closed, got stdout: ${res.stdout}`);
+    assert.match(res.stderr, /PI_PROFILE/);
+    assert.equal(
+      existsSync(join(home, ".omp", "agent", "extensions", "gsd-context.js")),
+      false,
+      "no extension must be published before failing closed"
     );
   } finally {
     rmSync(temporary, { recursive: true, force: true });
