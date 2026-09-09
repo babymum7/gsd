@@ -1250,6 +1250,142 @@ sync_managed_target() {
   fi
 }
 
+# Parses task.isolation.{enabled,merge,apply} from an OMP agent config file into
+# ISOLATION_ENABLED/ISOLATION_MERGE/ISOLATION_APPLY. Absent keys keep the OMP
+# schema defaults, which decision 0004 opposes. Handles hand-edited files with
+# any consistent indentation; keys outside task.isolation are ignored.
+parse_isolation_config() {
+  ISOLATION_ENABLED="false"
+  ISOLATION_MERGE="patch"
+  ISOLATION_APPLY="true"
+  if [ -z "${1:-}" ] || [ ! -f "$1" ]; then
+    return 0
+  fi
+
+  local config_file="$1"
+  local line lead trimmed indent key value
+  local in_task=0 in_isolation=0
+  local task_indent=-1 isolation_indent=-1
+
+  while IFS= read -r line || [ -n "$line" ]; do
+    line="${line%$'\r'}"
+    lead="${line%%[![:space:]]*}"
+    trimmed="${line#"$lead"}"
+    case "$trimmed" in
+      ""|"#"*) continue ;;
+    esac
+    indent="${#lead}"
+
+    if [ "$in_isolation" -eq 1 ]; then
+      if [ "$indent" -gt "$isolation_indent" ]; then
+        key="${trimmed%%:*}"
+        key="${key%"${key##*[![:space:]]}"}"
+        value="${trimmed#*:}"
+        value="${value%% '#'*}"
+        value="${value#"${value%%[![:space:]]*}"}"
+        value="${value%"${value##*[![:space:]]}"}"
+        value="${value//\"/}"
+        value="${value//\'/}"
+        case "$key" in
+          enabled) ISOLATION_ENABLED="$value" ;;
+          merge) ISOLATION_MERGE="$value" ;;
+          apply) ISOLATION_APPLY="$value" ;;
+        esac
+        continue
+      fi
+      in_isolation=0
+    fi
+
+    if [ "$in_task" -eq 1 ] && [ "$indent" -le "$task_indent" ]; then
+      in_task=0
+    fi
+    if [ "$in_task" -eq 0 ]; then
+      if [ "$trimmed" = "task:" ]; then
+        in_task=1
+        task_indent="$indent"
+      fi
+      continue
+    fi
+    if [ "$trimmed" = "isolation:" ]; then
+      in_isolation=1
+      isolation_indent="$indent"
+    fi
+  done < "$config_file"
+}
+
+# Reports the effective global OMP task.isolation settings against decision
+# 0004 (isolated wave dispatch) and, for each opposing value, repairs it with
+# `omp config set` when the omp binary is on PATH, or prints the exact command
+# otherwise. The check is advisory: a failed repair never fails the install.
+check_isolation_settings() {
+  local agent_dir="${PI_CODING_AGENT_DIR:-${OMP_AGENT_DIR}}"
+  local config_file=""
+  if [ -f "${agent_dir}/config.yml" ]; then
+    config_file="${agent_dir}/config.yml"
+  elif [ -f "${agent_dir}/config.yaml" ]; then
+    config_file="${agent_dir}/config.yaml"
+  fi
+
+  parse_isolation_config "$config_file"
+
+  printf "  Task isolation (global): enabled=%s merge=%s apply=%s" \
+    "$ISOLATION_ENABLED" "$ISOLATION_MERGE" "$ISOLATION_APPLY"
+  if [ "$ISOLATION_ENABLED" = "true" ] \
+    && [ "$ISOLATION_MERGE" = "branch" ] \
+    && [ "$ISOLATION_APPLY" = "false" ]; then
+    printf " (matches decision 0004)\n"
+    return 0
+  fi
+  printf " (does not match decision 0004)\n"
+
+  local enabled_set=0 merge_set=0 apply_set=0
+  if command -v omp >/dev/null 2>&1; then
+    printf "  Set via omp (machine-global, affects every OMP session on this machine):\n"
+    if [ "$ISOLATION_ENABLED" != "true" ]; then
+      if ! omp config set task.isolation.enabled true; then
+        printf "  warn: omp config set task.isolation.enabled true failed.\n" >&2
+      else
+        enabled_set=1
+      fi
+    fi
+    if [ "$ISOLATION_MERGE" != "branch" ]; then
+      if ! omp config set task.isolation.merge branch; then
+        printf "  warn: omp config set task.isolation.merge branch failed.\n" >&2
+      else
+        merge_set=1
+      fi
+    fi
+    if [ "$ISOLATION_APPLY" != "false" ]; then
+      if ! omp config set task.isolation.apply false; then
+        printf "  warn: omp config set task.isolation.apply false failed.\n" >&2
+      else
+        apply_set=1
+      fi
+    fi
+    printf "  Revert to the previous values with:\n"
+    if [ "$enabled_set" -eq 1 ]; then
+      printf "    omp config set task.isolation.enabled %s\n" "$ISOLATION_ENABLED"
+    fi
+    if [ "$merge_set" -eq 1 ]; then
+      printf "    omp config set task.isolation.merge %s\n" "$ISOLATION_MERGE"
+    fi
+    if [ "$apply_set" -eq 1 ]; then
+      printf "    omp config set task.isolation.apply %s\n" "$ISOLATION_APPLY"
+    fi
+  else
+    printf "  omp not on PATH; set them manually (machine-global, affects every OMP session on this machine):\n"
+    if [ "$ISOLATION_ENABLED" != "true" ]; then
+      printf "    omp config set task.isolation.enabled true\n"
+    fi
+    if [ "$ISOLATION_MERGE" != "branch" ]; then
+      printf "    omp config set task.isolation.merge branch\n"
+    fi
+    if [ "$ISOLATION_APPLY" != "false" ]; then
+      printf "    omp config set task.isolation.apply false\n"
+    fi
+  fi
+}
+
 REGISTRATION_PARENTS=("$OMP_DIR" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR" "$OMP_AGENTS_DIR")
 # Extension parents and the optional legacy-agents parent must be real directories.
 for p in "${REGISTRATION_PARENTS[@]}"; do
@@ -1309,4 +1445,5 @@ fi
 printf "\nGSD installation complete\n"
 printf "  Source checkout: %s\n" "$REPO"
 printf "  OMP extension symlink: %s -> %s\n" "$EXT_TARGET" "$EXT_SOURCE"
+check_isolation_settings
 printf "  Next: start a new OMP session to load the extension.\n"

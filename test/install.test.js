@@ -1677,3 +1677,129 @@ exec /usr/bin/mv "$@"
     rmSync(temporary, { recursive: true, force: true });
   }
 });
+
+function writeOmpStub(fakeBin) {
+  writeExecutable(
+    join(fakeBin, "omp"),
+    `#!/bin/sh
+printf '%s\\n' "$*" >> "\${OMP_STUB_LOG:?}"
+exit 0
+`
+  );
+}
+
+test("installer fixes opposing task isolation settings via omp on a fresh machine", () => {
+  const { temporary, home, fakeBin } = makeHomeSandbox();
+  for (const command of ["git", "bun"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+  const callLog = join(temporary, "omp-calls.log");
+  writeOmpStub(fakeBin);
+
+  try {
+    const res = runInstallerAt(ROOT, home, fakeBin, { OMP_STUB_LOG: callLog });
+    assert.equal(res.status, 0, res.stderr);
+    const calls = readFileSync(callLog, "utf8").trim().split("\n");
+    assert.deepEqual(calls, [
+      "config set task.isolation.enabled true",
+      "config set task.isolation.merge branch",
+      "config set task.isolation.apply false",
+    ]);
+    assert.match(res.stdout, /enabled=false merge=patch apply=true/);
+    assert.match(res.stdout, /does not match decision 0004/);
+    assert.match(res.stdout, /machine-global/);
+    assert.match(res.stdout, /omp config set task\.isolation\.enabled false/);
+    assert.match(res.stdout, /omp config set task\.isolation\.merge patch/);
+    assert.match(res.stdout, /omp config set task\.isolation\.apply true/);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("installer prints manual remediation when omp is absent", () => {
+  const { temporary, home, fakeBin } = makeHomeSandbox();
+  for (const command of ["git", "bun"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+
+  try {
+    const res = runInstallerAt(ROOT, home, fakeBin, {
+      PATH: `${fakeBin}${delimiter}/usr/bin:/bin`,
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /enabled=false merge=patch apply=true/);
+    assert.match(res.stdout, /does not match decision 0004/);
+    assert.match(res.stdout, /omp config set task\.isolation\.enabled true/);
+    assert.match(res.stdout, /omp config set task\.isolation\.merge branch/);
+    assert.match(res.stdout, /omp config set task\.isolation\.apply false/);
+    assert.doesNotMatch(res.stdout, /Revert|Set via omp/);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("installer confirms matching task isolation settings without further notices", () => {
+  const { temporary, home, fakeBin } = makeHomeSandbox();
+  for (const command of ["git", "bun"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+  const callLog = join(temporary, "omp-calls.log");
+  writeOmpStub(fakeBin);
+  const agentConfigDir = join(home, ".omp", "agent");
+  mkdirSync(agentConfigDir, { recursive: true });
+  writeFileSync(
+    join(agentConfigDir, "config.yml"),
+    "task:\n  isolation:\n    enabled: true\n    merge: branch\n    apply: false\n"
+  );
+
+  try {
+    const res = runInstallerAt(ROOT, home, fakeBin, { OMP_STUB_LOG: callLog });
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /enabled=true merge=branch apply=false/);
+    assert.match(res.stdout, /matches decision 0004/);
+    assert.doesNotMatch(res.stdout, /does not match|Revert|machine-global|omp config set/);
+    assert.ok(
+      !existsSync(callLog) || readFileSync(callLog, "utf8").trim() === "",
+      "omp must not be invoked when settings already match"
+    );
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("installer reads task isolation from PI_CODING_AGENT_DIR when set", () => {
+  const { temporary, home, fakeBin } = makeHomeSandbox();
+  for (const command of ["git", "bun"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+  const callLog = join(temporary, "omp-calls.log");
+  writeOmpStub(fakeBin);
+  const relocatedAgentDir = join(temporary, "agent-relocated");
+  mkdirSync(relocatedAgentDir, { recursive: true });
+  writeFileSync(
+    join(relocatedAgentDir, "config.yml"),
+    "task:\n  isolation:\n    enabled: true\n    merge: branch\n    apply: false\n"
+  );
+  const homeAgentDir = join(home, ".omp", "agent");
+  mkdirSync(homeAgentDir, { recursive: true });
+  writeFileSync(
+    join(homeAgentDir, "config.yml"),
+    "task:\n  isolation:\n    enabled: false\n    merge: patch\n    apply: true\n"
+  );
+
+  try {
+    const res = runInstallerAt(ROOT, home, fakeBin, {
+      OMP_STUB_LOG: callLog,
+      PI_CODING_AGENT_DIR: relocatedAgentDir,
+    });
+    assert.equal(res.status, 0, res.stderr);
+    assert.match(res.stdout, /enabled=true merge=branch apply=false/);
+    assert.match(res.stdout, /matches decision 0004/);
+    assert.ok(
+      !existsSync(callLog) || readFileSync(callLog, "utf8").trim() === "",
+      "omp must not be invoked when the relocated config matches"
+    );
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
