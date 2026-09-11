@@ -1,6 +1,8 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { read } from "./support/skills-fixtures.js";
+import { read, filesUnder, ROOT } from "./support/skills-fixtures.js";
+import { readFileSync } from "node:fs";
+import { join, relative } from "node:path";
 
 // ownership, and never said that bounded read-only research is still allowed.
 test("AC-5/AC-6: injected orchestration keeps ownership and read-only research stays allowed", () => {
@@ -171,4 +173,33 @@ test("single-task waves execute inline without dispatching sub-agents", () => {
   assert.match(execution, /single-task wave is authored inline by the owner with `gsd-tdd`/i);
   assert.match(reference, /isolation is unavailable or an isolated spawn fails/i);
   assert.match(execution, /isolation is unavailable or an isolated spawn fails/i);
+});
+
+// Decision 0009 locks the host-adapter boundary: `lib/`, `tools/`, and `skills/` are the
+// harness-generic core, and the only OMP-coupled surfaces are `extensions/gsd-context.js`
+// and `install.sh`. Nothing enforced that, so a stray `omp config` in a tool or an
+// `omp/task/` name in a skill would silently break the portability contract of decision 0004.
+test("AC: the harness-generic core never names harness identifiers", () => {
+  const HARNESS_PATTERNS = [
+    /OMP_/,
+    /PI_/,
+    /pi\.on\(/,
+    /pi\.logger/,
+    /pi\.sendMessage/,
+    /\.omp\//,
+    /omp config/,
+    /omp\/task\//,
+  ];
+  for (const [label, directory] of [["lib", "lib"], ["tools", "tools"], ["skills", "skills"]]) {
+    for (const file of filesUnder(join(ROOT, directory))) {
+      const content = readFileSync(file, "utf8");
+      for (const pattern of HARNESS_PATTERNS) {
+        const match = content.match(pattern);
+        assert.ok(
+          match === null,
+          `${label}: ${relative(ROOT, file)} must not name a harness identifier (found ${String(pattern)}: ${match?.[0]})`,
+        );
+      }
+    }
+  }
 });
