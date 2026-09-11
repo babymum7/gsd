@@ -46,6 +46,7 @@ After all tasks and Fast TDD Checks are green, the session owner performs determ
 For squash, scratch disposition, archive, and cleanup use § Git/base/WIP/scratch mechanics and § Feature cleanup. Archive-and-delete materializes bound plan and outcome before conformance: canonical archive destinations are terminal-cleanup-owned lifecycle paths in changed-path proof; every other changed path must be task-owned.
 
 The merge target is exactly the recorded `state.toon` `base_ref`; never ask whether to merge into `main` and never widen to repo defaults.
+The owner retires wave-dispatched task branches and isolated workspaces under feature cleanup before squash: prove each an ancestor of `wip/<feature>` via `merge-base --is-ancestor`, delete via `git branch -d` (never `-D`), remove clean workspaces, and surface unmerged or dirty residue unforced.
 Before squash run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>` unpiped or under `set -o pipefail` — a piped last stage masks the gate's exit status: only `status: ready` proceeds, on exit 0 with a trailing `exit=0` line, proving HEAD rests on the recorded `wip_branch` and no path outside `.scratch/` is staged, modified, or untracked, so squashes carry only reviewed bytes; a `status: blocked` code with its `exit=1` line is Spec escalation that stops the gate instead of retargeting the merge.
 Promoting that base onward is separate user-owned work after this packet ends green.
 

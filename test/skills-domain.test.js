@@ -246,3 +246,40 @@ test("AC-7: domain modeling composes into owning task author, covers standalone 
   // 5. Brainstorming decision record names mandatory Date header
   assert.match(brainstorm, /-\s*\*\*Date:\*\*\s*YYYY-MM-DD/);
 });
+
+test("the canon, verify skill, and domain shard record pre-squash wave-artifact cleanup", () => {
+  const reference = read("skills/gsd/REFERENCE.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const domain = read("docs/domain/gsd.md");
+
+  // 1. REFERENCE specifies pre-squash retirement of wave task branches and isolated workspaces
+  assert.match(
+    reference,
+    /retires? (?:all )?wave-dispatched task branches[\s\S]{0,160}(?:before|prior to) (?:the )?squash/i,
+    "REFERENCE must specify pre-squash retirement of wave task branches",
+  );
+  assert.match(
+    reference,
+    /merge-base --is-ancestor[\s\S]{0,80}git branch -d/i,
+    "REFERENCE must require merge-base ancestor proof before git branch -d",
+  );
+
+  // 2. gsd-verify requires pre-squash retirement of wave task branches
+  assert.match(
+    verify,
+    /retire[\s\S]{0,120}wave-dispatched task branches[\s\S]{0,120}(?:before|prior to) squash/i,
+    "verify skill must require retiring wave task branches before squash",
+  );
+
+  // 3. Domain shard records pre-squash wave artifact cleanup in Session Owner actor and workflow
+  assert.match(
+    domain,
+    /retires? (?:all )?wave-dispatched task branches[\s\S]{0,120}isolated workspaces[\s\S]{0,120}(?:before|prior to) (?:the )?squash/i,
+    "domain shard must record pre-squash retirement of wave task branches and workspaces",
+  );
+  assert.match(
+    domain,
+    /unmerged work is never force-deleted/i,
+    "domain shard must preserve the non-force-deletion invariant",
+  );
+});

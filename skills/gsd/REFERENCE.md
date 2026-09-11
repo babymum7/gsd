@@ -472,6 +472,7 @@ Terminal squash merges into exactly the recorded `base_ref`, so `main` is merge 
 ## Feature cleanup
 
 For explicit abandon/drop/delete: confirm feature name, inspect whether the worktree is dirty, check out recorded base, safely delete WIP branch, and remove `.scratch/<feature>/`. Never force-delete unmerged work without explicit confirmation.
+The session owner retires all wave-dispatched task branches and isolated workspaces before the squash into base: prove each branch is an ancestor of `wip/<feature>` (`merge-base --is-ancestor`) and delete it via `git branch -d` (never `-D`); clean isolated workspaces are removed through the harness isolation mechanism; unmerged branches or dirty workspaces remain unforced and surface for explicit inspection.
 
 ### Terminal scratch disposition
 
