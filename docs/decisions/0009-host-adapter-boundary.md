@@ -38,4 +38,6 @@ harness coupling stays confined to the adapter surfaces. Concretely:
    Preservation still words the compaction hook with this harness's event names
    (`session.compacting`, `event.messages`). The prose is harness-specific while
    the section declares a generic contract; de-drifting it is left to a later
-   round so this record stays scoped to locking the boundary.
+   round so this record stays scoped to locking the boundary. The hardened
+   guard pins this sentence verbatim (asserted present, then excised from the
+   scan), so the de-drift round must update that pin in the same change.
