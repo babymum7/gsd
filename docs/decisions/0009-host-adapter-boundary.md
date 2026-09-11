@@ -10,9 +10,12 @@ harness coupling stays confined to the adapter surfaces. Concretely:
 
 1. `lib/`, `tools/`, and `skills/` (including the canon `REFERENCE.md`) name no
    harness-specific identifier. A regression test in `test/skills-harness.test.js`
-   locks this by scanning those trees for `OMP_`, `PI_`, `pi.on(`, `pi.logger`,
-   `pi.sendMessage`, `.omp/`, `omp config`, and `omp/task/` and failing on any
-   match.
+   locks this by scanning those trees for `OMP_`, `PI_CODING_AGENT_DIR`,
+   `PI_PROFILE` (enumerated literally so `API_` cannot false-positive),
+   `pi.on(`, `pi.logger`, `pi.sendMessage`, `.omp/`, `omp config`, `omp/task/`,
+   and the compaction event tokens `session.compacting` and `event.messages`,
+   failing on any match. The canon's single documented drift sentence
+   (section 4) is pinned as the one asserted-present-then-excised exception.
 2. `extensions/gsd-context.js` and `install.sh` are the sole OMP adapter
    surfaces. The adapter consumes exactly this host surface: session lifecycle
    events (`session_start`, `session_switch`, `session_branch`, `session_tree`,
@@ -27,8 +30,10 @@ harness coupling stays confined to the adapter surfaces. Concretely:
 3. No host-engine interface is extracted yet. Splitting
    `extensions/gsd-context.js` into a harness-neutral engine plus a thin
    adapter is deferred until a real second harness exists: the repo's seam
-   discipline forbids inventing an interface from one production adapter, and
-   the core is already identifier-clean.
+   discipline forbids inventing an interface from one production adapter. The
+   core is now guarded identifier-clean: one lib comment drift the first
+   hardened scan caught has been reworded, and the remaining drift is only the
+   canon sentence deferred in section 4.
 4. Known limitation, deferred: `skills/gsd/REFERENCE.md` § Current Request
    Preservation still words the compaction hook with this harness's event names
    (`session.compacting`, `event.messages`). The prose is harness-specific while
