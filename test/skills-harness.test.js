@@ -182,22 +182,40 @@ test("single-task waves execute inline without dispatching sub-agents", () => {
 test("AC: the harness-generic core never names harness identifiers", () => {
   const HARNESS_PATTERNS = [
     /OMP_/,
-    /PI_/,
+    /PI_CODING_AGENT_DIR/,
+    /PI_PROFILE/,
     /pi\.on\(/,
     /pi\.logger/,
     /pi\.sendMessage/,
     /\.omp\//,
     /omp config/,
     /omp\/task\//,
+    /session\.compacting/,
+    /event\.messages/,
   ];
+  // Decision 0009 section 4 records exactly one known drift: REFERENCE.md § Current
+  // Request Preservation still words the compaction hook with this harness's event
+  // names. Pin that exact sentence as the single documented exception — assert it is
+  // present, excise it from the scan, and then require zero remaining matches anywhere
+  // in the core trees, so any second drifted line fails the guard.
+  const KNOWN_DRIFT =
+    "During compaction, `session.compacting` extracts the last genuine user request from `event.messages` (filtering bootstrap messages, recovery capsules, and compaction summaries; bounded to 500 bytes) and returns it alongside the capsule:";
   for (const [label, directory] of [["lib", "lib"], ["tools", "tools"], ["skills", "skills"]]) {
     for (const file of filesUnder(join(ROOT, directory))) {
-      const content = readFileSync(file, "utf8");
+      let content = readFileSync(file, "utf8");
+      const relativePath = relative(ROOT, file);
+      if (relativePath === "skills/gsd/REFERENCE.md") {
+        assert.ok(
+          content.includes(KNOWN_DRIFT),
+          "REFERENCE.md must keep its single documented drift sentence until decision 0009's deferred de-drift round lands",
+        );
+        content = content.replace(KNOWN_DRIFT, "");
+      }
       for (const pattern of HARNESS_PATTERNS) {
         const match = content.match(pattern);
         assert.ok(
           match === null,
-          `${label}: ${relative(ROOT, file)} must not name a harness identifier (found ${String(pattern)}: ${match?.[0]})`,
+          `${label}: ${relativePath} must not name a harness identifier (found ${String(pattern)}: ${match?.[0]})`,
         );
       }
     }
