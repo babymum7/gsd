@@ -256,6 +256,42 @@ test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks
     for (const entry of cases) rmSync(entry.workspace, { recursive: true, force: true });
   }
 });
+test("both grammars reject a none classification that still owns domain documentation", () => {
+  // `classification=none` declares the fix touches no domain meaning, so owning a
+  // domain shard, the index, or AGENTS.md contradicts that declaration. The non-`none`
+  // branch already enforces the direction it can see; this closes the inverse.
+  const quickFixShard = quickFixPlan("none-shard-qf")
+    .replace("  - `src/fix.js` \u2014 modify: correct the bounded observable behavior", "  - `src/fix.js` \u2014 modify: correct the bounded observable behavior\n  - `docs/domain/gsd.md` \u2014 modify: record the corrected production behavior");
+  const quickFixAgents = quickFixPlan("none-agents-qf")
+    .replace("  - `src/fix.js` \u2014 modify: correct the bounded observable behavior", "  - `src/fix.js` \u2014 modify: correct the bounded observable behavior\n  - `AGENTS.md` \u2014 modify: record the corrected agent instruction");
+  const fullPlanShard = canonicalPlan("none-shard-plan")
+    .replace("  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation", "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation\n  - `docs/domain/gsd.md` \u2014 modify: record the corrected production behavior");
+  const fullPlanIndex = canonicalPlan("none-index-plan")
+    .replace("  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation", "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation\n  - `docs/domain/index.md` \u2014 modify: keep the index current");
+  const contradiction = /classification none must not own domain documentation/;
+  const cases = [
+    { command: "validate-quick-fix", feature: "none-shard-qf", content: quickFixShard, expect: contradiction },
+    { command: "validate-quick-fix", feature: "none-agents-qf", content: quickFixAgents, expect: contradiction },
+    { command: "validate-plan", feature: "none-shard-plan", content: fullPlanShard, expect: contradiction },
+    { command: "validate-plan", feature: "none-index-plan", content: fullPlanIndex, expect: contradiction },
+  ].map((entry) => ({ ...entry, ...makePlanWorkspace(entry.feature, entry.content) }));
+
+  try {
+    for (const entry of cases) {
+      const result = spawnSync(process.execPath, [CLI, entry.command, "--path", entry.planPath], {
+        cwd: entry.workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 1, `${entry.feature}: ${result.stdout}${result.stderr}`);
+      assert.equal(result.stderr, "");
+      assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/, entry.feature);
+      assert.match(result.stdout, entry.expect, entry.feature);
+    }
+  } finally {
+    for (const entry of cases) rmSync(entry.workspace, { recursive: true, force: true });
+  }
+});
+
 test("plan-owned durable records enforce NNNN-slug.md and allow prose-only ownership", () => {
   const badRecord = canonicalPlan("bad-record").replace(
     "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation",
