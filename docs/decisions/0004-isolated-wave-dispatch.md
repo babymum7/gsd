@@ -1,6 +1,6 @@
 # 0004 — Isolated wave dispatch for concurrent sub-agents
 
-- **Status:** Accepted
+- **Status:** Superseded by 0010
 - **Date:** 2026-08-29
 
 ## Decision

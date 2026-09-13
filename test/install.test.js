@@ -1712,7 +1712,7 @@ exit 0
   );
 }
 
-test("installer fixes opposing task isolation settings via omp on a fresh machine", () => {
+test("installer reports opposing isolation settings advisory-only", () => {
   const { temporary, home, fakeBin } = makeHomeSandbox();
   for (const command of ["git", "bun"]) {
     writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
@@ -1723,18 +1723,19 @@ test("installer fixes opposing task isolation settings via omp on a fresh machin
   try {
     const res = runInstallerAt(ROOT, home, fakeBin, { OMP_STUB_LOG: callLog });
     assert.equal(res.status, 0, res.stderr);
-    const calls = readFileSync(callLog, "utf8").trim().split("\n");
-    assert.deepEqual(calls, [
-      "config set task.isolation.enabled true",
-      "config set task.isolation.merge branch",
-      "config set task.isolation.apply false",
-    ]);
+    assert.ok(
+      !existsSync(callLog) || readFileSync(callLog, "utf8").trim() === "",
+      "omp must not be invoked"
+    );
     assert.match(res.stdout, /enabled=false merge=patch apply=true/);
     assert.match(res.stdout, /does not match decision 0004/);
     assert.match(res.stdout, /machine-global/);
-    assert.match(res.stdout, /omp config set task\.isolation\.enabled false/);
-    assert.match(res.stdout, /omp config set task\.isolation\.merge patch/);
-    assert.match(res.stdout, /omp config set task\.isolation\.apply true/);
+    assert.match(res.stdout, /Set them via omp to match decision 0004/);
+    assert.match(res.stdout, /omp config set task\.isolation\.enabled true/);
+    assert.match(res.stdout, /omp config set task\.isolation\.merge branch/);
+    assert.match(res.stdout, /omp config set task\.isolation\.apply false/);
+    assert.match(res.stdout, /The installer does not change them\./);
+    assert.doesNotMatch(res.stdout, /Revert/);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
@@ -1753,10 +1754,12 @@ test("installer prints manual remediation when omp is absent", () => {
     assert.equal(res.status, 0, res.stderr);
     assert.match(res.stdout, /enabled=false merge=patch apply=true/);
     assert.match(res.stdout, /does not match decision 0004/);
+    assert.match(res.stdout, /omp not on PATH; set them manually/);
     assert.match(res.stdout, /omp config set task\.isolation\.enabled true/);
     assert.match(res.stdout, /omp config set task\.isolation\.merge branch/);
     assert.match(res.stdout, /omp config set task\.isolation\.apply false/);
-    assert.doesNotMatch(res.stdout, /Revert|Set via omp/);
+    assert.match(res.stdout, /The installer does not change them\./);
+    assert.doesNotMatch(res.stdout, /Revert|Set them via omp to match/);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
@@ -1819,6 +1822,7 @@ test("installer reads task isolation from PI_CODING_AGENT_DIR when set", () => {
     assert.equal(res.status, 0, res.stderr);
     assert.match(res.stdout, /enabled=true merge=branch apply=false/);
     assert.match(res.stdout, /matches decision 0004/);
+    assert.doesNotMatch(res.stdout, /does not match|Revert|machine-global|omp config set/);
     assert.ok(
       !existsSync(callLog) || readFileSync(callLog, "utf8").trim() === "",
       "omp must not be invoked when the relocated config matches"
@@ -1876,15 +1880,16 @@ test("installer publishes and checks against the relocated agent dir when PI_COD
     );
     assert.match(res.stdout, /using this agent dir/);
     assert.doesNotMatch(res.stdout, /machine-global/);
-    assert.match(res.stdout, /omp config set task\.isolation\.enabled false/);
-    assert.match(res.stdout, /omp config set task\.isolation\.merge patch/);
-    assert.match(res.stdout, /omp config set task\.isolation\.apply true/);
-    const calls = readFileSync(callLog, "utf8").trim().split("\n");
-    assert.deepEqual(calls, [
-      "config set task.isolation.enabled true",
-      "config set task.isolation.merge branch",
-      "config set task.isolation.apply false",
-    ]);
+    assert.match(res.stdout, /Set them via omp to match decision 0004/);
+    assert.match(res.stdout, /omp config set task\.isolation\.enabled true/);
+    assert.match(res.stdout, /omp config set task\.isolation\.merge branch/);
+    assert.match(res.stdout, /omp config set task\.isolation\.apply false/);
+    assert.match(res.stdout, /The installer does not change them\./);
+    assert.doesNotMatch(res.stdout, /Revert/);
+    assert.ok(
+      !existsSync(callLog) || readFileSync(callLog, "utf8").trim() === "",
+      "omp must not be invoked"
+    );
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }

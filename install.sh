@@ -1342,9 +1342,9 @@ parse_isolation_config() {
 }
 
 # Reports the effective global OMP task.isolation settings against decision
-# 0004 (isolated wave dispatch) and, for each opposing value, repairs it with
-# `omp config set` when the omp binary is on PATH, or prints the exact command
-# otherwise. The check is advisory: a failed repair never fails the install.
+# 0004 (isolated wave dispatch) and, for each opposing value, prints the advisory
+# command to enable it. The check is advisory: the installer never mutates
+# isolation settings and never fails the install for an opposing value.
 check_isolation_settings() {
   local config_file=""
   if [ -f "${OMP_AGENT_DIR}/config.yml" ]; then
@@ -1376,52 +1376,21 @@ check_isolation_settings() {
   fi
   printf " (does not match decision 0004)\n"
 
-  local enabled_set=0 merge_set=0 apply_set=0
   if command -v omp >/dev/null 2>&1; then
-    printf "  Set via omp (change in %s; %s):\n" "$notice_file" "$effect_notice"
-    if [ "$ISOLATION_ENABLED" != "true" ]; then
-      if ! omp config set task.isolation.enabled true; then
-        printf "  warn: omp config set task.isolation.enabled true failed.\n" >&2
-      else
-        enabled_set=1
-      fi
-    fi
-    if [ "$ISOLATION_MERGE" != "branch" ]; then
-      if ! omp config set task.isolation.merge branch; then
-        printf "  warn: omp config set task.isolation.merge branch failed.\n" >&2
-      else
-        merge_set=1
-      fi
-    fi
-    if [ "$ISOLATION_APPLY" != "false" ]; then
-      if ! omp config set task.isolation.apply false; then
-        printf "  warn: omp config set task.isolation.apply false failed.\n" >&2
-      else
-        apply_set=1
-      fi
-    fi
-    printf "  Revert to the previous values with:\n"
-    if [ "$enabled_set" -eq 1 ]; then
-      printf "    omp config set task.isolation.enabled %s\n" "$ISOLATION_ENABLED"
-    fi
-    if [ "$merge_set" -eq 1 ]; then
-      printf "    omp config set task.isolation.merge %s\n" "$ISOLATION_MERGE"
-    fi
-    if [ "$apply_set" -eq 1 ]; then
-      printf "    omp config set task.isolation.apply %s\n" "$ISOLATION_APPLY"
-    fi
+    printf "  Set them via omp to match decision 0004 (change in %s; %s):\n" "$notice_file" "$effect_notice"
   else
     printf "  omp not on PATH; set them manually (change in %s; %s):\n" "$notice_file" "$effect_notice"
-    if [ "$ISOLATION_ENABLED" != "true" ]; then
-      printf "    omp config set task.isolation.enabled true\n"
-    fi
-    if [ "$ISOLATION_MERGE" != "branch" ]; then
-      printf "    omp config set task.isolation.merge branch\n"
-    fi
-    if [ "$ISOLATION_APPLY" != "false" ]; then
-      printf "    omp config set task.isolation.apply false\n"
-    fi
   fi
+  if [ "$ISOLATION_ENABLED" != "true" ]; then
+    printf "    omp config set task.isolation.enabled true\n"
+  fi
+  if [ "$ISOLATION_MERGE" != "branch" ]; then
+    printf "    omp config set task.isolation.merge branch\n"
+  fi
+  if [ "$ISOLATION_APPLY" != "false" ]; then
+    printf "    omp config set task.isolation.apply false\n"
+  fi
+  printf "  The installer does not change them.\n"
 }
 
 REGISTRATION_PARENTS=("$(dirname "$OMP_AGENT_DIR")" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR" "$OMP_AGENTS_DIR")
