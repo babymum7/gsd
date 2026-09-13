@@ -1765,6 +1765,135 @@ test("installer prints manual remediation when omp is absent", () => {
   }
 });
 
+// A fixture omp that actually applies `omp config set task.isolation.<key> <value>`
+// into the agent config file the installer resolves, mirroring the real omp: the
+// installer's landed-value proof reads the file, never omp's exit status.
+function writeApplyingOmpStub(fakeBin, agentDir) {
+  writeExecutable(
+    join(fakeBin, "omp"),
+    `#!/bin/sh
+printf '%s\\n' "$*" >> "\${OMP_STUB_LOG:?}"
+if [ "$1 $2" = "config set" ] && [ "$#" -eq 4 ]; then
+  key="$3"; value="$4"
+  case "$key" in
+    task.isolation.enabled|task.isolation.merge|task.isolation.apply) ;;
+    *) exit 0 ;;
+  esac
+  short="\${key#task.isolation.}"
+  cfg="${agentDir}/config.yml"
+  sed -i "s/^    \${short}: .*/    \${short}: \${value}/" "$cfg"
+fi
+exit 0
+`
+  );
+}
+
+test("installer asks, applies approved isolation settings, and proves them from the config file", () => {
+  const { temporary, home, fakeBin } = makeHomeSandbox();
+  for (const command of ["git", "bun"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+  const agentConfigDir = join(home, ".omp", "agent");
+  mkdirSync(agentConfigDir, { recursive: true });
+  writeFileSync(
+    join(agentConfigDir, "config.yml"),
+    "task:\n  isolation:\n    enabled: false\n    merge: patch\n    apply: true\n"
+  );
+  const callLog = join(temporary, "omp-calls.log");
+  writeApplyingOmpStub(fakeBin, agentConfigDir);
+
+  try {
+    const res = runInstallerAt(ROOT, home, fakeBin, {
+      OMP_STUB_LOG: callLog,
+      GSD_TEST_INTERACTIVE_ISOLATION: "yes",
+    });
+    assert.equal(res.status, 0, res.stderr);
+    const applied = readFileSync(callLog, "utf8");
+    assert.match(applied, /config set task\.isolation\.enabled true/);
+    assert.match(applied, /config set task\.isolation\.merge branch/);
+    assert.match(applied, /config set task\.isolation\.apply false/);
+    const after = readFileSync(join(agentConfigDir, "config.yml"), "utf8");
+    assert.match(after, /enabled: true/);
+    assert.match(after, /merge: branch/);
+    assert.match(after, /apply: false/);
+    assert.match(res.stdout, /Set them now via omp\? \[y\/N\]/);
+    assert.match(res.stdout, /enabled: false -> true/);
+    assert.match(res.stdout, /merge: patch -> branch/);
+    assert.match(res.stdout, /apply: true -> false/);
+    assert.match(res.stdout, /Change applied in /);
+    assert.match(res.stdout, /machine-global/);
+    assert.match(res.stdout, /omp config set task\.isolation\.enabled false/);
+    assert.match(res.stdout, /omp config set task\.isolation\.merge patch/);
+    assert.match(res.stdout, /omp config set task\.isolation\.apply true/);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("installer keeps advisory-only output when the isolation question is declined or unattended", () => {
+  const { temporary, home, fakeBin } = makeHomeSandbox();
+  for (const command of ["git", "bun"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+  const agentConfigDir = join(home, ".omp", "agent");
+  mkdirSync(agentConfigDir, { recursive: true });
+  const configPath = join(agentConfigDir, "config.yml");
+  const before = "task:\n  isolation:\n    enabled: false\n    merge: patch\n    apply: true\n";
+  writeFileSync(configPath, before);
+  const callLog = join(temporary, "omp-calls.log");
+  writeApplyingOmpStub(fakeBin, agentConfigDir);
+
+  try {
+    for (const answer of ["no", "", "eof"]) {
+      const res = runInstallerAt(ROOT, home, fakeBin, {
+        OMP_STUB_LOG: callLog,
+        GSD_TEST_INTERACTIVE_ISOLATION: answer,
+      });
+      assert.equal(res.status, 0, res.stderr);
+      assert.match(res.stdout, /does not match decision 0004/);
+      assert.match(res.stdout, /The installer does not change them\./);
+      assert.doesNotMatch(res.stdout, /Revert/);
+      assert.equal(
+        readFileSync(configPath, "utf8"),
+        before,
+        "config must stay byte-identical on a declined answer"
+      );
+      assert.ok(
+        !existsSync(callLog) || readFileSync(callLog, "utf8").trim() === "",
+        "omp must not be invoked on a declined answer"
+      );
+    }
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
+test("installer fails honestly when an approved isolation apply does not land", () => {
+  const { temporary, home, fakeBin } = makeHomeSandbox();
+  for (const command of ["git", "bun"]) {
+    writeExecutable(join(fakeBin, command), "#!/bin/sh\nexit 1\n");
+  }
+  const agentConfigDir = join(home, ".omp", "agent");
+  mkdirSync(agentConfigDir, { recursive: true });
+  const configPath = join(agentConfigDir, "config.yml");
+  writeFileSync(configPath, "task:\n  isolation:\n    enabled: false\n    merge: patch\n    apply: true\n");
+  const callLog = join(temporary, "omp-calls.log");
+  writeOmpStub(fakeBin);
+
+  try {
+    const res = runInstallerAt(ROOT, home, fakeBin, {
+      OMP_STUB_LOG: callLog,
+      GSD_TEST_INTERACTIVE_ISOLATION: "yes",
+    });
+    assert.equal(res.status, 1, "an approved apply that does not land must fail the install");
+    assert.match(res.stderr, /did not land/);
+    assert.match(res.stderr, /task\.isolation\.enabled/);
+    assert.match(res.stderr, /config\.yml/);
+  } finally {
+    rmSync(temporary, { recursive: true, force: true });
+  }
+});
+
 test("installer confirms matching task isolation settings without further notices", () => {
   const { temporary, home, fakeBin } = makeHomeSandbox();
   for (const command of ["git", "bun"]) {

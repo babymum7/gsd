@@ -45,6 +45,7 @@ fi
 # GSD_TEST_SEAM_POST_RM_TMP_SYMLINK  sigterm                   Signal after temp symlink removal
 # GSD_TEST_SEAM_POST_PUBLISH         sigterm                   Signal after successful publication
 # GSD_TEST_SEAM_LEGACY_SKILL_REPLACE regular                    Race replacing legacy skill links
+# GSD_TEST_INTERACTIVE_ISOLATION          yes|no|empty|eof        Interactive isolation answer (decision 0011): asks and applies on yes, advisory-only otherwise
 
 # Keep pwd's terminator behind a sentinel so path-ending CR/LF survives validation.
 REPO_WITH_SENTINEL="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P && printf "x")"
@@ -1343,8 +1344,13 @@ parse_isolation_config() {
 
 # Reports the effective global OMP task.isolation settings against decision
 # 0004 (isolated wave dispatch) and, for each opposing value, prints the advisory
-# command to enable it. The check is advisory: the installer never mutates
-# isolation settings and never fails the install for an opposing value.
+# command to enable it. Decision 0011: when the triple deviates, the run is
+# interactive, and omp is on PATH, the installer asks exactly one question and,
+# on an explicit yes, applies the deviating keys through omp, then proves each
+# landed value by re-reading the config file — never trusting omp's exit
+# status. Declined, EOF, unattended, or omp-less runs keep the advisory-only
+# output and change nothing. An approved value that does not land fails
+# honestly naming the key and the config file.
 check_isolation_settings() {
   local config_file=""
   if [ -f "${OMP_AGENT_DIR}/config.yml" ]; then
@@ -1381,18 +1387,94 @@ check_isolation_settings() {
   else
     printf "  omp not on PATH; set them manually (change in %s; %s):\n" "$notice_file" "$effect_notice"
   fi
+  local deviating_keys=()
   if [ "$ISOLATION_ENABLED" != "true" ]; then
+    deviating_keys+=("enabled:true:$ISOLATION_ENABLED")
     printf "    omp config set task.isolation.enabled true\n"
   fi
   if [ "$ISOLATION_MERGE" != "branch" ]; then
+    deviating_keys+=("merge:branch:$ISOLATION_MERGE")
     printf "    omp config set task.isolation.merge branch\n"
   fi
   if [ "$ISOLATION_APPLY" != "false" ]; then
+    deviating_keys+=("apply:false:$ISOLATION_APPLY")
     printf "    omp config set task.isolation.apply false\n"
   fi
-  printf "  The installer does not change them.\n"
-}
 
+  # Ask at most once per run, only when interactive, only when omp can apply.
+  # The test seam GSD_TEST_INTERACTIVE_ISOLATION injects the answer (yes|no|
+  # empty|eof) without needing a TTY in CI.
+  local answer=""
+  local interactive=0
+  if [ -n "${GSD_TEST_INTERACTIVE_ISOLATION:-}" ] && command -v omp >/dev/null 2>&1; then
+    interactive=1
+    printf "  Set them now via omp? [y/N] "
+    case "$GSD_TEST_INTERACTIVE_ISOLATION" in
+      yes|no) answer="$GSD_TEST_INTERACTIVE_ISOLATION" ;;
+      eof) answer="eof" ;;
+      *) answer="" ;;
+    esac
+  elif [ -t 0 ] && command -v omp >/dev/null 2>&1; then
+    interactive=1
+    printf "  Set them now via omp? [y/N] "
+    if ! IFS= read -r answer; then
+      answer="eof"
+    else
+      answer="${answer%"${answer##*[![:space:]]}"}"
+      answer="${answer#"${answer%%[![:space:]]}"}"
+      case "$answer" in
+        y|Y|yes|YES|Yes) answer="yes" ;;
+        *) answer="no" ;;
+      esac
+    fi
+  fi
+  if [ "$interactive" -eq 0 ] || [ "$answer" != "yes" ]; then
+    printf "  The installer does not change them.\n"
+    return 0
+  fi
+
+  # Approved apply: set exactly the deviating keys, then prove each landed value
+  # by re-reading the config file omp writes. Exit status alone proves nothing.
+  local entry key target previous landed_value
+  local applied_keys=() old_values=() new_values=()
+  for entry in "${deviating_keys[@]}"; do
+    key="${entry%%:*}"
+    local rest="${entry#*:}"
+    target="${rest%%:*}"
+    previous="${rest#*:}"
+    if ! omp config set "task.isolation.$key" "$target"; then
+      printf "error: omp config set task.isolation.%s %s failed\n" "$key" "$target" >&2
+      exit 1
+    fi
+    applied_keys+=("$key")
+    old_values+=("$previous")
+    new_values+=("$target")
+  done
+
+  # Re-read the effective config file omp writes (omp may have created it on
+  # its first write); parse_isolation_config guards a missing file itself.
+  parse_isolation_config "$notice_file"
+
+  for i in "${!applied_keys[@]}"; do
+    key="${applied_keys[i]}"
+    case "$key" in
+      enabled) landed_value="$ISOLATION_ENABLED" ;;
+      merge) landed_value="$ISOLATION_MERGE" ;;
+      apply) landed_value="$ISOLATION_APPLY" ;;
+    esac
+    if [ "$landed_value" != "${new_values[i]}" ]; then
+      printf "error: omp reported success but task.isolation.%s did not land in %s (still %s, expected %s)\n" \
+        "$key" "$notice_file" "$landed_value" "${new_values[i]}" >&2
+      exit 1
+    fi
+    printf "  %s: %s -> %s\n" "$key" "${old_values[i]}" "${new_values[i]}"
+  done
+  printf "  Change applied in %s; %s.\n" "$notice_file" "$effect_notice"
+  printf "  Revert:\n"
+  for i in "${!applied_keys[@]}"; do
+    printf "    omp config set task.isolation.%s %s\n" "${applied_keys[i]}" "${old_values[i]}"
+  done
+}
 REGISTRATION_PARENTS=("$(dirname "$OMP_AGENT_DIR")" "$OMP_AGENT_DIR" "$OMP_EXTENSIONS_DIR" "$OMP_AGENTS_DIR")
 # Extension parents and the optional legacy-agents parent must be real directories.
 for p in "${REGISTRATION_PARENTS[@]}"; do

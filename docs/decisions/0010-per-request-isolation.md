@@ -76,7 +76,7 @@ isolated dispatch.
      flipping the machine-global config is an unannounced side effect on every
      other session and is out of bounds for a measurement.
 
-3. **Supersession of global-config instantiation:** Decision 0004's
+3. **Supersession of global-config instantiation:** (The advisory-only installer rule in this section is superseded by decision 0011; the serial fallback and dispatch semantics below stand.) Decision 0004's
    global-config instantiation (`omp config set task.isolation.enabled true`,
    `merge: branch`, `apply: false`) is superseded by this record: the installer
    (`install.sh`) is advisory-only — it reports effective isolation settings and
