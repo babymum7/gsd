@@ -388,7 +388,7 @@ Compaction MUST preserve and continue the current user request. Only resume an a
 
 #### Current Request Preservation
 
-During compaction, `session.compacting` extracts the last genuine user request from `event.messages` (filtering bootstrap messages, recovery capsules, and compaction summaries; bounded to 500 bytes) and returns it alongside the capsule:
+During compaction, the host adapter's compaction hook extracts the last genuine user request from the event's message list (filtering bootstrap messages, recovery capsules, and compaction summaries; bounded to 500 bytes) and returns it alongside the capsule:
 
 ```text
 [GSD Current Request]
