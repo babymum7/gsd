@@ -42,7 +42,7 @@ test("install routes one selected agent through its native plugin command", () =
   assert.equal(result.status, 0, result.stderr);
   const commands = readFileSync(logPath, "utf8").trim().split("\n");
   assert.deepEqual(commands, [
-    `claude plugin marketplace add ${join(home, "marketplace")}`,
+    `claude plugin marketplace add ${join(home, "marketplace")} --scope user`,
     "claude plugin install gsd@gsd-local --scope user",
   ]);
   assert.ok(existsSync(join(home, "marketplace", "gsd", ".claude-plugin", "plugin.json")));
@@ -130,7 +130,7 @@ test("uninstall is plugin-only and leaves legacy-looking host files unchanged", 
   assert.equal(result.status, 0, result.stderr);
   assert.deepEqual(readFileSync(logPath, "utf8").trim().split("\n"), [
     "claude plugin uninstall gsd@gsd-local --scope user",
-    "claude plugin marketplace remove gsd-local",
+    "claude plugin marketplace remove gsd-local --scope user",
   ]);
   assert.equal(readFileSync(join(configDir, "settings.json"), "utf8"), settingsBefore);
   assert.equal(readFileSync(join(configDir, "AGENTS.md"), "utf8"), agentsBefore);

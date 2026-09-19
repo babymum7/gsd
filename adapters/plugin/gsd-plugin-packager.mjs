@@ -111,9 +111,11 @@ export function buildPluginBundle(root, marketplaceRoot) {
 
   fs.writeFileSync(path.join(pluginRoot, PLUGIN_MARKER), '');
   writeJsonAtomic(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), {
+    $schema: 'https://anthropic.com/claude-code/plugin.schema.json',
     name: PLUGIN_NAME,
     version: packageJson.version,
     description: packageJson.description,
+    author: { name: 'GSD' },
     skills: './skills/',
     agents: './agents/gsd-reviewer.md',
     hooks: './hooks/claude.json',
@@ -148,10 +150,12 @@ export function buildPluginBundle(root, marketplaceRoot) {
   writeJsonAtomic(path.join(pluginRoot, 'hooks', 'codex.json'), codexHooks());
   writeJsonAtomic(path.join(tempRoot, '.claude-plugin', 'marketplace.json'), {
     name: MARKETPLACE_NAME,
+    description: 'GSD workflow skills and session adapters',
     owner: { name: 'GSD' },
     plugins: [
       {
         name: PLUGIN_NAME,
+        description: packageJson.description,
         source: `./${PLUGIN_NAME}`,
       },
     ],

@@ -123,7 +123,8 @@ A read-only diff review along two independent axes, each as a bounded read-only 
 1. The user selects `omp`, `claude-code`, `codex`, or `all` through the GSD CLI. The CLI
    generates one self-contained plugin bundle and local marketplace, records the selected
    agents in its own state, and registers the bundle through the selected host's native
-   plugin command.
+   plugin command. Claude Code marketplace registration and removal are user-scoped, so
+   a same-named marketplace in another scope is never selected or removed.
 2. The bundle exposes only the six visible skills to host skill discovery. The hidden
    `gsd` master and `gsd-ponytail` context remain under the internal canonical core,
    while copied adapters resolve that core through the bundle marker.
@@ -132,7 +133,8 @@ A read-only diff review along two independent axes, each as a bounded read-only 
    the `gsd-verify` standalone-review brief.
 4. Uninstall delegates only to the host's native plugin uninstall command and deletes the
    generated bundle when no recorded agent still uses it. It does not inspect or modify
-   other host files, including files that look like artifacts from an older install.
+   other host files, including files that look like artifacts from an older install; the
+   Claude marketplace is removed only from the user scope where GSD installed it.
 
 ## Commands, events, and outcomes
 
@@ -259,5 +261,5 @@ None.
 
 ### P-gsd-21: Deliver hosts through one CLI and native plugins
 
-- **Policy:** Host installation and uninstallation are selected through one CLI. The CLI generates a self-contained bundle, registers it with the selected host's native plugin command, keeps hidden runtime skills out of host skill discovery, and delegates removal to the same native plugin system. The generated bundle is removed only when no recorded agent still uses it, and uninstall never inspects unrelated or old-looking host files.
+- **Policy:** Host installation and uninstallation are selected through one CLI. The CLI generates a self-contained bundle, registers it with the selected host's native plugin command, keeps hidden runtime skills out of host skill discovery, and delegates removal to the same native plugin system. The generated bundle is removed only when no recorded agent still uses it; Claude marketplace lifecycle commands are user-scoped, and uninstall never inspects unrelated or old-looking host files.
 - **Reason:** One CLI gives users a stable entry point while each host retains its supported plugin, trust, plan, goal, sub-agent, and uninstall behavior; a self-contained bundle also prevents user-directory file scatter without exposing GSD's hidden runtime context.

@@ -31,7 +31,7 @@ bun bin/gsd.mjs install --agent codex
 Add `--dry-run` to print the exact host commands. The CLI builds one self-contained bundle at `~/.gsd/marketplace/gsd` (override the CLI home with `--home <path>`), then uses each host's own plugin system:
 
 - OMP: `omp plugin link <bundle>`
-- Claude Code: `claude plugin marketplace add <marketplace>` then `claude plugin install gsd@gsd-local --scope user`
+- Claude Code: `claude plugin marketplace add <marketplace> --scope user` then `claude plugin install gsd@gsd-local --scope user`
 - Codex: `codex plugin marketplace add <marketplace>` then `codex plugin add gsd@gsd-local`
 
 The bundle carries `lib/`, the canonical skills and tools under `core/`, only the six visible skills in the host-facing `skills/` directory, reviewer definitions, and host manifests. Hidden runtime skills stay internal. Claude Code and Codex hooks still require their normal trust review. Uninstall is the inverse CLI operation:

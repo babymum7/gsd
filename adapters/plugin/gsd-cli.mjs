@@ -64,7 +64,10 @@ function commandPlan(agent, home) {
   }
   if (agent === 'claude-code') {
     return [
-      { binary: 'claude', args: ['plugin', 'marketplace', 'add', marketplaceRoot] },
+      {
+        binary: 'claude',
+        args: ['plugin', 'marketplace', 'add', marketplaceRoot, '--scope', 'user'],
+      },
       { binary: 'claude', args: ['plugin', 'install', PLUGIN_SELECTOR, '--scope', 'user'] },
     ];
   }
@@ -81,7 +84,10 @@ function uninstallCommandPlan(agent) {
   if (agent === 'claude-code') {
     return [
       { binary: 'claude', args: ['plugin', 'uninstall', PLUGIN_SELECTOR, '--scope', 'user'] },
-      { binary: 'claude', args: ['plugin', 'marketplace', 'remove', 'gsd-local'] },
+      {
+        binary: 'claude',
+        args: ['plugin', 'marketplace', 'remove', 'gsd-local', '--scope', 'user'],
+      },
     ];
   }
   return [

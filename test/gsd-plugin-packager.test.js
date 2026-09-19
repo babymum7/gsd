@@ -38,6 +38,7 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
     readFileSync(join(pluginRoot, ".claude-plugin", "plugin.json"), "utf8"),
   );
   assert.equal(claudeManifest.name, "gsd");
+  assert.deepEqual(claudeManifest.author, { name: "GSD" });
   assert.equal(claudeManifest.agents, "./agents/gsd-reviewer.md");
   assert.equal(claudeManifest.hooks, "./hooks/claude.json");
   const portableManifest = JSON.parse(readFileSync(join(pluginRoot, "plugin.json"), "utf8"));
@@ -61,7 +62,9 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
     readFileSync(join(marketplaceRoot, ".claude-plugin", "marketplace.json"), "utf8"),
   );
   assert.equal(marketplace.name, "gsd-local");
+  assert.equal(marketplace.description, "GSD workflow skills and session adapters");
   assert.deepEqual(marketplace.owner, { name: "GSD" });
+  assert.equal(marketplace.plugins[0].description, "GSD workflow skills, contract validators, and the OMP, Claude Code, and Codex session adapters.");
   assert.equal(marketplace.plugins[0].source, "./gsd");
 
   const project = mkdtempSync(join(tmpdir(), "gsd-plugin-project-"));
