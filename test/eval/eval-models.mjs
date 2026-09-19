@@ -1,6 +1,10 @@
 #!/usr/bin/env bun
 // Two-pass activation eval: first-attempt accuracy + correction pass for failures.
 //
+// Scope: only the injected bootstrap is supplied, while the row-level completed-state matrix
+// lives in the on-demand canon an owner reads before lifecycle work, so both passes measure a
+// bootstrap-only lower bound on live behavior. Fixture expectations still encode that canon.
+//
 // Usage:
 //   GSD_EVAL_BACKEND=omp bun test/eval/eval-models.mjs
 //
@@ -13,6 +17,9 @@ import { delimiter, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import {
+  describeEvalBackendError,
+  evalSurfaceFingerprint,
+  loadLifecycleMatrix,
   parseActivationResponse,
   responseMatchesFixture,
   selectEvalBackend,
@@ -73,11 +80,19 @@ if (backend.kind !== "omp") {
   process.exit(2);
 }
 
-// --- System prompt (identical to activation-eval.mjs) ---
+// GSD_EVAL_CANON=1 supplies the on-demand canon section the bootstrap points at, which is what a
+// live owner holds when it routes lifecycle work. Left off, the run stays the bootstrap-only
+// lower bound that activation-eval.mjs measures.
+const canonSection = process.env.GSD_EVAL_CANON === "1" ? loadLifecycleMatrix(repoRoot) : null;
+const scope = canonSection ? "bootstrap + on-demand lifecycle matrix" : "bootstrap only";
+// Bind every reported number to the exact injected bytes that produced it.
+const fingerprint = evalSurfaceFingerprint({ bootstrap, repoRoot, canonSection });
+
+// --- System prompt (the bootstrap half is identical to activation-eval.mjs) ---
 const system = [
   "You are a GSD activation classifier. Do NOT perform, answer, or execute the user prompt. Classify only.",
   "The exact production GSD session bootstrap is loaded below.",
-  "Given the workspace state and current user prompt, apply its result-marker decision matrix and lazy skill-selection policy.",
+  "Given the workspace state and current user prompt, apply the result-marker decision vocabulary and the lazy skill-selection policy this bootstrap states.",
   "Choose only the primary process owner. Helper skills such as gsd-ponytail are not represented in primarySkill.",
   'Reply with ONLY exact JSON: {"decision":"<ordinary-routing|ignore-terminal-record|cleanup-question|cleanup-only|block-resume|fail-closed>","action":"<load|direct|stop>","primarySkill":"<visible gsd-* skill>" or null}.',
   "Use load with one visible primary skill, direct with null when no primary skill applies, and stop with null for every cleanup/block/fail-closed decision.",
@@ -87,6 +102,14 @@ const system = [
   "Your entire response must be exactly one raw JSON object. No prose, no explanation, no markdown fence, no tool_call tags, no wrapper of any kind. Any text besides the JSON object is a failure.",
   "",
   bootstrap,
+  ...(canonSection
+    ? [
+        "",
+        "The on-demand canon section this bootstrap points to for lifecycle state is loaded below. Apply its rows.",
+        "",
+        canonSection,
+      ]
+    : []),
 ].join("\n");
 
 const askUser = (fixture) => `Workspace state: ${fixture.state}\n\nUser prompt:\n${fixture.prompt}`;
@@ -149,8 +172,13 @@ async function runJobs(jobs) {
   // jobs: [{model, fixture, hint?}]
   const results = new Map(); // "model|fixtureId" -> result
   const queue = [...jobs];
+  // A thrown ask is the backend failing, not a fixture the model answered wrong. Record it
+  // once, stop pulling jobs, and let main exit with a backend code instead of scoring every
+  // fixture as a failure.
+  let backendFailure = null;
   await Promise.all(Array.from({ length: Math.min(CONCURRENCY, queue.length) }, async () => {
     for (let job; (job = queue.shift()); ) {
+      if (backendFailure) return;
       const { model, fixture, hint } = job;
       const key = `${model}|${fixture.id}`;
       try {
@@ -171,12 +199,11 @@ async function runJobs(jobs) {
         });
         process.stderr.write(`${matches ? "ok  " : "FAIL"} ${model} ${fixture.id}\n`);
       } catch (error) {
-        results.set(key, { pass: false, detail: String(error.message ?? error), raw: "" });
-        process.stderr.write(`  ERR ${model} ${fixture.id}: ${error.message ?? error}\n`);
+        if (!backendFailure) backendFailure = describeEvalBackendError(error.message ?? error);
       }
     }
   }));
-  return results;
+  return { results, backendFailure };
 }
 
 // --- Main ---
@@ -185,12 +212,22 @@ console.log(`Models: ${models.join(", ")}`);
 console.log(`Fixtures: ${run.length}`);
 console.log(`Concurrency: ${CONCURRENCY}`);
 console.log(`Backend: ${backend.kind} (${backend.command})`);
+console.log(`Scope: ${scope}`);
+console.log(`Bootstrap: ${fingerprint.bootstrap_sha256.slice(0, 12)} (${fingerprint.bootstrap_words} rendered words)`);
+if (fingerprint.canon_sha256) {
+  console.log(`Canon: ${fingerprint.canon_sha256.slice(0, 12)} (${fingerprint.canon_words} words)`);
+}
 console.log("─".repeat(70));
 
 // ═══ Pass 1: first-attempt (all models × fixtures in parallel) ═══
 const pass1Jobs = run.flatMap((fixture) => models.map((model) => ({ model, fixture })));
 console.log(`\n▶ Pass 1: ${pass1Jobs.length} jobs (${models.length} models × ${run.length} fixtures)`);
-const pass1 = await runJobs(pass1Jobs);
+const pass1Run = await runJobs(pass1Jobs);
+if (pass1Run.backendFailure) {
+  console.error(`eval aborted, no fixture was scored: ${pass1Run.backendFailure}`);
+  process.exit(3);
+}
+const pass1 = pass1Run.results;
 
 // Per-model pass 1 stats
 for (const model of models) {
@@ -214,7 +251,7 @@ console.log(`Pass 1 total failures: ${failureJobs.length}`);
 
 if (failureJobs.length === 0) {
   console.log("\nAll models passed all fixtures on first attempt!");
-  const report = { pass1: {}, pass2: {}, summary: {} };
+  const report = { scope, ...fingerprint, pass1: {}, pass2: {}, summary: {} };
   for (const model of models) {
     report.pass1[model] = { passed: run.length, total: run.length, accuracy: 100 };
     report.pass2[model] = { corrected: 0, stillFailing: 0, accuracy: 100 };
@@ -226,14 +263,19 @@ if (failureJobs.length === 0) {
 
 // ═══ Pass 2: correction hint (all failures in parallel) ═══
 console.log(`\n▶ Pass 2: ${failureJobs.length} correction jobs`);
-const pass2 = await runJobs(failureJobs);
+const pass2Run = await runJobs(failureJobs);
+if (pass2Run.backendFailure) {
+  console.error(`eval aborted, no fixture was scored: ${pass2Run.backendFailure}`);
+  process.exit(3);
+}
+const pass2 = pass2Run.results;
 
 // ═══ Summary ═══
 console.log(`\n${"═".repeat(70)}`);
 console.log("SUMMARY");
 console.log(`${"═".repeat(70)}`);
 
-const report = { pass1: {}, pass2: {}, summary: {}, failures: {} };
+const report = { scope, ...fingerprint, pass1: {}, pass2: {}, summary: {}, failures: {} };
 
 for (const model of models) {
   const p1Passed = run.filter((f) => pass1.get(`${model}|${f.id}`)?.pass).length;

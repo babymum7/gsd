@@ -1,8 +1,12 @@
-const ACTIVATING_DECISIONS = new Set([
+import { createHash } from "node:crypto";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+export const ACTIVATING_DECISIONS = new Set([
   "ordinary-routing",
   "ignore-terminal-record",
 ]);
-const STOPPING_DECISIONS = new Set([
+export const STOPPING_DECISIONS = new Set([
   "cleanup-question",
   "cleanup-only",
   "block-resume",
@@ -15,6 +19,25 @@ const ALLOWED_DECISIONS = new Set([
 const ALLOWED_ACTIONS = new Set(["load", "direct", "stop"]);
 const HTTP_DEFAULT_MODEL = "gpt-4o-mini";
 const OMP_DEFAULT_MODELS = ["gpt-5.6-luna"];
+
+// A report is evidence only if it says which bytes produced its numbers. The rendered bootstrap
+// embeds absolute repository paths, so the repository root is normalized to one placeholder
+// first: two checkouts of the same revision fingerprint identically, while any change to the
+// bootstrap, the visible skill catalog, or the supplied canon moves the hash. `bootstrap_words`
+// and `canon_words` count words the same way the skill word caps do, but over the text the
+// model actually received (the rendered bootstrap embeds the catalog rows), so they run above
+// the source-file cap numbers by design.
+export function evalSurfaceFingerprint({ bootstrap, repoRoot = "", canonSection = null }) {
+  const normalize = (text) => String(text ?? "").split(repoRoot).join("<GSD_ROOT>");
+  const digest = (text) => createHash("sha256").update(normalize(text), "utf8").digest("hex");
+  const words = (text) => normalize(text).trim().split(/\s+/).filter(Boolean).length;
+  return {
+    bootstrap_sha256: digest(bootstrap),
+    bootstrap_words: words(bootstrap),
+    canon_sha256: canonSection ? digest(canonSection) : null,
+    canon_words: canonSection ? words(canonSection) : null,
+  };
+}
 
 // A bearer key is one way to reach a model; the local omp binary is another, and it
 // already holds credentials. The keyless local binary is preferred so an ambient
@@ -51,6 +74,18 @@ export function selectEvalBackend(env = {}, ompPath = null) {
   if (command) return omp();
   if (key) return http();
   return { kind: "skip", models, detail: "no omp binary and no GSD_EVAL_KEY" };
+}
+
+// Every fixture talks to the model through one backend, so an error thrown while asking is
+// the backend failing, never a fixture the model answered wrong. Classifying it lets the
+// runner stop on the first failure instead of scoring a broken credential as every fixture
+// failing, which reads like a total routing regression.
+export function describeEvalBackendError(message) {
+  const text = String(message ?? "").trim();
+  if (/incorrect api key|invalid_api_key|unauthorized|\b401\b|\b403\b/i.test(text)) {
+    return `backend rejected credentials: ${text}`;
+  }
+  return `backend unavailable: ${text}`;
 }
 
 function isPlainObject(value) {
@@ -227,4 +262,94 @@ export function responseMatchesFixture(value, fixture) {
   ].some((expected) => value.decision === expected.decision
     && value.action === expected.action
     && value.primarySkill === expected.primarySkill);
+}
+
+// The triage front door (decision 0013) classifies a prompt into exactly one route before
+// any lifecycle work. It is a separate axis from the completed-state matrix above, so it
+// gets its own fixture shape, parser, and coverage check.
+export const TRIAGE_ROUTES = ["answer", "clarify", "research", "quick", "plan", "milestone"];
+const TRIAGE_ROUTE_SET = new Set(TRIAGE_ROUTES);
+
+export function validateTriageFixtureSet(fixtures) {
+  if (!Array.isArray(fixtures)) {
+    return { ok: false, detail: "triage fixtures must contain a top-level array" };
+  }
+  if (fixtures.length === 0) {
+    return { ok: false, detail: "triage fixtures must contain at least one fixture" };
+  }
+  const ids = new Set();
+  const covered = new Set();
+  for (const [index, fixture] of fixtures.entries()) {
+    if (!hasExactKeys(fixture, ["id", "state", "prompt", "route"])) {
+      return { ok: false, detail: `triage fixture ${index + 1} has an invalid object shape` };
+    }
+    for (const field of ["id", "state", "prompt"]) {
+      if (typeof fixture[field] !== "string" || fixture[field].trim() === "") {
+        return { ok: false, detail: `triage fixture ${index + 1} has invalid ${field}` };
+      }
+    }
+    if (ids.has(fixture.id)) {
+      return { ok: false, detail: `duplicate triage fixture ID ${fixture.id}` };
+    }
+    ids.add(fixture.id);
+    if (typeof fixture.route !== "string" || !TRIAGE_ROUTE_SET.has(fixture.route)) {
+      return { ok: false, detail: `${fixture.id}: unsupported route ${fixture.route}` };
+    }
+    covered.add(fixture.route);
+  }
+  // Every route in the canon enum must be exercised, so the front door cannot silently drop
+  // one classification while the suite still reports green.
+  for (const route of TRIAGE_ROUTES) {
+    if (!covered.has(route)) {
+      return { ok: false, detail: `triage fixtures must cover the ${route} route` };
+    }
+  }
+  return { ok: true };
+}
+
+export function parseTriageResponse(text) {
+  if (typeof text !== "string" || text !== text.trim()) {
+    return { ok: false, detail: `triage reply has outer whitespace: ${text}` };
+  }
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return { ok: false, detail: `invalid exact JSON reply: ${text}` };
+  }
+  if (hasDuplicateTopLevelKeys(text)) {
+    return { ok: false, detail: `triage reply contains duplicate keys: ${text}` };
+  }
+  if (!hasExactKeys(parsed, ["route"])) {
+    return { ok: false, detail: `triage reply must contain exactly route: ${text}` };
+  }
+  if (typeof parsed.route !== "string" || !TRIAGE_ROUTE_SET.has(parsed.route)) {
+    return { ok: false, detail: `unsupported triage route ${parsed.route}` };
+  }
+  return { ok: true, value: { route: parsed.route } };
+}
+
+export function triageResponseMatchesFixture(value, fixture) {
+  return value.route === fixture.route;
+}
+
+// The bootstrap names the six completed-state decisions and points at the on-demand canon that
+// carries their rows. A live owner reads that section before lifecycle work, so a faithful
+// measurement can hand it over, while the bootstrap-only runner stays the lower bound.
+// Extraction fails closed when the heading is gone, so a moved canon cannot be scored as loaded.
+export function loadLifecycleMatrix(repoRoot) {
+  const canon = readFileSync(join(repoRoot, "skills", "gsd", "REFERENCE.md"), "utf8");
+  const lines = canon.split("\n");
+  const start = lines.findIndex((line) => /^### Completed-state and cleanup matrix\s*$/.test(line));
+  if (start === -1) {
+    throw new Error("the canon no longer defines ### Completed-state and cleanup matrix");
+  }
+  let end = lines.length;
+  for (let index = start + 1; index < lines.length; index += 1) {
+    if (/^#{2,3} /.test(lines[index])) {
+      end = index;
+      break;
+    }
+  }
+  return lines.slice(start, end).join("\n").trim();
 }

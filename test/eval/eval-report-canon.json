@@ -1,0 +1,61 @@
+{
+  "scope": "bootstrap + on-demand lifecycle matrix",
+  "bootstrap_sha256": "3b0c491933c60affe181c08574160c57f8f39f81448b08e52996c22740835594",
+  "bootstrap_words": 1250,
+  "canon_sha256": "5d7b3c9df4c43133a2d4deba0fdac448e64a3dae25656750662f38387ae8c7db",
+  "canon_words": 334,
+  "pass1": {
+    "omp/anthropic/claude-sonnet-5": {
+      "passed": 38,
+      "total": 40,
+      "accuracy": 95
+    },
+    "omp/google-antigravity/gemini-3.8-flash": {
+      "passed": 40,
+      "total": 40,
+      "accuracy": 100
+    },
+    "omp/anthropic/claude-opus-5": {
+      "passed": 40,
+      "total": 40,
+      "accuracy": 100
+    }
+  },
+  "pass2": {
+    "omp/anthropic/claude-sonnet-5": {
+      "corrected": 0,
+      "stillFailing": 2,
+      "accuracy": 95
+    },
+    "omp/google-antigravity/gemini-3.8-flash": {
+      "corrected": 0,
+      "stillFailing": 0,
+      "accuracy": 100
+    },
+    "omp/anthropic/claude-opus-5": {
+      "corrected": 0,
+      "stillFailing": 0,
+      "accuracy": 100
+    }
+  },
+  "summary": {
+    "omp/anthropic/claude-sonnet-5": {
+      "firstAttempt": 95,
+      "corrected": 95
+    },
+    "omp/google-antigravity/gemini-3.8-flash": {
+      "firstAttempt": 100,
+      "corrected": 100
+    },
+    "omp/anthropic/claude-opus-5": {
+      "firstAttempt": 100,
+      "corrected": 100
+    }
+  },
+  "failures": {
+    "omp/anthropic/claude-sonnet-5": [
+      "result-retained-newer-than-active",
+      "compaction-capsule-resume"
+    ]
+  }
+}

@@ -38,6 +38,7 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
     "Base derivation and merge target",
     "Candidate discovery",
     "Canonical Markdown contract",
+    "Completed-state and cleanup matrix",
     "Contextual disclosure templates",
     "Durable decision and design records",
     "Fast TDD and task-loop constraints",
@@ -85,10 +86,63 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
         }
       });
   }
-  assert.equal(canon, 41, "the canon citation layer must stay fully covered");
+  assert.equal(canon, 42, "the canon citation layer must stay fully covered");
   assert.ok(artifact >= 2, `plan-section citations must stay qualified, found ${artifact}`);
 });
 
+
+// The canon is the one reference every owner reads, so how much of it a flow needs is a real
+// per-session cost: read wholesale it is ~50 kB, while the sections a flow names are a fraction
+// of that. The bootstrap rule is what buys the difference, and it is safe only because the
+// citation test above proves every named section resolves; this pins the rule and the budget.
+test("the canon is read by named section, and no owner depends on most of it", () => {
+  assert.match(
+    read("skills/gsd/SKILL.md"),
+    /by named `§` section, whole only if no step names a required contract/,
+    "the injected bootstrap must read canon by named section",
+  );
+  const canon = read("skills/gsd/REFERENCE.md");
+  assert.match(canon, /^Load only the `§` sections the flow needs\./m, "the canon must say so too");
+
+  // Section spans, measured the way the citation test reads headings: fenced packet templates
+  // are stripped because their `## Base` rows are plan sections, not canon headings.
+  const lines = canon.replace(/^```[\s\S]*?^```$/gm, "").split("\n");
+  const heads = [];
+  lines.forEach((line, index) => {
+    const match = line.match(/^#{2,4}\s+(.+)$/);
+    if (match) heads.push({ name: match[1].trim(), index });
+  });
+  const byLength = heads.map(({ name }) => name).sort((a, b) => b.length - a.length);
+  const span = (name) => {
+    const at = heads.findIndex((head) => head.name === name);
+    const end = at + 1 < heads.length ? heads[at + 1].index : lines.length;
+    return lines.slice(heads[at].index, end).join("\n");
+  };
+
+  let widest = { name: "", bytes: 0 };
+  for (const name of visibleSkillNames()) {
+    const cited = new Set();
+    for (const line of read(`skills/${name}/SKILL.md`).split("\n")) {
+      for (const match of line.matchAll(/§\s+([A-Z][^.,;:§\n]*)/g)) {
+        const text = match[1].trim();
+        // `§` cites plan sections too, and those name their artifact first.
+        if (/`(plan\.md|milestones\.md|state\.toon)`\s*$/.test(line.slice(0, match.index))) continue;
+        const heading = byLength.find((candidate) => text.startsWith(candidate));
+        if (heading) cited.add(heading);
+      }
+    }
+    const bytes = [...cited].reduce((total, heading) => total + span(heading).length, 0);
+    if (bytes > widest.bytes) widest = { name, bytes };
+  }
+  // The widest owner today is gsd-to-plan at 8645 bytes across 7 sections; the cap leaves room
+  // to grow a section without allowing a return to a wholesale read (the whole file is 50330).
+  const MAX_OWNER_CANON_BYTES = 10000;
+  assert.ok(
+    widest.bytes <= MAX_OWNER_CANON_BYTES,
+    `${widest.name} depends on ${widest.bytes} bytes of canon, over ${MAX_OWNER_CANON_BYTES}`,
+  );
+  assert.ok(widest.bytes < canon.length / 2, `${widest.name} names most of the canon`);
+});
 
 test("visible catalog descriptions stay within the injected byte budget", () => {
   // Every visible description is injected once per session, so the sum is a real cost.
@@ -208,7 +262,7 @@ test("legacy terminal prose matches discovery and explicit-read behavior", () =>
 
 test("master and visible skills declare automatic lazy activation", () => {
   const master = read("skills/gsd/SKILL.md");
-  assert.match(master, /^description: "Session bootstrap injected by the GSD OMP extension;/m);
+  assert.match(master, /^description: "Session bootstrap injected by a GSD host adapter;/m);
   assert.match(master, /^hide: true$/m);
   assert.match(master, /choose exactly one primary process owner/i);
   assert.match(master, /same-session continuity/i);
@@ -351,7 +405,20 @@ test("AC-4: Concision preserves semantic parity", () => {
   // being a guard once real growth ran 400 words below it, so raising this again requires
   // the same kind of stated reason as the REFERENCE cap.
   const MAX_VISIBLE_WORDS = 9850;
-  const MAX_BOOTSTRAP_WORDS = 1200;
+  // The triage front door and depth ladder are executable routing contracts the injected
+  // bootstrap must carry, and they keep the common direct case from loading any artifact or
+  // skill. The lightness revamp then moved the completed-state matrix to the on-demand canon,
+  // so the bootstrap sits below its original 1200 cap: it keeps triage, selection, and a
+  // matrix pointer, while REFERENCE carries the policy blocks a direct answer never reads.
+  // Raised from 1075 to 1120 in 2026-09 for the three route-boundary definitions the triage
+  // gate needs to route at all: what a Nano edit is, that an asserted behavior the prompt
+  // cannot confirm is clarify rather than research, and that a question whose answer lives in
+  // this repo, a document, or a reference is research rather than answer. Measured on three
+  // models over the 13 triage fixtures, the undefined boundaries cost 28 of 156 first-attempt
+  // routes; the definitions recovered all 156. A cap that lets the front door misroute the
+  // first durable decision of a session is the expensive kind of lean, so the raise buys the
+  // routing contract rather than new prose.
+  const MAX_BOOTSTRAP_WORDS = 1120;
   // Raised from 5600 in 2026-08 when Git base derivation and the pre-squash gate became
   // executable contracts: each tool moved into canon costs an invocation, its exit codes, and
   // its read-only guarantee. Raised again to 6100 in 2026-08 for the parallel-wave dispatch
@@ -367,7 +434,12 @@ test("AC-4: Concision preserves semantic parity", () => {
   // exists so the canon
   // stays one on-demand read, so raising it again requires the same kind of stated reason,
   // never a silent bump to fit new prose.
-  const MAX_REFERENCE_WORDS = 6500;
+  // Raised again to 6700 in 2026-09 for the triage front door, the depth ladder, and the
+  // completed-state matrix the bootstrap no longer carries: the canonical route
+  // classification, the clarify and research rules, recommend-always, the four depth
+  // definitions, and the terminal-state matrix are executable contracts of the same kind,
+  // and they front-load the decision so the common case loads nothing.
+  const MAX_REFERENCE_WORDS = 6700;
   const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
   assert.equal(visible.length, 9);

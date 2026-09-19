@@ -1,11 +1,16 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { read, skillNames, filesUnder, ROOT, SKILLS } from "./support/skills-fixtures.js";
-import { existsSync } from "node:fs";
+import { spawnSync } from "node:child_process";
+import { read, readdirSync, skillNames, filesUnder, ROOT, SKILLS } from "./support/skills-fixtures.js";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { createBootstrap } from "../lib/gsd-bootstrap.mjs";
 import {
-  parseActivationResponse, responseMatchesFixture, selectEvalBackend, validateActivationTarget,
-  validateFixtureSet,
+  describeEvalBackendError, parseActivationResponse, responseMatchesFixture, selectEvalBackend,
+  evalSurfaceFingerprint, loadLifecycleMatrix,
+  parseTriageResponse, TRIAGE_ROUTES, validateActivationTarget, validateFixtureSet,
+  validateTriageFixtureSet,
 } from "./eval/activation-eval-contract.mjs";
 
 test("session owner is sole lifecycle authority without model agents", () => {
@@ -92,9 +97,43 @@ test("AC-11: the repository manifest publishes the deterministic contract suite"
   assert.match(manifest.scripts.test, /test\/\*\.test\.js/, "the test script runs every contract suite file");
   assert.ok(!manifest.dependencies, "the contract suite carries no runtime dependency");
   assert.ok(!manifest.devDependencies, "the contract suite carries no development dependency");
+  // The description used to name only the OMP extension, which the adapter seam made stale.
+  for (const host of ["OMP", "Claude Code", "Codex"]) {
+    assert.match(
+      manifest.description,
+      new RegExp(host),
+      `the manifest description must name the supported host ${host}`,
+    );
+  }
 
   // README is the human entry point for the same command, so the two must not drift.
   assert.match(read("README.md"), /bun test/, "the README names the bun test command");
+});
+
+// The layout tree is the map a reader uses to find the core, and it silently lost
+// lib/gsd-session-context.mjs - the module both new host adapters share - because nothing
+// tied the tree to the directories it describes.
+test("the README layout tree names every core file, adapter, and skill", () => {
+  const tree = read("README.md").match(/```text\n(adapters\/[\s\S]*?)```/)?.[1];
+  assert.ok(tree, "the README must publish the repository layout tree");
+  const missing = [];
+  for (const file of readdirSync(join(ROOT, "lib"))) {
+    if (!tree.includes(file)) missing.push(`lib/${file}`);
+  }
+  for (const file of readdirSync(join(ROOT, "tools"))) {
+    if (!tree.includes(file)) missing.push(`tools/${file}`);
+  }
+  for (const entry of readdirSync(join(ROOT, "adapters"), { withFileTypes: true })) {
+    if (entry.isDirectory() && !tree.includes(`${entry.name}/`)) {
+      missing.push(`adapters/${entry.name}/`);
+    }
+  }
+  for (const entry of readdirSync(join(ROOT, "skills"), { withFileTypes: true })) {
+    if (entry.isDirectory() && !tree.includes(`${entry.name}/`)) {
+      missing.push(`skills/${entry.name}/`);
+    }
+  }
+  assert.deepEqual(missing, [], "the README layout tree must name every core file and directory");
 });
 
 test("AC-2: Bun is the sole runtime across engines, shebangs, and prose", () => {
@@ -114,6 +153,7 @@ test("AC-2: Bun is the sole runtime across engines, shebangs, and prose", () => 
     "tools/gsd-state.mjs",
     "test/eval/activation-eval.mjs",
     "test/eval/eval-models.mjs",
+    "test/eval/triage-eval.mjs",
   ];
   for (const path of executables) {
     const body = read(path);
@@ -344,15 +384,25 @@ test("activation fixtures and response parser enforce lazy primary-skill selecti
   assert.match(reference, /generic `continue`/);
   assert.match(reference, /completed-retained|merged-cleanup-pending/);
 
-  // Leftover terminal or malformed state gates related and lifecycle intent only. An
-  // unrelated direct prompt keeps ordinary behavior, and uncertainty asks one question.
-  for (const doc of [master, reference]) {
-    assert.match(doc, /(?:unrelated direct work[\s\S]{0,100}never blocked|never blocks[\s\S]{0,100}unrelated direct work)/i);
-    assert.match(doc, /one question[\s\S]{0,80}instead of stopping/i);
-    assert.match(doc, /Malformed residual bytes without a `plan\.md` \| `ordinary-routing`/);
-    assert.doesNotMatch(doc, /Any state is malformed \| `fail-closed`/);
-    assert.doesNotMatch(doc, /globally gates recovery|global crash-recovery gate/);
+  // Leftover terminal or malformed state gates related and lifecycle intent only. The matrix
+  // itself moved to the on-demand canon in the lightness revamp, so the bootstrap now carries
+  // a pointer plus the decision names; both halves are asserted so neither drifts apart.
+  assert.match(master, /`REFERENCE\.md` § Completed-state and cleanup matrix/);
+  for (const decision of [
+    "fail-closed",
+    "ordinary-routing",
+    "cleanup-question",
+    "cleanup-only",
+    "block-resume",
+    "ignore-terminal-record",
+  ]) {
+    assert.ok(master.includes(`\`${decision}\``), `bootstrap must name the ${decision} decision`);
   }
+  assert.match(reference, /(?:unrelated direct work[\s\S]{0,100}never blocked|never blocks[\s\S]{0,100}unrelated direct work)/i);
+  assert.match(reference, /one question[\s\S]{0,80}instead of stopping/i);
+  assert.match(reference, /Malformed residual bytes without a `plan\.md` \| `ordinary-routing`/);
+  assert.doesNotMatch(reference, /Any state is malformed \| `fail-closed`/);
+  assert.doesNotMatch(reference, /globally gates recovery|global crash-recovery gate/);
   // Malformed bytes cannot be parsed, so only the directory name may decide relatedness.
   assert.match(reference, /`?\.scratch\/<feature>\/`?[\s\S]{0,100}directory name[\s\S]{0,120}(?:trusted )?relatedness(?: signal)?/i);
   assert.deepEqual(
@@ -393,9 +443,10 @@ test("the bootstrap names the resume gateway, fail-closed precedence, and helper
   assert.match(master, /[Nn]aming the work[^.\n]{0,140}`gsd-executing-plans`/);
 
   // Runtime discovery decides malformed authority: a feature holding both `plan.md` and
-  // malformed `state.toon` throws for every prompt, while plan-less bytes are skipped.
-  assert.match(master, /malformed[\s\S]{0,240}`fail-closed`|`fail-closed`[\s\S]{0,240}malformed/);
-  assert.match(master, /(?:full|complete) packet|without a `plan\.md`|residual/i);
+  // malformed `state.toon` throws for every prompt, while plan-less bytes are skipped. The
+  // matrix moved to the on-demand canon, so this now asserts canon bytes, not the pointer.
+  assert.match(reference, /malformed[\s\S]{0,240}`fail-closed`|`fail-closed`[\s\S]{0,240}malformed/);
+  assert.match(reference, /(?:full|complete) packet|without a `plan\.md`|residual/i);
 
   // A moved plan hash is an amendment, never a lifecycle stop.
   assert.match(master, /hash mismatch[^.\n]{0,120}amend|amend[^.\n]{0,120}hash mismatch/i);
@@ -416,13 +467,12 @@ test("the bootstrap names the resume gateway, fail-closed precedence, and helper
   assert.match(master, /Unrelated new work beside an active or `merged-cleanup-pending` packet is `ordinary-routing`; only a discovered completed-retained or residual record reports `ignore-terminal-record`/);
   // A returned Quick-fix WIP Fail leaves a nameable repair round that loads gsd-verify.
   assert.match(master, /repair round its prompt can name, which loads `gsd-verify` rather than answering directly/);
-  assert.match(master, /An unrelated valid `merged-cleanup-pending` state \| `ordinary-routing`[\s\S]{0,120}never `ignore-terminal-record`/);
+  // These matrix rows live in canon after the lightness revamp; the bootstrap now only names
+  // the decisions, so the row semantics are asserted on the canon bytes.
   // `ignore-terminal-record` is gated on a discovered terminal record: with none present,
   // unrelated work beside an active or merged-cleanup-pending packet stays ordinary.
-  assert.match(master, /`ignore-terminal-record` needs a discovered `phase=completed-retained` record or residual terminal bytes; with none present, unrelated work stays `ordinary-routing`/);
   assert.match(reference, /`?ignore-terminal-record`?[\s\S]{0,160}(?:`?phase=completed-retained`?|completed-retained)[\s\S]{0,120}residual terminal bytes[\s\S]{0,160}(?:no such record|none present)[\s\S]{0,160}`?ordinary-routing`?/i);
   // An active packet is never terminal history, so unrelated new work beside one is ordinary.
-  assert.match(master, /An active or `merged-cleanup-pending` packet is never terminal history, so unrelated new work beside one is `ordinary-routing`/);
   assert.match(reference, /(?:active or )?`?merged-cleanup-pending`?[\s\S]{0,120}never terminal history[\s\S]{0,160}unrelated[\s\S]{0,120}`?ordinary-routing`?/i);
   // An unrelated valid merged-cleanup-pending state routes ordinarily: ignore-terminal-record
   // names completed-retained and residual records only, so the two rows never collapse.
@@ -438,7 +488,7 @@ test("the bootstrap names the resume gateway, fail-closed precedence, and helper
   // Hash drift keeps prompt-named work with its executing owner instead of diverting to
   // the resume gateway, and a full malformed packet outranks every other active packet.
   assert.match(master, /never a stop or `gsd-handoff` diversion/);
-  assert.match(master, /even one naming another valid feature/);
+  assert.match(reference, /even one naming another valid feature/);
 
   // Several valid packets are an ambiguity to resolve through gsd-handoff, not a stop.
   // detectCandidates returns every valid packet and the capsule asks for exactly one
@@ -514,6 +564,342 @@ test("the activation evaluator runs keyless through the local omp CLI", () => {
   assert.match(evalDoc[0], /`gpt-5\.6-luna`/);
   assert.doesNotMatch(evalDoc[0], /`gemini-3\.6-flash`/);
   assert.match(readme, /GSD_EVAL_MODEL[\s\S]{0,400}gemini-3\.6-flash/);
+});
+
+test("the activation evaluator fails fast on a backend error instead of scoring every fixture", () => {
+  // A dead credential or endpoint is not a routing regression: the runner must stop with a
+  // distinct exit code and score nothing, rather than printing "0/N checks pass".
+  assert.match(
+    describeEvalBackendError("omp exit 1: 401 Incorrect API key provided: thk_live"),
+    /rejected credentials/,
+  );
+  assert.match(describeEvalBackendError("fetch failed"), /backend unavailable/);
+
+  const dir = mkdtempSync(join(tmpdir(), "gsd-eval-backend-"));
+  const fakeOmp = join(dir, "omp");
+  writeFileSync(fakeOmp, "#!/bin/sh\necho '401 Incorrect API key provided: thk_live' >&2\nexit 1\n");
+  chmodSync(fakeOmp, 0o755);
+  const result = spawnSync(process.execPath, ["test/eval/activation-eval.mjs", "--only", "nano-typo"], {
+    cwd: ROOT,
+    encoding: "utf8",
+    env: { ...process.env, GSD_EVAL_BACKEND: "omp", GSD_EVAL_OMP: fakeOmp, GSD_EVAL_MODEL: "fake-model" },
+  });
+  assert.equal(result.status, 3, result.stderr);
+  assert.match(result.stderr, /eval aborted, no fixture was scored: backend rejected credentials/);
+  assert.doesNotMatch(result.stdout, /checks pass/, "a backend error must not be reported as scored fixtures");
+
+  // The two-pass runner shares the same contract, so a backend error cannot be scored there either.
+  const modelsRunner = read("test/eval/eval-models.mjs");
+  assert.match(modelsRunner, /describeEvalBackendError/);
+  assert.match(modelsRunner, /process\.exit\(3\)/);
+});
+
+test("the triage front door has a fixture harness that covers every canon route", () => {
+  const triageFixtures = JSON.parse(read("test/eval/triage-fixtures.json"));
+  assert.deepEqual(validateTriageFixtureSet(triageFixtures), { ok: true });
+
+  // The fixtures exercise the whole route enum, and the injected bootstrap names each route,
+  // so the harness and the canon cannot drift apart.
+  const master = read("skills/gsd/SKILL.md");
+  for (const route of TRIAGE_ROUTES) {
+    assert.ok(
+      triageFixtures.some((fixture) => fixture.route === route),
+      `triage fixtures must cover ${route}`,
+    );
+    assert.ok(master.includes(`\`${route}\``), `the bootstrap triage must name ${route}`);
+  }
+
+  // The reply contract is exact JSON with one route key drawn from the enum.
+  assert.deepEqual(parseTriageResponse('{"route":"clarify"}'), { ok: true, value: { route: "clarify" } });
+  assert.equal(parseTriageResponse('{"route":"clarify","extra":1}').ok, false);
+  assert.equal(parseTriageResponse('{"route":"nope"}').ok, false);
+  assert.equal(parseTriageResponse('{"route":"answer"} ').ok, false);
+
+  // A fixture set that drops a route is rejected, so coverage cannot silently shrink.
+  const shrunk = triageFixtures.filter((fixture) => fixture.route !== "milestone");
+  assert.equal(validateTriageFixtureSet(shrunk).ok, false);
+});
+
+test("the triage eval scores routes through the same fail-fast backend", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-eval-triage-"));
+  let seq = 0;
+  const runTriageEval = (script) => {
+    const fakeOmp = join(dir, `omp-${seq}`);
+    const reportPath = join(dir, `triage-report-${seq}.json`);
+    seq += 1;
+    writeFileSync(fakeOmp, script);
+    chmodSync(fakeOmp, 0o755);
+    return {
+      reportPath,
+      run: spawnSync(
+        process.execPath,
+        ["test/eval/triage-eval.mjs", "--only", "readonly-question", "--report-path", reportPath],
+        {
+          cwd: ROOT,
+          encoding: "utf8",
+          env: { ...process.env, GSD_EVAL_BACKEND: "omp", GSD_EVAL_OMP: fakeOmp, GSD_EVAL_MODEL: "fake-model" },
+        },
+      ),
+    };
+  };
+
+  const { reportPath: passReport, run: pass } = runTriageEval("#!/bin/sh\nprintf '%s' '{\"route\":\"answer\"}'\n");
+  assert.equal(pass.status, 0, pass.stderr);
+  assert.match(pass.stdout, /triage/);
+  assert.match(pass.stdout, /1\/1 checks pass \(fake-model\)/);
+  assert.match(
+    pass.stdout,
+    /Bootstrap: [0-9a-f]{12} \(\d+ rendered words\)/,
+    "every runner names the bytes it measured",
+  );
+  assert.match(pass.stdout, /Report: .*triage-report-0\.json/);
+
+  // The triage axis writes a durable, fingerprint-bound report just like the activation axis.
+  const report = JSON.parse(readFileSync(passReport, "utf8"));
+  assert.equal(report.scope, "bootstrap only (triage axis)");
+  const printedPrefix = pass.stdout.match(/Bootstrap: ([0-9a-f]{12}) \(\d+ rendered words\)/)?.[1];
+  assert.ok(printedPrefix, "the runner prints the fingerprint prefix it measured");
+  assert.match(report.bootstrap_sha256, new RegExp(`^${printedPrefix}`), "the report binds the printed bytes");
+  assert.ok(report.bootstrap_words > 0, "the report records the rendered word count");
+  assert.deepEqual(report.pass["fake-model"], { passed: 1, total: 1, accuracy: 100 });
+  assert.equal(report.failures["fake-model"], undefined);
+
+  // A wrong route is a scored failure (exit 1), not a backend abort (exit 3).
+  const { reportPath: failReport, run: fail } = runTriageEval("#!/bin/sh\nprintf '%s' '{\"route\":\"plan\"}'\n");
+  assert.equal(fail.status, 1, fail.stderr);
+  assert.match(fail.stdout, /want route answer, got plan/);
+  assert.deepEqual(JSON.parse(readFileSync(failReport, "utf8")).failures["fake-model"], ["readonly-question"]);
+
+  // A dead backend aborts with code 3 and scores nothing, exactly like the activation runner.
+  const { run: aborted } = runTriageEval("#!/bin/sh\necho '401 Incorrect API key provided: thk_live' >&2\nexit 1\n");
+  assert.equal(aborted.status, 3, aborted.stderr);
+  assert.match(aborted.stderr, /backend rejected credentials/);
+  assert.doesNotMatch(aborted.stdout, /checks pass/);
+});
+
+test("the canon-loaded eval mode supplies the on-demand lifecycle matrix", () => {
+  const matrix = loadLifecycleMatrix(ROOT);
+  assert.match(matrix, /^### Completed-state and cleanup matrix/, "the slice starts at the heading");
+  assert.match(matrix, /Malformed residual bytes without a `plan\.md`/, "the slice carries matrix rows");
+  assert.match(matrix, /Terminal mtimes never compete with active packets/, "the slice keeps the tail");
+  assert.doesNotMatch(matrix, /Post-plan pipeline contract/, "the slice stops at the next section");
+
+  // A canon that lost the heading fails closed instead of silently scoring as loaded.
+  const dir = mkdtempSync(join(tmpdir(), "gsd-canon-missing-"));
+  mkdirSync(join(dir, "skills", "gsd"), { recursive: true });
+  writeFileSync(join(dir, "skills", "gsd", "REFERENCE.md"), "## Something else\n");
+  assert.throws(
+    () => loadLifecycleMatrix(dir),
+    /Completed-state and cleanup matrix/,
+    "a missing matrix heading must throw",
+  );
+});
+
+test("the capsule-resume miss stays bounded by the executing-plans entry guard", () => {
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const handoff = read("skills/gsd-handoff/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+
+  // The stable eval miss is a front-door classification miss on an ambiguous phrase: the model
+  // reads "continue implementation" as named work and picks gsd-executing-plans for a capsule
+  // resume. Supplying the whole canon instead of the matrix slice did not change it, so the miss
+  // cannot be fixed by more context. What keeps it bounded is the owner skill's own entry guard:
+  // a resume without bound `state.toon` must stop there rather than execute.
+  assert.match(execution, /Invocation guard[\s\S]{0,160}load only for validated bound plan state/i);
+  assert.match(
+    execution,
+    /Normal plan execution \| `plan\.md`; bound `state\.toon`[\s\S]{0,220}Stop only when `plan\.md` or `state\.toon` is missing\/malformed/,
+    "normal plan execution requires bound state.toon and stops without it",
+  );
+  assert.match(handoff, /capsule/i, "gsd-handoff owns capsule resume");
+  assert.match(
+    reference,
+    /`gsd-handoff`[\s\S]{0,240}capsule[\s\S]{0,140}every bare resume naming no work enters here first/i,
+    "the canon owner row gives gsd-handoff every bare resume naming no work",
+  );
+});
+
+test("the eval surface fingerprint binds a report to the bytes it measured", () => {
+  const base = evalSurfaceFingerprint({ bootstrap: 'GSD_ROOT: "/tmp/one"\nbody', repoRoot: "/tmp/one" });
+  assert.match(base.bootstrap_sha256, /^[0-9a-f]{64}$/);
+  assert.equal(base.bootstrap_words, 3);
+  assert.equal(base.canon_sha256, null);
+  assert.equal(base.canon_words, null);
+
+  // Two checkouts of one revision fingerprint identically: the absolute root is normalized.
+  assert.deepEqual(
+    evalSurfaceFingerprint({ bootstrap: 'GSD_ROOT: "/tmp/two"\nbody', repoRoot: "/tmp/two" }),
+    base,
+  );
+
+  // Any changed byte moves the hash, which is the point: a stale report is detectable.
+  assert.notEqual(
+    evalSurfaceFingerprint({ bootstrap: 'GSD_ROOT: "/tmp/one"\nbody!', repoRoot: "/tmp/one" })
+      .bootstrap_sha256,
+    base.bootstrap_sha256,
+  );
+
+  const canon = evalSurfaceFingerprint({
+    bootstrap: "body",
+    repoRoot: "/tmp/one",
+    canonSection: "| row |",
+  });
+  assert.match(canon.canon_sha256, /^[0-9a-f]{64}$/);
+  assert.equal(canon.canon_words, 3);
+});
+
+test("the two-pass runner only loads the canon when the scope flag is set", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-eval-canon-"));
+  const fakeOmp = join(dir, "omp");
+  const dump = join(dir, "prompt.txt");
+  writeFileSync(
+    fakeOmp,
+    `#!/bin/sh\nprintf '%s' "$*" > "$GSD_EVAL_DUMP"\nprintf '%s' '{"decision":"block-resume","action":"stop","primarySkill":null}'\n`,
+  );
+  chmodSync(fakeOmp, 0o755);
+  const runScope = (extraEnv, reportName) =>
+    spawnSync(
+      process.execPath,
+      [
+        "test/eval/eval-models.mjs",
+        "--only",
+        "result-retained-related-resume",
+        "--report-path",
+        join(dir, reportName),
+      ],
+      {
+        cwd: ROOT,
+        encoding: "utf8",
+        env: {
+          ...process.env,
+          GSD_EVAL_BACKEND: "omp",
+          GSD_EVAL_OMP: fakeOmp,
+          GSD_EVAL_MODEL: "fake-model",
+          GSD_EVAL_DUMP: dump,
+          ...extraEnv,
+        },
+      },
+    );
+
+  const bootstrapOnly = runScope({ GSD_EVAL_CANON: "0" }, "report-bootstrap.json");
+  assert.equal(bootstrapOnly.status, 0, bootstrapOnly.stderr);
+  assert.match(bootstrapOnly.stdout, /Scope: bootstrap only/);
+  assert.match(bootstrapOnly.stdout, /Bootstrap: [0-9a-f]{12} \(\d+ rendered words\)/);
+  assert.doesNotMatch(bootstrapOnly.stdout, /Canon: /, "bootstrap-only scope reports no canon hash");
+  const withoutMatrix = readFileSync(dump, "utf8");
+  assert.doesNotMatch(withoutMatrix, /Malformed residual bytes/, "the default scope stays bootstrap-only");
+
+  const canonLoaded = runScope({ GSD_EVAL_CANON: "1" }, "report-canon.json");
+  assert.equal(canonLoaded.status, 0, canonLoaded.stderr);
+  assert.match(canonLoaded.stdout, /Scope: bootstrap \+ on-demand lifecycle matrix/);
+  assert.match(canonLoaded.stdout, /Canon: [0-9a-f]{12} \(\d+ words\)/);
+  const withMatrix = readFileSync(dump, "utf8");
+  assert.match(withMatrix, /Malformed residual bytes/, "the canon scope must reach the prompt");
+  assert.match(withMatrix, /Selection and continuity/, "the bootstrap still travels");
+
+  // The report records which scope produced its numbers and which bytes it measured, so the
+  // artifact cannot be misread as a claim about a different tree.
+  const report = JSON.parse(readFileSync(join(dir, "report-canon.json"), "utf8"));
+  assert.equal(report.scope, "bootstrap + on-demand lifecycle matrix");
+  assert.match(report.bootstrap_sha256, /^[0-9a-f]{64}$/);
+  assert.ok(Number.isInteger(report.bootstrap_words) && report.bootstrap_words > 0);
+  assert.match(report.canon_sha256, /^[0-9a-f]{64}$/);
+  assert.ok(Number.isInteger(report.canon_words) && report.canon_words > 0);
+
+  const bootstrapReport = JSON.parse(readFileSync(join(dir, "report-bootstrap.json"), "utf8"));
+  assert.equal(bootstrapReport.scope, "bootstrap only");
+  assert.equal(bootstrapReport.bootstrap_sha256, report.bootstrap_sha256);
+  assert.equal(bootstrapReport.canon_sha256, null, "the bootstrap-only report carries no canon hash");
+});
+
+// The README tells a reader to trust a report only while its fingerprint matches the tree, and
+// the eval sections quote the committed reports by number. Nothing enforced that, so a bootstrap
+// edit could leave the committed evidence describing a previous revision while every check
+// stayed green. This recomputes the live fingerprint exactly as the runners do and holds the
+// committed artifacts and the README's quoted numbers to it.
+test("the committed eval reports describe the live bytes they claim", () => {
+  const bootstrap = createBootstrap(ROOT);
+  const live = evalSurfaceFingerprint({ bootstrap, repoRoot: ROOT });
+  const canon = evalSurfaceFingerprint({
+    bootstrap,
+    repoRoot: ROOT,
+    canonSection: loadLifecycleMatrix(ROOT),
+  });
+
+  const committed = [
+    ["test/eval/eval-report.json", "bootstrap only", null],
+    ["test/eval/eval-report-canon.json", "bootstrap + on-demand lifecycle matrix", canon],
+    ["test/eval/triage-report.json", "bootstrap only (triage axis)", null],
+  ];
+  // The fixture sets are the instrument. Their own contract is already checked above
+  // (`validateFixtureSet`/`validateTriageFixtureSet` against these same files); what was
+  // missing is that the committed reports name totals for a fixture set nobody re-reads.
+  const activationFixtures = JSON.parse(read("test/eval/fixtures.json"));
+  const triageFixtures = JSON.parse(read("test/eval/triage-fixtures.json"));
+
+  // A report also names how many fixtures it scored, and the README says each committed
+  // report scores three models. Both are claims about the live instrument, so a fixture
+  // added or dropped without re-running has to fail here rather than in a reader's head.
+  const liveTotals = new Map([
+    ["test/eval/eval-report.json", activationFixtures.length],
+    ["test/eval/eval-report-canon.json", activationFixtures.length],
+    ["test/eval/triage-report.json", triageFixtures.length],
+  ]);
+  let scoredModels = null;
+  for (const [path, scope, canonFingerprint] of committed) {
+    const report = JSON.parse(read(path));
+    assert.equal(report.scope, scope, `${path} must keep its declared scope`);
+    assert.equal(
+      report.bootstrap_sha256,
+      live.bootstrap_sha256,
+      `${path} was measured on different bootstrap bytes: re-run its evaluator before quoting it`,
+    );
+    assert.equal(
+      report.bootstrap_words,
+      live.bootstrap_words,
+      `${path} must record the live rendered word count`,
+    );
+    if (canonFingerprint) {
+      assert.equal(
+        report.canon_sha256,
+        canonFingerprint.canon_sha256,
+        `${path} was measured on a different canon section: re-run its evaluator`,
+      );
+      assert.equal(report.canon_words, canonFingerprint.canon_words);
+    } else {
+      assert.equal(report.canon_sha256, null, `${path} must stay a bootstrap-only report`);
+    }
+    const scores = report.pass1 ?? report.pass;
+    assert.ok(scores && typeof scores === "object", `${path} must record per-model scores`);
+    const models = Object.keys(scores).sort();
+    assert.equal(
+      models.length,
+      3,
+      `${path} must score the three models the README names`,
+    );
+    scoredModels = scoredModels ?? models;
+    assert.deepEqual(models, scoredModels, `${path} must score the same model set as the others`);
+    for (const model of models) {
+      assert.equal(
+        scores[model].total,
+        liveTotals.get(path),
+        `${path} must be scored against the live fixture set for ${model}`,
+      );
+    }
+  }
+
+  // The README quotes both numbers, so they move with the bytes instead of aging quietly.
+  const readme = read("README.md");
+  assert.match(
+    readme,
+    new RegExp(`at fingerprint \`${live.bootstrap_sha256.slice(0, 12)}\``),
+    "the README must quote the live fingerprint",
+  );
+  assert.match(
+    readme,
+    new RegExp(`currently measures ${live.bootstrap_words} words`),
+    "the README must quote the live rendered word count",
+  );
 });
 
 test("Quick-fix owner uses the injected hidden context and deterministic gates", () => {
@@ -802,4 +1188,312 @@ test("AC-6: diagnosis returns evidence only and routes architectural causes befo
     /architectural cause arrives from diagnosis before (?:any )?repair lands|arriving before (?:any )?repair lands/i,
     "architecture skill must state architectural intake arrives before repair lands",
   );
+});
+
+test("M4: a reconciled wave runs one independent advisory review across hosts", () => {
+  const reference = read("skills/gsd/REFERENCE.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const adapters = read("adapters/README.md");
+
+  const refWave = reference.match(/### Wave dispatch\n([\s\S]*?)(?=\n### |\n## |$)/)?.[1];
+  assert.ok(refWave, "REFERENCE.md must have a ### Wave dispatch section");
+
+  // Canon: exactly one independent read-only review per multi-task wave, with a
+  // host-reviewer-or-verify fallback and advisory-only authority.
+  assert.match(
+    refWave,
+    /wave of two or more reconciled tasks[\s\S]{0,200}independent read-only review[\s\S]{0,160}reviewer sub-agent where the host can spawn one, otherwise the standalone review of `gsd-verify`/i,
+    "canon must require one independent read-only review per multi-task wave with a host-or-verify fallback",
+  );
+  assert.match(
+    refWave,
+    /review is advisory[\s\S]{0,160}deterministic gates remain the only terminal authority[\s\S]{0,160}blocks only by citing bound plan text or a red deterministic check/i,
+    "the wave review stays advisory and blocks only on bound plan text or a red check",
+  );
+
+  // The wave owner wires the review into reconciliation.
+  assert.match(
+    execution,
+    /independent read-only review of the merged diff for every wave of two or more reconciled tasks/i,
+    "gsd-executing-plans must wire the review into wave reconciliation",
+  );
+  // Host generalization lives in the adapter map, not the host-neutral core.
+  const capability = adapters.match(/## Capability map\n([\s\S]*?)(?=\n## )/)?.[1];
+  assert.ok(capability, "adapters/README.md must declare a capability map");
+  for (const host of ["OMP", "Claude Code", "Codex"]) {
+    assert.match(capability, new RegExp(`\\| ${host} \\|`), `capability map must cover ${host}`);
+  }
+  assert.match(capability, /\| Sub-agent implementation \|/, "the map names sub-agent dispatch per host");
+  assert.match(capability, /\| Isolated task workspaces \|/, "the map names isolation per host");
+  assert.match(capability, /\| Independent review \|/, "the map names the host review feature");
+  for (const reviewer of ["adapters/claude-code/agents/gsd-reviewer.md", "adapters/codex/agents/gsd-reviewer.toml"]) {
+    assert.equal(existsSync(join(ROOT, reviewer)), true, `${reviewer} must ship the host reviewer`);
+  }
+  // OMP spawns sub-agents from a prompt, so its review runs as one isolated task carrying the
+  // canonical brief rather than through a shipped agent definition. The map and the domain
+  // workflow must both say that, or an adapter reader would expect a definition OMP never gets.
+  assert.match(
+    capability,
+    /\| Independent review \| One isolated read-only reviewer sub-agent task[\s\S]{0,80}`gsd-verify` standalone-review brief \|/,
+    "the OMP review cell must name the isolated reviewer task and its brief",
+  );
+  const domain = read("docs/domain/gsd.md");
+  assert.match(
+    domain,
+    /read-only reviewer definition into[\s\S]{0,40}host.s agent directory where the host selects reviewers by definition/i,
+    "the install workflow must publish a reviewer definition only where the host selects reviewers by definition",
+  );
+  assert.match(
+    domain,
+    /spawns sub-agents from a prompt dispatches one isolated read-only reviewer task carrying the[\s\S]{0,40}`gsd-verify` standalone-review brief/i,
+    "the install workflow must name the spawned reviewer task and its canonical brief",
+  );
+});
+
+test("M4: the host reviewer subagent is read-only and holds no lifecycle authority", () => {
+  const claude = read("adapters/claude-code/agents/gsd-reviewer.md");
+  const codex = read("adapters/codex/agents/gsd-reviewer.toml");
+
+  // Claude Code: the tools frontmatter grants read-only inspection only, so the reviewer
+  // cannot edit, run lifecycle commands, or spawn work of its own.
+  const tools = claude.match(/^tools:\s*(.+)$/m)?.[1] ?? "";
+  const granted = tools.split(",").map((tool) => tool.trim()).filter(Boolean).sort();
+  assert.deepEqual(granted, ["Glob", "Grep", "Read"], "the Claude Code reviewer may only Read, Grep, and Glob");
+  for (const forbidden of ["Write", "Edit", "MultiEdit", "NotebookEdit", "Bash", "Task"]) {
+    assert.ok(!granted.includes(forbidden), `the Claude Code reviewer must not grant ${forbidden}`);
+  }
+  assert.match(
+    claude,
+    /never edit files[\s\S]{0,80}commit[\s\S]{0,40}decide completion/i,
+    "the reviewer states it never edits, commits, or decides completion",
+  );
+
+  // Codex: the agent is sandboxed read-only rather than granted a writable workspace.
+  assert.match(codex, /sandbox_mode\s*=\s*"read-only"/, "the Codex reviewer must be sandboxed read-only");
+  assert.doesNotMatch(codex, /sandbox_mode\s*=\s*"workspace-write"/);
+
+  // Both definitions keep the review advisory: blocking only on bound plan text or a red check.
+  for (const [host, body] of [["claude-code", claude], ["codex", codex]]) {
+    assert.match(
+      body,
+      /advisory[\s\S]{0,120}deterministic gates[\s\S]{0,40}terminal[\s\S]{0,10}authority/i,
+      `${host}: the reviewer must stay advisory`,
+    );
+    assert.match(
+      body,
+      /only blocks when it cites bound plan text[\s\S]{0,120}red deterministic check/i,
+      `${host}: the reviewer blocks only on bound plan text or a red deterministic check`,
+    );
+  }
+});
+
+test("M6: each adapter maps the depth ladder onto its declared host features", () => {
+  const adapters = read("adapters/README.md");
+
+  const map = adapters.match(/## Depth ladder mapping\n([\s\S]*?)(?=\n## )/)?.[1];
+  assert.ok(map, "adapters/README.md must declare a depth ladder mapping");
+  for (const depth of ["direct", "quick", "plan", "milestone"]) {
+    assert.ok(map.includes(`\`${depth}\``), `depth mapping must name ${depth}`);
+  }
+  for (const host of ["OMP", "Claude Code", "Codex"]) {
+    assert.match(map, new RegExp(`\\| ${host} \\|`), `depth mapping must cover ${host}`);
+  }
+
+  // Shallow depths stay host-free; deep depths land on declared host features and never
+  // invent authority a host lacks.
+  assert.match(map, /`direct`[\s\S]{0,200}(?:no skill, artifact, or host feature|no host-specific setup)/i);
+  assert.match(map, /presentation-only[\s\S]{0,200}never binds/i);
+  assert.match(map, /non-authoritative/i);
+  assert.match(
+    map,
+    /host `\/goal` runs a persistent goal of its own[\s\S]{0,40}ledger is the goal record/i,
+  );
+  assert.match(map, /only `plan` and\s+`milestone` reach dispatch, isolation, milestone, and review features/i);
+
+  // The mapping cites the canon that defines the ladder, so a rename cannot orphan it.
+  assert.match(adapters, /REFERENCE\.md`? § Triage and depth ladder/);
+  assert.match(adapters, /never faked/);
+
+  // Decision 0017: host plan and goal features are affordances, never authority. The adapter
+  // names the recommendation the owner gets, and neither artifact may become lifecycle state.
+  assert.match(map, /host plan and goal features are affordances, not authority/i);
+  assert.match(
+    map,
+    /Codex recommends `\/plan` to shape a multi-step change/i,
+    "the map names the Codex plan affordance the adapter recommends",
+  );
+  assert.match(
+    map,
+    /Claude Code and Codex\s+`\/goal` completion condition is judged by a separate evaluator/i,
+    "the map names both `/goal` affordances and their separate evaluator",
+  );
+  assert.match(
+    map,
+    /only definition of done[\s\S]{0,140}ever\s+lifecycle state/i,
+    "the map keeps host plan and goal artifacts out of lifecycle state",
+  );
+  // Both hosts with a goal feature get the same non-authority rule in the capability row.
+  for (const cell of [
+    /\| Goals \| None; milestone ledger is the goal record \| `\/goal` runs a host completion condition judged by a separate evaluator; GSD never treats it as the goal record \|/,
+    /\| Goals \|[^\n]*`\/goal` runs a persistent host goal with its own completion criteria; GSD never treats it as the goal record \|/,
+  ]) {
+    assert.match(adapters, cell, "the capability map keeps each host goal out of the goal record");
+  }
+  // OMP is the primary host: its read-only plan mode and plan todo list are declared as
+  // display state rather than a missing feature, and plan.md stays the only planner.
+  assert.match(
+    adapters,
+    /\| Plan mode \| Read-only plan mode with a plan todo list; the canonical `plan\.md` is the only authority \|/,
+    "the capability map names the OMP read-only plan mode and keeps plan.md authoritative",
+  );
+  assert.match(
+    map,
+    /`plan` \| Canonical `plan\.md`; the host plan and its todo list stay display-only/,
+    "the depth map keeps the OMP host plan and todo list display-only",
+  );
+  assert.equal(
+    existsSync(join(ROOT, "docs/decisions/0017-host-plan-and-goal-affordances.md")),
+    true,
+    "the plan/goal affordance rule is a durable decision record",
+  );
+});
+
+// M3 shipped the triage front door: the prompt is classified before any route or artifact
+// load, ambiguity asks one recommended-default question, research happens before answering,
+// every choice carries a recommendation, and depth is chosen from the work rather than a
+// fixed heavyweight path. Nothing locked those contracts, so the objective's first
+// requirement could silently drift.
+test("M3: the triage front door classifies before routing with clarify, research, and recommend-always", () => {
+  const bootstrap = read("skills/gsd/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
+  const ROUTES = ["answer", "clarify", "research", "quick", "plan", "milestone"];
+
+  for (const [label, body] of [
+    ["bootstrap", bootstrap],
+    ["canon", reference],
+  ]) {
+    const section = body.match(/## Triage(?: and depth ladder)?\n([\s\S]*?)(?=\n## )/)?.[1];
+    assert.ok(section, `${label} must carry the triage front door`);
+    for (const route of ROUTES) {
+      assert.ok(section.includes(`\`${route}\``), `${label} triage must name \`${route}\``);
+    }
+    assert.match(
+      section,
+      /never a repository sweep|reading only what it names/i,
+      `${label} triage stays prompt-scoped`,
+    );
+    assert.match(section, /never file count/i, `${label} depth never follows file count`);
+    assert.match(
+      section,
+      /never silently fall(?:s|ing) to ship a subset/i,
+      `${label} depth never silently falls to ship a subset`,
+    );
+    assert.match(
+      section,
+      /Every choice names one recommended option, its alternatives, and their costs\./,
+      `${label} states recommend-always`,
+    );
+  }
+
+  // Clarify asks exactly one question carrying a recommended default; research is proactive
+  // and never from memory.
+  assert.match(
+    reference,
+    /`clarify`[\s\S]{0,200}exactly one question[\s\S]{0,80}recommended default/i,
+  );
+  assert.match(bootstrap, /ask exactly one recommended-default question/i);
+  assert.match(reference, /`research`[\s\S]{0,200}before answering, never from memory/i);
+  assert.match(bootstrap, /never from memory/i);
+
+  // The four depth levels bind their artifacts so a shallow case never loads one.
+  assert.match(reference, /`direct`[\s\S]{0,160}no scratch, branch, commit, or skill/);
+  assert.match(reference, /`quick`[\s\S]{0,160}Quick-fix plan/);
+  assert.match(reference, /`plan`[\s\S]{0,160}canonical `plan\.md`/);
+  assert.match(reference, /`milestone`[\s\S]{0,160}full plan plus the milestone ledger/);
+
+  // The domain shard records the same front door and ladder as production behavior.
+  assert.match(domain, /Triage[^.\n]{0,200}exactly one of `answer`, `clarify`, `research`/i);
+  assert.match(domain, /Depth Ladder[^.\n]{0,120}`direct`, `quick`, `plan`, and `milestone`/i);
+});
+
+// Decision 0018: the three route boundaries the front door needs are defined in the
+// bootstrap rather than left to inference. An undefined "Nano" made a one-line literal edit
+// as consistent with `answer` as with `quick`, an asserted behavior read as a codebase
+// question, and "read-only" described the answer mode but was taken as an effort marker.
+// Each undefined boundary cost measured routes across three models, so all three ship as
+// contract text in the bootstrap, the canon parity mirror, the injected OMP policy, the
+// triage instrument, and the domain shard.
+test("M3: the triage route boundaries are defined, not inferred", () => {
+  const bootstrap = read("skills/gsd/SKILL.md");
+  const domain = read("docs/domain/gsd.md");
+  const ompPolicy = read("adapters/omp/gsd-context.js");
+  const triageRunner = read("test/eval/triage-eval.mjs");
+
+  for (const [label, body] of [
+    ["bootstrap", bootstrap],
+    ["domain shard", domain],
+  ]) {
+    assert.match(
+      body,
+      /Nano[^.\n]{0,40}one literal edit needing no test/i,
+      `${label} defines a Nano edit instead of naming an undefined route word`,
+    );
+    assert.match(
+      body,
+      /asserts a behavior[^.\n]{0,80}`clarify`, never `research`|asserts a behavior[^.\n]{0,120}is `clarify` rather than `research`/i,
+      `${label} routes an unconfirmable asserted behavior to clarify over research`,
+    );
+    assert.match(
+      body,
+      /answer lives in this repo, a document, or a reference[^.\n]{0,40}`research`|answer lives in this repo, a document, or a reference[^.\n]{0,40}is `research` rather than `answer`/i,
+      `${label} routes a lookup question to research over answer`,
+    );
+  }
+
+  // The OMP system policy reinforces the same vocabulary, so the host that injects both
+  // must not leave "Nano" undefined in the text a model reads first.
+  assert.match(ompPolicy, /Nano edit: one literal edit needing no test/);
+
+  // The instrument mirrors the production rule, so a fixture can never be scored against
+  // vocabulary the live bootstrap does not carry.
+  assert.match(triageRunner, /one literal edit needing no test/);
+  assert.match(triageRunner, /asserts a behavior it cannot confirm/);
+  assert.match(triageRunner, /answer lives in this repo, a document, or a reference/);
+});
+
+// Decision 0019: the README's claims about the three upstream references are verified against
+// upstream source paths, and each borrowed idea is stated beside the deliberate difference.
+// The claims were paraphrase before, and one of them mis-attributed a question style that the
+// upstream repo explicitly refuses to cap, so the citations are the part worth locking.
+test("M3: the README's reference claims cite upstream sources and their decision record", () => {
+  const readme = read("README.md");
+
+  for (const url of [
+    "https://github.com/mattpocock/skills",
+    "https://github.com/obra/superpowers",
+    "https://github.com/Fission-AI/openspec",
+  ]) {
+    assert.ok(readme.includes(url), `the README must keep naming ${url}`);
+  }
+
+  // Each borrowed idea names the upstream file it came from, so a paraphrase cannot drift
+  // into an unattributed claim again.
+  assert.match(readme, /skills\/productivity\/grilling\/SKILL\.md/, "mattpocock citation");
+  assert.match(readme, /hooks\/hooks\.json[\s\S]{0,200}hooks\/session-start/, "superpowers citations");
+  assert.match(readme, /`## ADDED Requirements`[\s\S]{0,120}`### Requirement:`/, "openspec citation");
+  assert.match(
+    readme,
+    /docs\/decisions\/0019-reference-repo-alignment\.md/,
+    "the README must point at the alignment record",
+  );
+  assert.ok(existsSync(join(ROOT, "docs/decisions/0019-reference-repo-alignment.md")));
+
+  // The counter-position stays recorded rather than smoothed away: upstream names GSD as a
+  // process-owning framework, and the record states how the revamp answers that.
+  const alignment = read("docs/decisions/0019-reference-repo-alignment.md");
+  assert.match(alignment, /owning the process[\s\S]{0,80}take away your control/);
+  assert.match(alignment, /exactly one question instead of a round/);
+  assert.match(alignment, /explicit catalog[\s\S]{0,80}skillPath/);
+  assert.match(alignment, /Domain Impact classification[\s\S]{0,160}ADDED\/MODIFIED\/REMOVED/);
 });

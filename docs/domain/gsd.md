@@ -13,18 +13,23 @@ Own request classification, feature convergence, plan binding and in-flight amen
 | Term | Definition | Avoid |
 | --- | --- | --- |
 | Artifact Contract | The rule classifying repository artifacts per Invocation Mode as Required, Optional, Produced, or Fallback. | flat mandatory dependency list |
-| Context Harvest | Scope-bounded domain inspection: existing indexes limit reads to affected mapped contexts, while an absent index permits required feature bootstrap plus one optional broad-bootstrap decision. The OMP session extension reads `state.toon` through hardened traversal with identity checks at each step. | routine broad codebase scan |
+| Bootstrap Tier | The always-injected `skills/gsd/SKILL.md` carrying only what every prompt needs, with `§`-cited pointers to the on-demand canon. | the whole canon inside the injected text |
+| Context Harvest | Scope-bounded domain inspection: existing indexes limit reads to affected mapped contexts, while an absent index permits required feature bootstrap plus one optional broad-bootstrap decision. A host adapter's session surface reads `state.toon` through hardened traversal with identity checks at each step. | routine broad codebase scan |
 | Contract Validator | The executable production seam that validates canonical full-plan and Quick-fix plan authority without mutating it. Reads are traversal-hardened with identity checks so a parent-directory swap or a blocking file cannot substitute authority mid-validation. Plan reads pin the full ancestry chain (workspace → directory → target) and compare each step's identity against the value captured at resolution. Every contract rejection carries a concrete remediation help line naming the fix instead of generic usage. | test-only parser, prose-only validation |
 | Deferred Slow E2E | A resource-heavy feature journey run only after current-commit deterministic conformance. | task-loop check |
+| Depth Ladder | The four right-sized delivery levels `direct`, `quick`, `plan`, and `milestone`, chosen by ambiguity, blast radius, reversibility, and acceptance clarity rather than file count. | file-count sizing, one fixed heavyweight path |
 | Domain Impact | The mandatory plan classification binding semantic change evidence, affected contexts, documentation action, and broad-bootstrap disposition. | optional documentation note |
 | Durable Decision Record | A Git-tracked `docs/decisions/NNNN-slug.md` record of a load-bearing tradeoff settled during convergence, carrying the mandatory minimal header of a numbered title, `Status`, `Date`, and non-empty `## Decision`. | ephemeral plan note |
 | Durable Design Record | A Git-tracked `docs/design/NNNN-slug.md` record of a UI/UX decision settled during execution, carrying the same minimal header and optional measurement sections. | unmeasured UI note |
 | Fast TDD Check | A deterministic local command suitable for repeated RED→GREEN use at a production-facing seam. | final slow acceptance suite |
+| Host Adapter | The per-host surface under `adapters/<host>/` that delivers the shared session bootstrap and recovery capsule through that host's own events and configuration, and maps GSD routing onto that host's native plan, goal, sub-agent, and isolation features. The shared core in `lib/` and `skills/` never names a host. | shared-core behavior, another host's coupling |
+| Independent Review | The one advisory read-only review of a reconciled wave of two or more tasks, run by the host's reviewer sub-agent where the host can spawn one — the shipped read-only definition where the host selects reviewers by definition, otherwise one isolated read-only reviewer task carrying the canonical `gsd-verify` brief — and otherwise by the standalone shape of `gsd-verify`. | second lifecycle verdict, blocking by taste |
 | Invocation Mode | A named path through one skill with its own required artifacts, fallback behavior, output authority, and prompt policy. | dispatch label |
 | Milestone Ledger | The Git-tracked `docs/gsd/<feature>/milestones.md` contract carrying precise user-approved milestone goals and durable pending/done state. | roadmap, task ledger |
 | Resumable State Snapshot | The atomic canonical `schema:v4` `.scratch/<feature>/state.toon` record binding plan bytes, Git identity, green checkpoint, runtime preferences, and revision. The canonical state-write path is `gsd-state.mjs set` `key=value…`; `write-state --json-file` remains the fallback. | handoff history, task attempt |
 | Session Owner | The current top-level session as sole lifecycle authority; a later session assumes the role only through canonical rehydration. | persistent agent identity |
 | Terminal Conformance | Deterministic current-commit proof of plan/state binding, acceptance coverage, path ownership, Domain Impact, code/domain agreement, and check evidence. | free-form verdict |
+| Triage | The front-door classification performed before every route, choosing exactly one of `answer`, `clarify`, `research`, `quick`, `plan`, or `milestone` from the prompt and the context it names alone. | repository sweep to classify, loaded skill for a direct answer |
 
 ## Actors
 
@@ -74,6 +79,13 @@ Own request classification, feature convergence, plan binding and in-flight amen
 
 ## Workflows and state transitions
 
+### Route a request
+
+1. Classify the prompt before any route, reading only what it names, into exactly one of `answer`, `clarify`, `research`, `quick`, `plan`, or `milestone`; a direct answer or Nano edit — one literal edit needing no test — loads no skill, scans no state, and writes no scratch artifact or Git change.
+2. Ask exactly one question carrying a recommended default and each option's consequence when intent is missing, ambiguous, or suspect, including a prompt that asserts a behavior the triage cannot confirm from the prompt itself, and state the conservative default and proceed when nothing behavioral turns on the answer.
+3. Gather codebase, external-documentation, or reference-repository evidence before answering a research question — a question whose answer lives in this repo, a document, or a reference — never from memory; name one recommended option with its alternatives and costs for every choice.
+4. Size the work to the shallowest depth that can express it, raising depth only when the shallower level cannot and never silently shipping a subset as complete.
+
 ### Deliver a feature
 
 1. Classify intent, discover and converge acceptance behavior plus Domain Impact. During discovery, distinguish questions sharp enough for acceptance-impact form from parked uncertainty too coarse to phrase as a criterion; prioritize batching by which items unblock the most downstream criteria. Reserve affected documentation paths without publishing future semantics, and write one durable decision record when a load-bearing tradeoff settles.
@@ -103,6 +115,38 @@ A read-only diff review along two independent axes, each as a bounded read-only 
 1. Stop the hidden minimal-change context when scope expands or design decisions appear.
 2. Enter normal feature discovery without shipping a reduced subset as complete.
 
+### Install a host adapter
+
+1. Resolve the target host's config directory from its own environment override, then its
+   conventional home path.
+2. Register the adapter's session-start and prompt hooks that deliver the shared bootstrap
+   and recovery capsule, merging rather than replacing unrelated host settings and replacing
+   only the adapter's own previously managed entries, including pruning a managed group the
+   adapter no longer registers. A host that re-runs session start after a compaction or a
+   resume (Claude Code, Codex) delivers the capsule there instead of staging it on a
+   pre-compaction hook.
+3. Publish the repository skills into that host's skill directory as managed links, never
+   overwriting an entry the adapter does not own. Publish a read-only reviewer definition into
+   the host's agent directory where the host selects reviewers by definition; a host that
+   spawns sub-agents from a prompt dispatches one isolated read-only reviewer task carrying the
+   `gsd-verify` standalone-review brief instead. The reviewer is advisory only and holds no
+   lifecycle authority.
+4. Every write is atomic and idempotent, so re-running the install leaves one managed entry
+   per surface and preserves the user's other configuration. Every entry is self-identifying —
+   a hook command naming the adapter file, a link into the repository skills or agent path, or
+   a delimited managed section — so removing exactly those entries restores the host and leaves
+   everything the adapter does not own in place.
+
+The Claude Code adapter installs with `bun adapters/claude-code/install.mjs
+[--config-dir <path>] [--dry-run]`, defaulting to `$CLAUDE_CONFIG_DIR` then `~/.claude`.
+The Codex adapter installs with `bun adapters/codex/install.mjs [--config-dir <path>]
+[--skills-dir <path>] [--dry-run]`; it defaults to `$CODEX_HOME` then `~/.codex` for
+hooks, agents, and `AGENTS.md`, and to `~/.agents/skills` for skills — the user
+location Codex scans — upserts one managed `## GSD` section in that directory's
+`AGENTS.md` naming Codex plan mode and Goal mode as non-authoritative affordances,
+and reports an explicit `[features] hooks = false` in `config.toml` (or
+the deprecated `codex_hooks = false` alias) as advisory without editing it.
+
 ### Install the extension
 
 1. Publish the extension symlink fail-closed from the checkout into the effective OMP agent base — `$PI_CODING_AGENT_DIR` when it is set to an absolute path (a relative value fails closed before any publication, because omp resolves it against each session's working directory), otherwise `~/.omp/agent`; non-empty `OMP_PROFILE`/`PI_PROFILE` also fails closed before any publication, because omp relocates its whole agent dir for profile sessions — removing only positively recognized managed legacy GSD artifacts, with the immediate parent and managed registration directories validated as real directories.
@@ -112,15 +156,18 @@ A read-only diff review along two independent axes, each as a bounded read-only 
 
 | Command or event | Actor | Outcome |
 | --- | --- | --- |
+| Prompt arrives | Session Owner | Triage classifies exactly one route and one depth before any lifecycle work begins. |
 | Plan converges | Session Owner | Canonical plan bytes bind and ordered execution starts without a prompt. |
 | Validate plan authority | Session Owner | Canonical plan bytes and grammar are accepted with an exact hash or rejected without mutation. |
 | Fix bounded behavior | Session Owner | Quick-fix Domain Impact and structured task ownership govern Fast TDD and domain-drift verification. |
 | Continue active feature | User | Validated state selects one resumable owner action. |
 | Domain drift detected | Session Owner | Completion is blocked until code and affected shards agree. |
+| Wave reconciled | Session Owner | One independent read-only review of the merged diff runs before the checkpoint. |
 | Green terminal conformance | Session Owner | Deferred Slow E2E becomes eligible on unchanged bytes. |
 | Pause and save | User | One atomic state snapshot records the next action. |
 | Scope expands | Session Owner | Quick-fix context ends and normal discovery begins. |
 | Install GSD | User | The extension publishes fail-closed into the effective OMP agent base (`$PI_CODING_AGENT_DIR` when set to an absolute path, otherwise `~/.omp/agent`; a relative value or non-empty `OMP_PROFILE`/`PI_PROFILE` fails closed before publication), then that base's OMP task.isolation settings are reported and, when opposing decision 0004, surfaced with advisory enable commands — scoped to the sessions resolving that base. On a deviating triple in an interactive run with omp on PATH, one explicit yes applies the deviating keys through omp and prints a proven change record with revert commands (decision 0011); declined, EOF, unattended, or omp-less runs change nothing. |
+| Install a host adapter | User | The adapter registers its hooks and publishes managed skill links idempotently, re-running yields one managed entry per surface, and unrelated host settings are preserved. |
 
 ## Context relationships
 
@@ -205,5 +252,25 @@ None.
 
 ### P-gsd-16: Keep the harness a runtime, never an authority
 
-- **Policy:** Harness features are used where they carry no authority and refused where they would replace canonical bytes. The validator is reached by an absolute injected-root invocation; an injected orchestration directive delegates only bounded read-only research whose result the owner re-verifies; the harness todo list mirrors the bound plan as display state while `state.toon` stays the sole resumable authority; a long-lived process a slow suite needs runs supervised with observed readiness and is torn down before the merge gate; and conversation rewind, memory recall, and toolset-restricted modes never own lifecycle recovery or work.
+- **Policy:** Harness features are used where they carry no authority and refused where they would replace canonical bytes. The validator is reached by an absolute injected-root invocation; an injected orchestration directive delegates only bounded read-only research whose result the owner re-verifies; the harness todo list mirrors the bound plan as display state while `state.toon` stays the sole resumable authority; a long-lived process a slow suite needs runs supervised with observed readiness and is torn down before the merge gate; and conversation rewind, memory recall, toolset-restricted modes, and host plan or goal artifacts never own lifecycle recovery, acceptance, or work.
 - **Reason:** The lifecycle's guarantees come from canonical artifacts and Git rather than from session runtime, so every harness affordance is adopted for the mechanics it genuinely improves and excluded from the decisions those artifacts own.
+
+### P-gsd-17: Deliver one shared core through per-host adapters
+
+- **Policy:** The harness-generic core — `lib/`, `tools/`, and `skills/` — renders the session bootstrap, the recovery capsule, and the current-request note and names no host identifier. Each host is supported by exactly one adapter under `adapters/<host>/`, which is the only surface that names that host's events, configuration, binaries, or feature flags. An adapter injects the core's exact bytes whole through the host's own mechanism, pinning the host's per-message budget where the host caps hook output so no payload is truncated or spilled, declares which host feature satisfies each GSD need, names the serial or inline fallback for a feature the host lacks, keeps per-turn token cost at zero for ordinary prompts, publishes exactly the core's visible skill catalog into the host's skill surface and never a hidden skill, and fails closed with the core's own sanitized diagnostic bytes — never a host-adapted or localized copy of them — that leave the host's ordinary behavior intact.
+- **Reason:** One shared contract keeps host ports from drifting apart, while confining harness coupling to a single directory per host makes a new host additive and protects the core's portability guarantee.
+
+### P-gsd-18: Triage the prompt and size its depth
+
+- **Policy:** The session owner classifies every prompt before any route into exactly one of `answer`, `clarify`, `research`, `quick`, `plan`, or `milestone`, reading the prompt and the context it names alone; a direct answer or Nano edit — one literal edit needing no test — loads no skill, scans no state, and writes no scratch artifact or Git change. `clarify` asks exactly one question carrying a recommended default and each option's consequence, and proceeds on the conservative default when nothing behavioral turns on the answer; a prompt that asserts a behavior the triage cannot confirm from the prompt itself is `clarify` rather than `research`. `research` gathers codebase, external-documentation, or reference-repository evidence before answering, and a question whose answer lives in this repo, a document, or a reference is `research` rather than `answer`; every choice names one recommended option, its alternatives, and their costs. Depth is chosen by ambiguity, blast radius, reversibility, and acceptance clarity rather than file count, may rise while executing, and never silently falls to ship a subset as complete.
+- **Reason:** Classifying and sizing before acting keeps the common direct case free of artifacts and skill loads while making routing, clarification, and depth explicit decisions instead of silent assumptions.
+
+### P-gsd-19: Review reconciled waves independently
+
+- **Policy:** Every wave of two or more reconciled tasks runs exactly one independent read-only review of the merged diff before the checkpoint. Where the adapter can spawn a sub-agent it is the host's reviewer: a shipped read-only definition where the host selects reviewers by definition, otherwise one isolated read-only reviewer task carrying the canonical `gsd-verify` standalone-review brief. Where it cannot spawn one, it is the standalone review shape of `gsd-verify`. The review is advisory, never a second lifecycle authority; the deterministic gates remain the only terminal authority, and a finding blocks only by citing bound plan text or a red deterministic check. Taste, style, and unsourced verdicts neither block nor persist as prose.
+- **Reason:** An independent read of the merged diff catches what the authoring owner's own reconciliation can miss, while keeping review advisory prevents a subjective second verdict from competing with the deterministic gates that actually decide completion.
+
+### P-gsd-20: Keep the injected bootstrap lean
+
+- **Policy:** The session bootstrap carries only what every prompt needs — triage and routing, selection and continuity, the transition rule, and pointers plus decision names for delegated policy. Policy that only non-direct lifecycle work reads stays in the on-demand reference, and every delegated block is cited by its canonical `§` heading so the pointer cannot orphan silently. A direct answer is classified without reading any repository artifact. The reference itself is read by the `§` sections a flow names, whole only when no step names a required contract, and an owner's named sections are capped so no flow depends on most of the canon.
+- **Reason:** The bootstrap is injected on every prompt, so its size is a recurring cost for every user, while the reference is read only when a flow needs its policy; keeping the two tiers honest makes the common case cheap without dropping a single gate. Bounding the reference read to named sections extends the same argument one tier down: the widest owner needs 8,645 bytes of a 50,330-byte canon, so a lifecycle session pays for the sections it applies instead of the whole file.

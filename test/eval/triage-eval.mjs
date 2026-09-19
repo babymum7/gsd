@@ -1,10 +1,8 @@
 #!/usr/bin/env bun
-// Optional live-LLM activation evaluation for the exact production GSD bootstrap.
-//
-// Scope: only the injected bootstrap is supplied, while the row-level completed-state matrix
-// lives in the on-demand canon an owner reads before lifecycle work. A score here is therefore
-// a bootstrap-only lower bound on live behavior, not the whole routing contract; fixture
-// expectations still encode that canon, so a miss is canon-adherence data either way.
+// Optional live-LLM evaluation for the decision-0013 triage front door: classify a prompt
+// into exactly one route (answer|clarify|research|quick|plan|milestone) from the exact
+// production GSD bootstrap. The completed-state matrix keeps its own runner in
+// activation-eval.mjs, so neither axis leaks the other's vocabulary into its prompt.
 //
 // Backend selection (see selectEvalBackend):
 //   the local `omp` binary is preferred and needs no key; it runs one isolated
@@ -14,57 +12,59 @@
 //   GSD_EVAL_URL      OpenAI-compatible base URL (default https://api.openai.com/v1)
 //   GSD_EVAL_MODEL    comma-separated model list; every model is evaluated
 //
-// Usage: bun test/eval/activation-eval.mjs [--only <fixture-id>]
+// Usage: bun test/eval/triage-eval.mjs [--only <fixture-id>] [--report-path <file>]
 //
 // Exit codes: 0 all scored fixtures pass, 1 at least one fixture failed, 2 invalid usage or
 // fixtures, 3 the backend failed (bad credential, dead endpoint) so nothing was scored.
 import { spawn } from "node:child_process";
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import {
   describeEvalBackendError,
   evalSurfaceFingerprint,
-  parseActivationResponse,
-  responseMatchesFixture,
+  parseTriageResponse,
   selectEvalBackend,
-  validateFixtureSet,
+  triageResponseMatchesFixture,
+  validateTriageFixtureSet,
 } from "./activation-eval-contract.mjs";
-import { createBootstrap, discoverSkillCatalog } from "../../extensions/gsd-context.js";
+import { createBootstrap } from "../../extensions/gsd-context.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..", "..");
-const fixtures = JSON.parse(readFileSync(join(here, "fixtures.json"), "utf8"));
-const catalog = discoverSkillCatalog(repoRoot);
+const fixtures = JSON.parse(readFileSync(join(here, "triage-fixtures.json"), "utf8"));
 const bootstrap = createBootstrap(repoRoot);
 const fingerprint = evalSurfaceFingerprint({ bootstrap, repoRoot });
-const installedSkills = new Set(catalog.map(({ name }) => name));
-const fixtureValidation = validateFixtureSet(fixtures, installedSkills);
+const fixtureValidation = validateTriageFixtureSet(fixtures);
 if (!fixtureValidation.ok) {
-  console.error(`invalid fixtures.json: ${fixtureValidation.detail}`);
+  console.error(`invalid triage-fixtures.json: ${fixtureValidation.detail}`);
   process.exit(2);
 }
 
 let only = null;
+let reportPath = null;
 const argv = process.argv.slice(2);
 for (let index = 0; index < argv.length; index += 1) {
   const name = argv[index];
-  if (name !== "--only") {
-    console.error(`unknown argument ${name}; use --only <fixture-id>`);
-    process.exit(2);
+  if (name === "--only" || name === "--report-path") {
+    const variable = name === "--only" ? only : reportPath;
+    if (variable !== null) {
+      console.error(`duplicate option ${name}`);
+      process.exit(2);
+    }
+    const value = argv[index + 1];
+    if (value === undefined || value === "" || value.startsWith("--")) {
+      console.error(`missing value for ${name}`);
+      process.exit(2);
+    }
+    if (name === "--only") only = value;
+    else reportPath = value;
+    index += 1;
+    continue;
   }
-  if (only !== null) {
-    console.error("duplicate option --only");
-    process.exit(2);
-  }
-  const value = argv[index + 1];
-  if (value === undefined || value === "" || value.startsWith("--")) {
-    console.error("missing value for --only");
-    process.exit(2);
-  }
-  only = value;
-  index += 1;
+  console.error(`unknown argument ${name}; use --only <fixture-id> or --report-path <file>`);
+  process.exit(2);
 }
 
 const run = only ? fixtures.filter(({ id }) => id === only) : fixtures;
@@ -76,7 +76,7 @@ if (only && run.length === 0) {
 const ompPath = process.env.GSD_EVAL_OMP || resolveOmp(process.env.PATH);
 const backend = selectEvalBackend(process.env, ompPath);
 if (backend.kind === "skip") {
-  console.log(`skip: ${backend.detail} — live activation eval not run.`);
+  console.log(`skip: ${backend.detail} — live triage eval not run.`);
   process.exit(0);
 }
 
@@ -94,15 +94,11 @@ function resolveOmp(pathEnv) {
 }
 
 const system = [
-  "You are a GSD activation classifier. Do NOT perform, answer, or execute the user prompt. Classify only.",
+  "You are a GSD triage classifier. Do NOT perform, answer, or execute the user prompt. Classify only.",
   "The exact production GSD session bootstrap is loaded below.",
-  "Given the workspace state and current user prompt, apply the result-marker decision vocabulary and the lazy skill-selection policy this bootstrap states.",
-  "Choose only the primary process owner. Helper skills such as gsd-ponytail are not represented in primarySkill.",
-  'Reply with ONLY exact JSON: {"decision":"<ordinary-routing|ignore-terminal-record|cleanup-question|cleanup-only|block-resume|fail-closed>","action":"<load|direct|stop>","primarySkill":"<visible gsd-* skill>" or null}.',
-  "Use load with one visible primary skill, direct with null when no primary skill applies, and stop with null for every cleanup/block/fail-closed decision.",
-  "ordinary-routing and ignore-terminal-record ALWAYS use load or direct. cleanup-question, cleanup-only, block-resume, and fail-closed ALWAYS use stop with null primarySkill.",
-  "Plan-hash mismatch does not override the normal owner: bare continue still enters gsd-handoff; prompt-named pending execution work enters gsd-executing-plans. Bare 'continue' or generic resume with a validated active .scratch plan/state = gsd-handoff; named task/feature work with validated active plan = its owner skill, not gsd-handoff.",
-  "Explicit diff or PR review prompt always loads gsd-verify, never direct. plan.md beside malformed state.toon fail-closes before any direct/nano routing.",
+  "Apply its Triage rule: classify the prompt into exactly one route before any lifecycle work, reading only the prompt and the context it names.",
+  'Reply with ONLY exact JSON: {"route":"<answer|clarify|research|quick|plan|milestone>"}.',
+  "answer = read-only question, or a Nano edit: one literal edit needing no test; clarify = missing, ambiguous, supplied-design, or false-premise intent, including a prompt that asserts a behavior it cannot confirm from the prompt itself, needing exactly one question; research = a question whose answer lives in this repo, a document, or a reference; quick = one bounded change whose acceptance already converged from the prompt; plan = multi-task behavior whose acceptance must be written down; milestone = independently releasable outcomes or portable multi-session publication.",
   "Your entire response must be exactly one raw JSON object. No prose, no explanation, no markdown fence, no tool_call tags, no wrapper of any kind. Any text besides the JSON object is a failure.",
   "",
   bootstrap,
@@ -183,14 +179,14 @@ await Promise.all(
       const { model, fixture } = job;
       const resultKey = `${model}|${fixture.id}`;
       try {
-        const parsed = parseActivationResponse(await ask(model, fixture), installedSkills);
+        const parsed = parseTriageResponse(await ask(model, fixture));
         if (!parsed.ok) {
           results.set(resultKey, { pass: false, detail: parsed.detail });
           continue;
         }
         results.set(resultKey, {
-          pass: responseMatchesFixture(parsed.value, fixture),
-          detail: `want ${fixture.decision}:${fixture.expectedAction}->${fixture.expectedPrimarySkill}, got ${parsed.value.decision}:${parsed.value.action}->${parsed.value.primarySkill}`,
+          pass: triageResponseMatchesFixture(parsed.value, fixture),
+          detail: `want route ${fixture.route}, got ${parsed.value.route}`,
         });
       } catch (error) {
         if (!backendFailure) backendFailure = describeEvalBackendError(error.message ?? error);
@@ -205,18 +201,32 @@ if (backendFailure) {
 }
 
 let failed = 0;
+const report = { scope: "bootstrap only (triage axis)", ...fingerprint, pass: {}, failures: {} };
 console.log(
   `Bootstrap: ${fingerprint.bootstrap_sha256.slice(0, 12)} (${fingerprint.bootstrap_words} rendered words)`,
 );
 for (const model of backend.models) {
   let modelFailed = 0;
-  console.log(`\n# ${backend.kind}: ${model}`);
+  const failingIds = [];
+  console.log(`\n# ${backend.kind} triage: ${model}`);
   for (const fixture of run) {
     const { pass, detail } = results.get(`${model}|${fixture.id}`);
     modelFailed += pass ? 0 : 1;
+    if (!pass) failingIds.push(fixture.id);
     console.log(`${pass ? "ok  " : "FAIL"} ${fixture.id}: ${detail}`);
   }
   failed += modelFailed;
+  const passed = run.length - modelFailed;
+  report.pass[model] = {
+    passed,
+    total: run.length,
+    accuracy: +((passed / run.length) * 100).toFixed(1),
+  };
+  if (failingIds.length > 0) report.failures[model] = failingIds;
   console.log(`${run.length - modelFailed}/${run.length} checks pass (${model})`);
 }
+
+reportPath = reportPath ?? join(here, "triage-report.json");
+writeFileSync(reportPath, JSON.stringify(report, null, 2));
+console.log(`\nReport: ${reportPath}`);
 process.exit(failed ? 1 : 0);

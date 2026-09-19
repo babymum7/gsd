@@ -1,0 +1,80 @@
+[
+  {
+    "id": "readonly-question",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "In one sentence, what does the YAGNI principle mean?",
+    "route": "answer"
+  },
+  {
+    "id": "nano-typo",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "fix the typo in README.md line 3: 'teh' -> 'the'",
+    "route": "answer"
+  },
+  {
+    "id": "vague-improvement",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "make the settings better",
+    "route": "clarify"
+  },
+  {
+    "id": "false-premise",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "why does gsd-state.mjs delete the bound plan file on every run?",
+    "route": "clarify"
+  },
+  {
+    "id": "missing-context",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "should we put a queue here?",
+    "route": "clarify"
+  },
+  {
+    "id": "codebase-facts",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "how does the recovery capsule decide which active features to list?",
+    "route": "research"
+  },
+  {
+    "id": "external-docs",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "Does Claude Code's SessionStart hook fire after a compaction, and what source value does it send?",
+    "route": "research"
+  },
+  {
+    "id": "bounded-fix-converged",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "fix the off-by-one in parseRange in src/range.mjs: the end index should be exclusive",
+    "route": "quick"
+  },
+  {
+    "id": "small-removal",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "remove the unused legacyFlag option from tools/cli.mjs and update its one test",
+    "route": "quick"
+  },
+  {
+    "id": "multi-task-feature",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "add dark mode across the app: theme tokens, a context provider, a toggle in settings, and system-preference detection",
+    "route": "plan"
+  },
+  {
+    "id": "multi-task-refactor",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "rework the parser to accept v5 state files, keep the loaders backward compatible, and update the CLI and its tests",
+    "route": "plan"
+  },
+  {
+    "id": "independent-milestones",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "ship the billing module as independently releasable milestones: invoices, then payments, then dunning, each deployable on its own",
+    "route": "milestone"
+  },
+  {
+    "id": "portable-publication",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "plan a multi-session release of the plugin system with a portable publication ledger for each milestone",
+    "route": "milestone"
+  }
+]

@@ -1,0 +1,25 @@
+{
+  "scope": "bootstrap only (triage axis)",
+  "bootstrap_sha256": "3b0c491933c60affe181c08574160c57f8f39f81448b08e52996c22740835594",
+  "bootstrap_words": 1250,
+  "canon_sha256": null,
+  "canon_words": null,
+  "pass": {
+    "omp/anthropic/claude-sonnet-5": {
+      "passed": 13,
+      "total": 13,
+      "accuracy": 100
+    },
+    "omp/google-antigravity/gemini-3.8-flash": {
+      "passed": 13,
+      "total": 13,
+      "accuracy": 100
+    },
+    "omp/anthropic/claude-opus-5": {
+      "passed": 13,
+      "total": 13,
+      "accuracy": 100
+    }
+  },
+  "failures": {}
+}

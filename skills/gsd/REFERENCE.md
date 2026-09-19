@@ -1,6 +1,21 @@
 # GSD Reference
 
-Load this file only when a flow needs its policy. It defines the shared meaning of artifacts and lifecycle state; skills select an Invocation Mode before validating required artifacts.
+Load only the `§` sections the flow needs. It defines the shared meaning of artifacts and lifecycle state; skills select an Invocation Mode before validating required artifacts.
+
+## Triage and depth ladder
+
+Triage runs before every route and classifies exactly one of `answer` (read-only or Nano), `clarify`, `research`, `quick`, `plan`, or `milestone` from the prompt and only the context it names, never a repository sweep. Direct work loads no skill, scans no state, and writes no scratch artifact or Git change.
+
+- `clarify` covers missing or ambiguous intent, a claimed cause, a supplied design, or a false premise, and asks exactly one question carrying a recommended default and each option's consequence; when nothing behavioral turns on the answer it states the conservative default and proceeds.
+- `research` gathers codebase, documentation, or reference-repository facts before answering, never from memory; bounded read-only delegation stays allowed and carries no authority, so the owner re-verifies every fact.
+- Every choice names one recommended option, its alternatives, and their costs.
+
+Depth follows ambiguity, blast radius, reversibility, and acceptance clarity, never file count:
+- `direct` — read-only answers and Nano edits: no scratch, branch, commit, or skill.
+- `quick` — one bounded change with acceptance converged from the prompt: the Quick-fix plan.
+- `plan` — multi-task behavior whose acceptance must be written down: the canonical `plan.md`.
+- `milestone` — independently releasable outcomes or portable multi-session publication: the full plan plus the milestone ledger.
+- A deeper level is chosen only when the shallower one cannot express the work; depth may rise mid-flight under § Plan amendment and never silently falls to ship a subset.
 
 ## Artifact Contract
 
@@ -76,20 +91,19 @@ TOON remains runtime-only: the single atomic `state.toon` snapshot. Runtime reco
 
 Every observable task loads `gsd-tdd` and uses a Fast TDD Check for RED before implementation, GREEN after implementation, and refactor after green.
 - Browser, GUI, external network, long-lived server, large fixture, and material-cost checks never run in implementation loops.
-- Planned implementation tasks in multi-task waves are authored by sub-agents under [§ Wave dispatch](#wave-dispatch), while single-task waves are authored inline by the owner with `gsd-tdd`; when dispatch is unavailable for a multi-task wave, the owner implements inline; it repairs each returned task inline and sequentially.
+- Planned implementation tasks in multi-task waves are authored by sub-agents under [§ Wave dispatch](#wave-dispatch); the owner implements or repairs a returned task inline and sequentially.
 - Task boundaries use focused green evidence kept only in reporting.
 - Planning adds the smallest real fast public seam when none exists; observable behavior never uses `none`.
 
 ### Wave dispatch
 
 Implementation is the only lifecycle work GSD dispatches, and only as validated waves of provably independent tasks to sub-agents; repair, diagnosis, architecture, and verification stay session-owner inline.
-Lifecycle authority and task authorship are distinct: sub-agents author task code, while the owner retains authority because dispatched results count for nothing until inspected, reconciled, committed, and terminally verified.
+Sub-agents author task code; the owner retains lifecycle authority until dispatched results are inspected, reconciled, committed, and terminally verified.
 
 A **wave** is a maximal contiguous run of non-superseded tasks in strict heading order where pairs are independent: disjoint `Files` path sets, disjoint `Satisfies` criteria, and differing focused `Test` commands.
 `analyze-waves` computes waves deterministically. Waves of two or more tasks dispatch concurrently, each task into its own isolated workspace on its own task branch, never two tasks in one shared working tree; a single-task wave executes inline by the session owner with `gsd-tdd`; when harness task isolation is unavailable or an isolated spawn fails for a multi-task wave, dispatch that wave serially in plan order, the same validated slices one task at a time; inline execution by the owner remains the fallback only when dispatch itself is unavailable for a multi-task wave.
 
 Each sub-agent receives one complete validated task slice rebuilt from `plan.md`, never invented; MUST run Fast TDD RED→GREEN→refactor; update every affected domain shard in the same commit as semantic code; and commit only green task-owned changes in its isolated workspace on its own task branch cut from wave base.
-Before sending any dispatch, the owner re-reads the dispatch prompt against the retained slice and rebuilds it when any slice fact is missing.
 A sub-agent MUST NOT mutate `state.toon`, amend `plan.md`, merge, decide lifecycle, or run Deferred Slow E2E.
 
 The owner reconciles waves in strict plan order through an ordered five-layer gate before checkpointing:
@@ -98,6 +112,8 @@ The owner reconciles waves in strict plan order through an ordered five-layer ga
 3. RED re-proof: each new or changed test must fail on the wave base — the owner takes only the task's test paths onto the wave base, runs the focused check, requires a red result, and discards that probe; a test that passes without the implementation proves nothing.
 4. Weakened-guard scan: the owner rejects any diff that deletes, skips, or renames an existing test, or loosens lint, type, or CI configuration, unless the slice owns that exact path and intent.
 5. Integration proof: after merging every task branch of the wave into `wip/<feature>` in strict plan order, the owner re-runs every merged wave task's focused check on `wip/<feature>` after the last merge and before the `gsd-state.mjs set` checkpoint write; pre-merge branch checks are never sufficient. Only when all pass does the owner write `state.toon` through `gsd-state.mjs set` with `last_green_task` set to the wave's last task; `Tn+1` after the wave begins only from that committed green checkpoint.
+
+A wave of two or more reconciled tasks also runs one independent read-only review of the merged diff: a reviewer sub-agent where the host can spawn one, otherwise the standalone review of `gsd-verify`. Review is advisory — deterministic gates remain the only terminal authority, and a finding blocks only by citing bound plan text or a red deterministic check.
 
 Failure routing: any failed layer is an integrity failure that returns to bounded inline owner repair under `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`, and is never re-dispatched to a sub-agent. Terminal conformance proves the unchanged final commit, and plan-ordered diffs hold because the owner merges in plan order.
 
@@ -268,7 +284,7 @@ The canonical UTF-8/LF grammar is:
 
 | ID | Slug | Goal | Status |
 | --- | --- | --- | --- |
-| M1 | `<milestone-slug>` | <precise user-approved goal> | pending |
+| M1 | <milestone-slug> | <precise user-approved goal> | pending |
 ```
 
 IDs are positive sequential `M1..MN`; slugs are unique lowercase kebab-case; goals are non-empty single-line text without `|`; status is exactly `pending` or `done`.
@@ -426,12 +442,12 @@ Apply this matrix only before non-direct lifecycle work. Strictly validate every
 
 | Condition | Decision | Action |
 |---|---|---|
-| A full malformed packet (`plan.md` plus `state.toon`) | `fail-closed` | Stop and name it; `detectCandidates` throws for every prompt, before relatedness or terminal tests and before any other valid packet wins. (Autocompaction uses fault-tolerant discovery — malformed packets are skipped individually, valid candidates survive, and all-malformed produces no capsule.) |
+| A full malformed packet (`plan.md` plus `state.toon`) | `fail-closed` | Stop and name it; `detectCandidates` throws for every prompt, even one naming another valid feature, before relatedness or terminal tests and before any other valid packet wins. (Autocompaction uses fault-tolerant discovery — malformed packets are skipped individually, valid candidates survive, and all-malformed produces no capsule.) |
 | Malformed residual bytes without a `plan.md` | `ordinary-routing` | Leave them; continue automatic selection. |
 | A valid `phase=merged-cleanup-pending` state is named by the prompt, or the prompt is lifecycle work on that same feature | `cleanup-question` | Ask one question resuming only its existing delete-or-retain decision; the pre-squash archive opportunity is not reopened. |
 | A valid `phase=merged-cleanup-pending` state is unrelated to the prompt, including a direct Nano edit or a new unrelated lifecycle | `ordinary-routing` | Continue ordinary selection; never report `ignore-terminal-record`, which covers completed-retained and residual records only. |
 | Explicit cleanup targets `completed-retained` or residual merged state | `cleanup-only` | Stop after cleaning that one named packet; load no workflow skill. |
-| Resume, implementation, or new-work intent explicitly targets a completed-retained feature | `block-resume` | Stop and report the feature completed. |
+| Resume or implementation intent that explicitly names a completed-retained feature | `block-resume` | Stop and report the feature completed. |
 | An unrelated `phase=completed-retained` record or residual terminal bytes, including new work or `continue` | `ignore-terminal-record` | Report `ignore-terminal-record`; exclude that history and select active state. |
 | No condition above applies | `ordinary-routing` | Continue automatic selection. |
 
