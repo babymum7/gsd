@@ -1,0 +1,52 @@
+{
+  "scope": "bootstrap only (skill compliance axis)",
+  "bootstrap_sha256": "65be16b66a1f6c34094a28b0329c25c5c937b8d2cdbbe53db1116cec73c40f9f",
+  "bootstrap_words": 879,
+  "pass": {
+    "a6/deepseek-v4.1-flash": {
+      "passed": 16,
+      "total": 25,
+      "accuracy": 64
+    }
+  },
+  "failures": {
+    "a6/deepseek-v4.1-flash": [
+      {
+        "fixture": "arch-audit",
+        "detail": "first visible action was text: I'll start by locating the codebase in question."
+      },
+      {
+        "fixture": "domain-glossary",
+        "detail": "wrong path docs/domain/index.md; expected /home/trong/Documents/personal/gsd/skills/gsd-brainstorming/SKILL.md"
+      },
+      {
+        "fixture": "quick-fix-repair",
+        "detail": "wrong path /home/trong/Documents/personal/gsd/skills/gsd-executing-plans/SKILL.md; expected /home/trong/Documents/personal/gsd/skills/gsd-verify/SKILL.md"
+      },
+      {
+        "fixture": "result-pending-unrelated-lifecycle",
+        "detail": "first visible action was text: I'll start by validating the discovered workspace state and the canonical cleanup matrix before routing the new request."
+      },
+      {
+        "fixture": "result-retained-unrelated",
+        "detail": "wrong path /tmp/.scratch/oauth-login/state.toon; expected /home/trong/Documents/personal/gsd/skills/gsd-brainstorming/SKILL.md"
+      },
+      {
+        "fixture": "result-residual-unrelated",
+        "detail": "wrong path /home/trong/Documents/personal/gsd/skills/gsd/REFERENCE.md; expected /home/trong/Documents/personal/gsd/skills/gsd-brainstorming/SKILL.md"
+      },
+      {
+        "fixture": "compaction-capsule-resume",
+        "detail": "wrong path /home/trong/Documents/personal/gsd/skills/gsd-executing-plans/SKILL.md; expected /home/trong/Documents/personal/gsd/skills/gsd-handoff/SKILL.md"
+      },
+      {
+        "fixture": "arch-audit-during-execution",
+        "detail": "first visible action was text: I'll start by grounding myself in the workspace: the active feature state and whether a payment service actually exists "
+      },
+      {
+        "fixture": "domain-context-mapping",
+        "detail": "first visible action was text: I'll verify the workspace before routing — the stated state names a `docs/domain/` directory that I should confirm exist"
+      }
+    ]
+  }
+}

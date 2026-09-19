@@ -5,7 +5,7 @@ import { read, readdirSync, skillNames, filesUnder, ROOT, SKILLS } from "./suppo
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createBootstrap } from "../lib/gsd-bootstrap.mjs";
+import { createBootstrap, discoverSkillCatalog } from "../lib/gsd-bootstrap.mjs";
 import {
   describeEvalBackendError, parseActivationResponse, responseMatchesFixture, selectEvalBackend,
   evalSurfaceFingerprint, loadLifecycleMatrix,
@@ -707,6 +707,73 @@ test("the triage eval scores routes through the same fail-fast backend", () => {
   assert.equal(aborted.status, 3, aborted.stderr);
   assert.match(aborted.stderr, /backend rejected credentials/);
   assert.doesNotMatch(aborted.stdout, /checks pass/);
+});
+
+test("the skill compliance evaluator measures the first visible action", () => {
+  const runner = read("test/eval/skill-compliance-eval.mjs");
+  assert.match(runner, /parseSkillComplianceEvents/);
+  for (const flag of ["--mode\", \"json", "--tools\", \"read", "--auto-approve"]) {
+    assert.ok(runner.includes(flag), `skill compliance eval must pass ${flag}`);
+  }
+
+  const report = JSON.parse(read("test/eval/skill-compliance-report.json"));
+  assert.equal(report.scope, "bootstrap only (skill compliance axis)");
+
+  const bootstrap = createBootstrap(ROOT);
+  const fingerprint = evalSurfaceFingerprint({ bootstrap, repoRoot: ROOT });
+  assert.equal(report.bootstrap_sha256, fingerprint.bootstrap_sha256);
+  assert.equal(report.bootstrap_words, fingerprint.bootstrap_words);
+
+  const model = "a6/deepseek-v4.1-flash";
+  assert.deepEqual(Object.keys(report.pass), [model]);
+  assert.equal(report.pass[model].total, 25);
+  assert.ok(Number.isFinite(report.pass[model].passed));
+  assert.ok(report.pass[model].accuracy >= 0 && report.pass[model].accuracy <= 100);
+  assert.ok(report.failures && typeof report.failures === "object");
+
+  const readme = read("README.md");
+  assert.match(readme, /skill-compliance-eval\.mjs/);
+  assert.match(readme, /a6\/deepseek-v4\.1-flash/);
+});
+
+test("the skill compliance evaluator scores before a later OMP timeout", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-skill-compliance-timeout-"));
+  const fakeOmp = join(dir, "omp");
+  const reportPath = join(dir, "report.json");
+  const catalog = discoverSkillCatalog(ROOT);
+  const verifyPath = catalog.find(({ name }) => name === "gsd-verify").skillPath;
+  const event = JSON.stringify({
+    type: "message_end",
+    message: {
+      role: "assistant",
+      content: [
+        { type: "thinking", text: "select the skill" },
+        { type: "toolCall", id: "call-1", name: "read", arguments: { path: verifyPath } },
+      ],
+    },
+  });
+  writeFileSync(fakeOmp, `#!/bin/sh\nprintf '%s\\n' '${event}'\nsleep 30\nexit 1\n`);
+  chmodSync(fakeOmp, 0o755);
+
+  const result = spawnSync(
+    process.execPath,
+    ["test/eval/skill-compliance-eval.mjs", "--only", "review-diff", "--report-path", reportPath],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GSD_EVAL_BACKEND: "omp",
+        GSD_EVAL_OMP: fakeOmp,
+        GSD_EVAL_MODEL: "fake-model",
+      },
+    },
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /1\/1 checks pass \(fake-model\)/);
+  const report = JSON.parse(readFileSync(reportPath, "utf8"));
+  assert.deepEqual(report.pass["fake-model"], { passed: 1, total: 1, accuracy: 100 });
 });
 
 test("the canon-loaded eval mode supplies the on-demand lifecycle matrix", () => {
