@@ -5,6 +5,8 @@ import { join, dirname, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
+import { sanitizeBootstrapError } from "../lib/gsd-bootstrap.mjs";
+import { ACTIVATING_DECISIONS, STOPPING_DECISIONS } from "./eval/activation-eval-contract.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -574,7 +576,7 @@ describe("capsule extension production API contract", () => {
         const bootstrapResult = await registeredEvents["session.compacting"]({ messages: [bootstrapMsg] }, ctxMock);
         assert.equal(bootstrapResult.context.length, 1, "Bootstrap messages must not become current request");
         // Bootstrap error message must be filtered out
-        const errorMsg = { role: "user", content: "[GSD bootstrap unavailable] skills root vanished. Do not improvise a GSD workflow; continue with ordinary OMP behavior." };
+        const errorMsg = { role: "user", content: "[GSD bootstrap unavailable] skills root vanished. Do not improvise a GSD workflow; continue with the host's ordinary behavior." };
         const errorResult = await registeredEvents["session.compacting"]({ messages: [errorMsg] }, ctxMock);
         assert.equal(errorResult.context.length, 1, "Bootstrap error sentinel must not become current request");
         // Genuine request after bootstrap error must be preserved
@@ -1328,6 +1330,13 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
     messages: [{ role: "user", content: "first prompt", timestamp: 0 }],
   });
   assert.equal(messageContainsBootstrap(registrationContext.messages[0]), true);
+  // The shape check above accepts any payload between the markers; the adapter contract is
+  // byte identity, so the primary host is pinned to the core's own render too.
+  assert.equal(
+    registrationContext.messages[0].content,
+    createBootstrap(realpathSync(ROOT)),
+    "the OMP context message carries the core's exact bootstrap bytes",
+  );
   const baseSystemPrompt = ["base system prompt"];
   const registrationPolicy = await events.before_agent_start({ systemPrompt: baseSystemPrompt });
   assert.deepEqual(baseSystemPrompt, ["base system prompt"], "base system prompt must not be mutated");
@@ -1335,6 +1344,22 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
   assert.match(registrationPolicy.systemPrompt[1], /gsd:system-policy:v1/);
   assert.match(registrationPolicy.systemPrompt[1], /first action MUST be one read tool call/);
   assert.match(registrationPolicy.systemPrompt[1], /Quick-fix[\s\S]{0,200}one or two tasks/);
+  // Decision 0016 gives the primary host its own independent reviewer, so the injected policy
+  // must name that wave review instead of leaving it to the on-demand canon alone.
+  assert.match(
+    registrationPolicy.systemPrompt[1],
+    /reconciled wave runs one isolated read-only reviewer task over its merged diff/,
+    "the OMP policy must name the independent wave reviewer",
+  );
+  // The system-prompt reinforcement must carry the decision-0013 triage front door, not just
+  // the post-state routing rules, or the prompt's most salient guidance predates the revamp.
+  const triagePolicy = registrationPolicy.systemPrompt[1].match(/Triage the prompt before any route:([^\n]*)/)?.[1] ?? "";
+  for (const route of ["answer", "clarify", "research", "quick", "plan", "milestone"]) {
+    assert.ok(triagePolicy.includes(route), `the OMP system policy must name the ${route} route`);
+  }
+  assert.match(triagePolicy, /recommended default/, "clarify must carry a recommended default");
+  assert.match(triagePolicy, /never from memory/, "research must gather facts rather than answer from memory");
+  assert.match(triagePolicy, /recommended option and its cost/, "every choice must carry a recommendation");
   assert.equal(
     await events.before_agent_start({ systemPrompt: registrationPolicy.systemPrompt }),
     undefined,
@@ -1399,7 +1424,21 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
       await events.session_switch({}, { cwd: workspace });
       assert.equal(loggedErrors.length, 1, "same cached bootstrap error logs once");
       const failed = await events.context({ messages: original }, { cwd: workspace });
-      assert.match(failed.messages[0].content, /^\[GSD bootstrap unavailable\]/);
+      // Same rule 4 standard as the other two hosts: the failure path carries the core's
+      // own sanitized bytes, not a host-shaped copy, and the shared sentence names no host.
+      const failedShape = failed.messages[0].content.match(
+        /^\[GSD bootstrap unavailable\] ([\s\S]*)\. Do not improvise a GSD workflow; continue with the host's ordinary behavior\.$/,
+      );
+      assert.ok(
+        failedShape,
+        `the OMP failure message must be the core's sentence, got: ${failed.messages[0].content}`,
+      );
+      assert.equal(
+        failed.messages[0].content,
+        sanitizeBootstrapError(new Error(failedShape[1])),
+        "the OMP failure message is the core sanitizer's exact bytes, never a host rewrite",
+      );
+      assert.doesNotMatch(failed.messages[0].content, /\bOMP\b/, "the shared diagnostic names no host");
       const failedPolicy = await events.before_agent_start({ systemPrompt: baseSystemPrompt });
       assert.match(failedPolicy.systemPrompt[1], /gsd:system-policy:v1/);
       assert.match(failedPolicy.systemPrompt[1], /\[GSD bootstrap unavailable\]/);
@@ -2556,9 +2595,27 @@ test("readStateFile rejects state.toon swap after feature dir pin", () => {
 
 test("extension policy summary mirrors master Quick-fix lane key phrases", () => {
   const master = readFileSync(new URL("../skills/gsd/SKILL.md", import.meta.url), "utf8");
-  const extension = readFileSync(new URL("../extensions/gsd-context.js", import.meta.url), "utf8");
+  // The extension body was re-homed to adapters/omp/ (decision 0015); the
+  // extensions/gsd-context.js entry path is now a re-export of this file.
+  const extension = readFileSync(new URL("../adapters/omp/gsd-context.js", import.meta.url), "utf8");
   for (const phrase of [/three size gates/i, /validate-quick-fix/i, /one or two tasks/i]) {
     assert.match(master, phrase, `master rule 6 must keep phrase ${phrase}`);
     assert.match(extension, phrase, `extension summary must mirror phrase ${phrase}`);
   }
+});
+
+// The injected system policy is the most salient state guidance a session gets, so its
+// decision vocabulary has to be the same one the evaluator scores and the canon enumerates.
+// A rename or a regrouped bucket there would drive wrong routing with nothing to catch it.
+test("the OMP system policy names the canonical decisions and their action buckets", () => {
+  const extension = readFileSync(new URL("../adapters/omp/gsd-context.js", import.meta.url), "utf8");
+  const policy = extension.match(/const SYSTEM_POLICY = `([\s\S]*?)`;/)?.[1];
+  assert.ok(policy, "the extension must declare its system policy template");
+  const routing = policy.match(/Key routing rules:([^.]*)\./)?.[1] ?? "";
+  assert.notEqual(routing, "", "the policy must state the key routing rules");
+  for (const decision of [...ACTIVATING_DECISIONS, ...STOPPING_DECISIONS]) {
+    assert.ok(routing.includes(decision), `the policy must name the canonical decision ${decision}`);
+  }
+  assert.match(routing, /ordinary-routing and ignore-terminal-record use load or direct/);
+  assert.match(routing, /cleanup-question, cleanup-only, block-resume, and fail-closed use stop/);
 });

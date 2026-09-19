@@ -32,6 +32,13 @@ function makeHomeSandbox() {
 function populateInstallRepo(repo) {
   mkdirSync(repo, { recursive: true });
   copyFileSync(join(ROOT, "install.sh"), join(repo, "install.sh"));
+  // The root install.sh is a thin entry (decision 0015); the fixture needs the
+  // re-homed OMP installer it forwards to, or the wrapper cannot exec.
+  mkdirSync(join(repo, "adapters", "omp"), { recursive: true });
+  copyFileSync(
+    join(ROOT, "adapters", "omp", "install.sh"),
+    join(repo, "adapters", "omp", "install.sh"),
+  );
   mkdirSync(join(repo, "extensions"), { recursive: true });
   copyFileSync(join(ROOT, "extensions", "gsd-context.js"), join(repo, "extensions", "gsd-context.js"));
   copyFileSync(join(ROOT, "VERSION"), join(repo, "VERSION"));
@@ -409,7 +416,7 @@ test("reject repository roots containing carriage return or newline", () => {
 });
 
 test("portable mktemp templates end in X", () => {
-  const installer = readFileSync(join(ROOT, "install.sh"), "utf8");
+  const installer = readFileSync(join(ROOT, "adapters", "omp", "install.sh"), "utf8");
   assert.doesNotMatch(installer, /sync_managed_command|TMP_COMMAND_FILE|mktemp [^\n]*gsd\.md/);
   assert.doesNotMatch(installer, /mktemp [^\n]*XXXXXX\.[A-Za-z]/);
 });

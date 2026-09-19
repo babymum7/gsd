@@ -5,10 +5,12 @@ import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+// The runtime import stays on the stable OMP entry path; the hand-maintained
+// type surface now lives beside the adapter (decision 0015).
 const extension = await import(join(ROOT, "extensions", "gsd-context.js"));
 
 test("the hand-maintained d.ts mirrors the extension facade's public surface", () => {
-  const dts = readFileSync(join(ROOT, "extensions", "gsd-context.d.ts"), "utf8");
+  const dts = readFileSync(join(ROOT, "adapters", "omp", "gsd-context.d.ts"), "utf8");
 
   const runtimeNamed = Object.keys(extension)
     .filter((name) => name !== "default")
