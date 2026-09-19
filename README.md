@@ -14,27 +14,47 @@ Those three claims were verified against the upstream files named above on 2026-
 
 ## Installation
 
-From this checkout:
+From this checkout, use the unified CLI:
 
 ```bash
-bash install.sh
+bun bin/gsd.mjs install
 ```
 
-The installer publishes a direct extension symlink at `~/.omp/agent/extensions/gsd-context.js`, or — when `PI_CODING_AGENT_DIR` is set to an absolute path — into that directory, because omp relocates its whole agent dir (config, commands, agents, and extension discovery) there and would otherwise never read a home-dir publish. A relative `PI_CODING_AGENT_DIR` fails closed before any publication; omp resolves it against each session's working directory. Non-empty `OMP_PROFILE`/`PI_PROFILE` also fails closed before publication: omp relocates its whole agent dir for profile sessions, so the install cannot coherently target one base. There is no wrapper; target collisions fail closed before publication. It installs no persistent model agent or model-role configuration. Upgrade preflight removes only positively recognized managed legacy GSD agent links; regular files, directories, foreign links, live unrelated links, and unrelated agents fail closed or remain unchanged. It does not install an OMP command or copy/link skills into a user skill directory. After publishing, it reads `task.isolation` from that same effective agent base — naming the config file actually read (or the one `omp` creates on its first write) — and reports the settings against decision 0004 (`enabled: true`, `merge: branch`, `apply: false`); for opposing values it prints advisory enable commands, scoping the effect notice honestly (a home-base change is machine-global, affecting every OMP session on this machine; a relocated base affects every OMP session using that agent dir). In an interactive run with `omp` on PATH, a deviating triple asks one `y/N` question (decision 0011): an explicit yes sets exactly the deviating keys through `omp config set`, proves each landed value by re-reading the config file, and prints the change record — per-key old -> new, the config file, the effect scope, and one revert command per changed key. A declined, EOF, unattended, or omp-less run changes nothing and keeps the advisory-only output; an approved value that does not land fails the install naming the key and file. Concurrent isolated wave dispatch requires `task.isolation.enabled: true` — under stock default config, waves run serially in plan order — while all other GSD behavior runs unchanged on stock defaults; a declined or unattended isolation state never fails the install.
+The interactive prompt recommends `all`; choose one agent with:
 
-Skills are repository files read lazily by the extension and are never separately installed. Relocation of the checkout requires reinstall. Editing the extension in place requires a new OMP session; start a new OMP session after an extension edit. Editing a skill takes effect the next time that skill is selected.
+```bash
+bun bin/gsd.mjs install --agent omp
+bun bin/gsd.mjs install --agent claude-code
+bun bin/gsd.mjs install --agent codex
+```
+
+Add `--dry-run` to print the exact host commands. The CLI builds one self-contained bundle at `~/.gsd/marketplace/gsd` (override the CLI home with `--home <path>`), then uses each host's own plugin system:
+
+- OMP: `omp plugin link <bundle>`
+- Claude Code: `claude plugin marketplace add <marketplace>` then `claude plugin install gsd@gsd-local --scope user`
+- Codex: `codex plugin marketplace add <marketplace>` then `codex plugin add gsd@gsd-local`
+
+The bundle carries `lib/`, the canonical skills and tools under `core/`, only the six visible skills in the host-facing `skills/` directory, reviewer definitions, and host manifests. Hidden runtime skills stay internal. Claude Code and Codex hooks still require their normal trust review. Uninstall is the inverse CLI operation:
+
+```bash
+bun bin/gsd.mjs uninstall --agent claude-code
+```
+
+Uninstall runs the host's native plugin uninstall command, removes the local bundle only when no selected agent still uses it, and also cleans recognized entries written by the older per-host installers. Unrelated hooks, skills, agents, settings, and marketplaces stay untouched.
 
 ### Other hosts
 
-Claude Code installs with `bun adapters/claude-code/install.mjs [--config-dir <path>] [--dry-run]`, defaulting to `$CLAUDE_CONFIG_DIR` then `~/.claude`. It registers the `SessionStart` and `UserPromptSubmit` hooks that deliver the same bootstrap and recovery capsule, links the GSD skills, and installs the read-only reviewer subagent. Every write is atomic and idempotent, and a conflicting non-GSD entry fails closed.
+The older installers remain compatibility entry points. Claude Code installs with `bun adapters/claude-code/install.mjs [--config-dir <path>] [--dry-run]`, defaulting to `$CLAUDE_CONFIG_DIR` then `~/.claude`. It registers the `SessionStart` and `UserPromptSubmit` hooks that deliver the same bootstrap and recovery capsule, links the GSD skills, and installs the read-only reviewer subagent. Every write is atomic and idempotent, and a conflicting non-GSD entry fails closed.
 
 Codex installs with `bun adapters/codex/install.mjs [--config-dir <path>] [--skills-dir <path>] [--dry-run]`, defaulting to `$CODEX_HOME` then `~/.codex` for hooks, agents, and `AGENTS.md`, and to `~/.agents/skills` for skills, which is the user location Codex actually scans. It registers the `SessionStart` and `UserPromptSubmit` hooks, links the GSD skills, installs the read-only reviewer subagent, and upserts one managed `## GSD` section in that directory's `AGENTS.md`. It pins `additionalContextLimit` so the bootstrap and capsule are never spilled to a truncated preview, and it reports an explicit `[features] hooks = false` as advisory without editing your config.
 
-Both adapters deliver the identical core bytes the OMP extension does. `adapters/README.md` maps each host's plan mode, goals, sub-agents, isolation, and reviewer onto GSD's needs, naming the fallback where a host lacks a feature: Claude Code and Codex install a read-only reviewer subagent, while OMP reviews a reconciled wave through one isolated read-only sub-agent task carrying the same canonical `gsd-verify` brief, so no OMP agent install is needed.
+OMP's compatibility installer remains `bash install.sh`; it publishes the direct extension symlink and performs the existing fail-closed isolation preflight. Both plugin hooks and compatibility adapters deliver the identical core bytes. `adapters/README.md` maps each host's plan mode, goals, sub-agents, isolation, and reviewer onto GSD's needs, naming the fallback where a host lacks a feature.
+
+For that compatibility path, `bash install.sh` publishes `~/.omp/agent/extensions/gsd-context.js`, or the absolute `PI_CODING_AGENT_DIR` base when set, with no wrapper; target collisions fail closed. Relocation of the checkout requires reinstall. Editing the extension in place requires a new OMP session; start a new OMP session after an extension edit. Editing a skill takes effect the next time that skill is selected.
 
 ### Uninstalling a host adapter
 
-An adapter only ever writes entries it owns, and every one of them points back into this checkout, so removing those entries is the exact inverse and nothing else is touched:
+The recommended path is `bun bin/gsd.mjs uninstall --agent <agent>`. For a legacy install, the adapter only ever wrote entries it owned, and every one of them pointed back into this checkout, so removing those entries is the exact inverse and nothing else is touched:
 
 - Claude Code, under `$CLAUDE_CONFIG_DIR` or `~/.claude`: in `settings.json`, delete the hook handlers whose command names `adapters/claude-code/gsd-context.mjs` (and the group they leave empty); under `skills/` and `agents/`, delete the links that point into this checkout.
 - Codex, under `$CODEX_HOME` or `~/.codex`: in `hooks.json`, delete the hook handlers whose command names `adapters/codex/gsd-context.mjs`; under `agents/`, delete the links that point into this checkout; in `AGENTS.md`, delete the managed block between `<!-- gsd:codex-adapter -->` and `<!-- /gsd:codex-adapter -->`; under `~/.agents/skills`, or the `--skills-dir` you chose, delete the links that point into this checkout.
@@ -145,9 +165,12 @@ The current top-level session is the sole lifecycle authority. It interprets the
 
 ```text
 adapters/
+├── plugin/                          # cross-host plugin CLI, bundle builder, and uninstall cleanup
 ├── omp/                              # OMP adapter: extension factory, public types, installer
 ├── claude-code/                      # Claude Code adapter: hooks, skill links, reviewer agent
 └── codex/                            # Codex adapter: hooks, AGENTS.md section, reviewer agent
+bin/
+└── gsd.mjs                          # executable entry for the unified host plugin CLI
 docs/
 └── domain/                           # bounded-context domain shards
 extensions/

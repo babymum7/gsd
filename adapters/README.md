@@ -14,6 +14,7 @@ sibling adapter.
 
 | Adapter | Status | Coupling surface |
 | --- | --- | --- |
+| `adapters/plugin/` | Shipped | Cross-host CLI, generated plugin bundle, local marketplace, and legacy cleanup |
 | `adapters/omp/` | Shipped (M7) | OMP session lifecycle events, context injection, compaction hooks, `sendMessage`, task isolation |
 | `adapters/claude-code/` | Shipped (M1) | Claude Code lifecycle hooks, `additionalContext` injection, skills and subagent files |
 | `adapters/codex/` | Shipped (M2) | Codex `hooks.json`, `AGENTS.md`, `.codex/agents/*.toml`, `~/.agents/skills` |
@@ -24,6 +25,29 @@ The `extensions/gsd-context.js` and `extensions/gsd-context.d.ts` paths stay as
 thin re-exports, and the root `install.sh` stays as a thin entry that runs the
 adapter installer, so the OMP entry paths are unchanged while every host-specific
 identifier lives under `adapters/`.
+
+## Plugin packaging
+
+The unified CLI in `bin/gsd.mjs` builds one self-contained local bundle through
+`adapters/plugin/gsd-plugin-packager.mjs`, defaulting to `~/.gsd/marketplace/gsd`. The bundle
+keeps `lib/` at its root, canonical skills and tools under `core/`, and only the
+visible skill catalog in the host-facing `skills/` directory. A `.gsd-plugin`
+marker tells each copied adapter to resolve its canonical root from `core/`, so
+hidden runtime skills never enter host skill discovery.
+
+Each host receives its native registration:
+
+| Host | Bundle surface | Native install |
+| --- | --- | --- |
+| OMP | `package.json` with `omp.extensions` | `omp plugin link <bundle>` |
+| Claude Code | `.claude-plugin/plugin.json`, `skills/`, `agents/`, `hooks/claude.json` | local marketplace plus `claude plugin install` |
+| Codex | portable `plugin.json`, `.codex-plugin/plugin.json`, `skills/`, `hooks/codex.json` | local marketplace plus `codex plugin add` |
+
+The local marketplace is generated beside the bundle and named `gsd-local`.
+Uninstall delegates to each host's native plugin uninstall command, then removes
+recognized legacy managed links, hook groups, and the Codex `AGENTS.md` managed
+section. The CLI removes the generated bundle only after no recorded agent still
+uses it.
 
 ## Capability map
 

@@ -42,8 +42,13 @@ Key routing rules: ordinary-routing and ignore-terminal-record use load or direc
 </GSD_EXTENSION_POLICY>`;
 function gsdContextExtension(pi) {
   const extPath = fs.realpathSync(EXTENSION_FILE);
-  // The adapter lives at adapters/omp/gsd-context.js: three levels below the repo root.
-  const GSD_ROOT = path.dirname(path.dirname(path.dirname(extPath)));
+  // The adapter lives at adapters/omp/gsd-context.js: three levels below its root.
+  const defaultRoot = path.dirname(path.dirname(path.dirname(extPath)));
+  // A generated plugin keeps canonical skills/tools under core/ and only visible
+  // host skills at the plugin root; this marker distinguishes that layout.
+  const GSD_ROOT = fs.existsSync(path.join(defaultRoot, '.gsd-plugin'))
+    ? path.join(defaultRoot, 'core')
+    : defaultRoot;
   let pendingCapsule = null;
   let capsuleQueuedForNextTurn = false;
   let bootstrap = null;

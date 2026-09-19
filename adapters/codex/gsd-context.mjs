@@ -23,7 +23,12 @@ import {
 } from '../../lib/gsd-session-context.mjs';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
-const GSD_ROOT = path.resolve(SCRIPT_DIR, '..', '..');
+const DEFAULT_GSD_ROOT = path.resolve(SCRIPT_DIR, '..', '..');
+// A generated plugin keeps canonical skills/tools under core/ and only the visible
+// host skills at the plugin root; this marker distinguishes that layout.
+const GSD_ROOT = fs.existsSync(path.join(DEFAULT_GSD_ROOT, '.gsd-plugin'))
+  ? path.join(DEFAULT_GSD_ROOT, 'core')
+  : DEFAULT_GSD_ROOT;
 const STATE_ROOT = path.join(os.tmpdir(), 'gsd-codex');
 
 function readInput() {
