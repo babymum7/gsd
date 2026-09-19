@@ -1,13 +1,16 @@
-# GSD Core for OMP
+# GSD Core
 
-GSD is an automatic, repository-backed software delivery flow for OMP: discovery, planning, execution, verification, review, handoff, and recovery. Talk to the agent normally. The GSD extension injects a small session bootstrap, selects one process owner from intent and validated state, and reads that skill only when needed.
+GSD is an automatic, repository-backed software delivery flow: discovery, planning, execution, verification, review, handoff, and recovery. The harness-generic core renders one small session bootstrap and the recovery capsule; exactly one adapter per host injects them. OMP installs from this checkout, while Claude Code and Codex install from their own adapters (see [Other hosts](#other-hosts)). Talk to the agent normally. The injected bootstrap classifies the prompt, selects one process owner from intent and validated state, and reads that skill only when needed.
 
 Inspired by:
 
-- [mattpocock/skills](https://github.com/mattpocock/skills) — action-oriented Markdown skills.
-- [obra/superpowers](https://github.com/obra/superpowers) — the session-bootstrap and lazy-skill mechanism. GSD uses that activation idea, not Superpowers' workflow or skill bodies.
+- [mattpocock/skills](https://github.com/mattpocock/skills) — align before building. Its `skills/productivity/grilling/SKILL.md` states three rules GSD shares: every question carries the agent's recommended answer, finding facts is the agent's job rather than the user's, and the session ends only when the frontier of open decisions is empty. GSD takes those into `gsd-brainstorming` ("Recommend answers for all questions. Batch independent questions; ask dependent questions sequentially by branch"), and differs at the triage front door on purpose: an ambiguous prompt gets exactly one question, not a round. That repo's README names GSD among frameworks that "own the process" and remove control, which this revamp answers with direct-first triage, one canonical `plan.md`, and plain editable skill files.
+- [obra/superpowers](https://github.com/obra/superpowers) — hook-injected skill activation. Its `hooks/hooks.json` registers one `SessionStart` handler for `startup|clear|compact`, and `hooks/session-start` injects the whole `using-superpowers` skill as `hookSpecificOutput.additionalContext`, so a session starts already knowing it must invoke a skill before any response. GSD takes the injection idea and each host's own context field, but publishes an explicit catalog whose selected owner must read the named `skillPath`, instead of relying on tool-based skill discovery. It takes none of Superpowers' workflow or skill bodies.
+- [Fission-AI/openspec](https://github.com/Fission-AI/openspec) — schema'd change proposals: one folder per change holding `proposal.md`, `specs/` deltas written as `## ADDED Requirements` then `### Requirement:` / `#### Scenario:`, `design.md`, and `tasks.md`, archived into a durable spec corpus after merge. GSD keeps the one-folder change and the durable corpus, but folds the contract into the single canonical `plan.md` (`Scope`, `Acceptance Criteria`, `Interfaces`, `Invariants`, `Non-goals`) plus the `docs/domain/*.md` behavior shards, with Domain Impact classification standing in for the ADDED/MODIFIED/REMOVED deltas, instead of a parallel `spec.md`.
 - [ponytail](https://github.com/DietrichGebert/ponytail) — YAGNI and lazy-senior-dev discipline.
 - [open-gsd/gsd-core](https://github.com/open-gsd/gsd-core) — context engineering for long-running delivery work.
+
+Those three claims were verified against the upstream files named above on 2026-09-19, and every deliberate difference is recorded in [docs/decisions/0019](docs/decisions/0019-reference-repo-alignment.md).
 
 ## Installation
 
@@ -20,6 +23,24 @@ bash install.sh
 The installer publishes a direct extension symlink at `~/.omp/agent/extensions/gsd-context.js`, or — when `PI_CODING_AGENT_DIR` is set to an absolute path — into that directory, because omp relocates its whole agent dir (config, commands, agents, and extension discovery) there and would otherwise never read a home-dir publish. A relative `PI_CODING_AGENT_DIR` fails closed before any publication; omp resolves it against each session's working directory. Non-empty `OMP_PROFILE`/`PI_PROFILE` also fails closed before publication: omp relocates its whole agent dir for profile sessions, so the install cannot coherently target one base. There is no wrapper; target collisions fail closed before publication. It installs no persistent model agent or model-role configuration. Upgrade preflight removes only positively recognized managed legacy GSD agent links; regular files, directories, foreign links, live unrelated links, and unrelated agents fail closed or remain unchanged. It does not install an OMP command or copy/link skills into a user skill directory. After publishing, it reads `task.isolation` from that same effective agent base — naming the config file actually read (or the one `omp` creates on its first write) — and reports the settings against decision 0004 (`enabled: true`, `merge: branch`, `apply: false`); for opposing values it prints advisory enable commands, scoping the effect notice honestly (a home-base change is machine-global, affecting every OMP session on this machine; a relocated base affects every OMP session using that agent dir). In an interactive run with `omp` on PATH, a deviating triple asks one `y/N` question (decision 0011): an explicit yes sets exactly the deviating keys through `omp config set`, proves each landed value by re-reading the config file, and prints the change record — per-key old -> new, the config file, the effect scope, and one revert command per changed key. A declined, EOF, unattended, or omp-less run changes nothing and keeps the advisory-only output; an approved value that does not land fails the install naming the key and file. Concurrent isolated wave dispatch requires `task.isolation.enabled: true` — under stock default config, waves run serially in plan order — while all other GSD behavior runs unchanged on stock defaults; a declined or unattended isolation state never fails the install.
 
 Skills are repository files read lazily by the extension and are never separately installed. Relocation of the checkout requires reinstall. Editing the extension in place requires a new OMP session; start a new OMP session after an extension edit. Editing a skill takes effect the next time that skill is selected.
+
+### Other hosts
+
+Claude Code installs with `bun adapters/claude-code/install.mjs [--config-dir <path>] [--dry-run]`, defaulting to `$CLAUDE_CONFIG_DIR` then `~/.claude`. It registers the `SessionStart` and `UserPromptSubmit` hooks that deliver the same bootstrap and recovery capsule, links the GSD skills, and installs the read-only reviewer subagent. Every write is atomic and idempotent, and a conflicting non-GSD entry fails closed.
+
+Codex installs with `bun adapters/codex/install.mjs [--config-dir <path>] [--skills-dir <path>] [--dry-run]`, defaulting to `$CODEX_HOME` then `~/.codex` for hooks, agents, and `AGENTS.md`, and to `~/.agents/skills` for skills, which is the user location Codex actually scans. It registers the `SessionStart` and `UserPromptSubmit` hooks, links the GSD skills, installs the read-only reviewer subagent, and upserts one managed `## GSD` section in that directory's `AGENTS.md`. It pins `additionalContextLimit` so the bootstrap and capsule are never spilled to a truncated preview, and it reports an explicit `[features] hooks = false` as advisory without editing your config.
+
+Both adapters deliver the identical core bytes the OMP extension does. `adapters/README.md` maps each host's plan mode, goals, sub-agents, isolation, and reviewer onto GSD's needs, naming the fallback where a host lacks a feature: Claude Code and Codex install a read-only reviewer subagent, while OMP reviews a reconciled wave through one isolated read-only sub-agent task carrying the same canonical `gsd-verify` brief, so no OMP agent install is needed.
+
+### Uninstalling a host adapter
+
+An adapter only ever writes entries it owns, and every one of them points back into this checkout, so removing those entries is the exact inverse and nothing else is touched:
+
+- Claude Code, under `$CLAUDE_CONFIG_DIR` or `~/.claude`: in `settings.json`, delete the hook handlers whose command names `adapters/claude-code/gsd-context.mjs` (and the group they leave empty); under `skills/` and `agents/`, delete the links that point into this checkout.
+- Codex, under `$CODEX_HOME` or `~/.codex`: in `hooks.json`, delete the hook handlers whose command names `adapters/codex/gsd-context.mjs`; under `agents/`, delete the links that point into this checkout; in `AGENTS.md`, delete the managed block between `<!-- gsd:codex-adapter -->` and `<!-- /gsd:codex-adapter -->`; under `~/.agents/skills`, or the `--skills-dir` you chose, delete the links that point into this checkout.
+- OMP: delete the published `gsd-context.js` link under the effective agent base, `~/.omp/agent/extensions/` or the `PI_CODING_AGENT_DIR` base.
+
+Your own hooks, skills, agents, and config keys are never adapter entries, so they stay; a later install recreates exactly the entries above and nothing more.
 
 ## Use ordinary prompts
 
@@ -37,7 +58,32 @@ Fix this typo
 
 The extension injects the hidden `gsd` bootstrap and a sorted metadata catalog. The bootstrap preserves same-session continuity, applies validated lifecycle state when relevant, and chooses exactly one visible primary skill. Full skill bodies stay out of context until selected. Read-only questions and tiny bounded edits remain direct: no GSD state scan, Git work, scratch artifact, or skill load.
 
-If the checkout, hidden bootstrap, or visible catalog cannot be validated, the extension injects a visible `[GSD bootstrap unavailable]` diagnostic and leaves ordinary OMP behavior available. It never falls back to stale home-directory skills or a partial catalog.
+If the checkout, hidden bootstrap, or visible catalog cannot be validated, the extension injects a visible `[GSD bootstrap unavailable]` diagnostic and leaves the host's ordinary behavior available. It never falls back to stale home-directory skills or a partial catalog.
+
+## What it costs
+
+GSD is built to stay out of the way most of the time. Each number below is held by a
+test, so it cannot drift quietly:
+
+- One bootstrap per session. `skills/gsd/SKILL.md` caps at 1120 words, and the rendered
+  bootstrap (the master body plus the sorted catalog) currently measures 1250 words;
+  that is the `bootstrap_words` value in every committed eval report.
+- Nothing per turn. An ordinary prompt injects zero bytes: the adapters emit only at
+  session boundaries and deduplicate against the payload already in the transcript. A
+  prompt that needs nothing costs nothing.
+- The canon is on demand, and read by section. `skills/gsd/REFERENCE.md` caps at 6700
+  words and is never injected; a flow reads only the `§` sections it names, whole only
+  when no step names a required contract. No owner depends on most of it: the widest
+  named set is 8645 bytes of the 50330-byte file, about 1879 tokens against about 10966,
+  and a test caps any owner at 10000 bytes (decision 0020).
+- One visible skill body at a time. The nine visible skills cap at 9850 words in total,
+  and the bootstrap carries their metadata, not their bodies.
+- Recovery is bounded and rare. A capsule is emitted only after a compaction and fails
+  closed above 4000 bytes rather than truncating.
+
+The caps live in `test/skills-frontmatter.test.js` § AC-4 with the reason for each
+raise, and the per-turn silence is pinned per host in `test/adapters-claude-code.test.js`,
+`test/adapters-codex.test.js`, and `test/gsd-context-extension.test.js`.
 
 ## Feature flow
 
@@ -98,17 +144,22 @@ The current top-level session is the sole lifecycle authority. It interprets the
 - A portable pause can explicitly synchronize committed WIP state and the exact feature scratch packet (`plan.md`, `state.toon`). Dirty-path snapshots require explicit consent; automatic context-pressure checkpoints stay local.
 
 ```text
+adapters/
+├── omp/                              # OMP adapter: extension factory, public types, installer
+├── claude-code/                      # Claude Code adapter: hooks, skill links, reviewer agent
+└── codex/                            # Codex adapter: hooks, AGENTS.md section, reviewer agent
 docs/
 └── domain/                           # bounded-context domain shards
 extensions/
-├── gsd-context.js                    # only runtime entry point (extension factory + facade)
-└── gsd-context.d.ts                  # hand-maintained public type surface
+├── gsd-context.js                    # stable OMP entry: re-exports adapters/omp/gsd-context.js
+└── gsd-context.d.ts                  # stable type entry: re-exports adapters/omp/gsd-context.d.ts
 lib/
 ├── gsd-contract.mjs                 # executable full-plan and Quick-fix grammar
 ├── gsd-domain.mjs                   # domain index/shard grammar and AGENTS.md canonical section
 ├── gsd-fs.mjs                       # pinned directory chain TOCTOU-hardened file primitives
 ├── gsd-milestone.mjs                # milestone ledger grammar and deterministic completion
 ├── gsd-record.mjs                   # decision and design record grammar
+├── gsd-session-context.mjs          # recovery capsule render, session marker store, current-request join
 ├── gsd-state.mjs                    # state.toon schema, validation, and candidate discovery
 └── gsd-bootstrap.mjs                # skill catalog, bootstrap renderer, recovery capsule, message utils
 tools/
@@ -132,9 +183,9 @@ skills/
 └── gsd-codebase-architecture/        # named seams and scoped architecture audits
 ```
 
-`extensions/gsd-context.d.ts` is a hand-maintained public type surface for `gsd-context.js`; `test/gsd-context-dts.test.js` asserts the facade's runtime exports stay mirrored in it.
+`adapters/omp/gsd-context.d.ts` is a hand-maintained public type surface for the OMP adapter; `test/gsd-context-dts.test.js` asserts the facade's runtime exports stay mirrored in it. The `extensions/gsd-context.{js,d.ts}` paths remain the stable OMP entry points that `install.sh` publishes and importers resolve, and each is a thin re-export of the adapter (decision 0015).
 
-Development checks: `bun test --timeout=30000 test/*.test.js` runs the full suite; `bun run lint` runs Biome with the repository rule set (currently zero diagnostics); `bun run format -- <path>` reformats the passed JS/MJS/JSON files through Biome (the existing hand-formatted tree is intentionally not bulk-reformatted); `bun run lint:shell` checks `install.sh` and requires a `shellcheck` install.
+Development checks: `bun test --timeout=30000 test/*.test.js` runs the full suite; `bun run lint` runs Biome with the repository rule set (currently zero diagnostics); `bun run format -- <path>` reformats the passed JS/MJS/JSON files through Biome (the existing hand-formatted tree is intentionally not bulk-reformatted); `bun run lint:shell` checks the root `install.sh` and `adapters/omp/install.sh` and requires a `shellcheck` install.
 
 ## Plan contract validation
 
@@ -175,5 +226,19 @@ bun test/eval/activation-eval.mjs
 ```
 
 A non-zero exit is not automatically a routing regression: a chatty model can emit the exact expected decision and then append prose, which the strict contract rejects as `invalid exact JSON reply`. Read the reported prefix before treating a failure as a dispatch defect, and re-run that fixture with `--only <id>` to separate a deterministic refusal from an intermittent one.
+
+An exit code of 3 is never a routing verdict: it means the backend itself failed (a rejected credential or a dead endpoint), so the run aborts before any fixture is scored instead of reporting the failure as `0/N checks pass`.
+
+Two scopes measure two different things. Activation alone is the lower bound: only the injected bootstrap travels, while the row-level completed-state matrix lives in the on-demand canon an owner reads before lifecycle work. `GSD_EVAL_CANON=1 bun test/eval/eval-models.mjs` adds that canon section, which is what a live owner holds when it routes lifecycle work, and the two-pass report records which scope produced its numbers in a `scope` field. `GSD_EVAL_JOB_TIMEOUT` (milliseconds, default 120000) raises the per-call ceiling for slower models, which matters once several models share one report.
+
+The two committed reports on the current bytes each score three models in one run, at fingerprint `3b0c491933c6`. With the canon loaded, `omp/anthropic/claude-sonnet-5` scored 38/40 first attempt and both `omp/google-antigravity/gemini-3.8-flash` and `omp/anthropic/claude-opus-5` scored 40/40, for 118/120 (98.3%) overall. The bootstrap-only lower bound scored 35/40, 38/40, and 36/40 for 109/120 (90.8%), and its eleven misses concentrate on the terminal-state rows (`result-*`) and the compaction rows — exactly the rows the on-demand canon owns, which is why the canon scope is the operative measure and the bootstrap stays lean with a `§` pointer instead of that matrix.
+
+Run-to-run spread is larger than any wording effect measured here, so the numbers above are one run each and the difference between them is not a route verdict. Three runs of these bytes scored 105, 108, and 109 of 120 on the bootstrap-only scope alone, and a run of the immediately preceding bytes scored 110; the canon scope has scored 118 and 119 across two sets of bytes. Those numbers overlap the pre-triage-boundary measurements on sonnet (canon 36-38/40, bootstrap-only 33-34/40), so the route-boundary wording since decision 0018 shows no activation-axis regression either. What keeps the residual misses bounded is that each reached skill requires bound `state.toon` and an invocation guard that admits only validated bound plan state, so a capsule resume that misroutes there stops instead of executing; `test/skills-lifecycle.test.js` locks that boundary. Read every number as a sample of a small labeled set rather than a constant.
+
+Every report also carries the fingerprint of the bytes it measured: `bootstrap_sha256` and `bootstrap_words` for the rendered bootstrap, plus `canon_sha256` and `canon_words` when the canon section traveled. Those word counts describe the text the model received, so they run above the source-file cap numbers. The repository root is normalized out of the hash, so two checkouts of one revision agree, and any change to the bootstrap, the visible skill catalog, or the canon moves it. A report whose fingerprint does not match the tree is history, not evidence: re-run the evaluator instead of quoting its number. The suite enforces that rule. `test/skills-lifecycle.test.js` recomputes the live fingerprint the same way the runners do and fails when a committed report, or the prefix quoted in this README, no longer matches the bytes on disk.
+
+The triage front door is scored by its own runner, so neither axis leaks the other's vocabulary into its prompt: `bun test/eval/triage-eval.mjs` checks `test/eval/triage-fixtures.json` against the same production bootstrap and requires the strict JSON object `{ "route": "..." }` for all six routes. The 13 fixtures hold one or more per route, and the runner writes the same fingerprint-bound report shape to `test/eval/triage-report.json`, overridable with `--report-path`.
+
+Before decision 0018 defined the route boundaries, the bootstrap left three of them to inference, and they cost 28 of 156 first-attempt routes: `omp/anthropic/claude-sonnet-5` scored 69/91 across seven runs, `omp/google-antigravity/gemini-3.8-flash` 34/39 across three, and `omp/anthropic/claude-opus-5` 25/26 across two. On those bytes the same three models routed 153 of 156 first attempts (98.1%): gemini-3.8-flash and claude-opus-5 never missed across any run, while sonnet-5 landed 62 of 65 across five runs. Sonnet's residual misses were `multi-task-refactor` and `codebase-facts`, both intermittent, and both fixtures moved between runs before the change too — run-to-run noise on a small labeled set rather than a boundary the wording could still fix. The committed report scores all three models in one run, and on the current bytes all three routed 13/13 for 39/39. Re-run the axis after any bootstrap or canon edit and check the fingerprint before quoting any report.
 
 It prefers the local `omp` binary, which needs no key and evaluates `gpt-5.6-luna` by default, reporting each model separately. Every question runs as one isolated non-interactive print with a neutral cwd and no discovered extensions, skills, rules, tools, or session. `GSD_EVAL_MODEL` takes a comma-separated model list, which is how any other model runs: `GSD_EVAL_MODEL=gemini-3.6-flash` evaluates that model alone, and listing several evaluates each. Without that binary, `GSD_EVAL_KEY=sk-...` uses the OpenAI-compatible endpoint instead, overridable through `GSD_EVAL_URL`; `GSD_EVAL_BACKEND=omp|http` forces one backend.
