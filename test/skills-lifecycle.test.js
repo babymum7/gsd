@@ -152,8 +152,14 @@ test("the package ships only the unified host plugin CLI", () => {
 
   const manifest = JSON.parse(read("package.json"));
   assert.equal(manifest.scripts["lint:shell"], undefined, "shell installer lint is not shipped");
+  const adapters = read("adapters/README.md");
   const readme = read("README.md");
   assert.match(readme, /bun bin\/gsd\.mjs install/, "the README names the unified install command");
+  assert.doesNotMatch(
+    adapters,
+    /Codex installer/i,
+    "current adapter documentation must not claim a removed installer",
+  );
   assert.doesNotMatch(
     readme,
     /The older installers remain compatibility entry points/,

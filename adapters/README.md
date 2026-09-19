@@ -94,8 +94,8 @@ Official host references for these contracts: Claude Code hooks
 hooks <https://learn.chatgpt.com/docs/hooks> (`hooks.json`, the same
 `additionalContext` shape, and `additionalContextLimit` whose 2,500-token default the
 adapter raises so the bootstrap is not spilled into a saved file plus preview). Codex
-also requires a non-managed hook to be reviewed and trusted before it runs; the Codex
-installer reports that requirement instead of assuming the hook is live.
+also requires its native plugin trust flow before a hook runs; GSD leaves that
+requirement to the host instead of assuming the hook is live.
 
 ## Depth ladder mapping
 
