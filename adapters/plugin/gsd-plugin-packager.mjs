@@ -115,7 +115,7 @@ export function buildPluginBundle(root, marketplaceRoot) {
     version: packageJson.version,
     description: packageJson.description,
     skills: './skills/',
-    agents: ['./agents/'],
+    agents: './agents/gsd-reviewer.md',
     hooks: './hooks/claude.json',
   });
   writeJsonAtomic(path.join(pluginRoot, 'plugin.json'), {
@@ -148,6 +148,7 @@ export function buildPluginBundle(root, marketplaceRoot) {
   writeJsonAtomic(path.join(pluginRoot, 'hooks', 'codex.json'), codexHooks());
   writeJsonAtomic(path.join(tempRoot, '.claude-plugin', 'marketplace.json'), {
     name: MARKETPLACE_NAME,
+    owner: { name: 'GSD' },
     plugins: [
       {
         name: PLUGIN_NAME,
