@@ -127,21 +127,12 @@ A read-only diff review along two independent axes, each as a bounded read-only 
 2. The bundle exposes only the six visible skills to host skill discovery. The hidden
    `gsd` master and `gsd-ponytail` context remain under the internal canonical core,
    while copied adapters resolve that core through the bundle marker.
-3. Uninstall delegates to the host's native plugin uninstall command, removes recognized
-   legacy managed hook groups, links, and delimited sections, and deletes the generated
-   bundle only when no recorded agent still uses it. Unrelated host settings, skills,
-   agents, hooks, and marketplaces remain unchanged.
-4. The older per-host installers remain compatibility paths. Claude Code and Codex still
-   merge their managed hook entries without replacing unrelated settings, publish managed
-   skill and reviewer links, and use the Codex `AGENTS.md` managed section. The OMP
-   compatibility installer still publishes the direct extension symlink and performs its
-   fail-closed isolation preflight.
-   The compatibility path publishes a read-only reviewer definition into the host's agent directory where the host selects reviewers by definition; a host that spawns sub-agents from a prompt dispatches one isolated read-only reviewer task carrying the `gsd-verify` standalone-review brief instead.
-
-### Install the extension
-
-1. Publish the extension symlink fail-closed from the checkout into the effective OMP agent base — `$PI_CODING_AGENT_DIR` when it is set to an absolute path (a relative value fails closed before any publication, because omp resolves it against each session's working directory), otherwise `~/.omp/agent`; non-empty `OMP_PROFILE`/`PI_PROFILE` also fails closed before any publication, because omp relocates its whole agent dir for profile sessions — removing only positively recognized managed legacy GSD artifacts, with the immediate parent and managed registration directories validated as real directories.
-2. Resolve the effective global OMP agent config from that same base (yml before yaml, absent keys defaulting to the OMP schema values), report `task.isolation.enabled`/`merge`/`apply` against decision 0004, and print advisory enable commands for any opposing values — with the notices naming the config file actually read (or the one omp creates), scoping the effect to the sessions resolving that base (machine-global only for the default home base). On a deviating triple in an interactive run with omp on PATH (decision 0011), ask one `y/N` question; an explicit yes sets exactly the deviating keys through `omp config set`, proves each landed value by re-reading the config file, and prints the change record — per-key old -> new, the config file, the effect scope, and one revert command per changed key — while a declined, EOF, unattended, or omp-less run changes nothing and keeps the advisory-only output. An approved value that does not land fails the install naming the key and file.
+3. The plugin bundle includes read-only reviewer definitions for hosts that select
+   reviewers by definition. OMP dispatches one isolated read-only reviewer task carrying
+   the `gsd-verify` standalone-review brief.
+4. Uninstall delegates only to the host's native plugin uninstall command and deletes the
+   generated bundle when no recorded agent still uses it. It does not inspect or modify
+   other host files, including files that look like artifacts from an older install.
 
 ## Commands, events, and outcomes
 
@@ -158,8 +149,7 @@ A read-only diff review along two independent axes, each as a bounded read-only 
 | Pause and save | User | One atomic state snapshot records the next action. |
 | Scope expands | Session Owner | Quick-fix context ends and normal discovery begins. |
 | Install GSD | User | The CLI builds one self-contained plugin bundle and registers the selected agent through that host's native plugin command. |
-| Install a compatibility adapter | User | The adapter registers its hooks and publishes managed skill links idempotently, re-running yields one managed entry per surface, and unrelated host settings are preserved. |
-| Uninstall GSD | User | The CLI runs the selected host's native plugin uninstall command, cleans recognized legacy managed entries, and removes the generated bundle when no recorded agent still uses it. |
+| Uninstall GSD | User | The CLI runs only the selected host's native plugin uninstall command and removes the generated bundle when no recorded agent still uses it. |
 
 ## Context relationships
 
@@ -269,5 +259,5 @@ None.
 
 ### P-gsd-21: Deliver hosts through one CLI and native plugins
 
-- **Policy:** Host installation and uninstallation are selected through one CLI. The CLI generates a self-contained bundle, registers it with the selected host's native plugin command, keeps hidden runtime skills out of host skill discovery, and delegates removal to the same native plugin system before cleaning only positively recognized legacy managed entries. The generated bundle is removed only when no recorded agent still uses it.
+- **Policy:** Host installation and uninstallation are selected through one CLI. The CLI generates a self-contained bundle, registers it with the selected host's native plugin command, keeps hidden runtime skills out of host skill discovery, and delegates removal to the same native plugin system. The generated bundle is removed only when no recorded agent still uses it, and uninstall never inspects unrelated or old-looking host files.
 - **Reason:** One CLI gives users a stable entry point while each host retains its supported plugin, trust, plan, goal, sub-agent, and uninstall behavior; a self-contained bundle also prevents user-directory file scatter without exposing GSD's hidden runtime context.

@@ -136,6 +136,31 @@ test("the README layout tree names every core file, adapter, and skill", () => {
   assert.deepEqual(missing, [], "the README layout tree must name every core file and directory");
 });
 
+test("the package ships only the unified host plugin CLI", () => {
+  const legacyInstallers = [
+    "install.sh",
+    "adapters/omp/install.sh",
+    "adapters/claude-code/install.mjs",
+    "adapters/codex/install.mjs",
+    "test/install.test.js",
+    "test/adapters-claude-code-install.test.js",
+    "test/adapters-codex-install.test.js",
+  ];
+  for (const path of legacyInstallers) {
+    assert.equal(existsSync(join(ROOT, path)), false, `${path} must not ship`);
+  }
+
+  const manifest = JSON.parse(read("package.json"));
+  assert.equal(manifest.scripts["lint:shell"], undefined, "shell installer lint is not shipped");
+  const readme = read("README.md");
+  assert.match(readme, /bun bin\/gsd\.mjs install/, "the README names the unified install command");
+  assert.doesNotMatch(
+    readme,
+    /The older installers remain compatibility entry points/,
+    "compatibility installers are not documented",
+  );
+});
+
 test("AC-2: Bun is the sole runtime across engines, shebangs, and prose", () => {
   const manifest = JSON.parse(read("package.json"));
   assert.equal(manifest.engines.bun, ">=1.3.14", "engines.bun declares the validated Bun minimum");
@@ -1308,14 +1333,15 @@ test("M4: a reconciled task or batch runs one independent advisory review across
   const domain = read("docs/domain/gsd.md");
   assert.match(
     domain,
-    /read-only reviewer definition into[\s\S]{0,40}host.s agent directory where the host selects reviewers by definition/i,
-    "the install workflow must publish a reviewer definition only where the host selects reviewers by definition",
+    /plugin bundle includes read-only reviewer definitions for hosts that select[\s\S]{0,40}reviewers by definition/i,
+    "the plugin bundle must provide reviewer definitions only where the host selects reviewers by definition",
   );
   assert.match(
     domain,
-    /spawns sub-agents from a prompt dispatches one isolated read-only reviewer task carrying the[\s\S]{0,40}`gsd-verify` standalone-review brief/i,
-    "the install workflow must name the spawned reviewer task and its canonical brief",
+    /OMP dispatches one isolated read-only reviewer task carrying[\s\S]{0,20}the[\s\S]{0,40}`gsd-verify` standalone-review brief/i,
+    "the plugin workflow must name OMP's isolated reviewer task and canonical brief",
   );
+  assert.doesNotMatch(domain, /host.s agent directory/i);
 });
 
 test("M4: the host reviewer subagent is read-only and holds no lifecycle authority", () => {

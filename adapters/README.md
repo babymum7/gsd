@@ -14,17 +14,15 @@ sibling adapter.
 
 | Adapter | Status | Coupling surface |
 | --- | --- | --- |
-| `adapters/plugin/` | Shipped | Cross-host CLI, generated plugin bundle, local marketplace, and legacy cleanup |
+| `adapters/plugin/` | Shipped | Cross-host CLI, generated plugin bundle, and local marketplace |
 | `adapters/omp/` | Shipped (M7) | OMP session lifecycle events, context injection, compaction hooks, `sendMessage`, task isolation |
-| `adapters/claude-code/` | Shipped (M1) | Claude Code lifecycle hooks, `additionalContext` injection, skills and subagent files |
-| `adapters/codex/` | Shipped (M2) | Codex `hooks.json`, `AGENTS.md`, `.codex/agents/*.toml`, `~/.agents/skills` |
+| `adapters/claude-code/` | Shipped (M1) | Claude Code lifecycle hooks and `additionalContext` injection |
+| `adapters/codex/` | Shipped (M2) | Codex hooks and `additionalContext` injection |
 
-The OMP adapter body is `adapters/omp/gsd-context.js`, its public types are
-`adapters/omp/gsd-context.d.ts`, and its installer is `adapters/omp/install.sh`.
-The `extensions/gsd-context.js` and `extensions/gsd-context.d.ts` paths stay as
-thin re-exports, and the root `install.sh` stays as a thin entry that runs the
-adapter installer, so the OMP entry paths are unchanged while every host-specific
-identifier lives under `adapters/`.
+The OMP adapter body is `adapters/omp/gsd-context.js` and its public types are
+`adapters/omp/gsd-context.d.ts`. The `extensions/gsd-context.js` and
+`extensions/gsd-context.d.ts` paths stay as thin re-exports for importers while
+every host-specific identifier lives under `adapters/`.
 
 ## Plugin packaging
 
@@ -44,10 +42,9 @@ Each host receives its native registration:
 | Codex | portable `plugin.json`, `.codex-plugin/plugin.json`, `skills/`, `hooks/codex.json` | local marketplace plus `codex plugin add` |
 
 The local marketplace is generated beside the bundle and named `gsd-local`.
-Uninstall delegates to each host's native plugin uninstall command, then removes
-recognized legacy managed links, hook groups, and the Codex `AGENTS.md` managed
-section. The CLI removes the generated bundle only after no recorded agent still
-uses it.
+Uninstall delegates only to each host's native plugin uninstall command. The CLI
+removes the generated bundle after no recorded agent still uses it and never
+inspects unrelated host files.
 
 ## Capability map
 
@@ -158,8 +155,7 @@ diagnostic to equal `sanitizeBootstrapError`'s own bytes. An adapter cannot rewo
 localize, or de-brand the shared failure text any more than it can reword the
 bootstrap.
 
-The installers are checked end to end too: `test/adapters-claude-code-install.test.js`
-and `test/adapters-codex-install.test.js` run the exact command each installer
-registered, from a copied checkout whose path contains a space, and require the core's
-bootstrap bytes back. A quoting or root-derivation bug fails there instead of in a
-live session.
+The plugin bundle is checked end to end too: `test/gsd-plugin-packager.test.js`
+builds the exact bundle layout and runs a bundled hook, requiring the core's
+bootstrap bytes back. A quoting, root-derivation, or manifest bug fails there
+instead of in a live session.

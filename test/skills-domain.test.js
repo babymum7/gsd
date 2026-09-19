@@ -120,7 +120,6 @@ test("domain model satisfies its deterministic Markdown invariants", () => {
 test("durable domain and milestone documentation has no legacy TOON paths", () => {
   const contractFiles = [
     join(ROOT, "README.md"),
-    join(ROOT, "install.sh"),
     join(ROOT, "VERSION"),
     join(ROOT, ".gitattributes"),
     ...filesUnder(join(ROOT, "skills")),

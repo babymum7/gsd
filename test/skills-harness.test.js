@@ -178,7 +178,7 @@ test("single-task waves execute inline without dispatching sub-agents", () => {
 // Decision 0009 locks the host-adapter boundary: `lib/`, `tools/`, and `skills/` are the
 // harness-generic core, and every host's coupling lives behind `adapters/<host>/` (the OMP
 // surfaces were re-homed to `adapters/omp/` by decision 0015, with the `extensions/
-// gsd-context.js` and root `install.sh` entry paths kept as thin shims). Nothing enforced
+// gsd-context.js` entry kept as a thin shim). Nothing enforced
 // that, so a stray `omp config` in a tool or an
 // `omp/task/` name in a skill would silently break the portability contract of decision 0004.
 test("AC: the harness-generic core never names harness identifiers", () => {

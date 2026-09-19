@@ -13,7 +13,6 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildPluginBundle } from "../adapters/plugin/gsd-plugin-packager.mjs";
-import { uninstallLegacyAgent } from "../adapters/plugin/gsd-host-uninstall.mjs";
 import { runCli } from "../adapters/plugin/gsd-cli.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
@@ -64,97 +63,13 @@ test("install dry-run plans commands without building or invoking a host", () =>
   assert.equal(existsSync(join(home, "state.json")), false);
 });
 
-test("Codex legacy cleanup removes only managed hooks, links, and AGENTS.md", () => {
-  const home = mkdtempSync(join(tmpdir(), "gsd-codex-uninstall-"));
-  const configDir = join(home, "codex");
-  const skillsDir = join(home, "skills");
-  const agentsDir = join(configDir, "agents");
-  mkdirSync(join(configDir, "agents"), { recursive: true });
-  mkdirSync(skillsDir, { recursive: true });
-  writeFileSync(
-    join(configDir, "hooks.json"),
-    JSON.stringify(
-      {
-        description: "keep-me",
-        hooks: {
-          SessionStart: [
-            { hooks: [{ type: "command", command: "bun /repo/adapters/codex/gsd-context.mjs" }] },
-            { hooks: [{ type: "command", command: "echo keep" }] },
-          ],
-        },
-      },
-      null,
-      2,
-    ),
-  );
-  writeFileSync(
-    join(configDir, "AGENTS.md"),
-    "Keep this text.\n<!-- gsd:codex-adapter -->\n## GSD\nmanaged\n<!-- /gsd:codex-adapter -->\n",
-  );
-  symlinkSync(join(ROOT, "skills", "gsd-to-plan"), join(skillsDir, "gsd-to-plan"), "dir");
-  const userSkill = mkdtempSync(join(tmpdir(), "gsd-user-skill-"));
-  symlinkSync(userSkill, join(skillsDir, "my-skill"), "dir");
-  symlinkSync(
-    join(ROOT, "adapters", "codex", "agents", "gsd-reviewer.toml"),
-    join(agentsDir, "gsd-reviewer.toml"),
-    "file",
-  );
-  writeFileSync(join(agentsDir, "my-agent.toml"), "description = 'mine'\n");
-
-  uninstallLegacyAgent("codex", ROOT, {
-    HOME: home,
-    CODEX_HOME: configDir,
-    CODEX_SKILLS_DIR: skillsDir,
-  });
-
-  const hooks = JSON.parse(readFileSync(join(configDir, "hooks.json"), "utf8"));
-  assert.equal(hooks.description, "keep-me");
-  assert.deepEqual(hooks.hooks, {
-    SessionStart: [{ hooks: [{ type: "command", command: "echo keep" }] }],
-  });
-  assert.equal(readFileSync(join(configDir, "AGENTS.md"), "utf8"), "Keep this text.\n");
-  assert.equal(existsSync(join(skillsDir, "gsd-to-plan")), false);
-  assert.ok(existsSync(join(skillsDir, "my-skill")));
-  assert.equal(existsSync(join(agentsDir, "gsd-reviewer.toml")), false);
-  assert.ok(existsSync(join(agentsDir, "my-agent.toml")));
-});
-
-test("OMP legacy cleanup removes managed extension links only", () => {
-  const home = mkdtempSync(join(tmpdir(), "gsd-omp-uninstall-"));
-  const agentDir = join(home, "agent");
-  mkdirSync(join(agentDir, "extensions"), { recursive: true });
-  mkdirSync(join(agentDir, "agents"), { recursive: true });
-  symlinkSync(
-    join(ROOT, "extensions", "gsd-context.js"),
-    join(agentDir, "extensions", "gsd-context.js"),
-    "file",
-  );
-  writeFileSync(join(agentDir, "extensions", "my-extension.js"), "export {};\n");
-  symlinkSync(
-    join(ROOT, "agents", "gsd-reviewer.md"),
-    join(agentDir, "agents", "gsd-reviewer.md"),
-    "file",
-  );
-  writeFileSync(join(agentDir, "agents", "my-agent.md"), "---\nname: my-agent\n---\n");
-
-  uninstallLegacyAgent("omp", ROOT, {
-    HOME: home,
-    PI_CODING_AGENT_DIR: agentDir,
-  });
-
-  assert.equal(existsSync(join(agentDir, "extensions", "gsd-context.js")), false);
-  assert.ok(existsSync(join(agentDir, "extensions", "my-extension.js")));
-  assert.equal(existsSync(join(agentDir, "agents", "gsd-reviewer.md")), false);
-  assert.ok(existsSync(join(agentDir, "agents", "my-agent.md")));
-});
-
 test("help works without a command", () => {
   const result = runCli(["--help"]);
   assert.equal(result.status, 0, result.stderr);
   assert.match(result.stdout, /Usage:/);
 });
 
-test("uninstall removes plugin and legacy Claude managed entries", () => {
+test("uninstall is plugin-only and leaves legacy-looking host files unchanged", () => {
   const home = mkdtempSync(join(tmpdir(), "gsd-cli-uninstall-"));
   const logPath = join(home, "commands.log");
   const binDir = fakeBinDir(logPath);
@@ -169,6 +84,10 @@ test("uninstall removes plugin and legacy Claude managed entries", () => {
   const agentsDir = join(configDir, "agents");
   mkdirSync(skillsDir, { recursive: true });
   mkdirSync(agentsDir, { recursive: true });
+  writeFileSync(
+    join(configDir, "AGENTS.md"),
+    "Keep this text.\n<!-- gsd:codex-adapter -->\n## GSD\nmanaged\n<!-- /gsd:codex-adapter -->\n",
+  );
   const userSkill = mkdtempSync(join(tmpdir(), "gsd-user-skill-"));
   symlinkSync(join(ROOT, "skills", "gsd-brainstorming"), join(skillsDir, "gsd-brainstorming"), "dir");
   symlinkSync(userSkill, join(skillsDir, "my-skill"), "dir");
@@ -197,6 +116,8 @@ test("uninstall removes plugin and legacy Claude managed entries", () => {
       2,
     ),
   );
+  const settingsBefore = readFileSync(join(configDir, "settings.json"), "utf8");
+  const agentsBefore = readFileSync(join(configDir, "AGENTS.md"), "utf8");
 
   const result = runCli(["uninstall", "--agent", "claude-code", "--home", home], {
     env: {
@@ -211,17 +132,11 @@ test("uninstall removes plugin and legacy Claude managed entries", () => {
     "claude plugin uninstall gsd@gsd-local --scope user",
     "claude plugin marketplace remove gsd-local",
   ]);
-  const settings = JSON.parse(readFileSync(join(configDir, "settings.json"), "utf8"));
-  assert.equal(settings.model, "keep-me");
-  assert.deepEqual(settings.hooks, {
-    SessionStart: [{ hooks: [{ type: "command", command: "echo keep" }] }],
-    UserPromptSubmit: [
-      { hooks: [{ type: "command", command: "bun /repo/adapters/codex/gsd-context.mjs" }] },
-    ],
-  });
-  assert.equal(existsSync(join(skillsDir, "gsd-brainstorming")), false);
+  assert.equal(readFileSync(join(configDir, "settings.json"), "utf8"), settingsBefore);
+  assert.equal(readFileSync(join(configDir, "AGENTS.md"), "utf8"), agentsBefore);
+  assert.ok(existsSync(join(skillsDir, "gsd-brainstorming")));
   assert.ok(existsSync(join(skillsDir, "my-skill")));
-  assert.equal(existsSync(join(agentsDir, "gsd-reviewer.md")), false);
+  assert.ok(existsSync(join(agentsDir, "gsd-reviewer.md")));
   assert.ok(existsSync(join(agentsDir, "my-agent.md")));
   assert.equal(existsSync(join(home, "marketplace")), false);
   assert.equal(existsSync(join(home, "state.json")), false);

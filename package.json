@@ -18,7 +18,6 @@
   "scripts": {
     "test": "bun test --timeout=30000 test/*.test.js",
     "lint": "bunx --yes @biomejs/biome@2.5.8 lint .",
-    "format": "bunx --yes @biomejs/biome@2.5.8 format --write",
-    "lint:shell": "shellcheck install.sh adapters/omp/install.sh"
+    "format": "bunx --yes @biomejs/biome@2.5.8 format --write"
   }
 }

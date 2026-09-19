@@ -1,6 +1,6 @@
 # 0022 — Plugin packaging through one CLI
 
-- **Status:** Accepted
+- **Status:** Superseded by 0023
 - **Date:** 2026-09-19
 
 ## Decision

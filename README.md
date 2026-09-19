@@ -1,6 +1,6 @@
 # GSD Core
 
-GSD is an automatic, repository-backed software delivery flow: discovery, planning, execution, verification, review, handoff, and recovery. The harness-generic core renders one small session bootstrap and the recovery capsule; exactly one adapter per host injects them. OMP installs from this checkout, while Claude Code and Codex install from their own adapters (see [Other hosts](#other-hosts)). Talk to the agent normally. The injected bootstrap classifies the prompt, selects one process owner from intent and validated state, and reads that skill only when needed.
+GSD is an automatic, repository-backed software delivery flow: discovery, planning, execution, verification, review, handoff, and recovery. The harness-generic core renders one small session bootstrap and the recovery capsule; each supported host installs it through the unified plugin CLI. Talk to the agent normally. The injected bootstrap classifies the prompt, selects one process owner from intent and validated state, and reads that skill only when needed.
 
 Inspired by:
 
@@ -36,31 +36,13 @@ Add `--dry-run` to print the exact host commands. The CLI builds one self-contai
 
 The bundle carries `lib/`, the canonical skills and tools under `core/`, only the six visible skills in the host-facing `skills/` directory, reviewer definitions, and host manifests. Hidden runtime skills stay internal. Claude Code and Codex hooks still require their normal trust review. Uninstall is the inverse CLI operation:
 
+Relocation of the checkout does not require reinstall because the installed plugin is a copied, self-contained bundle. Editing the checkout does not update the installed bundle; run `bun bin/gsd.mjs install` again to refresh it, then follow the selected host's normal reload and trust behavior.
+
 ```bash
 bun bin/gsd.mjs uninstall --agent claude-code
 ```
 
-Uninstall runs the host's native plugin uninstall command, removes the local bundle only when no selected agent still uses it, and also cleans recognized entries written by the older per-host installers. Unrelated hooks, skills, agents, settings, and marketplaces stay untouched.
-
-### Other hosts
-
-The older installers remain compatibility entry points. Claude Code installs with `bun adapters/claude-code/install.mjs [--config-dir <path>] [--dry-run]`, defaulting to `$CLAUDE_CONFIG_DIR` then `~/.claude`. It registers the `SessionStart` and `UserPromptSubmit` hooks that deliver the same bootstrap and recovery capsule, links the GSD skills, and installs the read-only reviewer subagent. Every write is atomic and idempotent, and a conflicting non-GSD entry fails closed.
-
-Codex installs with `bun adapters/codex/install.mjs [--config-dir <path>] [--skills-dir <path>] [--dry-run]`, defaulting to `$CODEX_HOME` then `~/.codex` for hooks, agents, and `AGENTS.md`, and to `~/.agents/skills` for skills, which is the user location Codex actually scans. It registers the `SessionStart` and `UserPromptSubmit` hooks, links the GSD skills, installs the read-only reviewer subagent, and upserts one managed `## GSD` section in that directory's `AGENTS.md`. It pins `additionalContextLimit` so the bootstrap and capsule are never spilled to a truncated preview, and it reports an explicit `[features] hooks = false` as advisory without editing your config.
-
-OMP's compatibility installer remains `bash install.sh`; it publishes the direct extension symlink and performs the existing fail-closed isolation preflight. Both plugin hooks and compatibility adapters deliver the identical core bytes. `adapters/README.md` maps each host's plan mode, goals, sub-agents, isolation, and reviewer onto GSD's needs, naming the fallback where a host lacks a feature.
-
-For that compatibility path, `bash install.sh` publishes `~/.omp/agent/extensions/gsd-context.js`, or the absolute `PI_CODING_AGENT_DIR` base when set, with no wrapper; target collisions fail closed. Relocation of the checkout requires reinstall. Editing the extension in place requires a new OMP session; start a new OMP session after an extension edit. Editing a skill takes effect the next time that skill is selected.
-
-### Uninstalling a host adapter
-
-The recommended path is `bun bin/gsd.mjs uninstall --agent <agent>`. For a legacy install, the adapter only ever wrote entries it owned, and every one of them pointed back into this checkout, so removing those entries is the exact inverse and nothing else is touched:
-
-- Claude Code, under `$CLAUDE_CONFIG_DIR` or `~/.claude`: in `settings.json`, delete the hook handlers whose command names `adapters/claude-code/gsd-context.mjs` (and the group they leave empty); under `skills/` and `agents/`, delete the links that point into this checkout.
-- Codex, under `$CODEX_HOME` or `~/.codex`: in `hooks.json`, delete the hook handlers whose command names `adapters/codex/gsd-context.mjs`; under `agents/`, delete the links that point into this checkout; in `AGENTS.md`, delete the managed block between `<!-- gsd:codex-adapter -->` and `<!-- /gsd:codex-adapter -->`; under `~/.agents/skills`, or the `--skills-dir` you chose, delete the links that point into this checkout.
-- OMP: delete the published `gsd-context.js` link under the effective agent base, `~/.omp/agent/extensions/` or the `PI_CODING_AGENT_DIR` base.
-
-Your own hooks, skills, agents, and config keys are never adapter entries, so they stay; a later install recreates exactly the entries above and nothing more.
+Uninstall runs only the host's native plugin uninstall command and removes the local bundle when no selected agent still uses it. It does not inspect or modify files outside that plugin registration. Unrelated hooks, skills, agents, settings, and marketplaces stay untouched.
 
 ## Use ordinary prompts
 
@@ -165,10 +147,10 @@ The current top-level session is the sole lifecycle authority. It interprets the
 
 ```text
 adapters/
-├── plugin/                          # cross-host plugin CLI, bundle builder, and uninstall cleanup
-├── omp/                              # OMP adapter: extension factory, public types, installer
-├── claude-code/                      # Claude Code adapter: hooks, skill links, reviewer agent
-└── codex/                            # Codex adapter: hooks, AGENTS.md section, reviewer agent
+├── plugin/                          # cross-host plugin CLI and bundle builder
+├── omp/                              # OMP adapter: extension factory and public types
+├── claude-code/                      # Claude Code adapter: hooks and reviewer agent
+└── codex/                            # Codex adapter: hooks and reviewer agent
 bin/
 └── gsd.mjs                          # executable entry for the unified host plugin CLI
 docs/
@@ -206,9 +188,9 @@ skills/
 └── gsd-codebase-architecture/        # hidden named-seam and audit reference
 ```
 
-`adapters/omp/gsd-context.d.ts` is a hand-maintained public type surface for the OMP adapter; `test/gsd-context-dts.test.js` asserts the facade's runtime exports stay mirrored in it. The `extensions/gsd-context.{js,d.ts}` paths remain the stable OMP entry points that `install.sh` publishes and importers resolve, and each is a thin re-export of the adapter (decision 0015).
+`adapters/omp/gsd-context.d.ts` is a hand-maintained public type surface for the OMP adapter; `test/gsd-context-dts.test.js` asserts the facade's runtime exports stay mirrored in it. The `extensions/gsd-context.{js,d.ts}` paths remain stable importer entry points, and each is a thin re-export of the adapter (decision 0015).
 
-Development checks: `bun test --timeout=30000 test/*.test.js` runs the full suite; `bun run lint` runs Biome with the repository rule set (currently zero diagnostics); `bun run format -- <path>` reformats the passed JS/MJS/JSON files through Biome (the existing hand-formatted tree is intentionally not bulk-reformatted); `bun run lint:shell` checks the root `install.sh` and `adapters/omp/install.sh` and requires a `shellcheck` install.
+Development checks: `bun test --timeout=30000 test/*.test.js` runs the full suite; `bun run lint` runs Biome with the repository rule set (currently zero diagnostics); and `bun run format -- <path>` reformats the passed JS/MJS/JSON files through Biome (the existing hand-formatted tree is intentionally not bulk-reformatted).
 
 ## Plan contract validation
 

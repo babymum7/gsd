@@ -26,12 +26,14 @@ test("README documents the Markdown contract without legacy plan authority", () 
   assert.doesNotMatch(readme, /proposal\.toon|spec\.toon|design\.toon|plan\.toon/);
 });
 
-test("AC-2: Installation documentation distinguishes relocation from in-place edits", () => {
+test("AC-2: Installation documentation distinguishes source edits from the installed bundle", () => {
   const readme = read("README.md");
-  assert.match(readme, /Relocation of the checkout requires reinstall/);
-  assert.match(readme, /Editing the extension in place requires a new OMP session/);
-  assert.match(readme, /editing a skill takes effect the next time that skill is selected/i);
-  assert.doesNotMatch(readme, /Relocation of the checkout does not require reinstall/);
+  assert.match(readme, /Relocation of the checkout does not require reinstall/);
+  assert.match(readme, /Editing the checkout does not update the installed bundle/);
+  assert.match(readme, /run `bun bin\/gsd\.mjs install` again to refresh it/);
+  assert.doesNotMatch(readme, /Relocation of the checkout requires reinstall/);
+  assert.doesNotMatch(readme, /Editing the extension in place/);
+  assert.doesNotMatch(readme, /editing a skill takes effect the next time that skill is selected/i);
 });
 
 test("AC-3: Milestone Ledger definition points to canonical plan and excludes legacy local spec", () => {

@@ -4,7 +4,6 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { buildPluginBundle } from './gsd-plugin-packager.mjs';
-import { uninstallLegacyAgent } from './gsd-host-uninstall.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const AGENTS = ['omp', 'claude-code', 'codex'];
@@ -186,7 +185,6 @@ function runUninstall(parsed, options) {
     const lines = plans.flatMap(({ agent, commands }) => [
       `[${agent}]`,
       ...commands.map((command) => `${command.binary} ${command.args.join(' ')}`),
-      'legacy cleanup',
     ]);
     return { status: 0, stdout: `${lines.join('\n')}\n`, stderr: '' };
   }
@@ -197,8 +195,6 @@ function runUninstall(parsed, options) {
       if (result.status !== 0) return result;
     }
   }
-  for (const { agent } of plans) uninstallLegacyAgent(agent, ROOT, options.env ?? process.env);
-
   for (const agent of agents) delete state.agents[agent];
   if (Object.keys(state.agents).length === 0) removeState(home);
   else writeState(home, state);
