@@ -36,6 +36,7 @@ function canonicalPlan(feature = "valid-plan") {
     "- **Outcome:** The canonical plan is accepted through the production command.",
     "- **Action:** Run the validator against the plan fixture.",
     "- **Expected:** The command reports the feature and exact source hash.",
+    "- **Scenario:** GIVEN a canonical plan with one active criterion WHEN the validator reads the plan THEN it reports the feature and exact source hash.",
     "## Decisions",
     "None.",
     "## Invariants",
@@ -101,6 +102,56 @@ test("validate-plan emits deterministic minimal TOON for a canonical plan", () =
   }
 });
 
+test("active criteria require one concrete scenario while small plans stay lightweight", () => {
+  const scenarioPlan = canonicalPlan("scenario-plan");
+  const cases = [
+    {
+      feature: "scenario-plan",
+      command: "validate-plan",
+      content: scenarioPlan,
+      expectedStatus: 0,
+    },
+    {
+      feature: "missing-scenario",
+      command: "validate-plan",
+      content: canonicalPlan("missing-scenario")
+        .split("\n")
+        .filter((line) => !line.startsWith("- **Scenario:**"))
+        .join("\n"),
+      expectedStatus: 1,
+      expectedError: /6-line blocks.*Scenario/s,
+    },
+    {
+      feature: "placeholder-scenario",
+      command: "validate-plan",
+      content: scenarioPlan
+        .replace("scenario-plan", "placeholder-scenario")
+        .replace("GIVEN a canonical plan with one active criterion", "GIVEN TBD"),
+      expectedStatus: 1,
+      expectedError: /AC-1 Scenario must be concrete/,
+    },
+  ];
+
+  for (const { feature, command, content, expectedStatus, expectedError } of cases) {
+    const { workspace, planPath } = makePlanWorkspace(feature, content);
+    try {
+      const result = spawnSync(process.execPath, [CLI, command, "--path", planPath], {
+        cwd: workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, expectedStatus, `${feature}: ${result.stdout}${result.stderr}`);
+      if (expectedError) {
+        assert.match(result.stdout, expectedError);
+        assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/);
+      } else {
+        assert.equal(result.stderr, "");
+      }
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
 test("both plan grammars reject content between the title and the first section", () => {
   // `validateSections` only inspects `## ` lines and `validateTitle` only counted `# `
   // headings, leaving this region unowned: a canonical title could carry arbitrary
@@ -151,6 +202,7 @@ test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks
           "- **Outcome:** The affected domain shard states the corrected production behavior.",
           "- **Action:** Read the shard after the change lands.",
           "- **Expected:** The shard describes the behavior the validator now enforces.",
+          "- **Scenario:** GIVEN an affected semantic change WHEN the shard is read after the change THEN it describes the behavior the validator enforces.",
           "## Decisions",
         ].join("\n"),
       )
@@ -1009,6 +1061,7 @@ function wavePlan(feature, tasks) {
           "- **Outcome:** The task criterion is proven.",
           "- **Action:** Run the focused check.",
           "- **Expected:** The check reports green.",
+          "- **Scenario:** GIVEN an independent task WHEN its focused check runs THEN it reports green without blocking peer tasks.",
         ].join("\n"),
     )
     .join("\n");
@@ -1215,6 +1268,7 @@ test("an amended plan allows superseded tasks to reference superseded criteria w
           "- **Outcome:** The amended plan is accepted through the production command.",
           "- **Action:** Run the validator against the plan fixture.",
           "- **Expected:** The command reports the feature and exact source hash.",
+          "- **Scenario:** GIVEN an amended active criterion WHEN the validator reads the amended plan THEN it reports the feature and exact source hash.",
           "## Decisions",
         ].join("\n"),
       )
@@ -1389,8 +1443,8 @@ test("semantic validator failures attach actionable remediation help lines", () 
   // 1. Multi-AC interface pin conflict: T1 satisfies AC-1 and AC-2, but AC-1 is CLI and AC-2 is other seam
   const pinConflictPlan = canonicalPlan("pin-conflict")
     .replace(
-      "### AC-1: Validate canonical plan\n- **State:** active\n- **Outcome:** The canonical plan is accepted through the production command.\n- **Action:** Run the validator against the plan fixture.\n- **Expected:** The command reports the feature and exact source hash.",
-      "### AC-1: Validate canonical plan\n- **State:** active\n- **Outcome:** The canonical plan is accepted through the production command.\n- **Action:** Run the validator against the plan fixture.\n- **Expected:** The command reports the feature and exact source hash.\n### AC-2: Second criterion\n- **State:** active\n- **Outcome:** The second criterion is accepted.\n- **Action:** Run the second check.\n- **Expected:** The second check reports success.",
+      "### AC-1: Validate canonical plan\n- **State:** active\n- **Outcome:** The canonical plan is accepted through the production command.\n- **Action:** Run the validator against the plan fixture.\n- **Expected:** The command reports the feature and exact source hash.\n- **Scenario:** GIVEN a canonical plan with one active criterion WHEN the validator reads the plan THEN it reports the feature and exact source hash.",
+      "### AC-1: Validate canonical plan\n- **State:** active\n- **Outcome:** The canonical plan is accepted through the production command.\n- **Action:** Run the validator against the plan fixture.\n- **Expected:** The command reports the feature and exact source hash.\n- **Scenario:** GIVEN a canonical plan with one active criterion WHEN the validator reads the plan THEN it reports the feature and exact source hash.\n### AC-2: Second criterion\n- **State:** active\n- **Outcome:** The second criterion is accepted.\n- **Action:** Run the second check.\n- **Expected:** The second check reports success.\n- **Scenario:** GIVEN a canonical plan with two active criteria WHEN the validator reads the plan THEN it reports both pinned criteria.",
     )
     .replace(
       "| AC-1 | production validator CLI | `tools/gsd-contract.mjs` | none |",
@@ -2023,8 +2077,8 @@ test("normalize-plan preserves complex multi-task blocks byte-for-byte during re
   const feature = "multi-task-feature";
   const planWithMultipleTasks = canonicalPlan(feature)
     .replace(
-      "- **Outcome:** The canonical plan is accepted through the production command.\n- **Action:** Run the validator against the plan fixture.\n- **Expected:** The command reports the feature and exact source hash.",
-      "- **Outcome:** The canonical plan is accepted through the production command.\n- **Action:** Run the validator against the plan fixture.\n- **Expected:** The command reports the feature and exact source hash.\n### AC-2: Second criterion\n- **State:** active\n- **Outcome:** Second outcome.\n- **Action:** Second action.\n- **Expected:** Second expected."
+      "- **Outcome:** The canonical plan is accepted through the production command.\n- **Action:** Run the validator against the plan fixture.\n- **Expected:** The command reports the feature and exact source hash.\n- **Scenario:** GIVEN a canonical plan with one active criterion WHEN the validator reads the plan THEN it reports the feature and exact source hash.",
+      "- **Outcome:** The canonical plan is accepted through the production command.\n- **Action:** Run the validator against the plan fixture.\n- **Expected:** The command reports the feature and exact source hash.\n- **Scenario:** GIVEN a canonical plan with one active criterion WHEN the validator reads the plan THEN it reports the feature and exact source hash.\n### AC-2: Second criterion\n- **State:** active\n- **Outcome:** Second outcome.\n- **Action:** Second action.\n- **Expected:** Second expected.\n- **Scenario:** GIVEN a plan with two active criteria WHEN the validator reads the plan THEN it reports both pinned criteria."
     )
     .replace(
       "| AC-1 | production validator CLI | `tools/gsd-contract.mjs` | none |",
@@ -2300,13 +2354,13 @@ test("criteria field failures point at the offending row", () => {
       name: "missing outcome points at the malformed row",
       content: canonicalPlan().replace("- **Outcome:** The canonical plan is accepted through the production command.", "- **Outcom:** The canonical plan is accepted through the production command."),
       needle: "- **Outcom:**",
-      message: /fields must be exactly ordered: State, Outcome, Action, Expected/,
+      message: /fields must be exactly ordered: State, Outcome, Action, Expected, Scenario/,
     },
     {
       name: "missing expected points at the malformed row",
       content: canonicalPlan().replace("- **Expected:** The command reports the feature and exact source hash.", "- **Expecte:** The command reports the feature and exact source hash."),
       needle: "- **Expecte:**",
-      message: /fields must be exactly ordered: State, Outcome, Action, Expected/,
+      message: /fields must be exactly ordered: State, Outcome, Action, Expected, Scenario/,
     },
     {
       name: "vague outcome points at the outcome row",
@@ -2362,6 +2416,7 @@ test("init-plan creates parser-valid skeleton plan and verifies with validate-pl
       "- **Outcome:** <concrete behavior>",
       "- **Action:** <concrete operation>",
       "- **Expected:** <observable result>",
+      "- **Scenario:** GIVEN a scaffolded plan WHEN the validator reads it THEN it reports the feature and exact source hash.",
       "## Decisions",
       "None.",
       "## Invariants",

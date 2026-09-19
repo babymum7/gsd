@@ -98,6 +98,7 @@ export const canonicalPacket = () => ({
     "- **Outcome:** A valid plan becomes an execution contract.",
     "- **Action:** Parse the approved Markdown plan.",
     "- **Expected:** Return the matching feature and acceptance criterion.",
+    "- **Scenario:** GIVEN a canonical plan WHEN the parser reads it THEN it returns the matching feature and criterion.",
     "## Decisions",
     "None.",
     "## Invariants",
@@ -142,4 +143,3 @@ export const structuredPacket = () => {
   );
   return packet;
 };
-

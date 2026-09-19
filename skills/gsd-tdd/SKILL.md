@@ -1,6 +1,7 @@
 ---
 name: gsd-tdd
 description: "Use as a helper while implementing observable behavior through an existing public seam."
+hide: true
 produces: []
 consumes: [docs/domain/index.md, docs/domain/<scope>.md, plan.md, state.toon]
 ---

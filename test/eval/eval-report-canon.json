@@ -1,61 +1,74 @@
 {
   "scope": "bootstrap + on-demand lifecycle matrix",
-  "bootstrap_sha256": "3b0c491933c60affe181c08574160c57f8f39f81448b08e52996c22740835594",
-  "bootstrap_words": 1250,
+  "bootstrap_sha256": "65be16b66a1f6c34094a28b0329c25c5c937b8d2cdbbe53db1116cec73c40f9f",
+  "bootstrap_words": 879,
   "canon_sha256": "5d7b3c9df4c43133a2d4deba0fdac448e64a3dae25656750662f38387ae8c7db",
   "canon_words": 334,
   "pass1": {
     "omp/anthropic/claude-sonnet-5": {
+      "passed": 36,
+      "total": 40,
+      "accuracy": 90
+    },
+    "omp/google-antigravity/gemini-3.8-flash": {
+      "passed": 35,
+      "total": 40,
+      "accuracy": 87.5
+    },
+    "omp/anthropic/claude-opus-5": {
       "passed": 38,
       "total": 40,
       "accuracy": 95
-    },
-    "omp/google-antigravity/gemini-3.8-flash": {
-      "passed": 40,
-      "total": 40,
-      "accuracy": 100
-    },
-    "omp/anthropic/claude-opus-5": {
-      "passed": 40,
-      "total": 40,
-      "accuracy": 100
     }
   },
   "pass2": {
     "omp/anthropic/claude-sonnet-5": {
       "corrected": 0,
-      "stillFailing": 2,
-      "accuracy": 95
+      "stillFailing": 4,
+      "accuracy": 90
     },
     "omp/google-antigravity/gemini-3.8-flash": {
       "corrected": 0,
-      "stillFailing": 0,
-      "accuracy": 100
+      "stillFailing": 5,
+      "accuracy": 87.5
     },
     "omp/anthropic/claude-opus-5": {
       "corrected": 0,
-      "stillFailing": 0,
-      "accuracy": 100
+      "stillFailing": 2,
+      "accuracy": 95
     }
   },
   "summary": {
     "omp/anthropic/claude-sonnet-5": {
-      "firstAttempt": 95,
-      "corrected": 95
+      "firstAttempt": 90,
+      "corrected": 90
     },
     "omp/google-antigravity/gemini-3.8-flash": {
-      "firstAttempt": 100,
-      "corrected": 100
+      "firstAttempt": 87.5,
+      "corrected": 87.5
     },
     "omp/anthropic/claude-opus-5": {
-      "firstAttempt": 100,
-      "corrected": 100
+      "firstAttempt": 95,
+      "corrected": 95
     }
   },
   "failures": {
     "omp/anthropic/claude-sonnet-5": [
-      "result-retained-newer-than-active",
-      "compaction-capsule-resume"
+      "arch-audit",
+      "quick-fix-repair",
+      "compaction-capsule-resume",
+      "arch-audit-during-execution"
+    ],
+    "omp/google-antigravity/gemini-3.8-flash": [
+      "arch-audit",
+      "domain-glossary",
+      "quick-fix-repair",
+      "arch-audit-during-execution",
+      "domain-context-mapping"
+    ],
+    "omp/anthropic/claude-opus-5": [
+      "quick-fix-repair",
+      "arch-audit-during-execution"
     ]
   }
 }

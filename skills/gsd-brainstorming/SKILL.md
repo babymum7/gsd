@@ -23,7 +23,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 | New behavior discovery | non-trivial behavior intent | code/docs context | converged contract; settled-tradeoff `docs/decisions/NNNN-slug.md` | ask target question if missing |
 | Supplied design stress-test | supplied proposal or claims | implementation seams | sharpened contract; settled-tradeoff `docs/decisions/NNNN-slug.md` | ask for missing proposal |
 | Spec-gap revision | blocker and affected criterion/invariant | current plan | revised contract | preserve blocker and stop |
-| Selected architecture candidate | user-selected candidate | audit evidence | converged candidate contract | return to `gsd-codebase-architecture` for candidate selection |
+| Selected architecture candidate | user-selected candidate | audit evidence | converged candidate contract | return to `gsd-brainstorming` for candidate selection |
 
 ## Scope discipline
 

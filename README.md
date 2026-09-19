@@ -65,8 +65,8 @@ If the checkout, hidden bootstrap, or visible catalog cannot be validated, the e
 GSD is built to stay out of the way most of the time. Each number below is held by a
 test, so it cannot drift quietly:
 
-- One bootstrap per session. `skills/gsd/SKILL.md` caps at 1120 words, and the rendered
-  bootstrap (the master body plus the sorted catalog) currently measures 1250 words;
+- One bootstrap per session. `skills/gsd/SKILL.md` caps at 800 words, and the rendered
+  bootstrap (the master body plus the sorted catalog) currently measures 879 words;
   that is the `bootstrap_words` value in every committed eval report.
 - Nothing per turn. An ordinary prompt injects zero bytes: the adapters emit only at
   session boundaries and deduplicate against the payload already in the transcript. A
@@ -76,7 +76,7 @@ test, so it cannot drift quietly:
   when no step names a required contract. No owner depends on most of it: the widest
   named set is 8645 bytes of the 50330-byte file, about 1879 tokens against about 10966,
   and a test caps any owner at 10000 bytes (decision 0020).
-- One visible skill body at a time. The nine visible skills cap at 9850 words in total,
+- One visible skill body at a time. The six visible skills cap at 9850 words in total,
   and the bootstrap carries their metadata, not their bodies.
 - Recovery is bounded and rare. A capsule is emitted only after a compaction and fails
   closed above 4000 bytes rather than truncating.
@@ -101,7 +101,7 @@ flowchart LR
 
 1. **Discovery.** `gsd-brainstorming` explores only relevant code, exposes risks and missing decisions, and converges on the smallest sufficient contract. Every feature classifies `Domain Impact`. When `docs/domain/index.md` exists, only affected mapped contexts are read and no broad domain scan is offered. When it is absent, semantic work bootstraps the feature context and may independently offer a broad bootstrap.
 2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with exact Domain Impact, observable acceptance criteria, structured file operations and intents, interfaces, focused checks, and a SHA-256 binding. Domain paths belong to the same task as semantic code. The validated plan binds automatically — no approval prompt — and writes atomic `schema:v4` `.scratch/<feature>/state.toon` before ordered execution starts.
-3. **Execution.** The current top-level session owner uses `gsd-executing-plans` to select `T1..TN` in order, rebuild each complete validated task slice, verify each dispatch prompt against the slice before sending it, and execute each wave the contract validator proves file-, criterion-, and check-disjoint: a single-task wave executes inline with `gsd-tdd`, while a wave of two or more dispatches one task per sub-agent, each in its own isolated workspace, or serially in plan order when isolation is unavailable. Every task, inline or dispatched, loads `gsd-tdd` for observable work, performs Fast TDD Checks (RED→GREEN→refactor; no browser/resource-heavy task loops), and updates affected domain docs to current production behavior in the same owning task. The owner reconciles each returned task in plan order through the ordered five-layer gate — the sub-agent's own report is inadmissible, `verify-task-branch` proves branch ancestry, slice scope, and untouched `.scratch/`, each new or changed test must fail on the wave base, deleted or skipped guards are rejected, and every merged task's focused check re-runs on `wip/<feature>` — before it commits each green checkpoint, updates `state.toon`, and repairs any integrity failure or red task inline. GSD dispatches no lifecycle work outside validated waves and never overlaps lifecycle work.
+3. **Execution.** The current top-level session owner uses `gsd-executing-plans` to select `T1..TN` in order, rebuild each complete validated task slice, verify each dispatch prompt against the slice before sending it, and execute each wave the contract validator proves file-, criterion-, and check-disjoint: a single-task wave executes inline, while a wave of two or more dispatches one task per sub-agent, each in its own isolated workspace, or serially in plan order when isolation is unavailable. Every observable task performs Fast TDD Checks (RED→GREEN→refactor; no browser/resource-heavy task loops) and updates affected domain docs to current production behavior in the same owning task. The owner reconciles each returned task in plan order through the ordered five-layer gate — the sub-agent's own report is inadmissible, `verify-task-branch` proves branch ancestry, slice scope, and untouched `.scratch/`, each new or changed test must fail on the wave base, deleted or skipped guards are rejected, and every merged task's focused check re-runs on `wip/<feature>` — before it commits each green checkpoint, updates `state.toon`, and repairs any integrity failure or red task inline. GSD dispatches no lifecycle work outside validated waves and never overlaps lifecycle work.
 4. **Verification.** `gsd-verify` deterministically checks the exact plan/state binding, active-criterion/interface/task coverage, changed-path ownership, Domain Impact, code/domain drift, plan-ordered task diffs, explicit decisions/invariants/non-goals, and current-commit focused-check evidence. Only deterministic contract failures block.
 5. **E2E gates.** Current-commit session-owner verification precedes Deferred Slow E2E.
 
@@ -114,12 +114,12 @@ A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active 
 | “Fix this small behavioral bug” | Session-owned Quick-fix with exact Domain Impact, hidden Ponytail context, Fast TDD, domain-drift verification, and no saved Ponytail preference. |
 | “Review this diff” | Standalone read-only review; no merge mechanics. |
 | “Why does X crash?” | Feedback-loop-first diagnosis with `gsd-diagnosing-bugs`. |
-| “Design the public interface for X” | Named-seam mode in `gsd-codebase-architecture`. |
-| “Audit the architecture” | Scoped audit mode in `gsd-codebase-architecture`. |
+| “Design the public interface for X” | Architecture and domain discovery in `gsd-brainstorming`. |
+| “Audit the architecture” | Architecture and domain discovery in `gsd-brainstorming`. |
 | “Pause and save progress” | Validated `state.toon` checkpoint through `gsd-handoff`. |
 | “Continue the active feature” | Validated resume through `gsd-handoff`. |
 
-For that Quick-fix route, the current session owner reads the exact hidden context path injected by the extension, writes the canonical Quick-fix plan, runs `gsd-tdd`, and hands the unchanged green WIP to `gsd-verify`. Ponytail remains absent from the visible catalog and runtime state.
+For that Quick-fix route, the current session owner reads the exact hidden context path injected by the extension, writes the canonical Quick-fix plan, performs Fast TDD, and hands the unchanged green WIP to `gsd-verify`. Ponytail remains absent from the visible catalog and runtime state.
 
 Missing consumed artifacts do not trigger improvisation. The selected skill returns control to automatic selection or the recorded active owner with an actionable stop or transition.
 
@@ -129,7 +129,7 @@ Missing consumed artifacts do not trigger improvisation. The selected skill retu
 
 Every converged plan includes `Domain Impact`. Semantic code and its affected domain shards land in the same owning task; `gsd-verify` blocks completion on drift. If the index already exists, the workflow reads only affected mapped shards and never suggests a broad codebase/domain scan. A broad bootstrap is an optional decision only while creating the first index; declining it never skips mandatory feature-scoped documentation. The canonical `## Domain documentation` section in `AGENTS.md` gives future coding agents the same constraints.
 
-`gsd-codebase-architecture` aligns backend and frontend boundaries to these production contexts while keeping domain/application policy framework-independent and adapters idiomatic. A context is not automatically a service, package, page, database, or deployment unit.
+Architecture and domain discovery in `gsd-brainstorming` align backend and frontend boundaries to these production contexts while keeping domain/application policy framework-independent and adapters idiomatic. A context is not automatically a service, package, page, database, or deployment unit.
 
 ## Session-owner authority
 
@@ -176,11 +176,11 @@ skills/
 ├── gsd-executing-plans/              # ordered task execution, wave-dispatched by default
 ├── gsd-verify/                       # deterministic conformance and acceptance gate
 ├── gsd-handoff/                      # pause, recovery, and portable resume
-├── gsd-tdd/                          # mandatory Fast TDD RED→GREEN→refactor for observable tasks
+├── gsd-tdd/                          # hidden Fast TDD reference
 ├── gsd-ponytail/                     # hidden level-free YAGNI context
 ├── gsd-diagnosing-bugs/              # hard-bug diagnosis loop
-├── gsd-domain-modeling/              # current bounded-context documentation
-└── gsd-codebase-architecture/        # named seams and scoped architecture audits
+├── gsd-domain-modeling/              # hidden bounded-context documentation reference
+└── gsd-codebase-architecture/        # hidden named-seam and audit reference
 ```
 
 `adapters/omp/gsd-context.d.ts` is a hand-maintained public type surface for the OMP adapter; `test/gsd-context-dts.test.js` asserts the facade's runtime exports stay mirrored in it. The `extensions/gsd-context.{js,d.ts}` paths remain the stable OMP entry points that `install.sh` publishes and importers resolve, and each is a thin re-export of the adapter (decision 0015).
@@ -231,14 +231,14 @@ An exit code of 3 is never a routing verdict: it means the backend itself failed
 
 Two scopes measure two different things. Activation alone is the lower bound: only the injected bootstrap travels, while the row-level completed-state matrix lives in the on-demand canon an owner reads before lifecycle work. `GSD_EVAL_CANON=1 bun test/eval/eval-models.mjs` adds that canon section, which is what a live owner holds when it routes lifecycle work, and the two-pass report records which scope produced its numbers in a `scope` field. `GSD_EVAL_JOB_TIMEOUT` (milliseconds, default 120000) raises the per-call ceiling for slower models, which matters once several models share one report.
 
-The two committed reports on the current bytes each score three models in one run, at fingerprint `3b0c491933c6`. With the canon loaded, `omp/anthropic/claude-sonnet-5` scored 38/40 first attempt and both `omp/google-antigravity/gemini-3.8-flash` and `omp/anthropic/claude-opus-5` scored 40/40, for 118/120 (98.3%) overall. The bootstrap-only lower bound scored 35/40, 38/40, and 36/40 for 109/120 (90.8%), and its eleven misses concentrate on the terminal-state rows (`result-*`) and the compaction rows — exactly the rows the on-demand canon owns, which is why the canon scope is the operative measure and the bootstrap stays lean with a `§` pointer instead of that matrix.
+The two committed reports on the current bytes each score three models in one run, at fingerprint `65be16b66a1f`. With the canon loaded, `omp/anthropic/claude-sonnet-5` scored 36/40 first attempt, `omp/google-antigravity/gemini-3.8-flash` 35/40, and `omp/anthropic/claude-opus-5` 38/40, for 109/120 (90.8%) overall. The bootstrap-only lower bound scored 25/40, 32/40, and 31/40 for 88/120 (73.3%), and its misses concentrate on the terminal-state rows (`result-*`) and the compaction rows — exactly the rows the on-demand canon owns, which is why the canon scope is the operative measure and the bootstrap stays lean with a `§` pointer instead of that matrix.
 
-Run-to-run spread is larger than any wording effect measured here, so the numbers above are one run each and the difference between them is not a route verdict. Three runs of these bytes scored 105, 108, and 109 of 120 on the bootstrap-only scope alone, and a run of the immediately preceding bytes scored 110; the canon scope has scored 118 and 119 across two sets of bytes. Those numbers overlap the pre-triage-boundary measurements on sonnet (canon 36-38/40, bootstrap-only 33-34/40), so the route-boundary wording since decision 0018 shows no activation-axis regression either. What keeps the residual misses bounded is that each reached skill requires bound `state.toon` and an invocation guard that admits only validated bound plan state, so a capsule resume that misroutes there stops instead of executing; `test/skills-lifecycle.test.js` locks that boundary. Read every number as a sample of a small labeled set rather than a constant.
+Run-to-run spread is larger than any wording effect measured here, so the numbers above are one run each and the difference between them is not a route verdict. Earlier runs of nearby bytes scored 105, 108, 109, and 110 of 120 on the bootstrap-only scope, while the canon scope has scored 109, 118, and 119 across several sets of bytes. What keeps the residual misses bounded is that each reached skill requires bound `state.toon` and an invocation guard that admits only validated bound plan state, so a capsule resume that misroutes there stops instead of executing; `test/skills-lifecycle.test.js` locks that boundary. Read every number as a sample of a small labeled set rather than a constant.
 
 Every report also carries the fingerprint of the bytes it measured: `bootstrap_sha256` and `bootstrap_words` for the rendered bootstrap, plus `canon_sha256` and `canon_words` when the canon section traveled. Those word counts describe the text the model received, so they run above the source-file cap numbers. The repository root is normalized out of the hash, so two checkouts of one revision agree, and any change to the bootstrap, the visible skill catalog, or the canon moves it. A report whose fingerprint does not match the tree is history, not evidence: re-run the evaluator instead of quoting its number. The suite enforces that rule. `test/skills-lifecycle.test.js` recomputes the live fingerprint the same way the runners do and fails when a committed report, or the prefix quoted in this README, no longer matches the bytes on disk.
 
 The triage front door is scored by its own runner, so neither axis leaks the other's vocabulary into its prompt: `bun test/eval/triage-eval.mjs` checks `test/eval/triage-fixtures.json` against the same production bootstrap and requires the strict JSON object `{ "route": "..." }` for all six routes. The 13 fixtures hold one or more per route, and the runner writes the same fingerprint-bound report shape to `test/eval/triage-report.json`, overridable with `--report-path`.
 
-Before decision 0018 defined the route boundaries, the bootstrap left three of them to inference, and they cost 28 of 156 first-attempt routes: `omp/anthropic/claude-sonnet-5` scored 69/91 across seven runs, `omp/google-antigravity/gemini-3.8-flash` 34/39 across three, and `omp/anthropic/claude-opus-5` 25/26 across two. On those bytes the same three models routed 153 of 156 first attempts (98.1%): gemini-3.8-flash and claude-opus-5 never missed across any run, while sonnet-5 landed 62 of 65 across five runs. Sonnet's residual misses were `multi-task-refactor` and `codebase-facts`, both intermittent, and both fixtures moved between runs before the change too — run-to-run noise on a small labeled set rather than a boundary the wording could still fix. The committed report scores all three models in one run, and on the current bytes all three routed 13/13 for 39/39. Re-run the axis after any bootstrap or canon edit and check the fingerprint before quoting any report.
+Before decision 0018 defined the route boundaries, the bootstrap left three of them to inference, and they cost 28 of 156 first-attempt routes: `omp/anthropic/claude-sonnet-5` scored 69/91 across seven runs, `omp/google-antigravity/gemini-3.8-flash` 34/39 across three, and `omp/anthropic/claude-opus-5` 25/26 across two. On those bytes the same three models routed 153 of 156 first attempts (98.1%): gemini-3.8-flash and claude-opus-5 never missed across any run, while sonnet-5 landed 62 of 65 across five runs. Sonnet's residual misses were `multi-task-refactor` and `codebase-facts`, both intermittent, and both fixtures moved between runs before the change too — run-to-run noise on a small labeled set rather than a boundary the wording could still fix. The committed report scores all three models in one run, and on the current bytes they routed 12/13, 13/13, and 13/13 for 38/39. Re-run the axis after any bootstrap or canon edit and check the fingerprint before quoting any report.
 
 It prefers the local `omp` binary, which needs no key and evaluates `gpt-5.6-luna` by default, reporting each model separately. Every question runs as one isolated non-interactive print with a neutral cwd and no discovered extensions, skills, rules, tools, or session. `GSD_EVAL_MODEL` takes a comma-separated model list, which is how any other model runs: `GSD_EVAL_MODEL=gemini-3.6-flash` evaluates that model alone, and listing several evaluates each. Without that binary, `GSD_EVAL_KEY=sk-...` uses the OpenAI-compatible endpoint instead, overridable through `GSD_EVAL_URL`; `GSD_EVAL_BACKEND=omp|http` forces one backend.

@@ -1,14 +1,14 @@
 {
   "scope": "bootstrap only (triage axis)",
-  "bootstrap_sha256": "3b0c491933c60affe181c08574160c57f8f39f81448b08e52996c22740835594",
-  "bootstrap_words": 1250,
+  "bootstrap_sha256": "65be16b66a1f6c34094a28b0329c25c5c937b8d2cdbbe53db1116cec73c40f9f",
+  "bootstrap_words": 879,
   "canon_sha256": null,
   "canon_words": null,
   "pass": {
     "omp/anthropic/claude-sonnet-5": {
-      "passed": 13,
+      "passed": 12,
       "total": 13,
-      "accuracy": 100
+      "accuracy": 92.3
     },
     "omp/google-antigravity/gemini-3.8-flash": {
       "passed": 13,
@@ -21,5 +21,9 @@
       "accuracy": 100
     }
   },
-  "failures": {}
+  "failures": {
+    "omp/anthropic/claude-sonnet-5": [
+      "false-premise"
+    ]
+  }
 }

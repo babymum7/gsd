@@ -196,7 +196,8 @@ test("T1 session-owner execution contract and lifecycle roles", () => {
   // Authorship moved to sub-agents, so the pin has to say who authors and who stays
   // responsible: a dispatched task still returns to the owner for inline sequential repair.
   assert.match(reference, /authored by sub-agents[\s\S]{0,300}repair[\s\S]{0,120}inline[\s\S]{0,80}sequential/i);
-  assert.match(execution, /single-task wave[\s\S]{0,80}inline[\s\S]{0,80}waves of two or more tasks dispatch[\s\S]{0,80}isolated/i);
+  assert.match(execution, /single independent task[\s\S]{0,160}dispatch[\s\S]{0,140}clear(?:ly)? beneficial/i);
+  assert.match(execution, /inline[\s\S]{0,120}fallback[\s\S]{0,100}dispatch is unavailable or not clearly beneficial/i);
   assert.match(execution, /Task `Tn\+1` begins only from[\s\S]{0,60}committed green checkpoint of `Tn`/i);
   assert.match(execution, /Source mutations never overlap[\s\S]{0,60}task\/repair[\s\S]{0,60}Deferred Slow E2E/i);
   assert.match(verify, /No free-form critique[\s\S]{0,60}model-generated verdict[\s\S]{0,60}terminal authority/i);
@@ -435,6 +436,7 @@ test("the bootstrap names the resume gateway, fail-closed precedence, and helper
   // so the injected routing authority must state each one instead of implying it.
   const master = read("skills/gsd/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
+  const domain = read("docs/domain/gsd.md");
 
   // Validated active state enters through gsd-handoff; next_action picks the peer owner.
   assert.match(master, /`gsd-handoff`[^.\n]{0,160}(?:first|gateway)|(?:first|gateway)[^.\n]{0,160}`gsd-handoff`/);
@@ -449,24 +451,24 @@ test("the bootstrap names the resume gateway, fail-closed precedence, and helper
   assert.match(reference, /(?:full|complete) packet|without a `plan\.md`|residual/i);
 
   // A moved plan hash is an amendment, never a lifecycle stop.
-  assert.match(master, /hash mismatch[^.\n]{0,120}amend|amend[^.\n]{0,120}hash mismatch/i);
+  assert.match(reference, /hash mismatch[^.\n]{0,120}amend|amend[^.\n]{0,120}hash mismatch/i);
 
   // A first-pending ledger row resumes; it never authorizes replacement brainstorming.
   assert.match(master, /first pending[^.\n]{0,160}resum|ledger[^.\n]{0,160}resum/i);
 
   // gsd-tdd is a helper: it is never the primary owner for direct work.
-  assert.match(master, /`gsd-tdd`[^.\n]{0,160}never[^.\n]{0,40}(?:primary|owner)/);
+  assert.match(domain, /`gsd-tdd`[^.\n]{0,160}never[^.\n]{0,40}(?:primary|owner)/);
 
   // `continue` alone is the only bare resume: it enters gsd-handoff even beside exactly
   // one executing packet, while `continue` plus a named feature/task/repair routes
   // straight to that owner. The executing-plans catalog row admits only prompt-named
   // pending work, so `next_action` never competes with the gateway during selection.
-  assert.match(master, /`continue` alone is a bare resume/);
-  assert.match(master, /even beside one executing packet/);
-  assert.match(master, /`continue` plus a named feature, task, or repair is not bare/);
-  assert.match(master, /Unrelated new work beside an active or `merged-cleanup-pending` packet is `ordinary-routing`; only a discovered completed-retained or residual record reports `ignore-terminal-record`/);
+  assert.match(domain, /`continue` alone[^.\n]{0,80}bare resume/);
+  assert.match(domain, /even beside one executing packet/);
+  assert.match(domain, /`continue` plus a named feature, task, or repair is not bare/);
+  assert.match(domain, /active or `merged-cleanup-pending` packet is never terminal history[^.\n]{0,200}unrelated[^.\n]{0,100}`ordinary-routing`/);
   // A returned Quick-fix WIP Fail leaves a nameable repair round that loads gsd-verify.
-  assert.match(master, /repair round its prompt can name, which loads `gsd-verify` rather than answering directly/);
+  assert.match(domain, /repair round[^.\n]*`gsd-verify`[^.\n]*answered directly/i);
   // These matrix rows live in canon after the lightness revamp; the bootstrap now only names
   // the decisions, so the row semantics are asserted on the canon bytes.
   // `ignore-terminal-record` is gated on a discovered terminal record: with none present,
@@ -482,19 +484,19 @@ test("the bootstrap names the resume gateway, fail-closed precedence, and helper
   assert.doesNotMatch(executing.match(/^description: .*$/m)[0], /next_action/);
 
   // A located failure stays direct: diagnosis owns only unlocated or non-obvious causes.
-  assert.match(master, /named file\/line or exact failure signature is located/);
-  assert.match(master, /`gsd-diagnosing-bugs` owns only unlocated or non-obvious causes/);
+  assert.match(domain, /(?:named|naming) the file\/line or exact failure signature is located/);
+  assert.match(domain, /`gsd-diagnosing-bugs` owns only (?:an )?unlocated or non-obvious causes?/);
 
   // Hash drift keeps prompt-named work with its executing owner instead of diverting to
   // the resume gateway, and a full malformed packet outranks every other active packet.
-  assert.match(master, /never a stop or `gsd-handoff` diversion/);
+  assert.match(domain, /Hash drift never diverts prompt-named work to `gsd-handoff`/);
   assert.match(reference, /even one naming another valid feature/);
 
   // Several valid packets are an ambiguity to resolve through gsd-handoff, not a stop.
   // detectCandidates returns every valid packet and the capsule asks for exactly one
   // validated resume, so generic `continue` selects that owner instead of failing closed.
-  assert.match(master, /(?:several|multiple|more than one)[^.\n]{0,120}valid[^.\n]{0,200}`gsd-handoff`/i);
-  assert.match(master, /exactly one[^.\n]{0,80}resume/i);
+  assert.match(domain, /(?:several|multiple|more than one)[^.\n]{0,120}valid[^.\n]{0,200}`gsd-handoff`/i);
+  assert.match(domain, /exactly one[^.\n]{0,80}resume/i);
 
   // The visible catalog description decides selection, so ledger recovery must appear.
   const handoff = read("skills/gsd-handoff/SKILL.md");
@@ -502,7 +504,6 @@ test("the bootstrap names the resume gateway, fail-closed precedence, and helper
   assert.ok(handoffDescription);
   assert.match(handoffDescription[1], /ledger|milestone/i);
 
-  const domain = read("docs/domain/gsd.md");
   assert.match(domain, /Several valid active packets[\s\S]{0,240}`gsd-handoff`/);
   assert.match(domain, /full malformed packet[\s\S]{0,200}fails closed/i);
 });
@@ -907,13 +908,14 @@ test("Quick-fix owner uses the injected hidden context and deterministic gates",
   const reference = read("skills/gsd/REFERENCE.md");
 
   assert.match(master, /PONYTAIL_CONTEXT_PATH/);
-  assert.match(master, /session owner[\s\S]{0,120}bounded fix[\s\S]{0,300}PONYTAIL_CONTEXT_PATH/i);
+  assert.match(master, /bounded (?:fix|Quick-fix)[\s\S]{0,220}PONYTAIL_CONTEXT_PATH/i);
   // A fix the user already diagnosed is direct work: both evaluated models otherwise
   // named `gsd-verify` as the primary owner for a one-line known fix.
   assert.match(master, /already diagnosed[^.\n]{0,80}direct[^.\n]{0,60}never a `primarySkill`/i);
-  assert.match(master, /PONYTAIL_CONTEXT_PATH[\s\S]{0,300}gsd-tdd[\s\S]{0,240}gsd-verify/i);
+  assert.match(master, /PONYTAIL_CONTEXT_PATH[\s\S]{0,300}validate-quick-fix[\s\S]{0,240}gsd-verify/i);
   assert.match(reference, /\| `gsd-verify` \| owner \|[^|\n]*Quick-fix[^|\n]*\|[^|\n]*Quick-fix `plan\.md`[^|\n]*\|/i);
-  assert.match(reference, /Quick-fix[\s\S]{0,300}session owner[\s\S]{0,500}gsd-tdd[\s\S]{0,300}gsd-verify/i);
+  assert.match(reference, /Quick-fix[\s\S]{0,300}session owner[\s\S]{0,500}RED→GREEN→refactor[\s\S]{0,300}gsd-verify/i);
+  assert.match(reference, /Every observable task loads `gsd-tdd`/i);
   assert.match(master, /three size gates/i);
   assert.match(master, /Quick-fix grammar fit[\s\S]{0,40}(?:one or two tasks|1-2 tasks)/i);
   assert.match(master, /Domain Impact none or a single shard/i);
@@ -922,8 +924,8 @@ test("Quick-fix owner uses the injected hidden context and deterministic gates",
   assert.match(master, /prove[^.\n]{0,80}validate-quick-fix/i);
   assert.match(reference, /(?:validate-quick-fix[^.\n]{0,80}draft plan|draft plan[^.\n]{0,80}validate-quick-fix)/i);
   assert.match(reference, /Ponytail stays hidden and never enters the matrix or runtime state/i);
-  assert.match(reference, /single-task wave executes inline by the session owner with `gsd-tdd`/i);
-  assert.match(reference, /waves of two or more tasks dispatch[\s\S]{0,120}isolated/i);
+  assert.match(reference, /same-shape independent tasks[\s\S]{0,120}one wave/i);
+  assert.match(reference, /single independent task[\s\S]{0,180}dispatch[\s\S]{0,140}clear(?:ly)? beneficial/i);
 });
 
 test("AC-4: hidden bootstrap uses state.toon and terminal conformance", () => {
@@ -1065,6 +1067,72 @@ test("AC-2 and AC-3: layered wave reconciliation gate and post-merge integration
   );
 });
 
+test("AC-3: efficient dispatch separates task review from final review", () => {
+  const reference = read("skills/gsd/REFERENCE.md");
+  const execution = read("skills/gsd-executing-plans/SKILL.md");
+  const verify = read("skills/gsd-verify/SKILL.md");
+  const domain = read("docs/domain/gsd.md");
+
+  const refWave = reference.match(/### Wave dispatch\n([\s\S]*?)(?=\n### |\n## |$)/)?.[1];
+  const execWave = execution.match(/## Wave dispatch\n([\s\S]*?)(?=\n## |$)/)?.[1];
+  assert.ok(refWave, "REFERENCE.md must have a ### Wave dispatch section");
+  assert.ok(execWave, "SKILL.md must have a ## Wave dispatch section");
+
+  for (const [name, text] of [["REFERENCE.md", refWave], ["SKILL.md", execWave]]) {
+    assert.match(
+      text,
+      /same-shape independent tasks[\s\S]{0,120}one wave/i,
+      `${name} must batch same-shape independent tasks efficiently`,
+    );
+    assert.match(
+      text,
+      /single independent task[\s\S]{0,180}dispatch[\s\S]{0,140}clear(?:ly)? beneficial/i,
+      `${name} must permit beneficial single-task dispatch`,
+    );
+    assert.match(
+      text,
+      /inline[\s\S]{0,120}(?:fallback|default)[\s\S]{0,100}(?:dispatch is unavailable|not clearly beneficial)/i,
+      `${name} must keep inline execution as the fallback`,
+    );
+    assert.match(
+      text,
+      /after task or batch reconciliation[\s\S]{0,180}independent read-only review/i,
+      `${name} must run task/batch review after reconciliation`,
+    );
+    assert.match(
+      text,
+      /repair, diagnosis, architecture, or verification[\s\S]{0,120}(?:never|not) dispatch/i,
+      `${name} must keep lifecycle repair and verification inline`,
+    );
+  }
+
+  assert.match(
+    verify,
+    /does not repeat task or batch review[\s\S]{0,160}final whole-diff review/i,
+    "terminal verification must be a separate whole-diff review",
+  );
+  assert.match(
+    verify,
+    /deterministic gates remain the only terminal authority[\s\S]{0,160}citing bound plan text[\s\S]{0,120}red deterministic check/i,
+    "final review must stay deterministic and advisory findings must be sourced",
+  );
+  assert.match(
+    domain,
+    /batch(?:es|ing)? same-shape independent tasks[\s\S]{0,120}one wave/i,
+    "domain policy must describe efficient batching",
+  );
+  assert.match(
+    domain,
+    /single independent task[\s\S]{0,180}dispatch[\s\S]{0,140}clear(?:ly)? beneficial/i,
+    "domain policy must describe beneficial single-task dispatch",
+  );
+  assert.match(
+    domain,
+    /task or batch review[\s\S]{0,140}final whole-diff review/i,
+    "domain policy must separate task/batch and final review",
+  );
+});
+
 
 // --- session-owner terminal conformance ---
 test("AC-4: bootstrap routing has no backend escape hatch, proper quick-fix order, and clean ledger deletion", () => {
@@ -1076,15 +1144,15 @@ test("AC-4: bootstrap routing has no backend escape hatch, proper quick-fix orde
   // Rule 6 orders Quick-fix plan writing before validate-quick-fix proof
   assert.match(
     master,
-    /write its plan[\s\S]{0,100}prove grammar fit[\s\S]{0,80}validate-quick-fix/i,
+    /writes its plan[\s\S]{0,100}proves grammar fit[\s\S]{0,80}validate-quick-fix/i,
     "bootstrap must order Quick-fix plan writing before validate-quick-fix proof",
   );
 
-  // Rule 8 names inline single-task waves where it names wave authorship
+  // Rule 8 names owner reconciliation where it names wave authorship
   assert.match(
     master,
-    /single-task waves execute inline with `gsd-tdd`/i,
-    "bootstrap must name inline single-task waves where it names wave authorship",
+    /The owner reconciles every result/i,
+    "bootstrap must name owner reconciliation where it names wave authorship",
   );
 
   // Canonical authority states final-milestone ledger deletion instead of all-done survival case
@@ -1175,10 +1243,10 @@ test("AC-6: diagnosis returns evidence only and routes architectural causes befo
     "diagnosis Invocation modes Produced cells must state root-cause evidence",
   );
 
-  // Routes architectural cause to gsd-codebase-architecture before repair
+  // Routes architectural cause to gsd-brainstorming before repair
   assert.match(
     diagnosing,
-    /transition to `gsd-codebase-architecture` before repair|route[sd]? (?:an )?architectural cause to `gsd-codebase-architecture` before repair/i,
+    /transition to `gsd-brainstorming` before repair|route[sd]? (?:an )?architectural cause to `gsd-brainstorming` before repair/i,
     "diagnosis must route architectural causes before repair",
   );
 
@@ -1190,7 +1258,7 @@ test("AC-6: diagnosis returns evidence only and routes architectural causes befo
   );
 });
 
-test("M4: a reconciled wave runs one independent advisory review across hosts", () => {
+test("M4: a reconciled task or batch runs one independent advisory review across hosts", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const execution = read("skills/gsd-executing-plans/SKILL.md");
   const adapters = read("adapters/README.md");
@@ -1198,12 +1266,12 @@ test("M4: a reconciled wave runs one independent advisory review across hosts", 
   const refWave = reference.match(/### Wave dispatch\n([\s\S]*?)(?=\n### |\n## |$)/)?.[1];
   assert.ok(refWave, "REFERENCE.md must have a ### Wave dispatch section");
 
-  // Canon: exactly one independent read-only review per multi-task wave, with a
+  // Canon: exactly one independent read-only review per dispatched task or batch, with a
   // host-reviewer-or-verify fallback and advisory-only authority.
   assert.match(
     refWave,
-    /wave of two or more reconciled tasks[\s\S]{0,200}independent read-only review[\s\S]{0,160}reviewer sub-agent where the host can spawn one, otherwise the standalone review of `gsd-verify`/i,
-    "canon must require one independent read-only review per multi-task wave with a host-or-verify fallback",
+    /after task or batch reconciliation[\s\S]{0,180}independent read-only review[\s\S]{0,160}reviewer sub-agent where the host can spawn one, otherwise the standalone review of `gsd-verify`/i,
+    "canon must require one independent read-only review per dispatched task or batch with a host-or-verify fallback",
   );
   assert.match(
     refWave,
@@ -1214,8 +1282,8 @@ test("M4: a reconciled wave runs one independent advisory review across hosts", 
   // The wave owner wires the review into reconciliation.
   assert.match(
     execution,
-    /independent read-only review of the merged diff for every wave of two or more reconciled tasks/i,
-    "gsd-executing-plans must wire the review into wave reconciliation",
+    /after task or batch reconciliation[\s\S]{0,120}independent read-only review[\s\S]{0,80}merged diff for every dispatched task or batch/i,
+    "gsd-executing-plans must wire the review into task/batch reconciliation",
   );
   // Host generalization lives in the adapter map, not the host-neutral core.
   const capability = adapters.match(/## Capability map\n([\s\S]*?)(?=\n## )/)?.[1];
@@ -1380,18 +1448,18 @@ test("M3: the triage front door classifies before routing with clarify, research
     }
     assert.match(
       section,
-      /never a repository sweep|reading only what it names/i,
+      /never a repository sweep|never sweep|reading only what it names|read only what (?:the )?prompt names/i,
       `${label} triage stays prompt-scoped`,
     );
-    assert.match(section, /never file count/i, `${label} depth never follows file count`);
+    assert.match(section, /(?:never|not) file count/i, `${label} depth never follows file count`);
     assert.match(
       section,
-      /never silently fall(?:s|ing) to ship a subset/i,
+      /never silently fall(?:s|ing) to ship a subset|never silently shipping a subset/i,
       `${label} depth never silently falls to ship a subset`,
     );
     assert.match(
       section,
-      /Every choice names one recommended option, its alternatives, and their costs\./,
+      /Every choice names one (?:recommended option|recommendation), (?:its )?alternatives, and (?:their )?costs\./,
       `${label} states recommend-always`,
     );
   }
@@ -1402,7 +1470,7 @@ test("M3: the triage front door classifies before routing with clarify, research
     reference,
     /`clarify`[\s\S]{0,200}exactly one question[\s\S]{0,80}recommended default/i,
   );
-  assert.match(bootstrap, /ask exactly one recommended-default question/i);
+  assert.match(bootstrap, /ask (?:exactly )?one recommended-default question/i);
   assert.match(reference, /`research`[\s\S]{0,200}before answering, never from memory/i);
   assert.match(bootstrap, /never from memory/i);
 
@@ -1441,7 +1509,7 @@ test("M3: the triage route boundaries are defined, not inferred", () => {
     );
     assert.match(
       body,
-      /asserts a behavior[^.\n]{0,80}`clarify`, never `research`|asserts a behavior[^.\n]{0,120}is `clarify` rather than `research`/i,
+      /asserts a behavior[^.\n]{0,80}`clarify`, never `research`|asserts a behavior[^.\n]{0,120}is `clarify` rather than `research`|unconfirmable asserted behavior[^.\n]{0,80}`clarify`, never `research`/i,
       `${label} routes an unconfirmable asserted behavior to clarify over research`,
     );
     assert.match(

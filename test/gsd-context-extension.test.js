@@ -2428,7 +2428,9 @@ test("readStateFile binds authority to its feature directory", () => {
 
 test("schema v4 and hidden architecture catalog cutover", () => {
   const catalogNames = discoverSkillCatalog(ROOT).map(({ name }) => name);
-  assert.ok(catalogNames.includes("gsd-codebase-architecture"));
+  const installedNames = readdirSync(join(ROOT, "skills"));
+  assert.ok(installedNames.includes("gsd-codebase-architecture"));
+  assert.ok(!catalogNames.includes("gsd-codebase-architecture"));
   assert.ok(!catalogNames.includes("gsd-codebase-design"));
   assert.ok(!catalogNames.includes("gsd-improve-codebase-architecture"));
   assert.ok(!catalogNames.includes("gsd-ponytail"));

@@ -1,6 +1,7 @@
 ---
 name: gsd-codebase-architecture
 description: "Use for a named module or interface design, a scoped architecture audit or refactor, or an architectural cause returned by diagnosis."
+hide: true
 produces: []
 consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 ---

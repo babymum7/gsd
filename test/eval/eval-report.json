@@ -1,72 +1,93 @@
 {
   "scope": "bootstrap only",
-  "bootstrap_sha256": "3b0c491933c60affe181c08574160c57f8f39f81448b08e52996c22740835594",
-  "bootstrap_words": 1250,
+  "bootstrap_sha256": "65be16b66a1f6c34094a28b0329c25c5c937b8d2cdbbe53db1116cec73c40f9f",
+  "bootstrap_words": 879,
   "canon_sha256": null,
   "canon_words": null,
   "pass1": {
     "omp/anthropic/claude-sonnet-5": {
-      "passed": 35,
+      "passed": 25,
       "total": 40,
-      "accuracy": 87.5
+      "accuracy": 62.5
     },
     "omp/google-antigravity/gemini-3.8-flash": {
-      "passed": 38,
+      "passed": 32,
       "total": 40,
-      "accuracy": 95
+      "accuracy": 80
     },
     "omp/anthropic/claude-opus-5": {
-      "passed": 36,
+      "passed": 31,
       "total": 40,
-      "accuracy": 90
+      "accuracy": 77.5
     }
   },
   "pass2": {
     "omp/anthropic/claude-sonnet-5": {
-      "corrected": 2,
-      "stillFailing": 3,
-      "accuracy": 92.5
+      "corrected": 1,
+      "stillFailing": 14,
+      "accuracy": 65
     },
     "omp/google-antigravity/gemini-3.8-flash": {
-      "corrected": 1,
-      "stillFailing": 1,
-      "accuracy": 97.5
+      "corrected": 0,
+      "stillFailing": 8,
+      "accuracy": 80
     },
     "omp/anthropic/claude-opus-5": {
-      "corrected": 2,
-      "stillFailing": 2,
-      "accuracy": 95
+      "corrected": 1,
+      "stillFailing": 8,
+      "accuracy": 80
     }
   },
   "summary": {
     "omp/anthropic/claude-sonnet-5": {
-      "firstAttempt": 87.5,
-      "corrected": 92.5
+      "firstAttempt": 62.5,
+      "corrected": 65
     },
     "omp/google-antigravity/gemini-3.8-flash": {
-      "firstAttempt": 95,
-      "corrected": 97.5
+      "firstAttempt": 80,
+      "corrected": 80
     },
     "omp/anthropic/claude-opus-5": {
-      "firstAttempt": 90,
-      "corrected": 95
+      "firstAttempt": 77.5,
+      "corrected": 80
     }
   },
   "failures": {
     "omp/anthropic/claude-sonnet-5": [
+      "arch-audit",
+      "plan-binding-drift",
+      "quick-fix-repair",
+      "result-pending-unrelated",
+      "result-pending-unrelated-lifecycle",
       "result-retained-related-resume",
+      "result-retained-unrelated",
       "result-residual-related-resume",
+      "result-residual-unrelated",
       "result-malformed-unrelated",
+      "result-malformed-with-active",
+      "result-retained-newer-than-active",
       "compaction-capsule-resume",
-      "compaction-preserves-unrelated-request"
+      "arch-audit-during-execution",
+      "plan-binding-drift-continue"
     ],
     "omp/google-antigravity/gemini-3.8-flash": [
-      "result-pending-related",
-      "result-malformed-unrelated"
+      "arch-audit",
+      "domain-glossary",
+      "quick-fix-repair",
+      "result-pending-unrelated",
+      "result-pending-unrelated-lifecycle",
+      "result-residual-unrelated",
+      "arch-audit-during-execution",
+      "domain-context-mapping"
     ],
     "omp/anthropic/claude-opus-5": [
+      "obvious-error",
+      "quick-fix-repair",
+      "result-pending-unrelated",
       "result-pending-related",
-      "result-retained-related-resume",
+      "result-pending-unrelated-lifecycle",
+      "result-residual-related-resume",
+      "result-residual-unrelated",
       "result-malformed-unrelated",
       "result-retained-newer-than-active"
     ]

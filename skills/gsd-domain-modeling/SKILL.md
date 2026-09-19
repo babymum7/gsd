@@ -1,6 +1,7 @@
 ---
 name: gsd-domain-modeling
 description: "Use when Domain Impact changes production semantics or explicit domain-model work needs current bounded-context documentation."
+hide: true
 produces: [docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md]
 consumes: [docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md]
 ---

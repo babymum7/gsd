@@ -318,7 +318,7 @@ test("AC-2 repair: task repair stays session-owner-inline without terminal verif
 test("AC-3: Visible skill dispatch is deterministic", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
-  assert.equal(visible.length, 9, "exactly 9 visible GSD skills");
+  assert.equal(visible.length, 6, "exactly 6 visible GSD skills");
 
   const section = reference.match(
     /## Visible skill mandatory-use matrix\n+([\s\S]*?)(?:\n## |\n### |\n*$)/,
@@ -342,9 +342,9 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
     helperWhen: m[7].trim(),
   }));
 
-  assert.equal(rows.length, 9, "matrix must have exactly 9 rows");
+  assert.equal(rows.length, 6, "matrix must have exactly 6 rows");
   assert.deepEqual(rows.map((row) => row.skill).sort(), visible);
-  assert.equal(new Set(rows.map((row) => row.skill)).size, 9, "no multiply mapped skill");
+  assert.equal(new Set(rows.map((row) => row.skill)).size, 6, "no multiply mapped skill");
 
   const vague = /\b(as needed|if useful|when appropriate|sometimes|maybe|etc\.?|TBD|TODO)\b/i;
   // Only the Do-not-load and Transition labels were pinned, so a skill could restate another
@@ -393,7 +393,7 @@ test("AC-3: Visible skill dispatch is deterministic", () => {
     if (row.role === "helper") pinRestatement("Helper-when", row.helperWhen);
   }
 
-  assert.deepEqual(helpers.sort(), ["gsd-domain-modeling", "gsd-tdd"]);
+  assert.deepEqual(helpers.sort(), []);
   assert.doesNotMatch(body, /gsd-ponytail|gsd-codebase-design|gsd-improve-codebase-architecture/);
   assert.doesNotMatch(body, vague);
 });
@@ -418,7 +418,7 @@ test("AC-4: Concision preserves semantic parity", () => {
   // routes; the definitions recovered all 156. A cap that lets the front door misroute the
   // first durable decision of a session is the expensive kind of lean, so the raise buys the
   // routing contract rather than new prose.
-  const MAX_BOOTSTRAP_WORDS = 1120;
+  const MAX_BOOTSTRAP_WORDS = 800;
   // Raised from 5600 in 2026-08 when Git base derivation and the pre-squash gate became
   // executable contracts: each tool moved into canon costs an invocation, its exit codes, and
   // its read-only guarantee. Raised again to 6100 in 2026-08 for the parallel-wave dispatch
@@ -442,7 +442,7 @@ test("AC-4: Concision preserves semantic parity", () => {
   const MAX_REFERENCE_WORDS = 6700;
   const wordCount = (body) => body.trim().split(/\s+/).filter(Boolean).length;
   const visible = visibleSkillNames().filter((name) => name !== "gsd").sort();
-  assert.equal(visible.length, 9);
+  assert.equal(visible.length, 6);
   const total = visible.reduce(
     (count, name) => count + wordCount(read(`skills/${name}/SKILL.md`)),
     0,
@@ -554,7 +554,7 @@ test("AC-4 repair: diagnosing-bugs red-capable flow", () => {
   assert.match(skill, /## Phase 6 — Cleanup \+ post-mortem|## Phase 6 — Cleanup/);
   assert.match(skill, /regression test/);
   assert.match(skill, /\[DEBUG-/);
-  assert.match(skill, /gsd-codebase-architecture/);
+  assert.match(skill, /gsd-brainstorming/);
   // disclosure pair for AC-4 cross-ref
   assert.match(skill, /^[ ]{0,3}## Contextual disclosure.*\[\.\.\/gsd\/REFERENCE\.md\]\(\.\.\/gsd\/REFERENCE\.md\).*§ Contextual disclosure templates.*\r?\n[ ]{0,3}```/m);
 });

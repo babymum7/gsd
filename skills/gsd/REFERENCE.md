@@ -33,7 +33,7 @@ Explicit intent and entry context choose the mode; artifact presence never does.
 
 ## Visible skill mandatory-use matrix
 
-Canonical dispatch authority for the 9 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill. Helper rows with a true Helper-when condition must load and cannot be skipped.
+Canonical dispatch authority for the 6 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill.
 
 | Skill | Role | Intent | Prerequisites | Do-not-load | Transition | Helper-when |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -42,13 +42,10 @@ Canonical dispatch authority for the 9 visible GSD skills. Shared semantics live
 | `gsd-executing-plans` | owner | Own bound plan tasks and domain docs on `wip/<feature>`: sub-agents author each wave's tasks, the owner reconciles and repairs | Valid bound `plan.md` and bound `state.toon` whose pending work the prompt names | No bound plan/state; a bare resume naming no work; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
 | `gsd-handoff` | owner | Pause, save, resume, or recover from a valid `state.toon`, ledger, or capsule | Valid `state.toon`, ledger, or capsule; every bare resume naming no work enters here first | Missing/malformed state used to invent work | Load the peer named by validated `next_action` | — |
 | `gsd-verify` | owner | Review a diff/PR or prove planned or Quick-fix code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; Quick-fix: exact Quick-fix `plan.md`; standalone: supplied diff | Invent completion without deterministic gates | Planned or Quick-fix green path: squash, cleanup, optional retain/archive | — |
-| `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | An unlocated or non-obvious cause needing evidence | A located failure: the prompt names the file/line or exact failure signature | Return evidence to execution or an architectural cause to `gsd-codebase-architecture` | — |
-| `gsd-codebase-architecture` | owner | Design a named seam or audit/refactor architecture with domain-aligned deep boundaries | Explicit interface/architecture intent or diagnosis-returned architectural cause | Unrelated broad exploration or feature work with no unresolved seam | Selected candidates enter `gsd-brainstorming`; execution evidence returns to its owner | — |
-| `gsd-tdd` | helper | Drive Fast TDD RED→GREEN→refactor at a public seam | Session owner is implementing or repairing observable behavior | Primary skill selection; resource-heavy browser/E2E task loops | Return green/red evidence to session owner | must load when an observable task is selected or repaired |
-| `gsd-domain-modeling` | helper | Maintain current production domain behavior for affected contexts | Domain Impact changes a context or explicit domain-model work is selected | Read-only/Nano work; uncertain or unrelated contexts | Return exact changed domain and AGENTS paths to session owner | must load when Domain Impact is not `none` or explicit domain-model work is selected |
+| `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | An unlocated or non-obvious cause needing evidence | A located failure: the prompt names the file/line or exact failure signature | Return evidence to execution or an architectural cause to `gsd-brainstorming` | — |
 
-The Quick-fix route belongs to the session owner, not a visible skill: an already diagnosed fix stays ordinary direct work, while a bounded fix meeting the three size gates — Quick-fix grammar fit, Domain Impact none or a single shard, acceptance converged from the prompt — reads the Ponytail context, writes its Quick-fix plan, proves grammar fit on the draft plan via `validate-quick-fix`, runs RED→GREEN→refactor with `gsd-tdd`, then loads `gsd-verify` as WIP gate. A returned Quick-fix WIP Fail leaves a repair round whose prompt name loads `gsd-verify`.
-`gsd-domain-modeling` carries both roles from one row: its helper obligation binds whenever Domain Impact is not `none`, and explicit standalone domain-model work selects the same skill as a visible owner.
+The Quick-fix route belongs to the session owner, not a visible skill: an already diagnosed fix stays ordinary direct work, while a bounded fix meeting the three size gates — Quick-fix grammar fit, Domain Impact none or a single shard, acceptance converged from the prompt — reads the Ponytail context, writes its Quick-fix plan, proves grammar fit on the draft plan via `validate-quick-fix`, performs RED→GREEN→refactor, then loads `gsd-verify` as WIP gate. A returned Quick-fix WIP Fail leaves a repair round whose prompt name loads `gsd-verify`.
+`gsd-codebase-architecture`, `gsd-domain-modeling`, and `gsd-tdd` are hidden internal references, not visible owners; `gsd-brainstorming`, `gsd-to-plan`, and `gsd-executing-plans` may cite them when their details are load-bearing.
 Ponytail stays hidden and never enters the matrix or runtime state.
 
 ## Durable documentation contract
@@ -91,29 +88,32 @@ TOON remains runtime-only: the single atomic `state.toon` snapshot. Runtime reco
 
 Every observable task loads `gsd-tdd` and uses a Fast TDD Check for RED before implementation, GREEN after implementation, and refactor after green.
 - Browser, GUI, external network, long-lived server, large fixture, and material-cost checks never run in implementation loops.
-- Planned implementation tasks in multi-task waves are authored by sub-agents under [§ Wave dispatch](#wave-dispatch); the owner implements or repairs a returned task inline and sequentially.
+- Planned implementation tasks in efficient batches are authored by sub-agents under [§ Wave dispatch](#wave-dispatch); the owner implements, repairs, and reconciles returned work inline and sequentially.
 - Task boundaries use focused green evidence kept only in reporting.
 - Planning adds the smallest real fast public seam when none exists; observable behavior never uses `none`.
 
 ### Wave dispatch
 
-Implementation is the only lifecycle work GSD dispatches, and only as validated waves of provably independent tasks to sub-agents; repair, diagnosis, architecture, and verification stay session-owner inline.
+Implementation is the only lifecycle work GSD dispatches, and only as validated task batches to sub-agents; repair, diagnosis, architecture, or verification is never dispatched and stays session-owner inline.
 Sub-agents author task code; the owner retains lifecycle authority until dispatched results are inspected, reconciled, committed, and terminally verified.
 
 A **wave** is a maximal contiguous run of non-superseded tasks in strict heading order where pairs are independent: disjoint `Files` path sets, disjoint `Satisfies` criteria, and differing focused `Test` commands.
-`analyze-waves` computes waves deterministically. Waves of two or more tasks dispatch concurrently, each task into its own isolated workspace on its own task branch, never two tasks in one shared working tree; a single-task wave executes inline by the session owner with `gsd-tdd`; when harness task isolation is unavailable or an isolated spawn fails for a multi-task wave, dispatch that wave serially in plan order, the same validated slices one task at a time; inline execution by the owner remains the fallback only when dispatch itself is unavailable for a multi-task wave.
+`analyze-waves` computes independence boundaries deterministically. The owner batches same-shape independent tasks into one wave when shared setup, review, or reconciliation makes the batch cheaper than repeated inline work. A single independent task may be dispatched when it has a complete validated slice, a distinct focused check, and a clearly beneficial context or cost saving. Inline execution with `gsd-tdd` is the default and fallback when dispatch is unavailable or not clearly beneficial.
+By default, a single-task wave executes inline by the session owner with `gsd-tdd`; dispatch is reserved for the clearly beneficial case above.
+
+Task batches dispatch concurrently, each task into its own isolated workspace on its own task branch, never two tasks in one shared working tree. When harness task isolation is unavailable or an isolated spawn fails for a batch, dispatch its tasks serially in plan order with the same validated slices.
 
 Each sub-agent receives one complete validated task slice rebuilt from `plan.md`, never invented; MUST run Fast TDD RED→GREEN→refactor; update every affected domain shard in the same commit as semantic code; and commit only green task-owned changes in its isolated workspace on its own task branch cut from wave base.
 A sub-agent MUST NOT mutate `state.toon`, amend `plan.md`, merge, decide lifecycle, or run Deferred Slow E2E.
 
-The owner reconciles waves in strict plan order through an ordered five-layer gate before checkpointing:
+The owner reconciles each dispatched task or batch in strict plan order through an ordered five-layer gate before checkpointing:
 1. Evidence rule: a sub-agent's report, summary, or self-assessment is inadmissible; only Git bytes and commands the owner runs itself count as evidence.
 2. Mechanical proof: run `bun "<GSD_ROOT>/tools/gsd-git.mjs" verify-task-branch --feature-dir .scratch/<feature> --task <Tn> --branch <task-branch> --wave-base <ref>`; only `status: ready` on exit 0 admits the branch; `status: blocked` with its `code:` (`branch-missing`, `base-not-ancestor`, `empty-diff`, `out-of-slice-path`, `scratch-mutated`, `plan-unbound`) is an integrity failure; exit 2 corrects invocation.
 3. RED re-proof: each new or changed test must fail on the wave base — the owner takes only the task's test paths onto the wave base, runs the focused check, requires a red result, and discards that probe; a test that passes without the implementation proves nothing.
 4. Weakened-guard scan: the owner rejects any diff that deletes, skips, or renames an existing test, or loosens lint, type, or CI configuration, unless the slice owns that exact path and intent.
 5. Integration proof: after merging every task branch of the wave into `wip/<feature>` in strict plan order, the owner re-runs every merged wave task's focused check on `wip/<feature>` after the last merge and before the `gsd-state.mjs set` checkpoint write; pre-merge branch checks are never sufficient. Only when all pass does the owner write `state.toon` through `gsd-state.mjs set` with `last_green_task` set to the wave's last task; `Tn+1` after the wave begins only from that committed green checkpoint.
 
-A wave of two or more reconciled tasks also runs one independent read-only review of the merged diff: a reviewer sub-agent where the host can spawn one, otherwise the standalone review of `gsd-verify`. Review is advisory — deterministic gates remain the only terminal authority, and a finding blocks only by citing bound plan text or a red deterministic check.
+After task or batch reconciliation, every dispatched task or batch runs one independent read-only review of its merged diff: a reviewer sub-agent where the host can spawn one, otherwise the standalone review of `gsd-verify`. Review is advisory — deterministic gates remain the only terminal authority, and a finding blocks only by citing bound plan text or a red deterministic check. Terminal conformance then performs the separate final whole-diff review; it does not repeat task or batch review.
 
 Failure routing: any failed layer is an integrity failure that returns to bounded inline owner repair under `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`, and is never re-dispatched to a sub-agent. Terminal conformance proves the unchanged final commit, and plan-ordered diffs hold because the owner merges in plan order.
 
@@ -145,6 +145,7 @@ All fields use exact headings and labels, canonical order, UTF-8/LF, and no blan
 - **Outcome:** <concrete behavior>
 - **Action:** <concrete operation>
 - **Expected:** <observable result>
+- **Scenario:** GIVEN <concrete precondition> WHEN <concrete operation> THEN <observable result>
 ## Decisions
 None.
 ## Invariants
@@ -176,6 +177,8 @@ Decisions is exact `None.` or sequential D blocks:
 
 An AC ID is a positive sequential integer.
 - Only `active` criteria execute; replacements receive a new ID while former criteria become `superseded`.
+- Every active criterion carries exactly one concrete `GIVEN/WHEN/THEN` Scenario; the validator rejects a missing, malformed, or placeholder scenario. Quick-fix plans carry no AC section because their acceptance is already converged.
+- `Publication` stays `null` for ordinary plans. Create a milestone ledger only for large, portable, independently releasable work; feature archives remain optional cleanup history, never mandatory plan outputs.
 - Outcome, Action, and Expected must independently name concrete behavior, operation, and observable result.
 - `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid.
 - `Domain Impact` uses the exact five fields above.
@@ -358,7 +361,7 @@ Do not write active-task, numbered-history, reload-manifest, or persistent ident
 A bound-hash mismatch means bytes moved, never a stop; only missing or malformed-grammar `plan.md` fails closed. Drift never diverts prompt-named work to `gsd-handoff`: the executing owner amends it, revalidates unbound with its grammar's validator (`validate-plan`, or `validate-quick-fix` for Quick-fix), and rebinds the returned hash into `state.toon` with an incremented `checkpoint_revision`. No branch closes and no fresh feature opens.
 - Bookkeeping amendments are self-service: recording touched files, fixing paths or intents, splitting or reordering pending tasks, or sharpening wording that leaves acceptance intact.
 - User-stated requirement changes mid-execution are amendments, never new features: amend, revalidate, rebind, and continue without re-asking.
-- Material amendments ask one question first, then proceed with chosen options: changing an active criterion's Outcome/Action/Expected, weakening invariants or non-goals, changing `Domain Impact`, replacing interface pins, or rewriting completed task records. Ask before rebinding.
+- Material amendments ask one question first, then proceed with chosen options: changing an active criterion's Outcome/Action/Expected/Scenario, weakening invariants or non-goals, changing `Domain Impact`, replacing interface pins, or rewriting completed task records. Ask before rebinding.
 - A mismatch the owner cannot account for asks one question naming affected sections; the answer picks rebind or restore.
 - Uncertainty is one question with a recommended default, never a stop or new plan.
 

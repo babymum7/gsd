@@ -292,8 +292,8 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   const duplicateOwnersPlan = files["plan.md"]
     .replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/milestones.md`")
     .replace(
-      "### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.",
-      "### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n### AC-2: Another\n- **State:** active\n- **Outcome:** outcome.\n- **Action:** act.\n- **Expected:** expect."
+      "### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n- **Scenario:** GIVEN a canonical plan WHEN the parser reads it THEN it returns the matching feature and criterion.",
+      "### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n- **Scenario:** GIVEN a canonical plan WHEN the parser reads it THEN it returns the matching feature and criterion.\n### AC-2: Another\n- **State:** active\n- **Outcome:** outcome.\n- **Action:** act.\n- **Expected:** expect.\n- **Scenario:** GIVEN another criterion WHEN the parser reads it THEN it returns that criterion."
     )
     .replace(
       "| AC-1 | parser | `test/skills.test.js` | none |",
@@ -335,8 +335,8 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   // Negative tests for multi-AC identical triples
   const multiAcDiffPins = files["plan.md"]
     .replace(
-      "### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.",
-      "### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n### AC-2: Another\n- **State:** active\n- **Outcome:** another outcome.\n- **Action:** check.\n- **Expected:** pass."
+      "### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n- **Scenario:** GIVEN a canonical plan WHEN the parser reads it THEN it returns the matching feature and criterion.",
+      "### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n- **Scenario:** GIVEN a canonical plan WHEN the parser reads it THEN it returns the matching feature and criterion.\n### AC-2: Another\n- **State:** active\n- **Outcome:** another outcome.\n- **Action:** check.\n- **Expected:** pass.\n- **Scenario:** GIVEN another criterion WHEN the parser reads it THEN it returns that criterion."
     )
     .replace(
       "| AC-1 | parser | `test/skills.test.js` | none |",
@@ -489,8 +489,8 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
 
   // Acceptance Criteria trailing blank
   const trailingBlankAC = files["plan.md"].replace(
-    "## Acceptance Criteria\n### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n## Decisions",
-    "## Acceptance Criteria\n### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n\n## Decisions"
+    "## Acceptance Criteria\n### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n- **Scenario:** GIVEN a canonical plan WHEN the parser reads it THEN it returns the matching feature and criterion.\n## Decisions",
+    "## Acceptance Criteria\n### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n- **Scenario:** GIVEN a canonical plan WHEN the parser reads it THEN it returns the matching feature and criterion.\n\n## Decisions"
   );
   assert.throws(
     () => parseMarkdownPacket({ "plan.md": trailingBlankAC }),
@@ -843,8 +843,8 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   const addAc2 = (content) => {
     return content
       .replace(
-        "- **Expected:** Return the matching feature and acceptance criterion.",
-        "- **Expected:** Return the matching feature and acceptance criterion.\n### AC-2: Second criterion\n- **State:** active\n- **Outcome:** outcome.\n- **Action:** action.\n- **Expected:** expected."
+        "- **Scenario:** GIVEN a canonical plan WHEN the parser reads it THEN it returns the matching feature and criterion.",
+        "- **Scenario:** GIVEN a canonical plan WHEN the parser reads it THEN it returns the matching feature and criterion.\n### AC-2: Second criterion\n- **State:** active\n- **Outcome:** outcome.\n- **Action:** action.\n- **Expected:** expected.\n- **Scenario:** GIVEN a second criterion WHEN the parser reads it THEN it returns that criterion."
       )
       .replace(
         "- **Status:** pending",
@@ -903,7 +903,7 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
 
   let acBlocks = "";
   for (let i = 1; i <= 10; i++) {
-    acBlocks += `### AC-${i}: Criterion ${i}\n- **State:** active\n- **Outcome:** outcome ${i}\n- **Action:** action ${i}\n- **Expected:** expected ${i}\n`;
+    acBlocks += `### AC-${i}: Criterion ${i}\n- **State:** active\n- **Outcome:** outcome ${i}\n- **Action:** action ${i}\n- **Expected:** expected ${i}\n- **Scenario:** GIVEN criterion ${i} WHEN the parser reads it THEN it returns criterion ${i}.\n`;
   }
   acBlocks = acBlocks.trim();
   let interfaceRows = "| Criterion | Seam | Path | Lower-seam reason |\n| --- | --- | --- | --- |\n";

@@ -69,7 +69,7 @@
     "prompt": "audit the architecture of this codebase and tell me where the friction is",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-codebase-architecture"
+    "expectedPrimarySkill": "gsd-brainstorming"
   },
   {
     "id": "new-feature",
@@ -125,7 +125,7 @@
     "prompt": "redesign the public programmatic API types and module interfaces of the billing module",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-codebase-architecture"
+    "expectedPrimarySkill": "gsd-brainstorming"
   },
   {
     "id": "domain-glossary",
@@ -133,7 +133,7 @@
     "prompt": "sharpen our domain glossary for invoice settlement",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-domain-modeling"
+    "expectedPrimarySkill": "gsd-brainstorming"
   },
   {
     "id": "milestone-ledger-recovery",
@@ -285,7 +285,7 @@
     "prompt": "audit the architecture of the payment service before we continue",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-codebase-architecture"
+    "expectedPrimarySkill": "gsd-brainstorming"
   },
   {
     "id": "domain-context-mapping",
@@ -293,7 +293,7 @@
     "prompt": "document the bounded context boundaries between Order Fulfillment and Inventory Management",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-domain-modeling"
+    "expectedPrimarySkill": "gsd-brainstorming"
   },
   {
     "id": "plan-binding-drift-continue",

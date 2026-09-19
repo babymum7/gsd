@@ -33,7 +33,9 @@ Terminal entry never blocks on moved plans: changed plan bytes revalidate and re
 
 At terminal entry and before squash run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>`. Exit 0 must report bound feature, hash, and base before cumulative proof continues; exit 1 on malformed grammar or base mismatch blocks as Spec escalation; hash mismatches route to § Plan amendment. Exit 2 corrects invocation; use unbound forms only to revalidate amendments before rebinding.
 
-After all tasks and Fast TDD Checks are green, the session owner performs deterministic cumulative conformance before Deferred Slow E2E:
+After all tasks and Fast TDD Checks are green, the session owner performs deterministic cumulative conformance before Deferred Slow E2E. This gate does not repeat task or batch review; terminal verification is the final whole-diff review of all merged task diffs:
+
+Deterministic gates remain the only terminal authority: an advisory finding blocks only by citing bound plan text or a red deterministic check.
 
 1. Prove every active AC maps exactly once to one completed task and one public interface pin; every changed path is task-owned. Read task diffs in plan order against explicit Decisions, invariants, non-goals, file intents, and focused-check evidence on the unchanged current commit.
 2. Prove `Domain Impact` against cumulative diff: `none` requires concrete evidence that no term, invariant, workflow, outcome, relationship, policy, or bounded-context meaning changed. Every non-`none` classification requires exact affected shards and index/AGENTS upserts owned by the same tasks as code; with an existing index, broad-bootstrap offers/selections are contradictory.

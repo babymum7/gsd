@@ -11,7 +11,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 - Intent: diagnose non-obvious failures inline and produce root-cause evidence
 - Scope: diagnosis is performed inline in the top-level session and produces root-cause evidence only (never implements or commits a fix)
 - Do-not-load: a located failure whose prompt names the file/line or exact failure signature
-- Transition: return evidence to the session-owner execution flow, or route an architectural cause to `gsd-codebase-architecture` before repair
+- Transition: return evidence to the session-owner execution flow, or route an architectural cause to `gsd-brainstorming` before repair
 
 # Diagnosing Bugs
 
@@ -47,7 +47,7 @@ Generate **3–5 ranked hypotheses** before testing any (single-hypothesis ancho
 Each probe maps to a Phase-3 prediction (**one variable at a time**). Preference: debugger/REPL breakpoint > targeted logs at hypothesis-distinguishing seams > never "log everything and grep". Tag debug logs `[DEBUG-xxxx]` (cleanup = one grep). **Perf branch**: establish baseline measurement, then bisect — measure first, fix second.
 
 ## Phase 5 — Root-cause evidence + regression seam
-Isolate confirmed root cause and propose a regression test seam — only if a **correct seam** exists (exercising real bug pattern at call site). No correct seam is a finding to note (architecture prevents locking down the bug). When an architectural cause prevents a clean seam or fix, route that architectural cause to `gsd-codebase-architecture` before repair. If a seam exists: turn the minimized repro into a proposed failing test pin for the caller's repair work.
+Isolate confirmed root cause and propose a regression test seam — only if a **correct seam** exists (exercising real bug pattern at call site). No correct seam is a finding to note (architecture prevents locking down the bug). When an architectural cause prevents a clean seam or fix, route that architectural cause to `gsd-brainstorming` before repair. If a seam exists: turn the minimized repro into a proposed failing test pin for the caller's repair work.
 
 ## Phase 6 — Cleanup + evidence return
 - [ ] All `[DEBUG-...]` instrumentation is removed.
@@ -56,7 +56,7 @@ Isolate confirmed root cause and propose a regression test seam — only if a **
 - [ ] Proposed regression seam (or missing-seam architectural finding) is documented.
 - [ ] Root-cause evidence is returned to the caller for repair without implementing or committing code changes.
 
-In standalone diagnosis, hand confirmed root-cause evidence and the proposed regression seam to the caller for repair; route an architectural cause to `gsd-codebase-architecture` before repair. In Execution-blocker mode, ask no post-mortem question: session owner returns immediately to `gsd-executing-plans` with root-cause evidence for inline repair, writing no repair-round/helper-preference field. Load-bearing AC/interface/invariant ambiguities require Spec escalation, not diagnosis guesses.
+In standalone diagnosis, hand confirmed root-cause evidence and the proposed regression seam to the caller for repair; route an architectural cause to `gsd-brainstorming` before repair. In Execution-blocker mode, ask no post-mortem question: session owner returns immediately to `gsd-executing-plans` with root-cause evidence for inline repair, writing no repair-round/helper-preference field. Load-bearing AC/interface/invariant ambiguities require Spec escalation, not diagnosis guesses.
 
 ## Optional context signal
 Diagnosis harvest is optional and bounded to the minimized bug path. Reuse only prompt/trace, reproduction, hypotheses, and relevant code/docs; never widen into repository glossary/decision scans or create missing scaffolds. Trigger `gsd-domain-modeling` only if evidence reveals recurring project-specific terms or explicit decision/rationale signals. Generic error vocabulary, one-off identifiers, implementation details, and unreasoned code shapes are no-ops. Diagnosis never writes domain artifacts itself.
