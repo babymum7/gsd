@@ -1,5 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { read, readdirSync, skillNames, filesUnder, ROOT, SKILLS } from "./support/skills-fixtures.js";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
@@ -724,16 +725,16 @@ test("the skill compliance evaluator measures the first visible action", () => {
   assert.equal(report.bootstrap_sha256, fingerprint.bootstrap_sha256);
   assert.equal(report.bootstrap_words, fingerprint.bootstrap_words);
 
-  const models = ["a6/deepseek-v4.1-flash", "a6/gemini-3.8-flash"];
+  const models = ["a6/deepseek-v4.1-flash", "a6/gemini-3.8-flash", "a6/glm-5.3-flash"];
   assert.deepEqual(Object.keys(report.pass).sort(), models);
   for (const model of models) {
-    assert.equal(report.pass[model].total, 25);
+    assert.equal(report.pass[model].total, 28);
     assert.ok(Number.isFinite(report.pass[model].passed));
-    assert.ok(report.pass[model].passed >= 18, `${model} must stay above the 18/25 floor`);
+    assert.ok(report.pass[model].passed >= 25, `${model} must stay above the 25/28 floor`);
     assert.ok(report.pass[model].accuracy >= 0 && report.pass[model].accuracy <= 100);
   }
   const totalPassed = models.reduce((sum, model) => sum + report.pass[model].passed, 0);
-  assert.ok(totalPassed >= 40, `the two-model aggregate must reach 40/50, got ${totalPassed}`);
+  assert.ok(totalPassed >= 80, `the three-model aggregate must reach 80/84, got ${totalPassed}`);
   assert.ok(report.failures && typeof report.failures === "object");
 
   const readme = read("README.md");
@@ -916,6 +917,41 @@ test("the two-pass runner only loads the canon when the scope flag is set", () =
   assert.equal(bootstrapReport.canon_sha256, null, "the bootstrap-only report carries no canon hash");
 });
 
+test("the two-pass runner records expected and actual activation misses", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-eval-failure-detail-"));
+  const fakeOmp = join(dir, "omp");
+  const reportPath = join(dir, "report.json");
+  const wrongAnswer = '{"decision":"ordinary-routing","action":"direct","primarySkill":null}';
+  writeFileSync(fakeOmp, `#!/bin/sh\nprintf '%s' '${wrongAnswer}'\n`);
+  chmodSync(fakeOmp, 0o755);
+
+  const result = spawnSync(
+    process.execPath,
+    ["test/eval/eval-models.mjs", "--only", "result-retained-related-resume", "--report-path", reportPath],
+    {
+      cwd: ROOT,
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        GSD_EVAL_BACKEND: "omp",
+        GSD_EVAL_OMP: fakeOmp,
+        GSD_EVAL_MODEL: "fake-model",
+      },
+    },
+  );
+
+  assert.equal(result.status, 0, result.stderr);
+  const report = JSON.parse(readFileSync(reportPath, "utf8"));
+  assert.deepEqual(report.failures["fake-model"], [
+    {
+      fixture: "result-retained-related-resume",
+      expected: { decision: "block-resume", action: "stop", primarySkill: null },
+      actual: { decision: "ordinary-routing", action: "direct", primarySkill: null },
+      detail: "want block-resume:stop->null, got ordinary-routing:direct->null",
+    },
+  ]);
+});
+
 // The README tells a reader to trust a report only while its fingerprint matches the tree, and
 // the eval sections quote the committed reports by number. Nothing enforced that, so a bootstrap
 // edit could leave the committed evidence describing a previous revision while every check
@@ -934,12 +970,17 @@ test("the committed eval reports describe the live bytes they claim", () => {
     ["test/eval/eval-report.json", "bootstrap only", null],
     ["test/eval/eval-report-canon.json", "bootstrap + on-demand lifecycle matrix", canon],
     ["test/eval/triage-report.json", "bootstrap only (triage axis)", null],
+    ["test/eval/brainstorm-compliance-report.json", "bootstrap + brainstorm skill (behavior compliance axis)", null],
   ];
   // The fixture sets are the instrument. Their own contract is already checked above
   // (`validateFixtureSet`/`validateTriageFixtureSet` against these same files); what was
   // missing is that the committed reports name totals for a fixture set nobody re-reads.
   const activationFixtures = JSON.parse(read("test/eval/fixtures.json"));
   const triageFixtures = JSON.parse(read("test/eval/triage-fixtures.json"));
+  const brainstormFixtures = JSON.parse(read("test/eval/brainstorm-fixtures.json"));
+  const brainstormSkillSha256 = createHash("sha256")
+    .update(read("skills/gsd-brainstorming/SKILL.md"))
+    .digest("hex");
 
   // A report also names how many fixtures it scored, and the README says each committed
   // report scores three models. Both are claims about the live instrument, so a fixture
@@ -948,6 +989,7 @@ test("the committed eval reports describe the live bytes they claim", () => {
     ["test/eval/eval-report.json", activationFixtures.length],
     ["test/eval/eval-report-canon.json", activationFixtures.length],
     ["test/eval/triage-report.json", triageFixtures.length],
+    ["test/eval/brainstorm-compliance-report.json", brainstormFixtures.length],
   ]);
   let scoredModels = null;
   for (const [path, scope, canonFingerprint] of committed) {
@@ -973,13 +1015,20 @@ test("the committed eval reports describe the live bytes they claim", () => {
     } else {
       assert.equal(report.canon_sha256, null, `${path} must stay a bootstrap-only report`);
     }
+    if (path === "test/eval/brainstorm-compliance-report.json") {
+      assert.equal(
+        report.brainstorm_skill_sha256,
+        brainstormSkillSha256,
+        `${path} was measured on different brainstorm skill bytes`,
+      );
+    }
     const scores = report.pass1 ?? report.pass;
     assert.ok(scores && typeof scores === "object", `${path} must record per-model scores`);
     const models = Object.keys(scores).sort();
     assert.equal(
       models.length,
-      2,
-      `${path} must score the two models the README names`,
+      3,
+      `${path} must score the three models the README names`,
     );
     scoredModels = scoredModels ?? models;
     assert.deepEqual(models, scoredModels, `${path} must score the same model set as the others`);
@@ -989,6 +1038,17 @@ test("the committed eval reports describe the live bytes they claim", () => {
         liveTotals.get(path),
         `${path} must be scored against the live fixture set for ${model}`,
       );
+      if (path === "test/eval/eval-report.json" || path === "test/eval/eval-report-canon.json") {
+        for (const failure of report.failures?.[model] ?? []) {
+          assert.equal(typeof failure.fixture, "string");
+          assert.deepEqual(
+            Object.keys(failure.expected).sort(),
+            ["action", "decision", "primarySkill"],
+          );
+          assert.ok(failure.actual === null || typeof failure.actual === "object");
+          assert.match(failure.detail, /want .+, got .+|parse error: .+/);
+        }
+      }
     }
   }
 
@@ -1019,10 +1079,10 @@ test("Quick-fix owner uses the injected hidden context and deterministic gates",
   assert.match(reference, /\| `gsd-verify` \| owner \|[^|\n]*Quick-fix[^|\n]*\|[^|\n]*Quick-fix `plan\.md`[^|\n]*\|/i);
   assert.match(reference, /Quick-fix[\s\S]{0,300}session owner[\s\S]{0,500}RED→GREEN→refactor[\s\S]{0,300}gsd-verify/i);
   assert.match(reference, /Every observable task loads `gsd-tdd`/i);
-  assert.match(master, /three size gates/i);
-  assert.match(master, /Quick-fix grammar fit[\s\S]{0,40}(?:one or two tasks|1-2 tasks)/i);
-  assert.match(master, /Domain Impact none or a single shard/i);
-  assert.match(master, /acceptance already converged from the prompt/i);
+  assert.match(master, /Gates: grammar fit/i);
+  assert.match(master, /grammar fit \(one\/two tasks\)/i);
+  assert.match(master, /Domain Impact none\/single shard/i);
+  assert.match(master, /converged acceptance/i);
   assert.match(master, /prior diagnosis is not required/i);
   assert.match(master, /prove[^.\n]{0,80}validate-quick-fix/i);
   assert.match(reference, /(?:validate-quick-fix[^.\n]{0,80}draft plan|draft plan[^.\n]{0,80}validate-quick-fix)/i);
@@ -1247,7 +1307,7 @@ test("AC-4: bootstrap routing has no backend escape hatch, proper quick-fix orde
   // Rule 6 orders Quick-fix plan writing before validate-quick-fix proof
   assert.match(
     master,
-    /writes its plan[\s\S]{0,100}proves grammar fit[\s\S]{0,80}validate-quick-fix/i,
+    /writes its plan[\s\S]{0,100}proves fit[\s\S]{0,80}validate-quick-fix/i,
     "bootstrap must order Quick-fix plan writing before validate-quick-fix proof",
   );
 
@@ -1613,7 +1673,7 @@ test("M3: the triage route boundaries are defined, not inferred", () => {
     );
     assert.match(
       body,
-      /asserts a behavior[^.\n]{0,80}`clarify`, never `research`|asserts a behavior[^.\n]{0,120}is `clarify` rather than `research`|unconfirmable asserted behavior[^.\n]{0,80}`clarify`, never `research`/i,
+      /asserts a behavior[^.\n]{0,80}`clarify`, never `research`|asserts a behavior[^.\n]{0,120}is `clarify` rather than `research`|unconfirmable assertion[^.\n]{0,80}is `clarify` rather than `research`/i,
       `${label} routes an unconfirmable asserted behavior to clarify over research`,
     );
     assert.match(

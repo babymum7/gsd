@@ -1,0 +1,27 @@
+[
+  {
+    "id": "architecture-audit",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "audit this repo architecture and identify the biggest friction"
+  },
+  {
+    "id": "new-feature",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "add OAuth login support"
+  },
+  {
+    "id": "public-api-interface",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "design the public interface for the billing module"
+  },
+  {
+    "id": "domain-glossary",
+    "state": "clean repo; docs/domain/index.md and docs/domain/billing.md exist",
+    "prompt": "sharpen our domain glossary for invoice settlement"
+  },
+  {
+    "id": "domain-context-mapping",
+    "state": "clean repo; docs/domain/ directory contains existing domain contexts",
+    "prompt": "document the bounded context boundaries between Order Fulfillment and Inventory Management"
+  }
+]

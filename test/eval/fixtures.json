@@ -72,6 +72,38 @@
     "expectedPrimarySkill": "gsd-brainstorming"
   },
   {
+    "id": "architecture-this-repo",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "audit this repo architecture and identify the biggest friction",
+    "decision": "ordinary-routing",
+    "expectedAction": "load",
+    "expectedPrimarySkill": "gsd-brainstorming"
+  },
+  {
+    "id": "public-api-interface",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "design the public interface for the billing module",
+    "decision": "ordinary-routing",
+    "expectedAction": "load",
+    "expectedPrimarySkill": "gsd-brainstorming"
+  },
+  {
+    "id": "integration-workflow",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "add OAuth login and integrate it with our existing session workflow",
+    "decision": "ordinary-routing",
+    "expectedAction": "load",
+    "expectedPrimarySkill": "gsd-brainstorming"
+  },
+  {
+    "id": "architecture-mention-direct-rename",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "the architecture is fine; rename src/utils.py to src/helpers.py and update imports",
+    "decision": "ordinary-routing",
+    "expectedAction": "direct",
+    "expectedPrimarySkill": null
+  },
+  {
     "id": "new-feature",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "add OAuth login support",

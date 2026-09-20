@@ -2600,9 +2600,19 @@ test("extension policy summary mirrors master Quick-fix lane key phrases", () =>
   // The extension body was re-homed to adapters/omp/ (decision 0015); the
   // extensions/gsd-context.js entry path is now a re-export of this file.
   const extension = readFileSync(new URL("../adapters/omp/gsd-context.js", import.meta.url), "utf8");
-  for (const phrase of [/three size gates/i, /validate-quick-fix/i, /one or two tasks/i]) {
+  for (const phrase of [
+    /Gates: grammar fit \(one\/two tasks\)/i,
+    /Domain Impact none\/single shard/i,
+    /validate-quick-fix/i,
+  ]) {
     assert.match(master, phrase, `master rule 6 must keep phrase ${phrase}`);
-    assert.match(extension, phrase, `extension summary must mirror phrase ${phrase}`);
+  }
+  for (const phrase of [
+    /three size gates/i,
+    /one or two tasks proven via validate-quick-fix/i,
+    /none or single-shard Domain Impact/i,
+  ]) {
+    assert.match(extension, phrase, `extension summary must keep phrase ${phrase}`);
   }
 });
 

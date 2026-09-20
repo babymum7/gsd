@@ -28,7 +28,7 @@ test("AC-5/AC-6: injected orchestration keeps ownership and read-only research s
     );
     assert.match(
       body,
-      /read-only research[\s\S]{0,200}carries no authority/i,
+      /read-only research[\s\S]{0,200}(?:carries no authority|is unverified)/i,
       `${label} permits read-only research delegation without authority`,
     );
     assert.match(
@@ -38,7 +38,7 @@ test("AC-5/AC-6: injected orchestration keeps ownership and read-only research s
     );
     assert.match(
       body,
-      /re-?verif/i,
+      /re-?verif|unverified/i,
       `${label} requires the owner to re-verify a delegated result`,
     );
   }

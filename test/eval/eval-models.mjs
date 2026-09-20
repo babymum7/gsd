@@ -186,7 +186,7 @@ async function runJobs(jobs) {
         const raw = await askOmp(model, userMsg);
         const parsed = parseActivationResponse(raw, installedSkills);
         if (!parsed.ok) {
-          results.set(key, { pass: false, detail: parsed.detail, raw });
+          results.set(key, { pass: false, detail: `parse error: ${parsed.detail}`, raw });
           process.stderr.write(`  ✖ ${model} ${fixture.id}: parse error: ${parsed.detail}\n`);
           continue;
         }
@@ -304,8 +304,22 @@ for (const model of models) {
   report.pass2[model] = { corrected: p2Passed, stillFailing: stillFailing.length, accuracy: +correctedAcc };
   report.summary[model] = { firstAttempt: +p1Acc, corrected: +correctedAcc };
 
-  const failingIds = run.filter((f) => !pass1.get(`${model}|${f.id}`)?.pass).map((f) => f.id);
-  if (failingIds.length > 0) report.failures[model] = failingIds;
+  const failures = run
+    .filter((f) => !pass1.get(`${model}|${f.id}`)?.pass)
+    .map((f) => {
+      const result = pass1.get(`${model}|${f.id}`);
+      return {
+        fixture: f.id,
+        expected: {
+          decision: f.decision,
+          action: f.expectedAction,
+          primarySkill: f.expectedPrimarySkill,
+        },
+        actual: result?.value ?? null,
+        detail: result?.detail ?? "missing first-attempt result",
+      };
+    });
+  if (failures.length > 0) report.failures[model] = failures;
 }
 
 reportPath = reportPath ?? (only ? join(here, `eval-report-${only}.json`) : join(here, "eval-report.json"));

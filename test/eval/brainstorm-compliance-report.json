@@ -1,21 +1,24 @@
 {
-  "scope": "bootstrap only (skill compliance axis)",
+  "scope": "bootstrap + brainstorm skill (behavior compliance axis)",
   "bootstrap_sha256": "b938c4806936f086107ffb88a2eff26d5525f7818375edb96f3eb0906bd8bee6",
   "bootstrap_words": 879,
+  "canon_sha256": null,
+  "canon_words": null,
+  "brainstorm_skill_sha256": "d673c7eeb44bf9b8c3357faa6e9052d5f0afa23d9e2c62cebf2034bca5fec93b",
   "pass": {
     "a6/deepseek-v4.1-flash": {
-      "passed": 28,
-      "total": 28,
+      "passed": 5,
+      "total": 5,
       "accuracy": 100
     },
     "a6/gemini-3.8-flash": {
-      "passed": 28,
-      "total": 28,
+      "passed": 5,
+      "total": 5,
       "accuracy": 100
     },
     "a6/glm-5.3-flash": {
-      "passed": 28,
-      "total": 28,
+      "passed": 5,
+      "total": 5,
       "accuracy": 100
     }
   },

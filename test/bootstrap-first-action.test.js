@@ -18,7 +18,15 @@ test("the rendered bootstrap makes the selected skill read the first visible act
     /no prose, memory, workspace\/state\/domain\/reference exploration, or other tool may precede the skill read/,
   );
   assert.match(bootstrap, /supplied workspace state is context, not files/);
-  assert.match(bootstrap, /Green WIP and Quick-fix repair go to `gsd-verify`/);
+  assert.match(
+    bootstrap,
+    /its routing words and paths are already read, so never open state or canon files to route/,
+  );
+  assert.match(
+    bootstrap,
+    /Architecture requests, including `this codebase` or `this repo`, route to `gsd-brainstorming`; repository identity is not needed first/,
+  );
+  assert.match(bootstrap, /Green WIP and repair go to `gsd-verify`/);
   assert.match(
     bootstrap,
     /equal to `continue` or `continue implementation` selects `gsd-handoff`/,

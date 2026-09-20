@@ -1,50 +1,95 @@
 {
   "scope": "bootstrap + on-demand lifecycle matrix",
-  "bootstrap_sha256": "418f3741e077551b0cd7fd125430e34a6695220591d8388694f6f8ec71e3ec42",
+  "bootstrap_sha256": "b938c4806936f086107ffb88a2eff26d5525f7818375edb96f3eb0906bd8bee6",
   "bootstrap_words": 879,
   "canon_sha256": "5d7b3c9df4c43133a2d4deba0fdac448e64a3dae25656750662f38387ae8c7db",
   "canon_words": 334,
   "pass1": {
     "a6/deepseek-v4.1-flash": {
-      "passed": 39,
-      "total": 40,
-      "accuracy": 97.5
+      "passed": 43,
+      "total": 44,
+      "accuracy": 97.7
     },
     "a6/gemini-3.8-flash": {
-      "passed": 38,
-      "total": 40,
-      "accuracy": 95
+      "passed": 44,
+      "total": 44,
+      "accuracy": 100
+    },
+    "a6/glm-5.3-flash": {
+      "passed": 42,
+      "total": 44,
+      "accuracy": 95.5
     }
   },
   "pass2": {
     "a6/deepseek-v4.1-flash": {
-      "corrected": 0,
-      "stillFailing": 1,
-      "accuracy": 97.5
+      "corrected": 1,
+      "stillFailing": 0,
+      "accuracy": 100
     },
     "a6/gemini-3.8-flash": {
       "corrected": 0,
-      "stillFailing": 2,
-      "accuracy": 95
+      "stillFailing": 0,
+      "accuracy": 100
+    },
+    "a6/glm-5.3-flash": {
+      "corrected": 2,
+      "stillFailing": 0,
+      "accuracy": 100
     }
   },
   "summary": {
     "a6/deepseek-v4.1-flash": {
-      "firstAttempt": 97.5,
-      "corrected": 97.5
+      "firstAttempt": 97.7,
+      "corrected": 100
     },
     "a6/gemini-3.8-flash": {
-      "firstAttempt": 95,
-      "corrected": 95
+      "firstAttempt": 100,
+      "corrected": 100
+    },
+    "a6/glm-5.3-flash": {
+      "firstAttempt": 95.5,
+      "corrected": 100
     }
   },
   "failures": {
     "a6/deepseek-v4.1-flash": [
-      "obvious-error"
+      {
+        "fixture": "obvious-error",
+        "expected": {
+          "decision": "ordinary-routing",
+          "action": "direct",
+          "primarySkill": null
+        },
+        "actual": {
+          "decision": "ordinary-routing",
+          "action": "load",
+          "primarySkill": "gsd-diagnosing-bugs"
+        },
+        "detail": "want ordinary-routing:direct->null, got ordinary-routing:load->gsd-diagnosing-bugs"
+      }
     ],
-    "a6/gemini-3.8-flash": [
-      "arch-audit",
-      "arch-audit-during-execution"
+    "a6/glm-5.3-flash": [
+      {
+        "fixture": "plan-binding-drift-continue",
+        "expected": {
+          "decision": "ordinary-routing",
+          "action": "load",
+          "primarySkill": "gsd-handoff"
+        },
+        "actual": null,
+        "detail": "parse error: invalid activation reply: activation target must contain exactly decision, action, and primarySkill"
+      },
+      {
+        "fixture": "compaction-bare-continue-with-active",
+        "expected": {
+          "decision": "ordinary-routing",
+          "action": "load",
+          "primarySkill": "gsd-handoff"
+        },
+        "actual": null,
+        "detail": "parse error: invalid activation reply: activation target must contain exactly decision, action, and primarySkill"
+      }
     ]
   }
 }

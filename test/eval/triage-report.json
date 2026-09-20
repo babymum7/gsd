@@ -1,24 +1,29 @@
 {
   "scope": "bootstrap only (triage axis)",
-  "bootstrap_sha256": "418f3741e077551b0cd7fd125430e34a6695220591d8388694f6f8ec71e3ec42",
+  "bootstrap_sha256": "b938c4806936f086107ffb88a2eff26d5525f7818375edb96f3eb0906bd8bee6",
   "bootstrap_words": 879,
   "canon_sha256": null,
   "canon_words": null,
   "pass": {
     "a6/deepseek-v4.1-flash": {
+      "passed": 12,
+      "total": 13,
+      "accuracy": 92.3
+    },
+    "a6/gemini-3.8-flash": {
       "passed": 13,
       "total": 13,
       "accuracy": 100
     },
-    "a6/gemini-3.8-flash": {
-      "passed": 12,
+    "a6/glm-5.3-flash": {
+      "passed": 13,
       "total": 13,
-      "accuracy": 92.3
+      "accuracy": 100
     }
   },
   "failures": {
-    "a6/gemini-3.8-flash": [
-      "external-docs"
+    "a6/deepseek-v4.1-flash": [
+      "small-removal"
     ]
   }
 }
