@@ -97,7 +97,7 @@ if (backend.kind !== "omp") {
 
 const system = bootstrap;
 const askUser = (fixture) => `Workspace state: ${fixture.state}\n\nUser prompt:\n${fixture.prompt}`;
-const timeoutSeconds = 20;
+const timeoutSeconds = Number(process.env.GSD_EVAL_MAX_TIME || 20);
 
 function askOmp(model, fixture, expectedPath) {
   return new Promise((resolve, reject) => {
