@@ -472,8 +472,8 @@ test("the bootstrap names the resume gateway, fail-closed precedence, and helper
   // Validated active state enters through gsd-handoff; next_action picks the peer owner.
   assert.match(master, /`gsd-handoff`[^.\n]{0,160}(?:first|gateway)|(?:first|gateway)[^.\n]{0,160}`gsd-handoff`/);
   assert.match(master, /`next_action`/);
-  assert.match(master, /bare resume[^.\n]{0,120}`gsd-handoff`/i);
-  assert.match(master, /[Nn]aming the work[^.\n]{0,140}`gsd-executing-plans`/);
+  assert.match(master, /bare (?:resume|continue)[\s\S]{0,120}`gsd-handoff`/i);
+  assert.match(master, /[Nn]amed (?:work|execution)[^.\n]{0,140}`gsd-executing-plans`/);
 
   // Runtime discovery decides malformed authority: a feature holding both `plan.md` and
   // malformed `state.toon` throws for every prompt, while plan-less bytes are skipped. The
@@ -724,11 +724,16 @@ test("the skill compliance evaluator measures the first visible action", () => {
   assert.equal(report.bootstrap_sha256, fingerprint.bootstrap_sha256);
   assert.equal(report.bootstrap_words, fingerprint.bootstrap_words);
 
-  const model = "a6/deepseek-v4.1-flash";
-  assert.deepEqual(Object.keys(report.pass), [model]);
-  assert.equal(report.pass[model].total, 25);
-  assert.ok(Number.isFinite(report.pass[model].passed));
-  assert.ok(report.pass[model].accuracy >= 0 && report.pass[model].accuracy <= 100);
+  const models = ["a6/deepseek-v4.1-flash", "a6/gemini-3.8-flash"];
+  assert.deepEqual(Object.keys(report.pass).sort(), models);
+  for (const model of models) {
+    assert.equal(report.pass[model].total, 25);
+    assert.ok(Number.isFinite(report.pass[model].passed));
+    assert.ok(report.pass[model].passed >= 18, `${model} must stay above the 18/25 floor`);
+    assert.ok(report.pass[model].accuracy >= 0 && report.pass[model].accuracy <= 100);
+  }
+  const totalPassed = models.reduce((sum, model) => sum + report.pass[model].passed, 0);
+  assert.ok(totalPassed >= 40, `the two-model aggregate must reach 40/50, got ${totalPassed}`);
   assert.ok(report.failures && typeof report.failures === "object");
 
   const readme = read("README.md");
@@ -973,8 +978,8 @@ test("the committed eval reports describe the live bytes they claim", () => {
     const models = Object.keys(scores).sort();
     assert.equal(
       models.length,
-      3,
-      `${path} must score the three models the README names`,
+      2,
+      `${path} must score the two models the README names`,
     );
     scoredModels = scoredModels ?? models;
     assert.deepEqual(models, scoredModels, `${path} must score the same model set as the others`);
@@ -1009,7 +1014,7 @@ test("Quick-fix owner uses the injected hidden context and deterministic gates",
   assert.match(master, /bounded (?:fix|Quick-fix)[\s\S]{0,220}PONYTAIL_CONTEXT_PATH/i);
   // A fix the user already diagnosed is direct work: both evaluated models otherwise
   // named `gsd-verify` as the primary owner for a one-line known fix.
-  assert.match(master, /already diagnosed[^.\n]{0,80}direct[^.\n]{0,60}never a `primarySkill`/i);
+  assert.match(master, /A diagnosed fix is direct, never a `primarySkill`/i);
   assert.match(master, /PONYTAIL_CONTEXT_PATH[\s\S]{0,300}validate-quick-fix[\s\S]{0,240}gsd-verify/i);
   assert.match(reference, /\| `gsd-verify` \| owner \|[^|\n]*Quick-fix[^|\n]*\|[^|\n]*Quick-fix `plan\.md`[^|\n]*\|/i);
   assert.match(reference, /Quick-fix[\s\S]{0,300}session owner[\s\S]{0,500}RED→GREEN→refactor[\s\S]{0,300}gsd-verify/i);
@@ -1547,7 +1552,7 @@ test("M3: the triage front door classifies before routing with clarify, research
     }
     assert.match(
       section,
-      /never a repository sweep|never sweep|reading only what it names|read only what (?:the )?prompt names/i,
+      /never a repository sweep|never sweep|read only what (?:it|the prompt) names/i,
       `${label} triage stays prompt-scoped`,
     );
     assert.match(section, /(?:never|not) file count/i, `${label} depth never follows file count`);
@@ -1613,7 +1618,7 @@ test("M3: the triage route boundaries are defined, not inferred", () => {
     );
     assert.match(
       body,
-      /answer lives in this repo, a document, or a reference[^.\n]{0,40}`research`|answer lives in this repo, a document, or a reference[^.\n]{0,40}is `research` rather than `answer`/i,
+      /(?:answerable from|answer lives in) this repo, a document, or a reference[^.\n]{0,40}`research`|(?:answerable from|answer lives in) this repo, a document, or a reference[^.\n]{0,40}is `research` rather than `answer`/i,
       `${label} routes a lookup question to research over answer`,
     );
   }

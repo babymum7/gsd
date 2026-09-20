@@ -72,6 +72,10 @@ enforces, OMP dispatches one isolated sub-agent task carrying the same `gsd-veri
 standalone-review brief, and a host that can do neither falls back to the owner
 running that standalone review.
 
+`test/gsd-host-subagents.test.js` pins the launch-surface rows above and verifies that
+the generated plugin carries the Claude and Codex reviewer agent definitions with their
+read-only guarantees, while OMP keeps its task-isolation extension surface.
+
 Codex spills `additionalContext` larger than a per-handler budget into a saved file
 plus a head-and-tail preview. The Codex adapter pins `additionalContextLimit` above
 the rendered bootstrap's size, so the bootstrap and recovery capsule arrive whole.

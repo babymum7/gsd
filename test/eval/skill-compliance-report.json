@@ -1,51 +1,38 @@
 {
   "scope": "bootstrap only (skill compliance axis)",
-  "bootstrap_sha256": "65be16b66a1f6c34094a28b0329c25c5c937b8d2cdbbe53db1116cec73c40f9f",
+  "bootstrap_sha256": "418f3741e077551b0cd7fd125430e34a6695220591d8388694f6f8ec71e3ec42",
   "bootstrap_words": 879,
   "pass": {
     "a6/deepseek-v4.1-flash": {
-      "passed": 16,
+      "passed": 22,
       "total": 25,
-      "accuracy": 64
+      "accuracy": 88
+    },
+    "a6/gemini-3.8-flash": {
+      "passed": 24,
+      "total": 25,
+      "accuracy": 96
     }
   },
   "failures": {
     "a6/deepseek-v4.1-flash": [
       {
         "fixture": "arch-audit",
-        "detail": "first visible action was text: I'll start by locating the codebase in question."
-      },
-      {
-        "fixture": "domain-glossary",
-        "detail": "wrong path docs/domain/index.md; expected /home/trong/Documents/personal/gsd/skills/gsd-brainstorming/SKILL.md"
-      },
-      {
-        "fixture": "quick-fix-repair",
-        "detail": "wrong path /home/trong/Documents/personal/gsd/skills/gsd-executing-plans/SKILL.md; expected /home/trong/Documents/personal/gsd/skills/gsd-verify/SKILL.md"
-      },
-      {
-        "fixture": "result-pending-unrelated-lifecycle",
-        "detail": "first visible action was text: I'll start by validating the discovered workspace state and the canonical cleanup matrix before routing the new request."
-      },
-      {
-        "fixture": "result-retained-unrelated",
-        "detail": "wrong path /tmp/.scratch/oauth-login/state.toon; expected /home/trong/Documents/personal/gsd/skills/gsd-brainstorming/SKILL.md"
+        "detail": "first visible action was text: I'll start by establishing which codebase \"this\" refers to, since the working directory is `/tmp`."
       },
       {
         "fixture": "result-residual-unrelated",
-        "detail": "wrong path /home/trong/Documents/personal/gsd/skills/gsd/REFERENCE.md; expected /home/trong/Documents/personal/gsd/skills/gsd-brainstorming/SKILL.md"
-      },
-      {
-        "fixture": "compaction-capsule-resume",
-        "detail": "wrong path /home/trong/Documents/personal/gsd/skills/gsd-executing-plans/SKILL.md; expected /home/trong/Documents/personal/gsd/skills/gsd-handoff/SKILL.md"
+        "detail": "wrong path /tmp/.scratch/oauth-login/state.toon; expected /home/trong/Documents/personal/gsd/skills/gsd-brainstorming/SKILL.md"
       },
       {
         "fixture": "arch-audit-during-execution",
-        "detail": "first visible action was text: I'll start by grounding myself in the workspace: the active feature state and whether a payment service actually exists "
-      },
+        "detail": "first visible action was text: I'll start by looking at the actual workspace before deciding how this request routes."
+      }
+    ],
+    "a6/gemini-3.8-flash": [
       {
-        "fixture": "domain-context-mapping",
-        "detail": "first visible action was text: I'll verify the workspace before routing — the stated state names a `docs/domain/` directory that I should confirm exist"
+        "fixture": "arch-audit",
+        "detail": "wrong path /home/trong/Documents/personal/gsd/README.md; expected /home/trong/Documents/personal/gsd/skills/gsd-brainstorming/SKILL.md"
       }
     ]
   }

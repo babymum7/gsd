@@ -271,7 +271,7 @@ test("master and visible skills declare automatic lazy activation", () => {
   const oldEngine = new RegExp(`Smart ${"Routi" + "ng"} Engine`);
   assert.doesNotMatch(master, routeLabel);
   assert.doesNotMatch(master, oldEngine);
-  assert.match(master, /first action must be a `read` tool call/);
+  assert.match(master, /first visible action must be one exact `read` call/);
 
   const descriptions = new Set();
   const standaloneCommand = new RegExp(`(?:^|[\`"'(\\s])/${"gsd"}(?:\\s|\`|$)`, "m");

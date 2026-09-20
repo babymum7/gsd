@@ -1,73 +1,49 @@
 {
   "scope": "bootstrap + on-demand lifecycle matrix",
-  "bootstrap_sha256": "65be16b66a1f6c34094a28b0329c25c5c937b8d2cdbbe53db1116cec73c40f9f",
+  "bootstrap_sha256": "418f3741e077551b0cd7fd125430e34a6695220591d8388694f6f8ec71e3ec42",
   "bootstrap_words": 879,
   "canon_sha256": "5d7b3c9df4c43133a2d4deba0fdac448e64a3dae25656750662f38387ae8c7db",
   "canon_words": 334,
   "pass1": {
-    "omp/anthropic/claude-sonnet-5": {
-      "passed": 36,
+    "a6/deepseek-v4.1-flash": {
+      "passed": 39,
       "total": 40,
-      "accuracy": 90
+      "accuracy": 97.5
     },
-    "omp/google-antigravity/gemini-3.8-flash": {
-      "passed": 35,
-      "total": 40,
-      "accuracy": 87.5
-    },
-    "omp/anthropic/claude-opus-5": {
+    "a6/gemini-3.8-flash": {
       "passed": 38,
       "total": 40,
       "accuracy": 95
     }
   },
   "pass2": {
-    "omp/anthropic/claude-sonnet-5": {
+    "a6/deepseek-v4.1-flash": {
       "corrected": 0,
-      "stillFailing": 4,
-      "accuracy": 90
+      "stillFailing": 1,
+      "accuracy": 97.5
     },
-    "omp/google-antigravity/gemini-3.8-flash": {
-      "corrected": 0,
-      "stillFailing": 5,
-      "accuracy": 87.5
-    },
-    "omp/anthropic/claude-opus-5": {
+    "a6/gemini-3.8-flash": {
       "corrected": 0,
       "stillFailing": 2,
       "accuracy": 95
     }
   },
   "summary": {
-    "omp/anthropic/claude-sonnet-5": {
-      "firstAttempt": 90,
-      "corrected": 90
+    "a6/deepseek-v4.1-flash": {
+      "firstAttempt": 97.5,
+      "corrected": 97.5
     },
-    "omp/google-antigravity/gemini-3.8-flash": {
-      "firstAttempt": 87.5,
-      "corrected": 87.5
-    },
-    "omp/anthropic/claude-opus-5": {
+    "a6/gemini-3.8-flash": {
       "firstAttempt": 95,
       "corrected": 95
     }
   },
   "failures": {
-    "omp/anthropic/claude-sonnet-5": [
-      "arch-audit",
-      "quick-fix-repair",
-      "compaction-capsule-resume",
-      "arch-audit-during-execution"
+    "a6/deepseek-v4.1-flash": [
+      "obvious-error"
     ],
-    "omp/google-antigravity/gemini-3.8-flash": [
+    "a6/gemini-3.8-flash": [
       "arch-audit",
-      "domain-glossary",
-      "quick-fix-repair",
-      "arch-audit-during-execution",
-      "domain-context-mapping"
-    ],
-    "omp/anthropic/claude-opus-5": [
-      "quick-fix-repair",
       "arch-audit-during-execution"
     ]
   }

@@ -1,29 +1,24 @@
 {
   "scope": "bootstrap only (triage axis)",
-  "bootstrap_sha256": "65be16b66a1f6c34094a28b0329c25c5c937b8d2cdbbe53db1116cec73c40f9f",
+  "bootstrap_sha256": "418f3741e077551b0cd7fd125430e34a6695220591d8388694f6f8ec71e3ec42",
   "bootstrap_words": 879,
   "canon_sha256": null,
   "canon_words": null,
   "pass": {
-    "omp/anthropic/claude-sonnet-5": {
+    "a6/deepseek-v4.1-flash": {
+      "passed": 13,
+      "total": 13,
+      "accuracy": 100
+    },
+    "a6/gemini-3.8-flash": {
       "passed": 12,
       "total": 13,
       "accuracy": 92.3
-    },
-    "omp/google-antigravity/gemini-3.8-flash": {
-      "passed": 13,
-      "total": 13,
-      "accuracy": 100
-    },
-    "omp/anthropic/claude-opus-5": {
-      "passed": 13,
-      "total": 13,
-      "accuracy": 100
     }
   },
   "failures": {
-    "omp/anthropic/claude-sonnet-5": [
-      "false-premise"
+    "a6/gemini-3.8-flash": [
+      "external-docs"
     ]
   }
 }
