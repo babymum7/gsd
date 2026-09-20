@@ -238,6 +238,10 @@ for (const model of backend.models) {
 }
 
 const output = reportPath ?? join(here, "skill-compliance-report.json");
+report.pass = Object.fromEntries(backend.models.map((model) => [model, report.pass[model]]));
+report.failures = Object.fromEntries(
+  backend.models.filter((model) => report.failures[model]).map((model) => [model, report.failures[model]]),
+);
 writeFileSync(output, `${JSON.stringify(report, null, 2)}\n`);
 console.log(`Report: ${output}`);
 process.exit(failed ? 1 : 0);

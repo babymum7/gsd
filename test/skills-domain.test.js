@@ -210,8 +210,8 @@ test("domain shard records Quick-fix size gates and single-task inline wave exec
   assert.match(domain, /three size gates/i);
   assert.match(domain, /Quick-fix grammar fit \(one or two tasks\)/i);
   assert.match(domain, /Domain Impact `?none`? or a single shard/i);
-  assert.match(domain, /acceptance already converged from the prompt/i);
-  assert.match(domain, /prior diagnosis (?:is )?(?:not|no longer) required/i);
+  assert.match(domain, /acceptance converged from the prompt or confirmed diagnosis/i);
+  assert.match(domain, /prompt naming the file\/line or exact failure signature is located/);
   assert.match(domain, /validate-quick-fix/i);
   assert.match(domain, /single-task waves execute inline (?:by the session owner )?with `gsd-tdd`/i);
   assert.match(domain, /waves of two or more tasks dispatch/i);

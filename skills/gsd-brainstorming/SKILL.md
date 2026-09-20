@@ -14,7 +14,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 # GSD Brainstorming
 
-> **Invocation guard** — pre-binding discovery and convergence only. Creates no plan, state, or TOON artifact; sole durable writes are a decision record for a settled tradeoff or pre-binding domain bootstrap when an index is absent. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract after selecting an invocation mode. Read-only questions, Nano edits, known fixes, delegated tasks, and bound work do not enter.
+> **Invocation guard** — pre-binding discovery and convergence only. Creates no plan, state, or TOON artifact; sole durable writes are a decision record for a settled tradeoff or pre-binding domain bootstrap when an index is absent. When acceptance or target is unclear, ask one recommended question before further inspection. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract after selecting an invocation mode. Read-only questions, Nano edits, known fixes, delegated tasks, and bound work do not enter.
 
 ## Invocation modes
 

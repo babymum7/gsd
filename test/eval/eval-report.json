@@ -1,59 +1,73 @@
 {
   "scope": "bootstrap only",
-  "bootstrap_sha256": "b938c4806936f086107ffb88a2eff26d5525f7818375edb96f3eb0906bd8bee6",
-  "bootstrap_words": 879,
+  "bootstrap_sha256": "70495183c266fcf34ad6101d976a900a7e8d33325cb40acbe079471acb9d2941",
+  "bootstrap_words": 884,
   "canon_sha256": null,
   "canon_words": null,
   "pass1": {
-    "a6/deepseek-v4.1-flash": {
+    "opencode-go/deepseek-v4.1-flash": {
+      "passed": 38,
+      "total": 44,
+      "accuracy": 86.4
+    },
+    "google-antigravity/gemini-3.8-flash": {
       "passed": 40,
       "total": 44,
       "accuracy": 90.9
     },
-    "a6/gemini-3.8-flash": {
-      "passed": 40,
+    "opencode-go/glm-5.3-flash": {
+      "passed": 37,
       "total": 44,
-      "accuracy": 90.9
-    },
-    "a6/glm-5.3-flash": {
-      "passed": 39,
-      "total": 44,
-      "accuracy": 88.6
+      "accuracy": 84.1
     }
   },
   "pass2": {
-    "a6/deepseek-v4.1-flash": {
-      "corrected": 3,
-      "stillFailing": 1,
-      "accuracy": 97.7
+    "opencode-go/deepseek-v4.1-flash": {
+      "corrected": 1,
+      "stillFailing": 5,
+      "accuracy": 88.6
     },
-    "a6/gemini-3.8-flash": {
+    "google-antigravity/gemini-3.8-flash": {
       "corrected": 0,
       "stillFailing": 4,
       "accuracy": 90.9
     },
-    "a6/glm-5.3-flash": {
+    "opencode-go/glm-5.3-flash": {
       "corrected": 1,
-      "stillFailing": 4,
-      "accuracy": 90.9
+      "stillFailing": 6,
+      "accuracy": 86.4
     }
   },
   "summary": {
-    "a6/deepseek-v4.1-flash": {
-      "firstAttempt": 90.9,
-      "corrected": 97.7
+    "opencode-go/deepseek-v4.1-flash": {
+      "firstAttempt": 86.4,
+      "corrected": 88.6
     },
-    "a6/gemini-3.8-flash": {
+    "google-antigravity/gemini-3.8-flash": {
       "firstAttempt": 90.9,
       "corrected": 90.9
     },
-    "a6/glm-5.3-flash": {
-      "firstAttempt": 88.6,
-      "corrected": 90.9
+    "opencode-go/glm-5.3-flash": {
+      "firstAttempt": 84.1,
+      "corrected": 86.4
     }
   },
   "failures": {
-    "a6/deepseek-v4.1-flash": [
+    "opencode-go/deepseek-v4.1-flash": [
+      {
+        "fixture": "result-pending-unrelated",
+        "expected": {
+          "decision": "ordinary-routing",
+          "action": "direct",
+          "primarySkill": null
+        },
+        "actual": {
+          "decision": "ignore-terminal-record",
+          "action": "direct",
+          "primarySkill": null
+        },
+        "detail": "want ordinary-routing:direct->null, got ignore-terminal-record:direct->null"
+      },
       {
         "fixture": "result-pending-unrelated-lifecycle",
         "expected": {
@@ -62,11 +76,11 @@
           "primarySkill": "gsd-brainstorming"
         },
         "actual": {
-          "decision": "cleanup-question",
-          "action": "stop",
-          "primarySkill": null
+          "decision": "ignore-terminal-record",
+          "action": "load",
+          "primarySkill": "gsd-brainstorming"
         },
-        "detail": "want ordinary-routing:load->gsd-brainstorming, got cleanup-question:stop->null"
+        "detail": "want ordinary-routing:load->gsd-brainstorming, got ignore-terminal-record:load->gsd-brainstorming"
       },
       {
         "fixture": "result-retained-unrelated",
@@ -90,11 +104,11 @@
           "primarySkill": "gsd-brainstorming"
         },
         "actual": {
-          "decision": "cleanup-question",
-          "action": "stop",
-          "primarySkill": null
+          "decision": "ordinary-routing",
+          "action": "load",
+          "primarySkill": "gsd-brainstorming"
         },
-        "detail": "want ignore-terminal-record:load->gsd-brainstorming, got cleanup-question:stop->null"
+        "detail": "want ignore-terminal-record:load->gsd-brainstorming, got ordinary-routing:load->gsd-brainstorming"
       },
       {
         "fixture": "result-malformed-unrelated",
@@ -104,72 +118,28 @@
           "primarySkill": "gsd-brainstorming"
         },
         "actual": {
-          "decision": "fail-closed",
-          "action": "stop",
-          "primarySkill": null
-        },
-        "detail": "want ordinary-routing:load->gsd-brainstorming, got fail-closed:stop->null"
-      }
-    ],
-    "a6/gemini-3.8-flash": [
-      {
-        "fixture": "result-pending-unrelated",
-        "expected": {
-          "decision": "ordinary-routing",
-          "action": "direct",
-          "primarySkill": null
-        },
-        "actual": {
-          "decision": "cleanup-question",
-          "action": "stop",
-          "primarySkill": null
-        },
-        "detail": "want ordinary-routing:direct->null, got cleanup-question:stop->null"
-      },
-      {
-        "fixture": "result-pending-related",
-        "expected": {
-          "decision": "cleanup-question",
-          "action": "stop",
-          "primarySkill": null
-        },
-        "actual": {
-          "decision": "block-resume",
-          "action": "stop",
-          "primarySkill": null
-        },
-        "detail": "want cleanup-question:stop->null, got block-resume:stop->null"
-      },
-      {
-        "fixture": "result-pending-unrelated-lifecycle",
-        "expected": {
-          "decision": "ordinary-routing",
-          "action": "load",
-          "primarySkill": "gsd-brainstorming"
-        },
-        "actual": {
-          "decision": "cleanup-question",
-          "action": "stop",
-          "primarySkill": null
-        },
-        "detail": "want ordinary-routing:load->gsd-brainstorming, got cleanup-question:stop->null"
-      },
-      {
-        "fixture": "result-residual-unrelated",
-        "expected": {
           "decision": "ignore-terminal-record",
           "action": "load",
           "primarySkill": "gsd-brainstorming"
         },
-        "actual": {
-          "decision": "cleanup-question",
+        "detail": "want ordinary-routing:load->gsd-brainstorming, got ignore-terminal-record:load->gsd-brainstorming"
+      },
+      {
+        "fixture": "result-malformed-with-active",
+        "expected": {
+          "decision": "fail-closed",
           "action": "stop",
           "primarySkill": null
         },
-        "detail": "want ignore-terminal-record:load->gsd-brainstorming, got cleanup-question:stop->null"
+        "actual": {
+          "decision": "ordinary-routing",
+          "action": "load",
+          "primarySkill": "gsd-handoff"
+        },
+        "detail": "want fail-closed:stop->null, got ordinary-routing:load->gsd-handoff"
       }
     ],
-    "a6/glm-5.3-flash": [
+    "google-antigravity/gemini-3.8-flash": [
       {
         "fixture": "result-pending-unrelated",
         "expected": {
@@ -199,7 +169,93 @@
         "detail": "want cleanup-question:stop->null, got cleanup-only:stop->null"
       },
       {
+        "fixture": "result-pending-unrelated-lifecycle",
+        "expected": {
+          "decision": "ordinary-routing",
+          "action": "load",
+          "primarySkill": "gsd-brainstorming"
+        },
+        "actual": {
+          "decision": "ignore-terminal-record",
+          "action": "load",
+          "primarySkill": "gsd-brainstorming"
+        },
+        "detail": "want ordinary-routing:load->gsd-brainstorming, got ignore-terminal-record:load->gsd-brainstorming"
+      },
+      {
+        "fixture": "result-residual-unrelated",
+        "expected": {
+          "decision": "ignore-terminal-record",
+          "action": "load",
+          "primarySkill": "gsd-brainstorming"
+        },
+        "actual": {
+          "decision": "cleanup-question",
+          "action": "stop",
+          "primarySkill": null
+        },
+        "detail": "want ignore-terminal-record:load->gsd-brainstorming, got cleanup-question:stop->null"
+      }
+    ],
+    "opencode-go/glm-5.3-flash": [
+      {
+        "fixture": "result-pending-related",
+        "expected": {
+          "decision": "cleanup-question",
+          "action": "stop",
+          "primarySkill": null
+        },
+        "actual": {
+          "decision": "cleanup-only",
+          "action": "stop",
+          "primarySkill": null
+        },
+        "detail": "want cleanup-question:stop->null, got cleanup-only:stop->null"
+      },
+      {
+        "fixture": "result-retained-related-resume",
+        "expected": {
+          "decision": "block-resume",
+          "action": "stop",
+          "primarySkill": null
+        },
+        "actual": {
+          "decision": "ignore-terminal-record",
+          "action": "load",
+          "primarySkill": "gsd-executing-plans"
+        },
+        "detail": "want block-resume:stop->null, got ignore-terminal-record:load->gsd-executing-plans"
+      },
+      {
         "fixture": "result-retained-unrelated",
+        "expected": {
+          "decision": "ignore-terminal-record",
+          "action": "load",
+          "primarySkill": "gsd-brainstorming"
+        },
+        "actual": {
+          "decision": "ordinary-routing",
+          "action": "load",
+          "primarySkill": "gsd-brainstorming"
+        },
+        "detail": "want ignore-terminal-record:load->gsd-brainstorming, got ordinary-routing:load->gsd-brainstorming"
+      },
+      {
+        "fixture": "result-residual-related-resume",
+        "expected": {
+          "decision": "block-resume",
+          "action": "stop",
+          "primarySkill": null
+        },
+        "actual": {
+          "decision": "ordinary-routing",
+          "action": "load",
+          "primarySkill": "gsd-executing-plans"
+        },
+        "detail": "want block-resume:stop->null, got ordinary-routing:load->gsd-executing-plans"
+      },
+      {
+        "fixture": "result-residual-unrelated",
         "expected": {
           "decision": "ignore-terminal-record",
           "action": "load",
@@ -234,11 +290,11 @@
           "primarySkill": "gsd-handoff"
         },
         "actual": {
-          "decision": "ordinary-routing",
-          "action": "load",
-          "primarySkill": "gsd-handoff"
+          "decision": "cleanup-question",
+          "action": "stop",
+          "primarySkill": null
         },
-        "detail": "want ignore-terminal-record:load->gsd-handoff, got ordinary-routing:load->gsd-handoff"
+        "detail": "want ignore-terminal-record:load->gsd-handoff, got cleanup-question:stop->null"
       }
     ]
   }

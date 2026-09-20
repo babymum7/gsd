@@ -11,7 +11,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 - Intent: diagnose non-obvious failures inline and produce root-cause evidence
 - Scope: diagnosis is performed inline in the top-level session and produces root-cause evidence only (never implements or commits a fix)
 - Do-not-load: a located failure whose prompt names the file/line or exact failure signature
-- Transition: return evidence to the session-owner execution flow, or route an architectural cause to `gsd-brainstorming` before repair
+- Transition: return a confirmed non-architectural cause to the session owner's bounded Quick-fix when its gates hold, or route an architectural cause to `gsd-brainstorming` before repair
 
 # Diagnosing Bugs
 
@@ -56,7 +56,7 @@ Isolate confirmed root cause and propose a regression test seam — only if a **
 - [ ] Proposed regression seam (or missing-seam architectural finding) is documented.
 - [ ] Root-cause evidence is returned to the caller for repair without implementing or committing code changes.
 
-In standalone diagnosis, hand confirmed root-cause evidence and the proposed regression seam to the caller for repair; route an architectural cause to `gsd-brainstorming` before repair. In Execution-blocker mode, ask no post-mortem question: session owner returns immediately to `gsd-executing-plans` with root-cause evidence for inline repair, writing no repair-round/helper-preference field. Load-bearing AC/interface/invariant ambiguities require Spec escalation, not diagnosis guesses.
+In standalone diagnosis, hand confirmed root-cause evidence and the proposed regression seam to the caller; a confirmed non-architectural cause enters a bounded Quick-fix when the remaining work meets its gates, while an architectural cause routes to `gsd-brainstorming` before repair. In Execution-blocker mode, ask no post-mortem question: session owner returns immediately to `gsd-executing-plans` with root-cause evidence for inline repair, writing no repair-round/helper-preference field. Load-bearing AC/interface/invariant ambiguities require Spec escalation, not diagnosis guesses.
 
 ## Optional context signal
 Diagnosis harvest is optional and bounded to the minimized bug path. Reuse only prompt/trace, reproduction, hypotheses, and relevant code/docs; never widen into repository glossary/decision scans or create missing scaffolds. Trigger `gsd-domain-modeling` only if evidence reveals recurring project-specific terms or explicit decision/rationale signals. Generic error vocabulary, one-off identifiers, implementation details, and unreasoned code shapes are no-ops. Diagnosis never writes domain artifacts itself.

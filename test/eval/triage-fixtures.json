@@ -42,6 +42,30 @@
     "route": "research"
   },
   {
+    "id": "vague-debug-fix",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "Something is broken. Debug and fix it.",
+    "route": "clarify"
+  },
+  {
+    "id": "symptom-debug-fix",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "When I click submit the app crashes. Debug and fix it.",
+    "route": "research"
+  },
+  {
+    "id": "named-error-debug-fix",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "The submit button throws TypeError: cfg.retries is undefined at src/http.js:12. Debug and fix it.",
+    "route": "quick"
+  },
+  {
+    "id": "multiple-debug-fixes",
+    "state": "clean repo; no .scratch/ directory",
+    "prompt": "Fix the login crash and also clean up the broken settings validation.",
+    "route": "clarify"
+  },
+  {
     "id": "bounded-fix-converged",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "fix the off-by-one in parseRange in src/range.mjs: the end index should be exclusive",

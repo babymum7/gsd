@@ -515,9 +515,10 @@ test("the bootstrap names the resume gateway, fail-closed precedence, and helper
   assert.match(executing, /^description: "[^"]*pending work that the prompt names\."$/m);
   assert.doesNotMatch(executing.match(/^description: .*$/m)[0], /next_action/);
 
-  // A located failure stays direct: diagnosis owns only unlocated or non-obvious causes.
+  // A located failure is bounded work; an unknown cause must be diagnosed first.
   assert.match(domain, /(?:named|naming) the file\/line or exact failure signature is located/);
-  assert.match(domain, /`gsd-diagnosing-bugs` owns only (?:an )?unlocated or non-obvious causes?/);
+  assert.match(domain, /trigger plus an observed failure is sufficient scope to investigate/);
+  assert.match(domain, /confirmed non-architectural cause enters the Quick-fix lane/);
 
   // Hash drift keeps prompt-named work with its executing owner instead of diverting to
   // the resume gateway, and a full malformed packet outranks every other active packet.
@@ -725,8 +726,12 @@ test("the skill compliance evaluator measures the first visible action", () => {
   assert.equal(report.bootstrap_sha256, fingerprint.bootstrap_sha256);
   assert.equal(report.bootstrap_words, fingerprint.bootstrap_words);
 
-  const models = ["a6/deepseek-v4.1-flash", "a6/gemini-3.8-flash", "a6/glm-5.3-flash"];
-  assert.deepEqual(Object.keys(report.pass).sort(), models);
+  const models = [
+    "opencode-go/deepseek-v4.1-flash",
+    "google-antigravity/gemini-3.8-flash",
+    "opencode-go/glm-5.3-flash",
+  ];
+  assert.deepEqual(Object.keys(report.pass), models);
   for (const model of models) {
     assert.equal(report.pass[model].total, 28);
     assert.ok(Number.isFinite(report.pass[model].passed));
@@ -739,7 +744,7 @@ test("the skill compliance evaluator measures the first visible action", () => {
 
   const readme = read("README.md");
   assert.match(readme, /skill-compliance-eval\.mjs/);
-  assert.match(readme, /a6\/deepseek-v4\.1-flash/);
+  assert.match(readme, /opencode-go\/deepseek-v4\.1-flash/);
 });
 
 test("the skill compliance evaluator scores before a later OMP timeout", () => {
@@ -1072,9 +1077,7 @@ test("Quick-fix owner uses the injected hidden context and deterministic gates",
 
   assert.match(master, /PONYTAIL_CONTEXT_PATH/);
   assert.match(master, /bounded (?:fix|Quick-fix)[\s\S]{0,220}PONYTAIL_CONTEXT_PATH/i);
-  // A fix the user already diagnosed is direct work: both evaluated models otherwise
-  // named `gsd-verify` as the primary owner for a one-line known fix.
-  assert.match(master, /A diagnosed fix is direct, never a `primarySkill`/i);
+  assert.match(master, /A concrete failure symptom with an unknown cause routes through `gsd-diagnosing-bugs`/i);
   assert.match(master, /PONYTAIL_CONTEXT_PATH[\s\S]{0,300}validate-quick-fix[\s\S]{0,240}gsd-verify/i);
   assert.match(reference, /\| `gsd-verify` \| owner \|[^|\n]*Quick-fix[^|\n]*\|[^|\n]*Quick-fix `plan\.md`[^|\n]*\|/i);
   assert.match(reference, /Quick-fix[\s\S]{0,300}session owner[\s\S]{0,500}RED→GREEN→refactor[\s\S]{0,300}gsd-verify/i);
@@ -1089,6 +1092,33 @@ test("Quick-fix owner uses the injected hidden context and deterministic gates",
   assert.match(reference, /Ponytail stays hidden and never enters the matrix or runtime state/i);
   assert.match(reference, /same-shape independent tasks[\s\S]{0,120}one wave/i);
   assert.match(reference, /single independent task[\s\S]{0,180}dispatch[\s\S]{0,140}clear(?:ly)? beneficial/i);
+});
+
+test("debug prompts route through diagnosis before a bounded Quick-fix", () => {
+  const master = read("skills/gsd/SKILL.md");
+  const reference = read("skills/gsd/REFERENCE.md");
+  const diagnosis = read("skills/gsd-diagnosing-bugs/SKILL.md");
+  const triageFixtures = JSON.parse(read("test/eval/triage-fixtures.json"));
+  const fixture = (id) => triageFixtures.find((row) => row.id === id);
+
+  assert.equal(fixture("vague-debug-fix")?.route, "clarify");
+  assert.equal(fixture("symptom-debug-fix")?.route, "research");
+  assert.equal(fixture("named-error-debug-fix")?.route, "quick");
+  assert.equal(fixture("multiple-debug-fixes")?.route, "clarify");
+
+  assert.match(
+    master,
+    /A concrete failure symptom with an unknown cause routes through `gsd-diagnosing-bugs`/i,
+  );
+  assert.doesNotMatch(master, /A diagnosed fix is direct, never a `primarySkill`/i);
+  assert.match(
+    diagnosis,
+    /confirmed non-architectural cause[\s\S]{0,120}bounded Quick-fix/i,
+  );
+  assert.match(
+    reference,
+    /A trigger plus an observed failure is sufficient scope to investigate[\s\S]{0,180}confirmed non-architectural cause[\s\S]{0,140}bounded Quick-fix/i,
+  );
 });
 
 test("AC-4: hidden bootstrap uses state.toon and terminal conformance", () => {
