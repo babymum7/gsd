@@ -230,7 +230,7 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
   assert.match(reference, /Quick-fix plan exception/);
   assert.match(master, /Quick-fix plan exception/);
   assert.match(verify, /malformed binding[\s\S]{0,180}red deterministic check blocks/i);
-  assert.match(planner, /atomically write canonical `schema:v4`[\s\S]{0,40}`state\.toon`/);
+  assert.match(planner, /atomically write canonical `schema:v0.0.1`[\s\S]{0,40}`state\.toon`/);
   // Line 171 asserts the executing owner amends bound plan bytes, so forbidding `plan.md`
   // in its produces contradicted the amendment contract it documents. What stays
   // single-writer is plan creation and binding, which only the planner performs.
@@ -249,15 +249,16 @@ test("core pipeline skills use Markdown authority and preserve runtime TOON", ()
   assert.match(master, /all-`done`, fail closed/);
 });
 
-test("legacy terminal prose matches discovery and explicit-read behavior", () => {
+test("experimental schema prose matches discovery and explicit-read behavior", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const handoff = read("skills/gsd-handoff/SKILL.md");
   const domain = read("docs/domain/gsd.md");
 
-  assert.match(reference, /Exact active `schema:v1`, `schema:v2`, and `schema:v3` records migrate only after full validation/);
-  assert.match(reference, /Exact v1\/v2 `completed-retained` records[\s\S]{0,220}candidate discovery[\s\S]{0,180}explicit `readStateFile` rejects[\s\S]{0,160}Retained v3 remains the sole terminal case/i);
-  assert.match(handoff, /v1\/v2 terminal records fail closed unchanged[\s\S]{0,180}v3 `completed-retained` compatibility case[\s\S]{0,220}candidate discovery[\s\S]{0,180}explicit read validates and migrates/i);
-  assert.match(domain, /retained v1\/v2 terminal records remain inert[\s\S]{0,180}fail closed on explicit read[\s\S]{0,180}retained v3 migrates only on an explicit validated read/i);
+  assert.match(reference, /Every schema other than `schema:v0\.0\.1` is experimental history/);
+  assert.match(reference, /Candidate discovery ignores such records without rewriting them/);
+  assert.match(reference, /There is no migration path, compatibility parser, or upgrade command/);
+  assert.match(handoff, /Every schema other than `schema:v0\.0\.1` is experimental history/);
+  assert.match(domain, /Candidate discovery ignores it without rewriting[\s\S]{0,180}explicit read rejects it fail closed/i);
 });
 
 test("master and visible skills declare automatic lazy activation", () => {
@@ -463,7 +464,7 @@ test("AC-4: Concision preserves semantic parity", () => {
   assert.match(handoff, /REFERENCE\.md[^.\n]*§ Runtime state contract/);
   assert.match(verify, /REFERENCE\.md[^.\n]*§ Post-plan pipeline contract/);
   assert.doesNotMatch(planner, /```md\n# Plan/);
-  assert.doesNotMatch(handoff, /schema:v4\nfeature:/);
+  assert.doesNotMatch(handoff, /schema:v0.0.1\nfeature:/);
   assert.match(reference, /### Fast TDD and task-loop constraints/);
   assert.match(reference, /deterministic cumulative conformance/);
   // The validator owns the region between the title and the first section, so the grammar
@@ -499,7 +500,7 @@ test("AC-4 repair: ponytail carries no modes or persisted preference", () => {
   const ponytail = read("skills/gsd-ponytail/SKILL.md");
   const reference = read("skills/gsd/REFERENCE.md");
   assert.doesNotMatch(ponytail, /## Invocation modes|explicit_level|auto_scope|ponytail_level|lite\/full\/ultra/i);
-  const currentStateBlock = reference.match(/```toon\nschema:v4\n[\s\S]*?\n```/);
+  const currentStateBlock = reference.match(/```toon\nschema:v0.0.1\n[\s\S]*?\n```/);
   assert.ok(currentStateBlock);
   assert.doesNotMatch(currentStateBlock[0], /ponytail/i);
 });

@@ -1,7 +1,7 @@
 import { test, describe } from "bun:test";
 import assert from "node:assert/strict";
 import { readFileSync, readdirSync, mkdtempSync, writeFileSync, mkdirSync, rmSync, symlinkSync, realpathSync, lstatSync, unlinkSync } from "node:fs";
-import { join, dirname, isAbsolute } from "node:path";
+import { basename, join, dirname, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
@@ -29,7 +29,7 @@ import gsdContextExtension, {
 const FIXTURE_PLAN_SHA = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
 function writeActiveStateFixture(featureDir, feature, overrides = {}) {
   writeStateAtomic(featureDir, {
-    schema: "v4",
+    schema: "v0.0.1",
     feature,
     phase: "executing",
     next_action: "start/continue task",
@@ -410,7 +410,7 @@ describe("capsule extension production API contract", () => {
       mkdirSync(seedFeat, { recursive: true });
       writeFileSync(join(seedFeat, "plan.md"), "# Plan\n## Feature\n`seed-feature`\n");
       writeFileSync(join(seedFeat, "state.toon"), [
-        "schema:v4", "feature:seed-feature", "phase:executing", "next_action:start task T1",
+        "schema:v0.0.1", "feature:seed-feature", "phase:executing", "next_action:start task T1",
         "plan_path:.scratch/seed-feature/plan.md",
         "plan_sha256:" + "c".repeat(64),
         "base_ref:main", "wip_branch:wip/seed-feature",
@@ -445,7 +445,7 @@ describe("capsule extension production API contract", () => {
       mkdirSync(seedFeat2, { recursive: true });
       writeFileSync(join(seedFeat2, "plan.md"), "# Plan\n## Feature\n`seed-two`\n");
       writeFileSync(join(seedFeat2, "state.toon"), [
-        "schema:v4", "feature:seed-two", "phase:executing", "next_action:start task T1",
+        "schema:v0.0.1", "feature:seed-two", "phase:executing", "next_action:start task T1",
         "plan_path:.scratch/seed-two/plan.md",
         "plan_sha256:" + "d".repeat(64),
         "base_ref:main", "wip_branch:wip/seed-two",
@@ -506,7 +506,7 @@ describe("capsule extension production API contract", () => {
       mkdirSync(validDir, { recursive: true });
       writeFileSync(join(validDir, "plan.md"), "# Plan\n## Feature\n`good-feature`\n");
       writeFileSync(join(validDir, "state.toon"), [
-        "schema:v4", "feature:good-feature", "phase:executing", "next_action:start task T1",
+        "schema:v0.0.1", "feature:good-feature", "phase:executing", "next_action:start task T1",
         "plan_path:.scratch/good-feature/plan.md",
         "plan_sha256:" + "b".repeat(64),
         "base_ref:main", "wip_branch:wip/good-feature",
@@ -545,7 +545,7 @@ describe("capsule extension production API contract", () => {
         mkdirSync(featureDir, { recursive: true });
         writeFileSync(join(featureDir, "plan.md"), "# Plan\n## Feature\n`active-plan`\n");
         writeFileSync(join(featureDir, "state.toon"), [
-          "schema:v4", "feature:active-plan", "phase:executing", "next_action:verify",
+          "schema:v0.0.1", "feature:active-plan", "phase:executing", "next_action:verify",
           "plan_path:.scratch/active-plan/plan.md",
           "plan_sha256:" + "a".repeat(64),
           "base_ref:main", "wip_branch:wip/active-plan",
@@ -823,7 +823,7 @@ describe("T3 Review Fixes detailed behavior", () => {
     const scratchDir = join(tempDir, ".scratch");
     mkdirSync(scratchDir);
     const target = join(tempDir, "state-target.toon");
-    writeFileSync(target, "schema:v4\n");
+    writeFileSync(target, "schema:v0.0.1\n");
 
     // Plan-less residue: a symlink state.toon and a directory state.toon are both left alone.
     const linkOnly = join(scratchDir, "residual-link");
@@ -1525,7 +1525,7 @@ test("state.toon lifecycle checkpoint contract", async () => {
 
   const PLAN_SHA = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
   const baseFields = {
-    schema: "v4",
+    schema: "v0.0.1",
     feature: "demo-feature",
     phase: "executing",
     next_action: "start/continue task",
@@ -1581,16 +1581,16 @@ test("state.toon lifecycle checkpoint contract", async () => {
     assert.equal(validateState(parseState(serialize(state))).phase, phase);
   }
 
-  // Removed model/review fields are rejected as legacy authority.
+  // Removed model/review fields are rejected as unknown authority.
   assert.throws(
     () => validateState({ ...baseFields, reviewer_model: "openai-codex/gpt-5.5:high" }),
-    /legacy|reviewer_model/i,
+    /unknown key: reviewer_model/i,
   );
 
   // Malformed schema / unknown keys / partial rows fail closed
-  assert.throws(() => parseState("schema:v4\nfeature:demo-feature\n"), /schema|missing required field/i);
+  assert.throws(() => parseState("schema:v0.0.1\nfeature:demo-feature\n"), /schema|missing required field/i);
   assert.throws(() => parseState(serialize({ ...baseFields, extra_key: "nope" })), /unknown|extra|key/i);
-  assert.throws(() => parseState("schema:v1\nfeature:\n"), /empty|malformed|feature/i);
+  assert.throws(() => parseState("schema:v1\nfeature:\n"), /unsupported schema: v1/i);
   assert.throws(() => parseState(serialize({ ...baseFields, phase: "task-active" })), /phase/i);
   assert.throws(
     () => parseState(serialize({ ...baseFields, plan_sha256: "not-a-hash" })),
@@ -1696,7 +1696,7 @@ test("state.toon lifecycle checkpoint contract", async () => {
     rmSync(symDir, { recursive: true, force: true });
 
     // Partial / truncated body fails closed
-    writeFileSync(join(featureDir, "state.toon"), "schema:v4\nfeature:demo-feature\nphase:execut");
+    writeFileSync(join(featureDir, "state.toon"), "schema:v0.0.1\nfeature:demo-feature\nphase:execut");
     assert.throws(() => readStateFile(statePath), /malformed|incomplete|phase|required/i);
     // Restore a valid checkpoint after the partial-write probe.
     writeStateAtomic(featureDir, baseFields);
@@ -1768,7 +1768,7 @@ test("state.toon lifecycle checkpoint contract", async () => {
     mkdirSync(malformedDir);
     writeFileSync(join(malformedDir, "plan.md"), "plan");
     writeFileSync(join(malformedDir, "state.toon"), "schema:v1\nphase:executing\n");
-    assert.throws(() => detectCandidates(tempDir), /state\.toon|malformed|missing required field/i);
+    assert.equal(detectCandidates(tempDir).candidates.includes("bad-one"), false, "experimental schemas are inert");
     rmSync(malformedDir, { recursive: true, force: true });
 
     const { candidates } = detectCandidates(tempDir)
@@ -1879,7 +1879,7 @@ test("atomic state writes survive feature-directory swaps", () => {
 
 test("plan_path and wip_branch must match state.feature on read/validate", () => {
   const base = {
-    schema: "v4",
+    schema: "v0.0.1",
     feature: "demo-feature",
     phase: "executing",
     next_action: "start/continue task",
@@ -1931,7 +1931,7 @@ test("plan_path and wip_branch must match state.feature on read/validate", () =>
 
 test("session-owner state schema omits every model and review binding", () => {
   const state = {
-    schema: "v4",
+    schema: "v0.0.1",
     feature: "demo-feature",
     phase: "approved",
     next_action: "start/continue task",
@@ -1947,346 +1947,34 @@ test("session-owner state schema omits every model and review binding", () => {
   };
 
   const serialized = serializeState(state);
-  assert.equal(validateState(state).schema, "v4");
-  assert.equal(parseState(serialized).schema, "v4");
+  assert.equal(validateState(state).schema, "v0.0.1");
+  assert.equal(parseState(serialized).schema, "v0.0.1");
   assert.doesNotMatch(serialized, /^(?:executor_model|reviewer_model|review_round|blocking_fingerprint|reviewed_commit|progress_status|ponytail_level):/m);
 });
 
-test("exact valid v1 state migrates atomically before resume", () => {
-  const temporary = mkdtempSync(join(tmpdir(), "gsd-state-migrate-"));
+test("experimental schemas are ignored by discovery and rejected on explicit read", () => {
+  const temporary = mkdtempSync(join(tmpdir(), "gsd-experimental-state-"));
   try {
-    const featureDir = join(temporary, ".scratch", "demo-feature");
-    mkdirSync(featureDir, { recursive: true });
-    writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
-    const statePath = join(featureDir, "state.toon");
-    const legacy = {
-      schema: "v1",
-      feature: "demo-feature",
-      phase: "executing",
-      next_action: "start/continue task",
-      plan_path: ".scratch/demo-feature/plan.md",
-      plan_sha256: "d".repeat(64),
-      base_ref: "main",
-      wip_branch: "wip/demo-feature",
-      last_green_task: "T1",
-      last_green_commit: "a".repeat(40),
-      executor_model: "xai-oauth/grok-4.5",
-      reviewer_model: "openai-codex/gpt-5.5:high",
-      review_round: "none",
-      blocking_fingerprint: "none",
-      reviewed_commit: "none",
-      progress_status: "none",
-      autosync: "none",
-      ponytail_level: "none",
-      cleanup_preference: "none",
-      checkpoint_revision: "7",
-    };
-    writeFileSync(
-      statePath,
-      Object.entries(legacy).map(([key, value]) => `${key}:${value}`).join("\n") + "\n",
-    );
-
-    const migrated = readStateFile(statePath);
-    assert.equal(migrated.schema, "v4");
-    assert.equal(migrated.checkpoint_revision, "8");
-    for (const key of ["executor_model", "reviewer_model", "review_round", "blocking_fingerprint", "reviewed_commit", "progress_status", "ponytail_level"]) {
-      assert.equal(Object.hasOwn(migrated, key), false, key);
-    }
-    assert.equal(readFileSync(statePath, "utf8"), serializeState(migrated));
-    assert.equal(readdirSync(featureDir).some((name) => name.endsWith(".tmp")), false);
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test("exact valid v2 state migrates atomically before resume", () => {
-  const temporary = mkdtempSync(join(tmpdir(), "gsd-state-migrate-v2-"));
-  try {
-    const featureDir = join(temporary, ".scratch", "demo-feature");
-    mkdirSync(featureDir, { recursive: true });
-    writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
-    const statePath = join(featureDir, "state.toon");
-    const legacy = {
-      schema: "v2",
-      feature: "demo-feature",
-      phase: "paused",
-      next_action: "start/continue task",
-      plan_path: ".scratch/demo-feature/plan.md",
-      plan_sha256: "e".repeat(64),
-      base_ref: "main",
-      wip_branch: "wip/demo-feature",
-      last_green_task: "T2",
-      last_green_commit: "b".repeat(40),
-      reviewer_model: "openai-codex/gpt-5.5:high",
-      review_round: "none",
-      blocking_fingerprint: "none",
-      reviewed_commit: "none",
-      progress_status: "none",
-      autosync: "off",
-      ponytail_level: "lite",
-      cleanup_preference: "retain",
-      checkpoint_revision: "9",
-    };
-    const legacyBytes = Object.entries(legacy).map(([key, value]) => `${key}:${value}`).join("\n") + "\n";
-    writeFileSync(statePath, legacyBytes);
-
-    const migrated = readStateFile(statePath);
-    assert.equal(migrated.schema, "v4");
-    assert.equal(migrated.checkpoint_revision, "10");
-    assert.equal(migrated.last_green_task, "T2");
-    assert.equal(migrated.autosync, "off");
-    assert.equal(Object.hasOwn(migrated, "ponytail_level"), false);
-    assert.equal(migrated.cleanup_preference, "retain");
-    for (const key of ["reviewer_model", "review_round", "blocking_fingerprint", "reviewed_commit", "progress_status"]) {
-      assert.equal(Object.hasOwn(migrated, key), false, key);
-    }
-    assert.equal(readFileSync(statePath, "utf8"), serializeState(migrated));
-    assert.equal(readdirSync(featureDir).some((name) => name.endsWith(".tmp")), false);
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test("legacy v2 migration rejects malformed or terminal records without changing bytes", () => {
-  const temporary = mkdtempSync(join(tmpdir(), "gsd-state-migrate-v2-reject-"));
-  try {
-    const featureDir = join(temporary, ".scratch", "demo-feature");
-    mkdirSync(featureDir, { recursive: true });
-    const statePath = join(featureDir, "state.toon");
-    const legacy = {
-      schema: "v2",
-      feature: "demo-feature",
-      phase: "executing",
-      next_action: "start/continue task",
-      plan_path: ".scratch/demo-feature/plan.md",
-      plan_sha256: "e".repeat(64),
-      base_ref: "main",
-      wip_branch: "wip/demo-feature",
-      last_green_task: "T1",
-      last_green_commit: "b".repeat(40),
-      reviewer_model: "openai-codex/gpt-5.5:high",
-      review_round: "none",
-      blocking_fingerprint: "none",
-      reviewed_commit: "none",
-      progress_status: "none",
-      autosync: "none",
-      ponytail_level: "none",
-      cleanup_preference: "none",
-      checkpoint_revision: "9",
-    };
-    const serializeLegacy = (fields) =>
-      Object.entries(fields).map(([key, value]) => `${key}:${value}`).join("\n") + "\n";
-    const canonical = serializeLegacy(legacy);
-    const invalidRecords = [
-      canonical.replace("reviewer_model:openai-codex/gpt-5.5:high\n", ""),
-      canonical.replace(
-        "reviewer_model:openai-codex/gpt-5.5:high\nreview_round:none",
-        "review_round:none\nreviewer_model:openai-codex/gpt-5.5:high",
-      ),
-      canonical.replace("review_round:none", "unknown_field:nope\nreview_round:none"),
-      canonical.replace("review_round:none", "reviewer_model:second-reviewer\nreview_round:none"),
-      canonical.replace("reviewer_model:openai-codex/gpt-5.5:high", "reviewer_model:none"),
-      canonical.replace("ponytail_level:none", "ponytail_level:turbo"),
-      serializeLegacy({
-        ...legacy,
-        phase: "completed-retained",
-        next_action: "none",
-        cleanup_preference: "retain",
-      }),
-    ];
-
-    for (const bytes of invalidRecords) {
+    for (const schema of ["v1", "v2", "v3", "v4"]) {
+      const featureDir = join(temporary, ".scratch", `experimental-${schema.replaceAll(".", "-")}`);
+      mkdirSync(featureDir, { recursive: true });
+      writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
+      const statePath = join(featureDir, "state.toon");
+      const bytes = `schema:${schema}\nfeature:${basename(featureDir)}\nphase:executing\n`;
       writeFileSync(statePath, bytes);
-      assert.throws(() => readStateFile(statePath), /state\.toon|legacy|field|key|model|phase/i);
+
+      assert.throws(() => readStateFile(statePath), /unsupported schema/);
       assert.equal(readFileSync(statePath, "utf8"), bytes);
       assert.equal(readdirSync(featureDir).some((name) => name.endsWith(".tmp")), false);
     }
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test("legacy v1 migration rejects invalid or terminal records without changing bytes", () => {
-  const temporary = mkdtempSync(join(tmpdir(), "gsd-state-migrate-reject-"));
-  try {
-    const featureDir = join(temporary, ".scratch", "demo-feature");
-    mkdirSync(featureDir, { recursive: true });
-    const statePath = join(featureDir, "state.toon");
-    const legacy = {
-      schema: "v1",
-      feature: "demo-feature",
-      phase: "executing",
-      next_action: "start/continue task",
-      plan_path: ".scratch/demo-feature/plan.md",
-      plan_sha256: "d".repeat(64),
-      base_ref: "main",
-      wip_branch: "wip/demo-feature",
-      last_green_task: "T1",
-      last_green_commit: "a".repeat(40),
-      executor_model: "xai-oauth/grok-4.5",
-      reviewer_model: "openai-codex/gpt-5.5:high",
-      review_round: "none",
-      blocking_fingerprint: "none",
-      reviewed_commit: "none",
-      progress_status: "none",
-      autosync: "none",
-      ponytail_level: "none",
-      cleanup_preference: "none",
-      checkpoint_revision: "7",
-    };
-    const serializeLegacy = (fields) =>
-      Object.entries(fields).map(([key, value]) => `${key}:${value}`).join("\n") + "\n";
-    const canonical = serializeLegacy(legacy);
-    const invalidRecords = [
-      canonical.replace("executor_model:xai-oauth/grok-4.5\n", ""),
-      canonical.replace(
-        "executor_model:xai-oauth/grok-4.5\nreviewer_model:openai-codex/gpt-5.5:high",
-        "reviewer_model:openai-codex/gpt-5.5:high\nexecutor_model:xai-oauth/grok-4.5",
-      ),
-      canonical.replace("review_round:none", "unknown_field:nope\nreview_round:none"),
-      canonical.replace("review_round:none", "reviewer_model:second-reviewer\nreview_round:none"),
-      canonical.replace("reviewer_model:openai-codex/gpt-5.5:high", "reviewer_model:none"),
-      canonical.replace("executor_model:xai-oauth/grok-4.5", "executor_model:none"),
-      canonical.replace("ponytail_level:none", "ponytail_level:turbo"),
-      serializeLegacy({
-        ...legacy,
-        phase: "completed-retained",
-        next_action: "none",
-        cleanup_preference: "retain",
-      }),
-    ];
-
-    for (const bytes of invalidRecords) {
-      writeFileSync(statePath, bytes);
-      assert.throws(() => readStateFile(statePath), /state\.toon|legacy|field|key|model|phase/i);
-      assert.equal(readFileSync(statePath, "utf8"), bytes);
-      assert.equal(readdirSync(featureDir).some((name) => name.endsWith(".tmp")), false);
-    }
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test("auto-compact ignores an exact retained v1 terminal state without migration", () => {
-  const temporary = mkdtempSync(join(tmpdir(), "gsd-state-retained-v1-"));
-  try {
-    const featureDir = join(temporary, ".scratch", "fx-carry-value");
-    mkdirSync(featureDir, { recursive: true });
-    writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
-    const statePath = join(featureDir, "state.toon");
-    const legacyBytes = [
-      "schema:v1",
-      "feature:fx-carry-value",
-      "phase:completed-retained",
-      "next_action:none",
-      "plan_path:.scratch/fx-carry-value/plan.md",
-      "plan_sha256:b3c80be0be8a1411c47492240719f04cc4441712a0006744ea93c493f9094f75",
-      "base_ref:main",
-      "wip_branch:wip/fx-carry-value",
-      "last_green_task:T4",
-      "last_green_commit:0b553d1de4136d949163d74a3bbcbfd92bb182cd",
-      "executor_model:xai-oauth/grok-4.5:xhigh",
-      "reviewer_model:openai-codex/gpt-5.6-sol:xhigh",
-      "review_round:3",
-      "blocking_fingerprint:55810586ba453e4c36333edde5bae2829aaa6b70b584c9440f7b6b1d460e486f",
-      "reviewed_commit:b301968cfd26c8758b42bda04be76fe64ff2f769",
-      "progress_status:merged-clean-wip-deleted-scratch-retained",
-      "autosync:none",
-      "ponytail_level:none",
-      "cleanup_preference:retain",
-      "checkpoint_revision:13",
-      "",
-    ].join("\n");
-    writeFileSync(statePath, legacyBytes);
-
-    assert.throws(() => readStateFile(statePath), /legacy phase must be active/);
-    assert.deepEqual(detectCandidates(temporary).candidates, []);
-    assert.equal(readFileSync(statePath, "utf8"), legacyBytes);
-    assert.equal(readdirSync(featureDir).some((name) => name.endsWith(".tmp")), false);
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test("auto-compact also ignores a retained v2 terminal state without migration", () => {
-  const temporary = mkdtempSync(join(tmpdir(), "gsd-state-retained-v2-"));
-  try {
-    const featureDir = join(temporary, ".scratch", "retained-v2");
-    mkdirSync(featureDir, { recursive: true });
-    writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
-    const statePath = join(featureDir, "state.toon");
-    const legacyBytes = [
-      "schema:v2",
-      "feature:retained-v2",
-      "phase:completed-retained",
-      "next_action:none",
-      "plan_path:.scratch/retained-v2/plan.md",
-      `plan_sha256:${"e".repeat(64)}`,
-      "base_ref:main",
-      "wip_branch:wip/retained-v2",
-      "last_green_task:T2",
-      `last_green_commit:${"b".repeat(40)}`,
-      "reviewer_model:openai-codex/gpt-5.5:high",
-      "review_round:2",
-      `blocking_fingerprint:${"c".repeat(64)}`,
-      `reviewed_commit:${"d".repeat(40)}`,
-      "progress_status:merged-clean-wip-deleted-scratch-retained",
-      "autosync:none",
-      "ponytail_level:none",
-      "cleanup_preference:retain",
-      "checkpoint_revision:9",
-      "",
-    ].join("\n");
-    writeFileSync(statePath, legacyBytes);
-
-    assert.throws(() => readStateFile(statePath), /legacy phase must be active/);
-    assert.deepEqual(detectCandidates(temporary).candidates, []);
-    assert.equal(readFileSync(statePath, "utf8"), legacyBytes);
-  } finally {
-    rmSync(temporary, { recursive: true, force: true });
-  }
-});
-
-test("candidate discovery leaves retained v3 inert until explicit migration", () => {
-  const temporary = mkdtempSync(join(tmpdir(), "gsd-state-retained-v3-"));
-  try {
-    const featureDir = join(temporary, ".scratch", "retained-v3");
-    mkdirSync(featureDir, { recursive: true });
-    writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
-    const statePath = join(featureDir, "state.toon");
-    const legacyBytes = [
-      "schema:v3",
-      "feature:retained-v3",
-      "phase:completed-retained",
-      "next_action:none",
-      "plan_path:.scratch/retained-v3/plan.md",
-      `plan_sha256:${"e".repeat(64)}`,
-      "base_ref:main",
-      "wip_branch:wip/retained-v3",
-      "last_green_task:T2",
-      `last_green_commit:${"b".repeat(40)}`,
-      "autosync:none",
-      "ponytail_level:full",
-      "cleanup_preference:retain",
-      "checkpoint_revision:9",
-      "",
-    ].join("\n");
-    writeFileSync(statePath, legacyBytes);
 
     assert.deepEqual(detectCandidates(temporary).candidates, []);
-    assert.equal(readFileSync(statePath, "utf8"), legacyBytes);
-
-    const migrated = readStateFile(statePath);
-    assert.equal(migrated.schema, "v4");
-    assert.equal(migrated.checkpoint_revision, "10");
-    assert.equal(Object.hasOwn(migrated, "ponytail_level"), false);
-    assert.doesNotMatch(readFileSync(statePath, "utf8"), /ponytail_level/);
   } finally {
     rmSync(temporary, { recursive: true, force: true });
   }
 });
 
-test("candidate discovery is bounded and does not migrate legacy authority", () => {
+test("candidate discovery is bounded and ignores experimental authority", () => {
   const temporary = mkdtempSync(join(tmpdir(), "gsd-candidate-bounds-"));
   try {
     const scratch = join(temporary, ".scratch");
@@ -2318,7 +2006,7 @@ test("candidate discovery is bounded and does not migrate legacy authority", () 
     const legacyStatePath = join(legacyDir, "state.toon");
     writeFileSync(legacyStatePath, legacyBytes);
 
-    assert.deepEqual(detectCandidates(temporary).candidates, ["legacy-active"]);
+    assert.deepEqual(detectCandidates(temporary).candidates, []);
     assert.equal(readFileSync(legacyStatePath, "utf8"), legacyBytes, "Discovery must remain read-only");
 
     const oversizedDir = join(scratch, "oversized-state");
@@ -2401,7 +2089,7 @@ test("readStateFile binds authority to its feature directory", () => {
     mkdirSync(featureDir, { recursive: true });
     writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
     const mismatchedState = {
-      schema: "v3",
+      schema: "v0.0.1",
       feature: "other-feature",
       phase: "executing",
       next_action: "start/continue task",
@@ -2412,7 +2100,6 @@ test("readStateFile binds authority to its feature directory", () => {
       last_green_task: "none",
       last_green_commit: "none",
       autosync: "none",
-      ponytail_level: "none",
       cleanup_preference: "none",
       checkpoint_revision: "1",
     };
@@ -2426,7 +2113,7 @@ test("readStateFile binds authority to its feature directory", () => {
   }
 });
 
-test("schema v4 and hidden architecture catalog cutover", () => {
+test("schema v0.0.1 and hidden architecture catalog cutover", () => {
   const catalogNames = discoverSkillCatalog(ROOT).map(({ name }) => name);
   const installedNames = readdirSync(join(ROOT, "skills"));
   assert.ok(installedNames.includes("gsd-codebase-architecture"));
@@ -2435,13 +2122,13 @@ test("schema v4 and hidden architecture catalog cutover", () => {
   assert.ok(!catalogNames.includes("gsd-improve-codebase-architecture"));
   assert.ok(!catalogNames.includes("gsd-ponytail"));
 
-  const tmp = mkdtempSync(join(tmpdir(), "gsd-schema-v4-"));
+  const tmp = mkdtempSync(join(tmpdir(), "gsd-schema-v0-0-1-"));
   try {
     const featureDir = join(tmp, ".scratch", "demo");
     mkdirSync(featureDir, { recursive: true });
     const statePath = join(featureDir, "state.toon");
-    const legacyV3 = [
-      "schema:v3",
+    const state = [
+      "schema:v0.0.1",
       "feature:demo",
       "phase:executing",
       "next_action:start/continue task",
@@ -2452,25 +2139,17 @@ test("schema v4 and hidden architecture catalog cutover", () => {
       "last_green_task:none",
       "last_green_commit:none",
       "autosync:off",
-      "ponytail_level:lite",
       "cleanup_preference:retain",
-      "checkpoint_revision:7",
+      "checkpoint_revision:1",
       "",
     ].join("\n");
-    writeFileSync(statePath, legacyV3);
+    writeFileSync(statePath, state);
 
-    const migrated = readStateFile(statePath);
-    assert.equal(migrated.schema, "v4");
-    assert.equal(migrated.autosync, "off");
-    assert.equal(migrated.cleanup_preference, "retain");
-    assert.equal(migrated.checkpoint_revision, "8");
-    assert.equal(Object.hasOwn(migrated, "ponytail_level"), false);
-    assert.doesNotMatch(readFileSync(statePath, "utf8"), /ponytail_level/);
-
-    const invalidLegacy = legacyV3.replace("ponytail_level:lite", "ponytail_level:turbo");
-    writeFileSync(statePath, invalidLegacy);
-    assert.throws(() => readStateFile(statePath), /ponytail_level/);
-    assert.equal(readFileSync(statePath, "utf8"), invalidLegacy);
+    const parsed = readStateFile(statePath);
+    assert.equal(parsed.schema, "v0.0.1");
+    assert.equal(parsed.autosync, "off");
+    assert.equal(parsed.cleanup_preference, "retain");
+    assert.equal(readFileSync(statePath, "utf8"), state);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
   }
@@ -2485,7 +2164,7 @@ test("readStateFile rejects FIFO instead of blocking", () => {
 
   // Write a valid state file first so lstat sees a regular file.
   writeFileSync(statePath, [
-    "schema:v4",
+    "schema:v0.0.1",
     "feature:demo",
     "phase:executing",
     "plan_path:.scratch/demo/plan.md",
@@ -2538,7 +2217,7 @@ test("readStateFile rejects state.toon swap after feature dir pin", () => {
   const statePath = join(featureDir, "state.toon");
 
   writeFileSync(statePath, [
-    "schema:v4",
+    "schema:v0.0.1",
     "feature:demo",
     "phase:executing",
     "plan_path:.scratch/demo/plan.md",

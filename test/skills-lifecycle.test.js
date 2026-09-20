@@ -35,8 +35,8 @@ test("session owner is sole lifecycle authority without model agents", () => {
       path,
     );
   }
-  assert.match(reference, /schema:v4[\s\S]{0,3100}session owner/i);
-  assert.match(handoff, /schema:v4[\s\S]{0,60}session owner/i);
+  assert.match(reference, /schema:v0.0.1[\s\S]{0,3100}session owner/i);
+  assert.match(handoff, /schema:v0.0.1[\s\S]{0,60}session owner/i);
   assert.match(reference, /sole lifecycle authority/i);
   assert.match(verify, /plan hash[\s\S]{0,60}binding/i);
   assert.match(verify, /every active AC[\s\S]{0,120}changed path/i);
@@ -89,6 +89,7 @@ test("AC-9/AC-10: conversation-only recovery is excluded and restricted modes re
 
 test("AC-11: the repository manifest publishes the deterministic contract suite", () => {
   const manifest = JSON.parse(read("package.json"));
+  assert.equal(manifest.version, "0.0.1", "GSD remains explicitly pre-release");
 
   // The suite is the repository's only deterministic gate, so a fresh clone must be
   // able to run it from the manifest instead of copying a command out of prose.
@@ -247,7 +248,7 @@ test("T1 session-owner execution contract and lifecycle roles", () => {
   assert.match(execution, /[Aa]n amended plan/);
 });
 
-test("T2 schema:v4 state.toon contract and skill derivation", () => {
+test("T2 schema:v0.0.1 state.toon contract and skill derivation", () => {
   const reference = read("skills/gsd/REFERENCE.md");
   const handoff = read("skills/gsd-handoff/SKILL.md");
   const master = read("skills/gsd/SKILL.md");
@@ -256,14 +257,15 @@ test("T2 schema:v4 state.toon contract and skill derivation", () => {
   const verify = read("skills/gsd-verify/SKILL.md");
 
   assert.match(reference, /## Runtime state contract/);
-  const currentStateBlock = reference.match(/```toon\nschema:v4\n[\s\S]*?\n```/);
-  assert.ok(currentStateBlock, "REFERENCE must contain canonical schema:v4");
+  const currentStateBlock = reference.match(/```toon\nschema:v0.0.1\n[\s\S]*?\n```/);
+  assert.ok(currentStateBlock, "REFERENCE must contain canonical schema:v0.0.1");
   assert.doesNotMatch(currentStateBlock[0], /model|agent|review|ponytail/);
   assert.match(currentStateBlock[0], /phase:draft\|approved\|executing\|paused\|verifying\|repair\|merged-cleanup-pending\|completed-retained/);
   assert.match(currentStateBlock[0], /checkpoint_revision/);
   assert.match(currentStateBlock[0], /cleanup_preference:none\|delete\|retain\|archive-and-delete/);
-  assert.match(reference, /active[\s\S]{0,80}schema:v1[\s\S]{0,60}schema:v2[\s\S]{0,60}schema:v3[\s\S]{0,240}migrate[\s\S]{0,120}full validation/i);
-  assert.match(reference, /schema:v3[\s\S]{0,80}completed-retained[\s\S]{0,160}sole terminal[\s\S]{0,120}compatibility[\s\S]{0,240}candidate discovery[\s\S]{0,200}readStateFile[\s\S]{0,200}schema:v4/i);
+  assert.match(reference, /Every schema other than `schema:v0\.0\.1` is experimental history/);
+  assert.match(reference, /Candidate discovery ignores such records without rewriting them/);
+  assert.match(reference, /There is no migration path, compatibility parser, or upgrade command/);
   assert.match(reference, /validate[\s\S]{0,60}phase[\s\S]{0,120}fixed schema enum/i);
   assert.match(handoff, /Reject an unknown `phase`[\s\S]{0,60}preserve an opaque `next_action`/i);
   assert.doesNotMatch(reference, /opaque state `phase`|opaque `phase`/);
@@ -279,9 +281,8 @@ test("T2 schema:v4 state.toon contract and skill derivation", () => {
   assert.match(handoff, /writes atomically[\s\S]{0,60}`\.scratch\/<feature>\/state\.toon`/i);
   assert.match(handoff, /Active skills are derived from[\s\S]{0,40}`phase`[\s\S]{0,40}`next_action`/i);
   assert.match(handoff, /Never serialize a `reload` manifest/);
-  assert.match(handoff, /Exact active v1, v2, and v3 records[\s\S]{0,60}migrate atomically/i);
-  assert.match(handoff, /v1\/v2 terminal records[\s\S]{0,60}fail closed unchanged/i);
-  assert.match(planner, /atomically write canonical `schema:v4`[\s\S]{0,40}`state\.toon`/);
+  assert.match(handoff, /There is no migration path or compatibility parser for experimental schemas/);
+  assert.match(planner, /atomically write canonical `schema:v0.0.1`[\s\S]{0,40}`state\.toon`/);
   for (const skill of [planner, execution, handoff, verify]) {
     assert.doesNotMatch(skill, /state-input\.json/, "skills never teach the temp-JSON ceremony");
     assert.match(skill, /set --feature-dir/, "skills teach the set-based write path");

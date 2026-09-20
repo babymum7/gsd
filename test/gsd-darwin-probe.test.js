@@ -65,7 +65,7 @@ testDarwin('T2: writeStateAtomic and readStateFile roundtrip on darwin', () => {
   writeFileSync(join(featureDir, 'plan.md'), canonicalPlanFixture(feature));
 
   const stateInput = {
-    schema: 'v4',
+    schema: 'v0.0.1',
     feature,
     phase: 'executing',
     next_action: 'start/continue task',
@@ -125,7 +125,7 @@ testDarwin('T2: dynamic import of extensions/gsd-context.js exercises state read
   writeFileSync(join(featureDir, 'plan.md'), canonicalPlanFixture(feature));
 
   const stateInput = {
-    schema: 'v4',
+    schema: 'v0.0.1',
     feature,
     phase: 'executing',
     next_action: 'start/continue task',

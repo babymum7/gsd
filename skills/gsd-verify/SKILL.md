@@ -27,7 +27,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 ## Planned and milestone WIP gate
 
-At terminal entry, validate canonical `schema:v4`, exact plan hash/binding, base/WIP identity, last green checkpoint, current tree, and required artifacts; rebuild terminal slice including `Domain Impact`. Malformed grammar, feature mismatch, missing artifacts, or Git drift is Spec escalation. Repeat digest guard before squash. Select `Milestone WIP gate` when `plan.md` `## Publication` is non-`null`; otherwise `Planned WIP gate`.
+At terminal entry, validate canonical `schema:v0.0.1`, exact plan hash/binding, base/WIP identity, last green checkpoint, current tree, and required artifacts; rebuild terminal slice including `Domain Impact`. Malformed grammar, feature mismatch, missing artifacts, or Git drift is Spec escalation. Repeat digest guard before squash. Select `Milestone WIP gate` when `plan.md` `## Publication` is non-`null`; otherwise `Planned WIP gate`.
 
 Terminal entry never blocks on moved plans: changed plan bytes revalidate and rebind under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment; conformance proves amended plans on unchanged commits. Amend here only to record what the work actually did; a material change or drift the owner cannot account for asks one question first. Rebinding after pre-squash guards requires rerunning them.
 

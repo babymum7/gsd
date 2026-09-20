@@ -27,7 +27,7 @@ Own request classification, feature convergence, plan binding and in-flight amen
 | Independent Review | The one advisory read-only review of a reconciled wave of two or more tasks, run by the host's reviewer sub-agent where the host can spawn one — the shipped read-only definition where the host selects reviewers by definition, otherwise one isolated read-only reviewer task carrying the canonical `gsd-verify` brief — and otherwise by the standalone shape of `gsd-verify`. | second lifecycle verdict, blocking by taste |
 | Invocation Mode | A named path through one skill with its own required artifacts, fallback behavior, output authority, and prompt policy. | dispatch label |
 | Milestone Ledger | The Git-tracked `docs/gsd/<feature>/milestones.md` contract carrying precise user-approved milestone goals and durable pending/done state. | roadmap, task ledger |
-| Resumable State Snapshot | The atomic canonical `schema:v4` `.scratch/<feature>/state.toon` record binding plan bytes, Git identity, green checkpoint, runtime preferences, and revision. The canonical state-write path is `gsd-state.mjs set` `key=value…`; `write-state --json-file` remains the fallback. | handoff history, task attempt |
+| Resumable State Snapshot | The atomic canonical `schema:v0.0.1` `.scratch/<feature>/state.toon` record binding plan bytes, Git identity, green checkpoint, runtime preferences, and revision. The canonical state-write path is `gsd-state.mjs set` `key=value…`; `write-state --json-file` remains the fallback. | handoff history, task attempt |
 | Session Owner | The current top-level session as sole lifecycle authority; a later session assumes the role only through canonical rehydration. | persistent agent identity |
 | Terminal Conformance | Deterministic current-commit proof of plan/state binding, acceptance coverage, path ownership, Domain Impact, code/domain agreement, and check evidence. | free-form verdict |
 | Triage | The front-door classification performed before every route, choosing exactly one of `answer`, `clarify`, `research`, `quick`, `plan`, or `milestone` from the prompt and the context it names alone. | repository sweep to classify, loaded skill for a direct answer |
@@ -57,10 +57,10 @@ Own request classification, feature convergence, plan binding and in-flight amen
 - Several valid active packets are an ambiguity resolved by that same gateway: discovery returns every one of them and `gsd-handoff` selects exactly one validated resume, so generic continuation asks instead of failing closed. `ignore-terminal-record` requires a discovered `phase=completed-retained` record or residual terminal bytes: an active or `merged-cleanup-pending` packet is never terminal history, so new work unrelated to one stays plain `ordinary-routing`.
 - After compaction, the **Compaction Recovery Capsule** lists active features as workspace inventory only — it does not auto-resume any feature. The `[GSD Current Request]` context item preserves the user's last genuine request across compaction. Routing after compaction: a current request equal to `continue` or `continue implementation` (preserved or live) selects resume via `gsd-handoff`; a request naming an active feature routes to that feature's owner skill; any other current request continues ordinary routing. The capsule's inventory does not prove session ownership.
 - `gsd-tdd` remains a hidden internal reference and is never a primary owner; `gsd-domain-modeling` is also a hidden internal reference for current bounded-context documentation.
-- Exact retained v1/v2 terminal records are structurally recognized during candidate discovery only to remain inert and byte-identical; an explicit read rejects them fail closed unchanged.
+- Every state schema other than `schema:v0.0.1` is experimental history: candidate discovery ignores it without rewriting, while an explicit read rejects it fail closed and byte-identical.
 - Full-plan binding, execution resume, terminal entry, pre-squash, and Quick-fix verification use the production Contract Validator before consuming plan authority.
 - Plan grammar owns every line: in both the full-plan and Quick-fix forms the title is followed directly by the first section, so preamble content between them is rejected rather than ignored.
-- Retained `schema:v3` stays inert and byte-identical during candidate discovery but migrates atomically on an explicit read after full validation. The `gsd-state.mjs` CLI keeps that split visible: `read-state` performs the migrating read, while `validate-state` reads under the same pinned directory chain hardening but never writes, reporting the canonical v4 shape of a legacy record whose bytes stay unchanged.
+- There is no migration path, compatibility parser, or upgrade command for experimental schemas; a user who needs old work creates a fresh pre-release packet from current sources.
 - Every converged feature records Domain Impact, including a concrete justification for `none`.
 - Every Quick-fix records the exact five-field Domain Impact; semantic fixes own affected shards and no-impact fixes carry concrete evidence.
 - A Quick-fix carries a recorded runtime binding without normal-packet plan authority: its `state.toon` holds the validated `plan_sha256`, and both its resume revalidation and its gate compare that value against an unbound revalidation, since `validate-quick-fix` accepts no bound hash.
@@ -98,7 +98,7 @@ By default, single-task waves execute inline by the session owner with `gsd-tdd`
 ### Deliver a feature
 
 1. Classify intent, discover and converge acceptance behavior plus Domain Impact. When acceptance or target is unclear, ask one recommended question before further inspection. During discovery, distinguish questions sharp enough for acceptance-impact form from parked uncertainty too coarse to phrase as a criterion; prioritize batching by which items unblock the most downstream criteria. Reserve affected documentation paths without publishing future semantics, and write one durable decision record when a load-bearing tradeoff settles.
-2. Validate the canonical plan through the Contract Validator, then bind its exact SHA-256 in `schema:v4` state.
+2. Validate the canonical plan through the Contract Validator, then bind its exact SHA-256 in `schema:v0.0.1` state.
 3. Execute ordered tasks with Fast TDD and green checkpoints, writing one durable design record when a UI/UX decision settles.
 4. Prove terminal conformance including every owned decision and design record, run Deferred Slow E2E, retire wave-dispatched task branches and isolated workspaces before squash, squash to base, and clean transient state.
 
@@ -108,7 +108,7 @@ A read-only diff review along two independent axes, each as a bounded read-only 
 
 ### Resume active work
 1. Fatally decode LF-only state bytes, then validate the schema, plan hash/path, Git identity, green checkpoint, and current tree.
-2. Validate the exact bound plan through the Contract Validator. Retained v1/v2 terminal records remain inert during candidate discovery and fail closed on explicit read; retained v3 migrates only on an explicit validated read.
+2. Validate the exact bound plan through the Contract Validator. Experimental state schemas remain inert during candidate discovery and fail closed on explicit read.
 3. Rebuild exactly one active task or terminal slice from canonical sources.
 4. Continue the recorded owner action without replaying prior lifecycle work.
 
@@ -187,7 +187,7 @@ None.
 
 ### P-gsd-5: Rehydrate authority from canonical sources
 
-- **Policy:** Resume validates `schema:v4`, exact plan path/hash, base/WIP identity, last green task/commit, and current tree before rebuilding work.
+- **Policy:** Resume validates `schema:v0.0.1`, exact plan path/hash, base/WIP identity, last green task/commit, and current tree before rebuilding work.
 - **Reason:** Portable continuation depends on canonical bytes and Git rather than conversation or persistent identities.
 
 ### P-gsd-6: Require fast TDD and defer resource-heavy E2E
@@ -220,10 +220,10 @@ None.
 - **Policy:** State reads use fatal UTF-8 decoding and reject every carriage return rather than normalizing malformed authority.
 - **Reason:** Resume must never continue from bytes whose meaning changed during lossy decoding or line-ending repair.
 
-### P-gsd-12: Separate retained-v3 discovery from explicit migration
+### P-gsd-12: Treat older state schemas as experimental residue
 
-- **Policy:** Candidate discovery leaves exact retained `schema:v3` bytes inert and unchanged; only an explicit validated state read may migrate that record atomically to `schema:v4`.
-- **Reason:** Terminal history must not compete for resume selection, while explicit cleanup or inspection retains the supported compatibility path.
+- **Policy:** Candidate discovery ignores every state schema other than canonical `schema:v0.0.1` without rewriting it; explicit reads reject those bytes fail closed and unchanged.
+- **Reason:** Pre-release history must not compete for resume selection or force the first stable contract to carry experimental compatibility.
 
 ### P-gsd-13: Centralize executable plan validation
 

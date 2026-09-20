@@ -65,7 +65,7 @@ function makePacket({ feature = "git-demo", base = "main" } = {}) {
   writeFileSync(planPath, "# Plan\n");
   const plan_sha256 = createHash("sha256").update(readFileSync(planPath)).digest("hex");
   writeStateAtomic(featureDir, {
-    schema: "v4",
+    schema: "v0.0.1",
     feature,
     phase: "verifying",
     next_action: "terminal gate",
@@ -274,7 +274,7 @@ test("preflight verifies archive-and-delete materialized the exact approved plan
     const planPath = join(featureDir, "plan.md");
     const plan_sha256 = createHash("sha256").update(readFileSync(planPath)).digest("hex");
     writeStateAtomic(featureDir, {
-      schema: "v4",
+      schema: "v0.0.1",
       feature,
       phase: "verifying",
       next_action: "terminal gate",

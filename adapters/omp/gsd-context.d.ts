@@ -1,5 +1,5 @@
 /** GSD state file schema version. */
-export type StateSchema = "v4";
+export type StateSchema = "v0.0.1";
 
 /** Active (non-terminal) lifecycle phases. */
 export type ActivePhase = "draft" | "approved" | "executing" | "paused" | "verifying" | "repair" | "merged-cleanup-pending";
@@ -47,7 +47,7 @@ export const ACTIVE_STATE_PHASES: readonly ActivePhase[];
 /** Frozen array of completed state phases. */
 export const COMPLETED_STATE_PHASES: readonly CompletedPhase[];
 
-/** Frozen canonical v4 field order for a state.toon packet. */
+/** Frozen canonical v0.0.1 field order for a state.toon packet. */
 export const STATE_FIELD_ORDER: readonly (keyof State)[];
 
 /** Frozen per-phase default `next_action` values for canonical state writes. */
@@ -118,15 +118,15 @@ export function parseState(content: string, label?: string): State;
 
 /**
  * Read and validate a state.toon file from disk through pinned directory chain, TOCTOU-hardened
- * I/O. A legacy v1/v2/v3 packet is migrated in place to canonical v4 as a side effect.
+ * I/O. Unsupported experimental schemas fail closed without rewriting the file.
  * @param statePath - Absolute path to a state.toon file.
  * @returns Validated state object.
  */
 export function readStateFile(statePath: string): State;
 
 /**
- * Read and validate a state.toon file with the same hardening as `readStateFile`
- * but never writing: legacy packets are parsed and returned unmigrated.
+ * Read and validate a state.toon file with the same hardening as `readStateFile`,
+ * without writing.
  * @param statePath - Absolute path to a state.toon file.
  * @returns Validated state object.
  */

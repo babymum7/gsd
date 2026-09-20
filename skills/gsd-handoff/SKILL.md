@@ -32,10 +32,9 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 **Always use the CLI tool** `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> key=value…` to write state.toon.
 Pass each field as a `key=value` argument; derived defaults fill `next_action` and `checkpoint_revision`. `write-state --json-file` remains the fallback for values `key=value` cannot express. Never write state.toon directly using `write`: direct writes bypass validation, breaking autocompact and resume. The CLI validates, serializes, and writes atomically to `.scratch/<feature>/state.toon` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Runtime state contract: temp, fsync, rename, directory fsync, readback.
 - Plan binding writes `phase=approved`.
-- Canonical `schema:v4` gives the session owner only lifecycle, plan/Git binding, green checkpoint, runtime preferences, and revision.
-- Exact active v1, v2, and v3 records migrate atomically after full validation; v1/v2 terminal records fail closed unchanged.
-- The exact v3 `completed-retained` compatibility case remains inert during candidate discovery, while an explicit read validates and migrates it atomically to `schema:v4`.
-- Exact v1/v2 `completed-retained` records during candidate discovery remain inert and byte-identical; explicit `readStateFile` rejects them fail closed unchanged. Retained v3 remains the sole terminal record an explicit validated read migrates.
+- Canonical `schema:v0.0.1` gives the session owner only lifecycle, plan/Git binding, green checkpoint, runtime preferences, and revision.
+- Every schema other than `schema:v0.0.1` is experimental history. Candidate discovery ignores it without rewriting; explicit reads and resume reject it fail closed and byte-identical.
+- There is no migration path or compatibility parser for experimental schemas.
 
 Active skills are derived from `phase` and `next_action` per [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Skill derivation from phase and next_action. Never serialize a `reload` manifest. Master (`gsd`) is present from bootstrap.
 
@@ -57,7 +56,7 @@ Without a supplied path, discover active candidates via [../gsd/REFERENCE.md](..
 - Malformed state fails closed; missing or malformed-grammar plans are Spec escalation. Plans whose bytes moved are not drift: revalidate and rebind under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment, asking one question only when changes are material or unaccounted for.
 - Never reconstruct from dirty files, plan status, conversation, or legacy pre-binding TOON.
 
-For every Execution resume, after state validation and before deriving the peer owner, select the validator by probe: `schema:v4` records no grammar kind, so never assume one.
+For every Execution resume, after state validation and before deriving the peer owner, select the validator by probe: `schema:v0.0.1` records no grammar kind, so never assume one.
 
 1. Run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`. Exit 0 is a Quick-fix packet; it accepts no `--expected-sha256`, so compare its returned `sha256` against `state.plan_sha256`.
 2. Exit 1 means not Quick-fix grammar: run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>`. Exit 0 resumes full plan.
@@ -67,7 +66,7 @@ Base mismatch errors stop the ladder immediately as Spec escalation: `plan.md` �
 Exit 2 is never escalation: correct invocation and rerun. A bound call checks hash before parsing, so it alone never proves malformed grammar. A Quick-fix plan is never malformed converged state: escalating it because full-plan grammar rejected it is a validator-selection error.
 
 The probe reads current bytes, proving recorded grammar only when hash matches. On difference, prior kind is unprovable: resume asks one question naming the accepting grammar and stating prior kind is unprovable; rebind only if the user accepts current grammar.
-A valid Execution resume verifies `schema:v4`, plan hash/path, base/WIP, last green task/commit, and current tree, rebuilding active slice including `Domain Impact`. Resume validates whether verification continues before repair, E2E, or merge without adding state keys.
+A valid Execution resume verifies `schema:v0.0.1`, plan hash/path, base/WIP, last green task/commit, and current tree, rebuilding active slice including `Domain Impact`. Resume validates whether verification continues before repair, E2E, or merge without adding state keys.
 
 For `Milestone ledger recovery`, use only the ledger selected by automatic active-state detection. Report first pending milestone slug and goal, then load `gsd-brainstorming` for reconstruction. Do not create scratch, mutate ledger bytes, detail later rows, mark completion, start execution, or authorize merge.
 ## Contextual disclosure

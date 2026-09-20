@@ -125,7 +125,7 @@ test("an executing owner amends the plan in place instead of blocking", () => {
   assert.match(amendment, /grammar/i);
   assert.match(domain, /validate-quick-fix/);
 
-  // Resume has the same grammar hazard as amendment, but `schema:v4` records no kind
+  // Resume has the same grammar hazard as amendment, but `schema:v0.0.1` records no kind
   // discriminator, so "use the matching validator" is unactionable. The probe order is
   // the contract: `validate-quick-fix` first (a full plan exits 1 there), then the bound
   // full-plan form. A bound call checks the hash before parsing, so only an unbound

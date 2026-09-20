@@ -26,7 +26,7 @@ Select `Milestone plan execution` when `plan.md` `## Publication` is non-`null`;
 
 ## Intake and amendable contract
 
-Perform one full parse and binding check at execution entry or resume: validate canonical `schema:v4` and `.scratch/<feature>/plan.md` under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Canonical Markdown contract. Reject legacy proposal/spec/design files, numbered handoffs, attempts, reload manifests, and result markers. At ordinary task selection consume the retained validated task slice; repeat full parsing only at resume, terminal entry, and pre-squash; never reconstruct scope from memory.
+Perform one full parse and binding check at execution entry or resume: validate canonical `schema:v0.0.1` and `.scratch/<feature>/plan.md` under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Canonical Markdown contract. Reject legacy proposal/spec/design files, numbered handoffs, attempts, reload manifests, and result markers. At ordinary task selection consume the retained validated task slice; repeat full parsing only at resume, terminal entry, and pre-squash; never reconstruct scope from memory.
 
 At execution entry or resume run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>` before building retained slices. Exit 0 reports matching feature, bound hash, and recorded base. Exit 1 on malformed grammar or base mismatch is Spec escalation; exit 1 on hash mismatch alone means plan bytes moved: resolve through [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment. Exit 2 corrects invocation.
 

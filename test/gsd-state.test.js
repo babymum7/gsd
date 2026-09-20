@@ -22,7 +22,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI = join(__dirname, "..", "tools", "gsd-state.mjs");
 
 const VALID_STATE = {
-  schema: "v4",
+  schema: "v0.0.1",
   feature: "test-feature",
   phase: "approved",
   next_action: "start task T1",
@@ -76,7 +76,7 @@ test("rejects = separator (legacy malformed format)", () => {
 test("rejects missing required field", () => {
   const { scratch } = tmpFeatureDir();
   const content = [
-    "schema:v4",
+    "schema:v0.0.1",
     "feature:test-feature",
     // phase missing
     "next_action:none",
@@ -100,7 +100,7 @@ test("rejects wrong field order", () => {
   const { scratch } = tmpFeatureDir();
   const content = [
     "feature:test-feature",  // schema missing, wrong position
-    "schema:v4",
+    "schema:v0.0.1",
     "phase:approved",
     "next_action:start task T1",
     "plan_path:.scratch/test-feature/plan.md",
@@ -122,7 +122,7 @@ test("rejects wrong field order", () => {
 test("rejects unknown key", () => {
   const { scratch } = tmpFeatureDir();
   const content = [
-    "schema:v4",
+    "schema:v0.0.1",
     "feature:test-feature",
     "phase:approved",
     "plan_hash:some-hash",  // unknown key
@@ -147,7 +147,7 @@ test("rejects invalid feature slug", () => {
   const { scratch } = tmpFeatureDir();
   // Write raw TOON with invalid feature (serializeState would reject, so write directly)
   const content = [
-    "schema:v4",
+    "schema:v0.0.1",
     "feature:INVALID_FEATURE",
     "phase:approved",
     "next_action:start task T1",
@@ -170,7 +170,7 @@ test("rejects invalid feature slug", () => {
 test("rejects wip_branch feature mismatch", () => {
   const { scratch } = tmpFeatureDir();
   const content = [
-    "schema:v4",
+    "schema:v0.0.1",
     "feature:test-feature",
     "phase:approved",
     "next_action:start task T1",
@@ -193,7 +193,7 @@ test("rejects wip_branch feature mismatch", () => {
 
 test("rejects blank lines", () => {
   const { scratch } = tmpFeatureDir();
-  writeFileSync(join(scratch, "state.toon"), "schema:v4\n\nfeature:test-feature\n");
+  writeFileSync(join(scratch, "state.toon"), "schema:v0.0.1\n\nfeature:test-feature\n");
   const r = cli(["validate-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 1);
   assert.match(r.stdout, /blank lines are not allowed/);
@@ -201,13 +201,13 @@ test("rejects blank lines", () => {
 
 test("rejects carriage return line endings", () => {
   const { scratch } = tmpFeatureDir();
-  writeFileSync(join(scratch, "state.toon"), "schema:v4\r\nfeature:test-feature\r\n");
+  writeFileSync(join(scratch, "state.toon"), "schema:v0.0.1\r\nfeature:test-feature\r\n");
   const r = cli(["validate-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 1);
   assert.match(r.stdout, /carriage return rejected/);
 });
 
-// ─── Canonical v4 write/readback ──────────────────────────────────────
+// ─── Canonical v0.0.1 write/readback ──────────────────────────────────────
 
 test("writeStateAtomic produces canonical TOON format", () => {
   const { scratch } = tmpFeatureDir();
@@ -235,7 +235,7 @@ test("writeStateAtomic readback matches input", () => {
   const written = writeStateAtomic(scratch, VALID_STATE);
   const read = readStateFile(join(scratch, "state.toon"));
   assert.deepEqual(read, written);
-  assert.equal(read.schema, "v4");
+  assert.equal(read.schema, "v0.0.1");
   assert.equal(read.feature, "test-feature");
   assert.equal(read.wip_branch, "wip/test-feature");
 });
@@ -257,7 +257,7 @@ test("CLI read-state outputs valid JSON", () => {
   const r = cli(["read-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 0);
   const parsed = JSON.parse(r.stdout);
-  assert.equal(parsed.schema, "v4");
+  assert.equal(parsed.schema, "v0.0.1");
   assert.equal(parsed.feature, "test-feature");
 });
 
@@ -279,11 +279,11 @@ test("CLI write-state creates valid file and outputs JSON", () => {
   ]);
   assert.equal(r.exitCode, 0);
   const parsed = JSON.parse(r.stdout);
-  assert.equal(parsed.schema, "v4");
+  assert.equal(parsed.schema, "v0.0.1");
   assert.equal(parsed.feature, "test-feature");
 
   const raw = readFileSync(join(scratch, "state.toon"), "utf8");
-  assert.ok(raw.startsWith("schema:v4\n"), "file should start with schema:v4");
+  assert.ok(raw.startsWith("schema:v0.0.1\n"), "file should start with schema:v0.0.1");
   assert.ok(!raw.includes("="), "file should not contain = separator");
 });
 
@@ -303,7 +303,7 @@ test("CLI write-state rejects incomplete state", () => {
   const r = cli([
     "write-state",
     "--feature-dir", scratch,
-    "--json", JSON.stringify({ schema: "v4", feature: "test-feature" }),
+    "--json", JSON.stringify({ schema: "v0.0.1", feature: "test-feature" }),
   ]);
   assert.equal(r.exitCode, 1);
 });
@@ -331,17 +331,17 @@ test("CLI flag without a value gives a naming usage error", () => {
 test("CLI validate-state rejects a path whose basename is not state.toon", () => {
   const { scratch } = tmpFeatureDir();
   const alias = join(scratch, "state.toon.bak");
-  writeFileSync(alias, "schema:v4\n");
+  writeFileSync(alias, "schema:v0.0.1\n");
   const r = cli(["validate-state", "--path", alias]);
   assert.equal(r.exitCode, 1);
   assert.match(r.stdout, /expected state\.toon/);
 });
 
-test("CLI validate-state reports a legacy packet without migrating it; read-state migrates", () => {
+test("CLI rejects experimental schemas without rewriting them", () => {
   const { scratch } = tmpFeatureDir();
   const statePath = join(scratch, "state.toon");
-  const legacyV3 = [
-    "schema:v3",
+  const experimental = [
+    "schema:v4",
     "feature:test-feature",
     "phase:executing",
     "next_action:continue task T1",
@@ -352,21 +352,21 @@ test("CLI validate-state reports a legacy packet without migrating it; read-stat
     "last_green_task:none",
     "last_green_commit:none",
     "autosync:none",
-    "ponytail_level:none",
     "cleanup_preference:none",
     "checkpoint_revision:1",
     "",
   ].join("\n");
-  writeFileSync(statePath, legacyV3);
+  writeFileSync(statePath, experimental);
 
   const validated = cli(["validate-state", "--path", statePath]);
-  assert.equal(validated.exitCode, 0, validated.stderr);
-  assert.equal(JSON.parse(validated.stdout).schema, "v4", "validate-state reports the migrated shape");
-  assert.equal(readFileSync(statePath, "utf8"), legacyV3, "validate-state must never write");
+  assert.equal(validated.exitCode, 1, validated.stdout);
+  assert.match(validated.stdout, /unsupported schema: v4/);
+  assert.equal(readFileSync(statePath, "utf8"), experimental, "validate-state must never write");
 
-  const migrated = cli(["read-state", "--path", statePath]);
-  assert.equal(migrated.exitCode, 0, migrated.stderr);
-  assert.match(readFileSync(statePath, "utf8"), /^schema:v4\n/, "read-state migrates in place");
+  const read = cli(["read-state", "--path", statePath]);
+  assert.equal(read.exitCode, 1, read.stdout);
+  assert.match(read.stdout, /unsupported schema: v4/);
+  assert.equal(readFileSync(statePath, "utf8"), experimental, "read-state must never rewrite");
 });
 
 test("CLI --help shows usage", () => {
@@ -377,7 +377,7 @@ test("CLI --help shows usage", () => {
   assert.match(r.stdout, /validate-state/);
 });
 
-test("CLI write-state --help documents every canonical v4 field", () => {
+test("CLI write-state --help documents every canonical v0.0.1 field", () => {
   const r = cli(["--help", "write-state"]);
   assert.equal(r.exitCode, 0);
   for (const field of STATE_FIELD_ORDER) {
@@ -477,7 +477,7 @@ test("serializeState produces colon-separated output", () => {
   for (const line of lines) {
     assert.match(line, /^[a-z0-9_]+:.+/);
   }
-  assert.ok(result.startsWith("schema:v4\n"));
+  assert.ok(result.startsWith("schema:v0.0.1\n"));
   assert.ok(result.endsWith("checkpoint_revision:1\n"));
 });
 
@@ -645,7 +645,7 @@ test("detectCandidates attributes discovery defects to feature directory in faul
     const scratch = join(dir, ".scratch", "label-check");
     mkdirSync(scratch, { recursive: true });
     writeFileSync(join(scratch, "plan.md"), "# Plan\n");
-    writeFileSync(join(scratch, "state.toon"), "schema:v9\nnot-a-real-field: x\n");
+    writeFileSync(join(scratch, "state.toon"), "schema:v0.0.1\nnot-a-real-field: x\n");
 
     const result = detectCandidates(dir, { faultTolerant: true });
     assert.equal(result.candidates.length, 0);
@@ -678,7 +678,7 @@ test("detectCandidates surfaces packet-directory defects in strict mode and skip
   const featureDir = join(scratch, "symlink-feat");
   mkdirSync(featureDir);
   writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
-  writeFileSync(join(featureDir, "state.toon"), "schema:v4\nfeature:symlink-feat\nphase:executing\n");
+  writeFileSync(join(featureDir, "state.toon"), "schema:v0.0.1\nfeature:symlink-feat\nphase:executing\n");
 
   const origLstat = fs.lstatSync;
   try {
@@ -711,7 +711,7 @@ test("detectCandidates surfaces packet-directory defects in strict mode and skip
     const vanishDir = join(scratch, "vanish-feat");
     mkdirSync(vanishDir);
     writeFileSync(join(vanishDir, "plan.md"), "# Plan\n");
-    writeFileSync(join(vanishDir, "state.toon"), "schema:v4\nfeature:vanish-feat\nphase:executing\n");
+    writeFileSync(join(vanishDir, "state.toon"), "schema:v0.0.1\nfeature:vanish-feat\nphase:executing\n");
 
     let deleted = false;
     fs.lstatSync = (p, ...args) => {
@@ -771,7 +771,7 @@ test("CLI set creates new approved packet with default next_action and matches w
 
   // Equivalent write-state for comparison
   const expectedState1 = {
-    schema: "v4",
+    schema: "v0.0.1",
     feature: "test-feature",
     phase: "approved",
     next_action: "start/continue task",

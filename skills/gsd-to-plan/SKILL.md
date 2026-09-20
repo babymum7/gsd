@@ -61,7 +61,7 @@ Plan complete observable behavior, not layers.
 The parser accepts only structured task blocks carrying canonical `Domain Impact`. This planner single-writes exactly that grammar; path-only task forms, missing Domain Impact, or malformed fields return to Spec escalation through `gsd-handoff` instead of receiving a binding.
 
 
-Planning is the last interactive step of discuss. Without approval prompts or menus: once `validate-plan` exits 0, atomically write canonical `schema:v4` `state.toon` with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> phase=approved plan_path=.scratch/<feature>/plan.md plan_sha256=<hash> base_ref=<base> wip_branch=wip/<feature>` (derived defaults fill `next_action=start/continue task` and `checkpoint_revision`).
+Planning is the last interactive step of discuss. Without approval prompts or menus: once `validate-plan` exits 0, atomically write canonical `schema:v0.0.1` `state.toon` with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> phase=approved plan_path=.scratch/<feature>/plan.md plan_sha256=<hash> base_ref=<base> wip_branch=wip/<feature>` (derived defaults fill `next_action=start/continue task` and `checkpoint_revision`).
 Read it back and verify binding before execution. A fresh binding after Spec escalation supersedes older binding state by atomic overwrite without numbered handoff history. Never leave partial state bytes.
 Then load `gsd-executing-plans` without another prompt. Scratch cleanup defaults to automatic delete after green merge; retain or archive-and-delete is recorded only when selected during discuss without reopening planning.
 ## Contextual disclosure

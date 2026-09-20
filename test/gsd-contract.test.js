@@ -953,7 +953,7 @@ test("Quick-fix domain shard ownership is enforced per task, not plan-wide", () 
 });
 
 
-test("lifecycle owners use the production validator and document inert legacy terminals", () => {
+test("lifecycle owners use the production validator and document inert experimental schemas", () => {
   const files = new Map([
     ["reference", readFileSync(join(ROOT, "skills", "gsd", "REFERENCE.md"), "utf8")],
     ["planner", readFileSync(join(ROOT, "skills", "gsd-to-plan", "SKILL.md"), "utf8")],
@@ -990,10 +990,10 @@ test("lifecycle owners use the production validator and document inert legacy te
     );
   }
 
-  const legacyWording = /v1\/v2[\s\S]{0,220}candidate discovery[\s\S]{0,220}inert[\s\S]{0,220}explicit (?:read|`readStateFile`)[\s\S]{0,180}(?:reject|fail closed)/i;
-  assert.match(files.get("reference"), legacyWording);
-  assert.match(files.get("handoff"), legacyWording);
-  assert.match(files.get("domain"), legacyWording);
+  const experimentalWording = /(?:every state schema|every schema) other than `schema:v0\.0\.1`(?: is experimental history:?)[\s\S]{0,180}candidate discovery[\s\S]{0,180}explicit reads?[\s\S]{0,180}(?:reject|fail closed)/i;
+  assert.match(files.get("reference"), experimentalWording);
+  assert.match(files.get("handoff"), experimentalWording);
+  assert.match(files.get("domain"), experimentalWording);
 
   for (const content of files.values()) {
     assert.doesNotMatch(content, /test\/support\/markdown-packet\.mjs/);

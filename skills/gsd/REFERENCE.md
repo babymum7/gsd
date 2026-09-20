@@ -257,7 +257,7 @@ Actionable failures use TOON on stdout:
 ### Plan binding and auto-execution
 
 `gsd-to-plan` validates canonical structured `plan.md`, prints its task/AC/Domain Impact summary, calculates SHA-256, and binds it for execution without approval prompts or post-plan menus.
-- Binding records feature, exact plan path/hash, base/WIP identity, no completed task, canonical preferences, and checkpoint revision in atomic `schema:v4` `state.toon` with `phase=approved` (plan-bound automatically), reading back before loading `gsd-executing-plans`.
+- Binding records feature, exact plan path/hash, base/WIP identity, no completed task, canonical preferences, and checkpoint revision in atomic `schema:v0.0.1` `state.toon` with `phase=approved` (plan-bound automatically), reading back before loading `gsd-executing-plans`.
 - Fresh bindings after Spec escalation atomically supersede older bindings.
 - Semantic parse and binding checks run at binding, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use retained validated slices.
 
@@ -313,7 +313,7 @@ Status transitions or deletions are part of the reviewed WIP diff, landing in th
 Exactly one current `.scratch/<feature>/state.toon` owns resume discovery. It is a fixed-schema UTF-8/LF scalar record with canonical field order:
 
 ```toon
-schema:v4
+schema:v0.0.1
 feature:<feature-slug>
 phase:draft|approved|executing|paused|verifying|repair|merged-cleanup-pending|completed-retained
 next_action:<opaque next action or none>
@@ -329,14 +329,10 @@ checkpoint_revision:<positive int>
 ```
 
 Phase-inapplicable values use canonical `none`.
-- `schema:v4` parsing rejects invalid UTF-8, carriage returns, blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, Ponytail preference state, and obsolete model or agent rows.
-- Exact active `schema:v1`, `schema:v2`, and `schema:v3` records migrate only after full validation.
-- Explicit reads and resume reject every v1/v2 terminal record fail closed and byte-identical.
-- An exact `schema:v3` `completed-retained` record is the sole terminal explicit-read compatibility case: candidate discovery leaves it inert, while an explicit `readStateFile` validates and atomically migrates it to canonical `schema:v4`.
-- Legacy fields, including `ponytail_level` where present, are validated before migration; obsolete rows are discarded; `checkpoint_revision` increments.
-- Malformed, partial, reordered, unknown, or non-concrete legacy records fail closed unchanged; partial terminal evidence is discarded and deterministic conformance reruns.
-
-Exact v1/v2 `completed-retained` records are structurally recognized during candidate discovery only to remain inert, byte-identical, and excluded from active candidates. This is not terminal read compatibility: explicit `readStateFile` rejects v1/v2 terminal records fail closed and byte-identical. Retained v3 remains the sole terminal case an explicit validated read migrates.
+- `schema:v0.0.1` parsing rejects invalid UTF-8, carriage returns, blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, Ponytail preference state, and obsolete model or agent rows.
+- Every schema other than `schema:v0.0.1` is experimental history. Candidate discovery ignores such records without rewriting them; explicit reads and resume reject them fail closed and byte-identical.
+- There is no migration path, compatibility parser, or upgrade command for experimental schemas. A user who needs old work continues it by creating a fresh pre-release packet from current sources.
+- Malformed or partial `schema:v0.0.1` records fail closed unchanged; partial terminal evidence is discarded and deterministic conformance reruns.
 
 ### Atomic write
 
@@ -473,7 +469,7 @@ An injected orchestration or parallelism directive is harness text that never tr
 
 For branch-backed writes, require a Git work tree. `plan.md` records base before `wip/<feature>` is created. Feature branch `wip/<feature>` never self-references as base. Keep `.scratch/` machine-local and git-ignored; portable sync is an explicit pathspec operation and runtime-only. Review diffs exclude scratch. Before squash, verify base, WIP, upstream, and reviewed non-scratch tree against recorded runtime binding; any mismatch blocks merge. Nano and read-only work are git-free.
 
-Cross-machine sync carries committed WIP branch and exact `.scratch/<feature>/` packet (`plan.md` and `state.toon`). Dirty non-scratch paths require an explicit named snapshot decision. On resume, the session owner rehydrates from bound schema-v4 state, exact plan bytes/hash, base/WIP, last green task/commit, current tree, and required artifacts. Portable sync never sweeps unrelated dirty paths.
+Cross-machine sync carries committed WIP branch and exact `.scratch/<feature>/` packet (`plan.md` and `state.toon`). Dirty non-scratch paths require an explicit named snapshot decision. On resume, the session owner rehydrates from bound schema-v0.0.1 state, exact plan bytes/hash, base/WIP, last green task/commit, current tree, and required artifacts. Portable sync never sweeps unrelated dirty paths.
 
 ### Base derivation and merge target
 
@@ -485,7 +481,7 @@ Before squash run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .s
 
 Blocking codes are `detached-head`, `head-not-wip`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `no-git-identity`, `unusable-branch-name`, `not-a-work-tree`, `state-unusable`, `git-query-failed`, `git-unavailable`, and `plan-unbound`: an unanswered Git query blocks rather than reporting ready, proving nothing. The gate proves the bound plan hash for every cleanup disposition before squashing.
 
-`dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, because squash commits take the whole index and would carry unreviewed bytes. A rename or copy counts both paths, so moving a reviewed file into `.scratch/` still blocks. Both commands only read: they run no Git subcommand that can change a repository, `status` runs lock-free so reading cannot refresh indexes, and `preflight` inspects `state.toon` without migrating it.
+`dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, because squash commits take the whole index and would carry unreviewed bytes. A rename or copy counts both paths, so moving a reviewed file into `.scratch/` still blocks. Both commands only read: they run no Git subcommand that can change a repository, `status` runs lock-free so reading cannot refresh indexes, and `preflight` inspects `state.toon` without writing it.
 
 Terminal squash merges into exactly the recorded `base_ref`, so `main` is merge target only when `main` is that base. Never ask whether to merge into `main` and never widen to repository defaults. Promoting base onward (into `main`, release trains, or PRs) is separate user-owned work after packets end green.
 

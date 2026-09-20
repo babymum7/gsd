@@ -40,7 +40,7 @@ function projectWithActiveFeature() {
   writeFileSync(
     join(featureDir, "state.toon"),
     [
-      "schema:v4",
+      "schema:v0.0.1",
       "feature:demo",
       "phase:approved",
       "next_action:start task",

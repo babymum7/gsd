@@ -1,6 +1,6 @@
 {
   "name": "gsd-core",
-  "version": "1.4.1",
+  "version": "0.0.1",
   "private": true,
   "type": "module",
   "description": "GSD workflow skills, contract validators, and the OMP, Claude Code, and Codex session adapters.",
