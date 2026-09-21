@@ -5,11 +5,11 @@ import { runCli } from '../adapters/plugin/gsd-cli.mjs';
 async function selectAgent() {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   try {
-    process.stdout.write('Select agent:\n1. all (recommended)\n2. omp\n3. claude-code\n4. codex\n> ');
+  process.stdout.write('Select agent:\n1. all (recommended)\n2. omp\n3. claude\n4. codex\n> ');
     const answer = (await rl.question('')).trim();
     if (answer === '' || answer === '1') return 'all';
     if (answer === '2') return 'omp';
-    if (answer === '3') return 'claude-code';
+  if (answer === '3') return 'claude';
     if (answer === '4') return 'codex';
     return null;
   } finally {

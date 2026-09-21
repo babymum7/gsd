@@ -6,14 +6,14 @@ import { fileURLToPath } from 'node:url';
 import { buildPluginBundle } from './gsd-plugin-packager.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const AGENTS = ['omp', 'claude-code', 'codex'];
+const AGENTS = ['omp', 'claude', 'codex'];
 const PLUGIN_SELECTOR = 'gsd@gsd-local';
 
 const HELP = `GSD host plugin CLI
 
 Usage:
-  gsd install [--agent omp|claude-code|codex|all] [--home <path>] [--dry-run]
-  gsd uninstall [--agent omp|claude-code|codex|all] [--home <path>] [--dry-run]
+  gsd install [--agent omp|claude|codex|all] [--home <path>] [--dry-run]
+  gsd uninstall [--agent omp|claude|codex|all] [--home <path>] [--dry-run]
 
 Options:
   --agent <name>  Agent to process (omit interactively)
@@ -62,7 +62,7 @@ function commandPlan(agent, home) {
   if (agent === 'omp') {
     return [{ binary: 'omp', args: ['plugin', 'link', pluginRoot] }];
   }
-  if (agent === 'claude-code') {
+  if (agent === 'claude') {
     return [
       {
         binary: 'claude',
@@ -81,7 +81,7 @@ function uninstallCommandPlan(agent) {
   if (agent === 'omp') {
     return [{ binary: 'omp', args: ['plugin', 'uninstall', 'gsd-core'] }];
   }
-  if (agent === 'claude-code') {
+  if (agent === 'claude') {
     return [
       { binary: 'claude', args: ['plugin', 'uninstall', PLUGIN_SELECTOR, '--scope', 'user'] },
       {

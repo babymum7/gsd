@@ -126,7 +126,7 @@ A read-only diff review along two independent axes, each as a bounded read-only 
 
 ### Install and uninstall GSD hosts
 
-1. The user selects `omp`, `claude-code`, `codex`, or `all` through the GSD CLI. The CLI
+1. The user selects `omp`, `claude`, `codex`, or `all` through the GSD CLI. The CLI
    generates one self-contained plugin bundle and local marketplace, records the selected
    agents in its own state, and registers the bundle through the selected host's native
    plugin command. Claude Code marketplace registration and removal are user-scoped, so

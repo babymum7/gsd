@@ -35,7 +35,7 @@ test("install routes one selected agent through its native plugin command", () =
   const logPath = join(home, "commands.log");
   const binDir = fakeBinDir(logPath);
 
-  const result = runCli(["install", "--agent", "claude-code", "--home", home], {
+  const result = runCli(["install", "--agent", "claude", "--home", home], {
     env: { ...process.env, PATH: `${binDir}:${process.env.PATH}` },
   });
 
@@ -48,7 +48,7 @@ test("install routes one selected agent through its native plugin command", () =
   assert.ok(existsSync(join(home, "marketplace", "gsd", ".claude-plugin", "plugin.json")));
 
   const state = JSON.parse(readFileSync(join(home, "state.json"), "utf8"));
-  assert.deepEqual(state.agents, { "claude-code": "plugin" });
+  assert.deepEqual(state.agents, { claude: "plugin" });
 });
 
 test("install dry-run plans commands without building or invoking a host", () => {
@@ -76,7 +76,7 @@ test("uninstall is plugin-only and leaves legacy-looking host files unchanged", 
   buildPluginBundle(ROOT, join(home, "marketplace"));
   writeFileSync(
     join(home, "state.json"),
-    JSON.stringify({ version: 1, agents: { "claude-code": "plugin" } }, null, 2),
+    JSON.stringify({ version: 1, agents: { claude: "plugin" } }, null, 2),
   );
 
   const configDir = mkdtempSync(join(tmpdir(), "gsd-claude-config-"));
@@ -119,7 +119,7 @@ test("uninstall is plugin-only and leaves legacy-looking host files unchanged", 
   const settingsBefore = readFileSync(join(configDir, "settings.json"), "utf8");
   const agentsBefore = readFileSync(join(configDir, "AGENTS.md"), "utf8");
 
-  const result = runCli(["uninstall", "--agent", "claude-code", "--home", home], {
+  const result = runCli(["uninstall", "--agent", "claude", "--home", home], {
     env: {
       ...process.env,
       PATH: `${binDir}:${process.env.PATH}`,

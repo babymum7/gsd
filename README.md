@@ -24,7 +24,7 @@ The interactive prompt recommends `all`; choose one agent with:
 
 ```bash
 bun bin/gsd.mjs install --agent omp
-bun bin/gsd.mjs install --agent claude-code
+bun bin/gsd.mjs install --agent claude
 bun bin/gsd.mjs install --agent codex
 ```
 
@@ -39,7 +39,7 @@ The bundle carries `lib/`, the canonical skills and tools under `core/`, only th
 Relocation of the checkout does not require reinstall because the installed plugin is a copied, self-contained bundle. Editing the checkout does not update the installed bundle; run `bun bin/gsd.mjs install` again to refresh it, then follow the selected host's normal reload and trust behavior.
 
 ```bash
-bun bin/gsd.mjs uninstall --agent claude-code
+bun bin/gsd.mjs uninstall --agent claude
 ```
 
 Uninstall runs only the host's native plugin uninstall command and removes the local bundle when no selected agent still uses it. It does not inspect or modify files outside that plugin registration. Unrelated hooks, skills, agents, settings, and marketplaces stay untouched.
