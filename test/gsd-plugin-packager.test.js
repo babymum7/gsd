@@ -41,8 +41,9 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
   assert.deepEqual(claudeManifest.author, { name: "GSD" });
   assert.equal(claudeManifest.agents, "./agents/gsd-reviewer.md");
   assert.equal(claudeManifest.hooks, "./hooks/claude.json");
-  const portableManifest = JSON.parse(readFileSync(join(pluginRoot, "plugin.json"), "utf8"));
-  assert.equal(portableManifest.extensions["com.openai"].hooks, "./hooks/codex.json");
+  // No root `plugin.json`: codex would resolve it as an AgentPlugin manifest and
+  // skip hook registration; the legacy `.codex-plugin/plugin.json` stays authoritative.
+  assert.equal(existsSync(join(pluginRoot, "plugin.json")), false);
   const codexFallback = JSON.parse(
     readFileSync(join(pluginRoot, ".codex-plugin", "plugin.json"), "utf8"),
   );

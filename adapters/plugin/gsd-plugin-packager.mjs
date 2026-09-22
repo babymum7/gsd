@@ -120,17 +120,8 @@ export function buildPluginBundle(root, marketplaceRoot) {
     agents: './agents/gsd-reviewer.md',
     hooks: './hooks/claude.json',
   });
-  writeJsonAtomic(path.join(pluginRoot, 'plugin.json'), {
-    $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json',
-    name: PLUGIN_NAME,
-    version: packageJson.version,
-    description: packageJson.description,
-    extensions: {
-      'com.openai': {
-        hooks: './hooks/codex.json',
-      },
-    },
-  });
+  // No root agent-plugins `plugin.json`: codex prefers it over `.codex-plugin/plugin.json`
+  // and skips hook registration entirely for AgentPlugin-format local plugins.
   writeJsonAtomic(path.join(pluginRoot, '.codex-plugin', 'plugin.json'), {
     name: PLUGIN_NAME,
     version: packageJson.version,
