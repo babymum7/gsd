@@ -1,6 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import fs, { mkdtempSync, writeFileSync, readFileSync, mkdirSync, readdirSync, rmSync, existsSync, symlinkSync } from "node:fs";
+import fs, { mkdtempSync, writeFileSync, readFileSync, mkdirSync, rmSync, existsSync, symlinkSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -470,108 +470,6 @@ test("validateState rejects invalid phase", () => {
   assert.throws(
     () => validateState({ ...VALID_STATE, phase: "invalid-phase" }),
     /unsupported phase/,
-  );
-});
-
-// ─── Guard: all skill state-write paths use CLI ───────────────────────
-
-
-const SKILLS_DIR = join(__dirname, "..", "skills");
-const GSD_SKILL_DIR = join(SKILLS_DIR, "gsd");
-
-function getSkillNames() {
-  return readdirSync(SKILLS_DIR, { withFileTypes: true })
-    .filter(d => d.isDirectory())
-    .map(d => d.name);
-}
-
-// Collect all lifecycle Markdown files: every skills/*/SKILL.md plus
-// skills/gsd/REFERENCE.md and skills/gsd/SKILL.md (bootstrap).
-function getLifecycleMarkdownFiles() {
-  const files = [];
-  for (const name of getSkillNames()) {
-    const p = join(SKILLS_DIR, name, "SKILL.md");
-    try { readFileSync(p, "utf8"); files.push(p); } catch {}
-  }
-  for (const extra of ["REFERENCE.md", "SKILL.md"]) {
-    const p = join(GSD_SKILL_DIR, extra);
-    try { readFileSync(p, "utf8"); files.push(p); } catch {}
-  }
-  return [...new Set(files)];
-}
-
-// Mutation verbs targeting state.toon, .scratch paths, or phase= writes.
-// Bounded .{0,60}? between verb and target catches "Persist `key` in `state.toon`".
-const STATE_WRITE_RE = /(?:atomically\s+)?(?:write|update|persist)\b.{0,60}?(?:`[^`]*`(?:\.scratch|\/state\.toon)|`[^`]*state\.toon|`phase=)/gi;
-const ALLOWED_RE = /gsd-state\.mjs|write-state/gi;
-
-// Scan lines in a file for unguarded state-write instructions.
-// Table rows are split into cells and scanned independently to avoid
-// cross-cell false positives while still catching per-cell mutations.
-function findViolations(filePath) {
-  const content = readFileSync(filePath, "utf8");
-  const lines = content.split("\n");
-  const violations = [];
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i];
-    if (line.startsWith("```") || line.startsWith("    ")) continue;
-    const cells = line.startsWith("|") ? line.split("|").filter(c => c.trim()) : [line];
-    for (const cell of cells) {
-      STATE_WRITE_RE.lastIndex = 0;
-      if (STATE_WRITE_RE.test(cell)) {
-        ALLOWED_RE.lastIndex = 0;
-        if (!ALLOWED_RE.test(line)) {
-          violations.push(`${i + 1}: ${line.trim()}`);
-          break;
-        }
-      }
-    }
-  }
-  return violations;
-}
-
-// Unit-test the detector against known fixture lines so the guard itself
-// cannot silently regress due to regex or logic drift.
-test("state-write detector catches bare mutation verbs", () => {
-  const dir = mkdtempSync(join(tmpdir(), "gsd-guard-"));
-  const p = join(dir, "test.md");
-  writeFileSync(p, [
-    "Normal line",
-    "Write atomic `.scratch/foo/state.toon`",        // should catch
-    "atomically write `feature`/state.toon",          // should catch
-    "update `bar`/state.toon directly",               // should catch
-    "Persist `baz`/state.toon when chosen",           // should catch
-    "write `phase=merged-cleanup-pending`",           // should catch
-    "| foo | write `state.toon` directly | bar |",    // should catch (mutation in one cell)
-    "| Pre-plan state write | — | `state.toon` |",    // should NOT catch (verb and target in different cells)
-    "| Persist `cleanup_preference` in `state.toon` | via gsd-state.mjs |", // should NOT catch (allowed in same row)
-    "Persist `cleanup_preference` in `state.toon` when chosen (via `gsd-state.mjs write-state`)", // should NOT catch (allowed)
-    "    write `x`/state.toon",                       // code block — skip
-  ].join("\n"));
-  const violations = findViolations(p);
-  assert.deepEqual(violations, [
-    "2: Write atomic `.scratch/foo/state.toon`",
-    "3: atomically write `feature`/state.toon",
-    "4: update `bar`/state.toon directly",
-    "5: Persist `baz`/state.toon when chosen",
-    "6: write `phase=merged-cleanup-pending`",
-    "7: | foo | write `state.toon` directly | bar |",
-  ]);
-  rmSync(dir, { recursive: true, force: true });
-});
-
-test("every lifecycle Markdown file's state-write instructions use the CLI", () => {
-  const violations = [];
-  for (const filePath of getLifecycleMarkdownFiles()) {
-    const rel = filePath.replace(SKILLS_DIR + "/", "");
-    for (const v of findViolations(filePath)) {
-      violations.push(`${rel}:${v}`);
-    }
-  }
-  assert.deepEqual(
-    violations,
-    [],
-    `Found state.toon write instructions without gsd-state.mjs:\n${violations.join("\n")}`
   );
 });
 

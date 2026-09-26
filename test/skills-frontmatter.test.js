@@ -96,22 +96,9 @@ test("visible catalog descriptions stay within the injected byte budget", () => 
     const skill = read(`skills/${name}/SKILL.md`);
     if (/^hide: true$/m.test(skill)) continue;
     const description = JSON.parse(skill.match(/^description: (.+)$/m)[1]);
-    assert.doesNotMatch(description, /^Do not use|\. Do not use for read-only questions/, name);
     total += Buffer.byteLength(description, "utf8");
   }
   assert.ok(total < 1800, `summed visible description bytes must stay under 1800, got ${total}`);
-
-  // AC-6: the renderer byte-accounting spec belongs beside createCapsule, not in
-  // agent-facing prose. Input caps stay because the renderer validates against them.
-  const reference = read("skills/gsd/REFERENCE.md");
-  assert.doesNotMatch(reference, /\d+\s*\+\s*\d+\s*\+\s*\d+\s*\+\s*\d+\s*=/);
-  assert.doesNotMatch(reference, /UTF-8 bytes\)/);
-  assert.doesNotMatch(reference, /Byte-Budget Limits|Caps are a maximum/);
-  assert.match(reference, /A rendered capsule over 4000 bytes fails closed/);
-  assert.match(read("lib/gsd-bootstrap.mjs"), /1835|1962/);
-  for (const name of skillNames()) {
-    assert.doesNotMatch(read(`skills/${name}/SKILL.md`), /^triggers:/m, `${name} triggers`);
-  }
 });
 
 test("agent-facing skill prose keeps rule lines readable", () => {

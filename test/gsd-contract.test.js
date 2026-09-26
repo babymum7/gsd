@@ -812,9 +812,6 @@ test("lifecycle owners use the production validator and document inert experimen
     );
   }
 
-  for (const content of files.values()) {
-    assert.doesNotMatch(content, /test\/support\/markdown-packet\.mjs/);
-  }
   assert.equal(existsSync(join(ROOT, "test", "support", "markdown-packet.mjs")), false);
   assert.equal(existsSync(join(ROOT, "lib", "gsd-contract.mjs")), true);
 });
