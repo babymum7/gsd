@@ -1,59 +1,31 @@
 {
   "scope": "bootstrap only",
-  "bootstrap_sha256": "ee68a4afb74439a991074e83a7fc75111e416d048f1ad73f21c74333cc68dede",
-  "bootstrap_words": 497,
+  "bootstrap_sha256": "545124e0bd2499a3a6e6573f9b033b9c973267e72512b84fe2f81c921603fa37",
+  "bootstrap_words": 511,
   "canon_sha256": null,
   "canon_words": null,
   "pass1": {
     "google-antigravity/gemini-3.8-flash": {
-      "passed": 28,
+      "passed": 30,
       "total": 32,
-      "accuracy": 87.5
+      "accuracy": 93.8
     }
   },
   "pass2": {
     "google-antigravity/gemini-3.8-flash": {
-      "corrected": 1,
-      "stillFailing": 3,
-      "accuracy": 90.6
+      "corrected": 0,
+      "stillFailing": 2,
+      "accuracy": 93.8
     }
   },
   "summary": {
     "google-antigravity/gemini-3.8-flash": {
-      "firstAttempt": 87.5,
-      "corrected": 90.6
+      "firstAttempt": 93.8,
+      "corrected": 93.8
     }
   },
   "failures": {
     "google-antigravity/gemini-3.8-flash": [
-      {
-        "fixture": "arch-audit",
-        "expected": {
-          "decision": "ordinary-routing",
-          "action": "load",
-          "primarySkill": "gsd-brainstorming"
-        },
-        "actual": {
-          "decision": "ordinary-routing",
-          "action": "direct",
-          "primarySkill": null
-        },
-        "detail": "want ordinary-routing:load->gsd-brainstorming, got ordinary-routing:direct->null"
-      },
-      {
-        "fixture": "architecture-this-repo",
-        "expected": {
-          "decision": "ordinary-routing",
-          "action": "load",
-          "primarySkill": "gsd-brainstorming"
-        },
-        "actual": {
-          "decision": "ordinary-routing",
-          "action": "direct",
-          "primarySkill": null
-        },
-        "detail": "want ordinary-routing:load->gsd-brainstorming, got ordinary-routing:direct->null"
-      },
       {
         "fixture": "result-malformed-with-active",
         "expected": {

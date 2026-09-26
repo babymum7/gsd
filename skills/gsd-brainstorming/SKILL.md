@@ -1,6 +1,6 @@
 ---
 name: gsd-brainstorming
-description: "Converge non-trivial new/changed product behavior into acceptance, then load gsd-to-plan."
+description: "Use before designing new/changed behavior, a module or public interface, an architecture audit, or domain terms and bounded contexts; converges acceptance, then loads gsd-to-plan."
 produces: [docs/decisions/NNNN-slug.md]
 consumes: []
 ---

@@ -1,39 +1,31 @@
 {
   "scope": "bootstrap only (skill compliance axis)",
-  "bootstrap_sha256": "ee68a4afb74439a991074e83a7fc75111e416d048f1ad73f21c74333cc68dede",
-  "bootstrap_words": 497,
+  "bootstrap_sha256": "545124e0bd2499a3a6e6573f9b033b9c973267e72512b84fe2f81c921603fa37",
+  "bootstrap_words": 511,
   "pass": {
     "google-antigravity/gemini-3.8-flash": {
-      "passed": 16,
+      "passed": 18,
       "total": 22,
-      "accuracy": 72.73
+      "accuracy": 81.82
     }
   },
   "failures": {
     "google-antigravity/gemini-3.8-flash": [
       {
+        "fixture": "review-diff",
+        "detail": "answered before reading the skill: ### Code Review\n\n#### Critical Security Finding\n- **Token is decoded without signature verification (`jwt.decode`)**:\n  "
+      },
+      {
         "fixture": "arch-audit",
-        "detail": "skill not read in the first 3 actions: write xd://run, write xd://mcp__gitea_repo_list_my, read /"
+        "detail": "skill not read in the first 3 actions: read /tmp, read /home/trong/Documents/personal/gsd, read /home/trong/Documents/personal/gsd/README.md"
       },
       {
         "fixture": "architecture-this-repo",
-        "detail": "skill not read in the first 3 actions: read /tmp, read /home/trong/Documents/personal/gsd, read /home/trong/Documents/personal/gsd/package.json"
-      },
-      {
-        "fixture": "public-api-interface",
-        "detail": "answered before reading the skill: To design an effective public interface for the **Billing Module**, we need to align on the core billing model and techn"
-      },
-      {
-        "fixture": "domain-glossary",
-        "detail": "skill not read in the first 3 actions: read docs/domain/index.md, read docs/domain/billing.md, write docs/domain/billing.md"
-      },
-      {
-        "fixture": "arch-audit-during-execution",
-        "detail": "skill not read in the first 3 actions: read /tmp/.scratch/oauth-login/plan.md, read .scratch/oauth-login/plan.md, read xd://mcp__google_workspace_gdrive_search_files"
+        "detail": "skill not read in the first 3 actions: read xd://internal_bash_execute, write xd://mcp__gitea_repo_list_my, write xd://mcp__gitea_user_get_my_userinfo"
       },
       {
         "fixture": "domain-context-mapping",
-        "detail": "skill not read in the first 3 actions: read docs/domain, read /home/trong/Documents/personal/gsd, read /home/trong/Documents/personal/gsd/docs/domain"
+        "detail": "skill not read in the first 3 actions: read docs/domain, read /tmp, read /home/trong/Documents/personal/gsd"
       }
     ]
   }

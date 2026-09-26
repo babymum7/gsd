@@ -1,10 +1,10 @@
 {
   "scope": "bootstrap + brainstorm skill (behavior compliance axis)",
-  "bootstrap_sha256": "ee68a4afb74439a991074e83a7fc75111e416d048f1ad73f21c74333cc68dede",
-  "bootstrap_words": 497,
+  "bootstrap_sha256": "545124e0bd2499a3a6e6573f9b033b9c973267e72512b84fe2f81c921603fa37",
+  "bootstrap_words": 511,
   "canon_sha256": null,
   "canon_words": null,
-  "brainstorm_skill_sha256": "f7c2fcc21a5592d4ab2313a2c88e65d08094cab3fc268676cc7057d5ba81f143",
+  "brainstorm_skill_sha256": "711efdb9b99019235d8955092c65e88b168c41585f1c4279c7c86492241dc7c3",
   "pass": {
     "google-antigravity/gemini-3.8-flash": {
       "passed": 5,
