@@ -230,3 +230,50 @@ test("uninstall keeps user settings", () => {
   assert.equal(existsSync(join(home, "marketplace")), false);
   assert.ok(existsSync(join(home, "settings.json")));
 });
+
+test("skills-only install writes resolved visible skills and a router, and uninstall removes only them", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-home-"));
+  const skillsDir = mkdtempSync(join(tmpdir(), "gsd-skills-dir-"));
+  mkdirSync(join(skillsDir, "someone-else"));
+  writeFileSync(join(skillsDir, "someone-else", "SKILL.md"), "unrelated\n");
+
+  const installed = runCli(["install", "--skills-dir", skillsDir, "--home", home]);
+  assert.equal(installed.status, 0, installed.stderr);
+  const coreRoot = join(home, "marketplace", "gsd", "core");
+
+  const router = readFileSync(join(skillsDir, "gsd", "SKILL.md"), "utf8");
+  assert.match(router, /^name: gsd$/m);
+  assert.doesNotMatch(router, /^hide: true$/m);
+  assert.ok(router.includes(`GSD_ROOT: ${JSON.stringify(coreRoot)}`));
+  assert.match(router, /^GSD_SESSION: skills-only$/m);
+  assert.doesNotMatch(router, /The host already loaded this/);
+  assert.ok(existsSync(join(skillsDir, "gsd", "REFERENCE.md")), "relative ../gsd/REFERENCE.md links resolve");
+
+  const executing = readFileSync(join(skillsDir, "gsd-executing-plans", "SKILL.md"), "utf8");
+  assert.doesNotMatch(executing, /<GSD_ROOT>/);
+  assert.ok(executing.includes(`bun "${coreRoot}/tools/gsd-state.mjs"`));
+  assert.ok(existsSync(join(coreRoot, "tools", "gsd-state.mjs")));
+  assert.ok(!existsSync(join(skillsDir, "gsd-tdd")), "hidden helper skills stay in core");
+  assert.equal(JSON.parse(readFileSync(join(home, "state.json"), "utf8")).agents[`skills:${skillsDir}`], "skills");
+
+  const removed = runCli(["uninstall", "--skills-dir", skillsDir, "--home", home]);
+  assert.equal(removed.status, 0, removed.stderr);
+  assert.ok(!existsSync(join(skillsDir, "gsd")));
+  assert.ok(!existsSync(join(skillsDir, "gsd-executing-plans")));
+  assert.equal(readFileSync(join(skillsDir, "someone-else", "SKILL.md"), "utf8"), "unrelated\n");
+  assert.ok(!existsSync(join(home, "marketplace")), "the bundle goes once nothing uses it");
+});
+
+test("skills-only install refuses to overwrite a skill it does not manage", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-home-"));
+  const skillsDir = mkdtempSync(join(tmpdir(), "gsd-skills-dir-"));
+  mkdirSync(join(skillsDir, "gsd-verify"));
+  writeFileSync(join(skillsDir, "gsd-verify", "SKILL.md"), "mine\n");
+
+  const result = runCli(["install", "--skills-dir", skillsDir, "--home", home]);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /is not a GSD-managed skill/);
+  assert.equal(readFileSync(join(skillsDir, "gsd-verify", "SKILL.md"), "utf8"), "mine\n");
+  assert.ok(!existsSync(join(skillsDir, "gsd")), "nothing is written after a refusal");
+  assert.equal(runCli(["install", "--skills-dir", skillsDir, "--agent", "omp", "--home", home]).status, 2);
+});

@@ -44,6 +44,17 @@ bun bin/gsd.mjs uninstall --agent claude
 
 Uninstall runs only the host's native plugin uninstall command and removes the local bundle when no selected agent still uses it. It does not inspect or modify files outside that plugin registration. Unrelated hooks, skills, agents, settings, and marketplaces stay untouched.
 
+### Skills-only install
+
+A harness without a GSD adapter can still use the skills if it discovers skill directories:
+
+```bash
+bun bin/gsd.mjs install --skills-dir <harness skills directory>
+bun bin/gsd.mjs uninstall --skills-dir <harness skills directory>
+```
+
+Install builds the same bundle, then writes the five visible skills plus a visible `gsd` router skill into that directory, with every `<GSD_ROOT>` resolved to the bundle's absolute `core/` path. The router carries the bootstrap body, so the harness should load it first. What the adapters add is missing (decision 0029): every skills-only session shares the owner `skills-only`, so two parallel sessions in one work tree are not scoped apart, and no recovery capsule follows compaction; `continue` resumes through `gsd-executing-plans`. Install refuses to overwrite a skill directory GSD did not write, and uninstall removes only the directories it marked.
+
 ### Sub-agent profiles
 
 GSD ships no model names. Choose which model (or OMP agent) each sub-agent profile uses per host; values land in `~/.gsd/settings.json` (or `$GSD_HOME/settings.json`) and survive uninstall:

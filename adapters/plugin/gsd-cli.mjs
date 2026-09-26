@@ -12,7 +12,8 @@ import {
   settingsPath,
   writeSettings,
 } from '../../lib/gsd-settings.mjs';
-import { buildPluginBundle } from './gsd-plugin-packager.mjs';
+import { PLUGIN_BUNDLE_CONSTANTS, buildPluginBundle } from './gsd-plugin-packager.mjs';
+import { removeSkillsDir, skillsDirNames, writeSkillsDir } from './gsd-skills-dir.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const AGENTS = ['omp', 'claude', 'codex'];
@@ -22,7 +23,9 @@ const HELP = `GSD host plugin CLI
 
 Usage:
   gsd install [--agent omp|claude|codex|all] [--home <path>] [--dry-run]
+  gsd install --skills-dir <path> [--home <path>] [--dry-run]
   gsd uninstall [--agent omp|claude|codex|all] [--home <path>] [--dry-run]
+  gsd uninstall --skills-dir <path> [--home <path>] [--dry-run]
   gsd config list [--home <path>]
   gsd config get <profile>.<host> [--home <path>]
   gsd config set <profile>.<host> <value> [--home <path>]
@@ -35,6 +38,9 @@ Config keys:
 
 Options:
   --agent <name>  Agent to process (omit interactively)
+  --skills-dir <path>
+                  Skills-only install for a harness without a GSD adapter:
+                  writes the visible skills plus a gsd router skill there
   --home <path>   GSD CLI home (default: ~/.gsd)
   --dry-run       Print planned commands without writing
   -h, --help      Show this help
@@ -45,6 +51,7 @@ function parseArgs(argv) {
   const parsed = {
     command: first === '--help' || first === '-h' ? null : (first ?? null),
     agent: null,
+    skillsDir: null,
     home: null,
     dryRun: false,
     help: first === '--help' || first === '-h',
@@ -54,6 +61,10 @@ function parseArgs(argv) {
     if (arg === '--agent') {
       parsed.agent = argv[i + 1] ?? null;
       i += 1;
+    } else if (arg === '--skills-dir') {
+      parsed.skillsDir = argv[i + 1] ?? null;
+      i += 1;
+      if (parsed.skillsDir === null) throw new Error('--skills-dir requires a path');
     } else if (arg === '--home') {
       parsed.home = argv[i + 1] ?? null;
       i += 1;
@@ -167,8 +178,48 @@ function removeMarketplace(home) {
   fs.rmSync(marketplaceRoot, { recursive: true, force: true });
 }
 
+function resolveHome(parsed) {
+  return path.resolve(parsed.home ?? process.env.GSD_HOME ?? path.join(os.homedir(), '.gsd'));
+}
+
+// A skills directory is recorded beside the plugin agents because its skills point into the
+// same bundle: the bundle is removed only after no plugin agent and no skills directory uses it.
+function skillsStateKey(skillsDir) {
+  return `skills:${skillsDir}`;
+}
+
+function runSkillsInstall(parsed) {
+  const home = resolveHome(parsed);
+  const skillsDir = path.resolve(parsed.skillsDir);
+  const coreRoot = path.join(home, 'marketplace', PLUGIN_BUNDLE_CONSTANTS.PLUGIN_NAME, 'core');
+  if (parsed.dryRun) {
+    const lines = ['[skills]', ...skillsDirNames(ROOT).map((name) => `write ${path.join(skillsDir, name)}`)];
+    return { status: 0, stdout: `${lines.join('\n')}\n`, stderr: '' };
+  }
+  buildPluginBundle(ROOT, path.join(home, 'marketplace'));
+  writeSkillsDir(coreRoot, skillsDir);
+  const state = readState(home);
+  state.agents[skillsStateKey(skillsDir)] = 'skills';
+  writeState(home, state);
+  return { status: 0, stdout: `installed skills (${skillsDir})\n`, stderr: '' };
+}
+
+function runSkillsUninstall(parsed) {
+  const home = resolveHome(parsed);
+  const skillsDir = path.resolve(parsed.skillsDir);
+  if (parsed.dryRun) return { status: 0, stdout: `[skills]\nremove GSD-managed skills in ${skillsDir}\n`, stderr: '' };
+  removeSkillsDir(skillsDir);
+  const state = readState(home);
+  delete state.agents[skillsStateKey(skillsDir)];
+  if (Object.keys(state.agents).length === 0) {
+    removeState(home);
+    removeMarketplace(home);
+  } else writeState(home, state);
+  return { status: 0, stdout: `uninstalled skills (${skillsDir})\n`, stderr: '' };
+}
+
 function runInstall(parsed, options) {
-  const home = path.resolve(parsed.home ?? process.env.GSD_HOME ?? path.join(os.homedir(), '.gsd'));
+  const home = resolveHome(parsed);
   const agents = selectedAgents(parsed.agent);
   const plans = agents.map((agent) => ({ agent, commands: commandPlan(agent, home) }));
   if (parsed.dryRun) {
@@ -198,7 +249,7 @@ function runInstall(parsed, options) {
 }
 
 function runUninstall(parsed, options) {
-  const home = path.resolve(parsed.home ?? process.env.GSD_HOME ?? path.join(os.homedir(), '.gsd'));
+  const home = resolveHome(parsed);
   const agents = selectedAgents(parsed.agent);
   const state = readState(home);
   const plans = agents.map((agent) => ({
@@ -310,6 +361,14 @@ export function runCli(argv, options = {}) {
   }
   if (parsed.command !== 'install' && parsed.command !== 'uninstall') {
     return { status: 2, stdout: '', stderr: `unknown command: ${parsed.command}\n` };
+  }
+  if (parsed.skillsDir !== null) {
+    if (parsed.agent) return { status: 2, stdout: '', stderr: '--skills-dir and --agent are exclusive\n' };
+    try {
+      return parsed.command === 'install' ? runSkillsInstall(parsed) : runSkillsUninstall(parsed);
+    } catch (error) {
+      return { status: 1, stdout: '', stderr: `${error.message}\n` };
+    }
   }
   if (!parsed.agent) {
     return {

@@ -150,6 +150,12 @@ A read-only diff review by the session owner along two independent axes: **Stand
    generated bundle when no recorded agent still uses it. It does not inspect or modify
    other host files, including files that look like artifacts from an older install; the
    Claude marketplace is removed only from the user scope where GSD installed it.
+4. A skills-only install serves a harness with no GSD adapter: the CLI builds the same
+   bundle and writes the visible skills, plus a visible `gsd` router skill carrying the
+   bootstrap body, into a chosen directory with the core path resolved. Sessions there
+   share the owner `skills-only` and get no recovery capsule. It never overwrites a skill
+   directory GSD did not write, and its uninstall removes only the directories it marked;
+   the bundle stays while any plugin agent or skills directory is recorded.
 
 ## Commands, events, and outcomes
 

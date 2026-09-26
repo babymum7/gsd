@@ -41,6 +41,8 @@ Each host receives its native registration:
 | Claude Code | `.claude-plugin/plugin.json`, `skills/`, `hooks/claude.json` | local marketplace plus `claude plugin install` |
 | Codex | `.codex-plugin/plugin.json`, `skills/`, `hooks/codex.json` (no root `plugin.json`, which Codex would prefer) | local marketplace plus `codex plugin add` |
 
+`gsd install --skills-dir <dir>` (`adapters/plugin/gsd-skills-dir.mjs`) serves a harness with no adapter: it writes the visible skills with `<GSD_ROOT>` resolved to the bundle's `core/`, plus a visible `gsd` router skill that stands in for the bootstrap (decision 0029).
+
 The local marketplace is generated beside the bundle and named `gsd-local`.
 Uninstall delegates only to each host's native plugin uninstall command. The CLI
 removes the generated bundle after no recorded agent still uses it and never
