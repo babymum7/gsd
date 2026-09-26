@@ -483,11 +483,7 @@ function verifyTaskBranch(cwd, featureDir, taskId, branch, waveBase) {
   try {
     validated = validatePlanFile(planPath, { cwd, kind: "plan" });
   } catch (planError) {
-    try {
-      validated = validatePlanFile(planPath, { cwd, kind: "quick-fix" });
-    } catch {
-      blocked("plan-unbound", `cannot read or parse approved plan at ${planPath}: ${planError.message}`);
-    }
+    blocked("plan-unbound", `cannot read or parse approved plan at ${planPath}: ${planError.message}`);
   }
 
   const task = validated.parsed.tasks.find((t) => t.id === taskId);

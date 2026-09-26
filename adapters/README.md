@@ -122,7 +122,7 @@ onto the host features above, and never fakes a feature the host lacks:
 | Depth | OMP | Claude Code | Codex |
 | --- | --- | --- | --- |
 | `direct` | No skill, artifact, or host feature: the ordinary prompt is answered as-is | Same | Same |
-| `quick` | The session-owned Quick-fix plan and its `gsd-verify` gate | Same | Same |
+| `quick` | A direct edit plus a focused test; no packet, plan, or commit | Same | Same |
 | `plan` | Canonical `plan.md`; the host plan and its todo list stay display-only | Plan mode is presentation-only, so a host plan file beside `plan.md` asks one question and never binds | Canonical `plan.md` only; a host `/plan` artifact stays non-authoritative |
 | `milestone` | Canonical `plan.md` plus the milestone ledger | Same; the host `/goal` evaluator is not the goal record | Same; the host `/goal` runs a persistent goal of its own, and the ledger is the goal record |
 
@@ -156,8 +156,8 @@ An adapter must:
    intact when a payload cannot be validated.
 5. Name the fallback for every capability the host lacks.
 6. Publish exactly the core's visible skill catalog into the host's skill
-   surface; the hidden `gsd` master and `gsd-ponytail` context never appear
-   there.
+   surface; the hidden `gsd` master and hidden helper skills never
+   appear there.
 
 Rule 1 is machine-checked, not aspirational. `test/gsd-context-extension.test.js`
 (OMP), `test/adapters-claude-code.test.js`, and `test/adapters-codex.test.js`

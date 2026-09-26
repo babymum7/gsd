@@ -8,12 +8,12 @@ Triage runs before every route and classifies exactly one of `answer` (read-only
 
 - `clarify` covers missing intent or scope too vague to act, a claimed cause, a supplied design, or a false premise, and asks exactly one question carrying a recommended default and each option's consequence; when nothing behavioral turns on the answer it states the conservative default and proceeds.
 - `research` gathers codebase, documentation, reference-repository, or concrete failure evidence before answering, never from memory; bounded read-only delegation stays allowed and carries no authority, so the owner re-verifies every fact.
-- A trigger plus an observed failure is sufficient scope to investigate, even without a file, line, stack trace, or known cause; a confirmed non-architectural cause enters a bounded Quick-fix when acceptance is clear.
+- A trigger plus an observed failure is sufficient scope to investigate, even without a file, line, stack trace, or known cause; a confirmed non-architectural cause is fixed directly when acceptance is clear.
 - Every choice names one recommended option, its alternatives, and their costs.
 
 Depth follows ambiguity, blast radius, reversibility, and acceptance clarity, never file count:
 - `direct` — read-only answers and Nano edits: no scratch, branch, commit, or skill.
-- `quick` — one bounded change with acceptance converged from the prompt: the Quick-fix plan.
+- `quick` — one bounded change with acceptance converged from the prompt: a direct edit plus a focused test, with no packet, plan, or commit.
 - `plan` — multi-task behavior whose acceptance must be written down: the canonical `plan.md`.
 - `milestone` — independently releasable outcomes or portable multi-session publication: the full plan plus the milestone ledger.
 - A deeper level is chosen only when the shallower one cannot express the work; depth may rise mid-flight under § Plan amendment and never silently falls to ship a subset.
@@ -42,12 +42,11 @@ Canonical dispatch authority for the 6 visible GSD skills. Shared semantics live
 | `gsd-to-plan` | owner | Create or finalize canonical `plan.md` with bound Domain Impact after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unfinalized plan | Design decisions still open; Nano edits | On `validate-plan` success use `gsd-state.mjs set` to write `state.toon` and load `gsd-executing-plans` | — |
 | `gsd-executing-plans` | owner | Own bound plan tasks and domain docs on `wip/<feature>`: sub-agents author each wave's tasks, the owner reconciles and repairs | Valid bound `plan.md` and bound `state.toon` whose pending work the prompt names | No bound plan/state; a bare resume naming no work; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
 | `gsd-handoff` | owner | Pause, save, resume, or recover from a valid `state.toon`, ledger, or capsule | Valid `state.toon`, ledger, or capsule; every bare resume naming no work enters here first | Missing/malformed state used to invent work | Load the peer named by validated `next_action` | — |
-| `gsd-verify` | owner | Review a diff/PR or prove planned or Quick-fix code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; Quick-fix: exact Quick-fix `plan.md`; standalone: supplied diff | Invent completion without deterministic gates | Planned or Quick-fix green path: squash, cleanup, optional retain/archive | — |
-| `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | An unlocated or non-obvious cause needing evidence | A located failure: the prompt names the file/line or exact failure signature | Return a confirmed non-architectural cause to Quick-fix when bounded, or an architectural cause to `gsd-brainstorming` | — |
+| `gsd-verify` | owner | Review a diff/PR or prove planned code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Invent completion without deterministic gates | Planned green path: squash, cleanup, optional retain/archive | — |
+| `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | An unlocated or non-obvious cause needing evidence | A located failure: the prompt names the file/line or exact failure signature | Fix a confirmed non-architectural cause directly with a focused regression test, or an architectural cause to `gsd-brainstorming` | — |
 
-The Quick-fix route belongs to the session owner, not a visible skill: a bounded fix meeting the three size gates — Quick-fix grammar fit, Domain Impact none or a single shard, acceptance converged from the prompt or from confirmed diagnosis — reads the Ponytail context, writes its Quick-fix plan, proves grammar fit on the draft plan via `validate-quick-fix`, performs RED→GREEN→refactor, then loads `gsd-verify` as WIP gate. A returned Quick-fix WIP Fail leaves a repair round whose prompt name loads `gsd-verify`.
+The quick-fix route belongs to the session owner, not a visible skill: a bounded change with converged acceptance is edited directly, proven by its focused test, and reported. It writes no packet, plan, `state.toon`, or commit and loads no `gsd-verify` gate; scope growth escalates to `gsd-brainstorming`.
 `gsd-codebase-architecture`, `gsd-domain-modeling`, and `gsd-tdd` are hidden internal references, not visible owners; `gsd-brainstorming`, `gsd-to-plan`, and `gsd-executing-plans` may cite them when their details are load-bearing.
-Ponytail stays hidden and never enters the matrix or runtime state.
 
 ## Durable documentation contract
 
@@ -179,7 +178,7 @@ Decisions is exact `None.` or sequential D blocks:
 
 An AC ID is a positive sequential integer.
 - Only `active` criteria execute; replacements receive a new ID while former criteria become `superseded`.
-- Every active criterion carries exactly one concrete `GIVEN/WHEN/THEN` Scenario; the validator rejects a missing, malformed, or placeholder scenario. Quick-fix plans carry no AC section because their acceptance is already converged.
+- Every active criterion carries exactly one concrete `GIVEN/WHEN/THEN` Scenario; the validator rejects a missing, malformed, or placeholder scenario.
 - `Publication` stays `null` for ordinary plans. Create a milestone ledger only for large, portable, independently releasable work; feature archives remain optional cleanup history, never mandatory plan outputs.
 - Outcome, Action, and Expected must independently name concrete behavior, operation, and observable result.
 - `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid.
@@ -198,39 +197,6 @@ Canonical task parsing accepts only structured task blocks. Structured `Files` e
 
 `gsd-to-plan` single-writes and binds only plans containing canonical `Domain Impact`, and the parser accepts exactly that grammar. Plans missing `Domain Impact` or using single-line path-only task forms are rejected in every validation path whether or not a recorded SHA-256 binding matches.
 
-### Quick-fix plan exception
-
-A Quick-fix is not a converged feature packet. Its direct fast path writes a minimal UTF-8/LF `plan.md` with this exact grammar:
-
-```markdown
-# Quick-fix Plan
-## Feature
-`<feature>`
-## Base
-`<base>`
-## Domain Impact
-- **Classification:** <none|change-existing-context|introduce-context|change-context-boundary>
-- **Contexts:** <none|sorted comma-space-separated context slugs>
-- **Documentation:** <none|update-existing|bootstrap-feature-context>
-- **Broad bootstrap:** not-offered
-- **Evidence:** <concrete code/schema/contract evidence>
-## Tasks
-### T1: <short task>
-- **Files:**
-  - `<path>` — <create|modify|delete>: <concise contract intent>
-- **Test:** `<focused command>`
-```
-
-It contains one or two sequential tasks with unique structured paths and a real focused command.
-- The exact five-field `Domain Impact` follows canonical classification rules:
-  - `none` requires concrete no-change evidence, non-`none` classifications change production sources in exactly one task, and Quick-fix always records `Broad bootstrap: not-offered`.
-- An absent `docs/domain/index.md` keeps Quick-fix bounded:
-  - `Broad bootstrap` stays `not-offered`; non-`none` impact bootstraps the feature-scoped shard inline in that same task.
-  - Only an explicitly requested broad bootstrap exits the bounded route for normal discovery.
-- Only the Quick-fix WIP verifier consumes this plan.
-- It has no proposal/spec/design source set, no normal-packet plan binding, and no normal-packet authority. Its `state.toon` records validated hashes; since `validate-quick-fix` takes no `--expected-sha256`, the gate compares unbound revalidation against that record.
-- Ordinary packet validation MUST NOT classify it as malformed converged state or dispatch normal execution from it; its `gsd-verify` gate owns it until landing or a blocker.
-
 ### Executable contract validator
 
 `lib/gsd-contract.mjs` is the single executable Markdown grammar. Repository tests import it directly; lifecycle owners use its agent CLI. Substitute injected `GSD_ROOT` for `<GSD_ROOT>` at call time: bootstrap text is not an exported shell variable, so literal `$GSD_ROOT` resolves empty. Absolute script paths are required because lifecycle workspaces differ from the GSD checkout; packet paths remain workspace-relative.
@@ -238,11 +204,10 @@ It contains one or two sequential tasks with unique structured paths and a real 
 ```text
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex> --expected-base <base_ref>
-bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" normalize-plan --path .scratch/<feature>/plan.md [--write]
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" init-plan --path .scratch/<feature>/plan.md --base <branch>
 ```
-The first validates a new canonical full plan and returns its SHA-256; it also revalidates amendments before rebinding. The second requires bytes to match a bound hash; a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. The third selects the Quick-fix grammar. `init-plan` writes a canonical full-plan skeleton and refuses to overwrite an existing `plan.md` (usage errors exit 2).
+The first validates a new canonical full plan and returns its SHA-256; it also revalidates amendments before rebinding. The second requires bytes to match a bound hash; a moved byte exits 1 without mutation; the owner resolves that through § Plan amendment, not as a lifecycle stop. `init-plan` writes a canonical full-plan skeleton and refuses to overwrite an existing `plan.md` (usage errors exit 2).
 Inputs are bounded to a 1 MiB fatal-UTF-8 regular `plan.md` beneath real `.scratch/<feature>/`; symlinks, escaped paths, feature mismatch, and malformed grammar fail closed.
 
 Success emits deterministic scalar TOON:
@@ -262,9 +227,9 @@ Actionable failures use TOON on stdout:
 - Fresh bindings after Spec escalation atomically supersede older bindings.
 - Semantic parse and binding checks run at binding, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use retained validated slices.
 
-The validator runs unbound at new-plan binding and when revalidating amendments before rebinding; other full-plan calls use the bound-hash form. Once `state.toon` exists, calls pass `--expected-base <state.base_ref>`, so plans with drifted § Base fail closed instead of retargeting squashes. Quick-fix verification and resume use `validate-quick-fix`.
+The validator runs unbound at new-plan binding and when revalidating amendments before rebinding; other full-plan calls use the bound-hash form. Once `state.toon` exists, calls pass `--expected-base <state.base_ref>`, so plans with drifted § Base fail closed instead of retargeting squashes.
 
-Resume probes `validate-quick-fix` first, then the full-plan form; bound calls check hashes before parsing, separating moved bytes from malformed grammar. Probes prove recorded grammars on hash match; differences ask before rebinding.
+Resume runs the bound form first; bound calls check hashes before parsing, so an unbound revalidation separates moved bytes from malformed grammar.
 
 No model, agent, or persistent session identity participates in binding. Current top-level session is sole lifecycle authority; later sessions assume that role through canonical rehydration.
 
@@ -330,7 +295,7 @@ checkpoint_revision:<positive int>
 ```
 
 Phase-inapplicable values use canonical `none`.
-- `schema:v0.0.2` parsing rejects invalid UTF-8, carriage returns, blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, Ponytail preference state, and obsolete model or agent rows.
+- `schema:v0.0.2` parsing rejects invalid UTF-8, carriage returns, blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, and obsolete model or agent rows.
 - Every schema other than `schema:v0.0.2` is experimental history. Candidate discovery ignores such records without rewriting them; explicit reads and resume reject them fail closed and byte-identical.
 - There is no migration path, compatibility parser, or upgrade command for experimental schemas. A user who needs old work continues it by creating a fresh pre-release packet from current sources.
 - Malformed or partial `schema:v0.0.2` records fail closed unchanged; partial terminal evidence is discarded and deterministic conformance reruns.
@@ -356,7 +321,7 @@ Do not write active-task, numbered-history, reload-manifest, or persistent ident
 
 ### Plan amendment
 
-A bound-hash mismatch means bytes moved, never a stop; only missing or malformed-grammar `plan.md` fails closed. Drift never diverts prompt-named work to `gsd-handoff`: the executing owner amends it, revalidates unbound with its grammar's validator (`validate-plan`, or `validate-quick-fix` for Quick-fix), and rebinds the returned hash into `state.toon` with an incremented `checkpoint_revision`. No branch closes and no fresh feature opens.
+A bound-hash mismatch means bytes moved, never a stop; only missing or malformed-grammar `plan.md` fails closed. Drift never diverts prompt-named work to `gsd-handoff`: the executing owner amends it, revalidates unbound with `validate-plan`, and rebinds the returned hash into `state.toon` with an incremented `checkpoint_revision`. No branch closes and no fresh feature opens.
 - Bookkeeping amendments are self-service: recording touched files, fixing paths or intents, splitting or reordering pending tasks, or sharpening wording that leaves acceptance intact.
 - User-stated requirement changes mid-execution are amendments, never new features: amend, revalidate, rebind, and continue without re-asking.
 - Material amendments ask one question first, then proceed with chosen options: changing an active criterion's Outcome/Action/Expected/Scenario, weakening invariants or non-goals, changing `Domain Impact`, replacing interface pins, or rewriting completed task records. Ask before rebinding.
@@ -372,7 +337,7 @@ Active helpers are derived, never stored as reload manifests:
 - `Spec-escalation`: `gsd-handoff`.
 - Conditional: `gsd-domain-modeling` completes mandatory affected-context documentation before checkpoint.
 
-Master (`gsd`) is already present from bootstrap and never listed as a derived reload skill. Hidden Ponytail context has no runtime mode or preference state. Recovery must never load master recursively or execute the capsule again.
+Master (`gsd`) is already present from bootstrap and never listed as a derived reload skill. Recovery must never load master recursively or execute the capsule again.
 
 ### Recovery tooling exclusions
 

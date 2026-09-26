@@ -15,7 +15,7 @@ Own request classification, feature convergence, plan binding and in-flight amen
 | Artifact Contract | The rule classifying repository artifacts per Invocation Mode as Required, Optional, Produced, or Fallback. | flat mandatory dependency list |
 | Bootstrap Tier | The always-injected `skills/gsd/SKILL.md` carrying only what every prompt needs, with `§`-cited pointers to the on-demand canon. | the whole canon inside the injected text |
 | Context Harvest | Scope-bounded domain inspection: existing indexes limit reads to affected mapped contexts, while an absent index permits required feature bootstrap plus one optional broad-bootstrap decision. A host adapter's session surface reads `state.toon` through hardened traversal with identity checks at each step. | routine broad codebase scan |
-| Contract Validator | The executable production seam that validates canonical full-plan and Quick-fix plan authority without mutating it. Reads are traversal-hardened with identity checks so a parent-directory swap or a blocking file cannot substitute authority mid-validation. Plan reads pin the full ancestry chain (workspace → directory → target) and compare each step's identity against the value captured at resolution. Every contract rejection carries a concrete remediation help line naming the fix instead of generic usage. | test-only parser, prose-only validation |
+| Contract Validator | The executable production seam that validates canonical plan authority without mutating it. Reads are traversal-hardened with identity checks so a parent-directory swap or a blocking file cannot substitute authority mid-validation. Plan reads pin the full ancestry chain (workspace → directory → target) and compare each step's identity against the value captured at resolution. Every contract rejection carries a concrete remediation help line naming the fix instead of generic usage. | test-only parser, prose-only validation |
 | Deferred Slow E2E | A resource-heavy feature journey run only after current-commit deterministic conformance. | task-loop check |
 | Depth Ladder | The four right-sized delivery levels `direct`, `quick`, `plan`, and `milestone`, chosen by ambiguity, blast radius, reversibility, and acceptance clarity rather than file count. | file-count sizing, one fixed heavyweight path |
 | Domain Impact | The mandatory plan classification binding semantic change evidence, affected contexts, documentation action, and broad-bootstrap disposition. | optional documentation note |
@@ -42,30 +42,27 @@ Own request classification, feature convergence, plan binding and in-flight amen
 
 - Exactly one visible process owner controls a lifecycle transition at a time.
 - When a visible owner is selected, supplied workspace state is routing context rather than files to open: its paths are already-read routing facts and must not be resolved or inspected. The exact catalog `skillPath` read is the first visible action, and prose, memory, workspace/state/domain/reference exploration, or other tools cannot precede that read. The loaded skill performs artifact validation.
-- Prompt intent outranks supplied state for selection: the active owner continues only for its named work or a bare `continue`; review and Quick-fix repair route to `gsd-verify`, unlocated causes to `gsd-diagnosing-bugs`, and interface/architecture/domain/new-feature/integration/unrelated-lifecycle work to `gsd-brainstorming`. Architecture requests naming `this codebase` or `this repo` do not require repository identification first. Unfinalized plans route to `gsd-to-plan`, and named execution to `gsd-executing-plans`.
+- Prompt intent outranks supplied state for selection: the active owner continues only for its named work or a bare `continue`; review routes to `gsd-verify`, unlocated causes to `gsd-diagnosing-bugs`, and interface/architecture/domain/new-feature/integration/unrelated-lifecycle work to `gsd-brainstorming`. Architecture requests naming `this codebase` or `this repo` do not require repository identification first. Unfinalized plans route to `gsd-to-plan`, and named execution to `gsd-executing-plans`.
 - Brainstorm behavior is measured separately from first-action routing: after the exact `gsd-brainstorming` read, a model must ask one recommended-default question when acceptance is unclear or present at least two approaches with tradeoffs and one recommendation, without starting implementation.
 - Evaluation evidence is fingerprint-bound and lossless enough to reproduce misses: each committed report names the measured bootstrap/canon/skill bytes, live fixture total, per-model scores, and every activation miss as both expected and actual decision/action/skill values; stale or detail-less evidence fails the deterministic suite.
 - The visible catalog carries six skills: `gsd-brainstorming`, `gsd-to-plan`, `gsd-executing-plans`, `gsd-verify`, `gsd-handoff`, and `gsd-diagnosing-bugs`. `gsd-codebase-architecture`, `gsd-domain-modeling`, and `gsd-tdd` stay hidden internal references for deep architecture, domain, and TDD guidance.
 - Each supported host has a named sub-agent launch surface or fallback: OMP uses one task per isolated sub-agent with a serial fallback, Claude Code uses Agent-tool subagents from `.claude/agents/*.md`, and Codex uses spawned agent threads from `.codex/agents/*.toml` collected by the main thread. The generated plugin also carries a read-only host reviewer definition for Claude Code and Codex, and the familiar brainstorm workload stays pinned by activation fixtures.
 - Sub-agent profiles are user settings, never plugin defaults: each host adapter appends only its own host's values as one `## Sub-agent profiles` block inside the injected bootstrap, and an absent file, a host without values, or an invalid file leaves the bootstrap byte-identical to the core render. Brainstorming discovery and diagnosis spawn a read-only `scout` only when exploration spans many files, unfamiliar areas, or external references, keeping one or two known reads inline; scout output is unverified and diagnosis conclusions stay with the owner. Dispatched tasks spawn with `worker` when it is set.
 - Full-plan acceptance is scenario-first: every active criterion carries one concrete `GIVEN/WHEN/THEN` Scenario, and the Contract Validator rejects a missing, malformed, or placeholder scenario. Ordinary plans keep `Publication` null and create no milestone or archive; a milestone ledger is reserved for large, portable, independently releasable work, while an archive is optional cleanup history selected before squash.
-- A trigger plus an observed failure is sufficient scope to investigate, even without a file, line, stack trace, or known cause; a prompt naming the file/line or exact failure signature is located work and may enter Quick-fix directly when its gates hold. A confirmed non-architectural cause enters the Quick-fix lane through three size gates — Quick-fix grammar fit (one or two tasks), Domain Impact `none` or a single shard, and acceptance converged from the prompt or confirmed diagnosis — opened inline by the session owner with `gsd-tdd`, where `gsd-verify` gates only that existing packet; the owner proves the grammar fit deterministically by running `validate-quick-fix` on the draft plan before writing state. A returned Quick-fix WIP Fail leaves a repair round the prompt can name, and naming it re-enters that same `gsd-verify` gate instead of being answered directly. Ponytail remains hidden and never enters the matrix or runtime state.
+- A trigger plus an observed failure is sufficient scope to investigate, even without a file, line, stack trace, or known cause; a prompt naming the file/line or exact failure signature is located work and may be fixed directly. A quick fix — one bounded change with converged acceptance, from the prompt or a confirmed diagnosis — is a direct edit proven by a focused test: it writes no packet, plan, `state.toon`, or commit and loads no `gsd-verify` gate.
 - A bound `plan.md` stays amendable while its feature executes: the executing owner amends it in place, revalidates, and rebinds the returned hash (recording checkpoints via `gsd-state.mjs set`), so runtime state always reports the current bytes rather than freezing the first ones. The Contract Validator's `init-plan` command scaffolds a parser-valid skeleton refusing to overwrite existing files and refusing a base equal to the packet's own WIP branch, while its `normalize-plan` command proposes and applies closed surface-only fixes to bring defective plans into canonical form before revalidation. A user-stated requirement addition or change mid-execution is an amendment, never a new feature: record, revalidate, rebind, and continue the same packet.
 - A plan amendment never closes the feature or opens a new one; a material change or an unaccounted-for hash mismatch asks one question and then proceeds with the chosen option. Hash drift never diverts prompt-named work to `gsd-handoff`: the executing owner keeps that work, revalidates, and rebinds.
 - State authority is valid only as fatal-decoded UTF-8 with LF line endings; invalid bytes and carriage returns fail closed unchanged.
 - A discovered full malformed packet (`plan.md` beside a `state.toon` that is unparsable, a symlink, or another non-regular file) is handled differently by discovery mode. Default discovery throws before any relatedness or terminal test runs, so a malformed packet blocks all candidate selection, including a prompt naming another valid feature; this is the contract the `fail-closed` routing verdict rests on. Autocompaction is the only caller that opts into fault-tolerant discovery: each malformed packet is caught and skipped individually (logged as a defect), so valid candidates survive alongside it, and an all-malformed result produces no capsule so session compaction emits nothing. An explicit single-file read never goes through discovery at all and fails closed on the same bytes on its own. Structural failures (scratch entry limit, directory identity change) propagate even under fault tolerance, because they mean the scan itself is untrustworthy rather than one packet being bad. The same rejected bytes without a `plan.md` are residue in every mode: discovery skips them and routes ordinarily, so the plan.md test decides the verdict rather than the order the directory entries happen to be read. Since unparsable bytes cannot be trusted, only the `.scratch/<feature>/` directory name is a relatedness signal.
-- Validated active state is entered by intent shape: `continue` alone names no work, so it is a bare resume that loads `gsd-handoff` first even beside one executing packet and lets the recorded `next_action` select the peer owner. `continue` plus a named feature, task, or repair is not bare, so it routes straight to that owner (a pending plan task to `gsd-executing-plans`, an unfinalized plan to `gsd-to-plan`, an existing Quick-fix repair packet to `gsd-verify`). A first-pending milestone ledger row resumes through that same gateway rather than authorizing replacement brainstorming.
+- Validated active state is entered by intent shape: `continue` alone names no work, so it is a bare resume that loads `gsd-handoff` first even beside one executing packet and lets the recorded `next_action` select the peer owner. `continue` plus a named feature, task, or repair is not bare, so it routes straight to that owner (a pending plan task to `gsd-executing-plans`, an unfinalized plan to `gsd-to-plan`). A first-pending milestone ledger row resumes through that same gateway rather than authorizing replacement brainstorming.
 - Several packets owned by the current session are an ambiguity resolved by that same gateway: owner-scoped discovery returns every one of them and `gsd-handoff` selects exactly one validated resume, so generic continuation asks instead of failing closed. A bare `continue` with no owned packet lists the work tree's active packets and asks; resuming one records the current session as its owner.
 - A packet's `owner` is the opaque `GSD_SESSION` token its host adapter injects into the session bootstrap. Hooks and the **Compaction Recovery Capsule** list only packets the current session owns, so a second session in the same work tree never sees or resumes another session's feature; without a token no capsule is sent. After compaction the capsule repeats the token and does not auto-resume any feature. The `[GSD Current Request]` context item preserves the user's last genuine request across compaction. Routing after compaction: a current request equal to `continue` or `continue implementation` (preserved or live) selects resume via `gsd-handoff`; a request naming an active feature routes to that feature's owner skill; any other current request continues ordinary routing.
 - `gsd-tdd` remains a hidden internal reference and is never a primary owner; `gsd-domain-modeling` is also a hidden internal reference for current bounded-context documentation.
 - Every state schema other than `schema:v0.0.2` is experimental history: candidate discovery ignores it without rewriting, while an explicit read rejects it fail closed and byte-identical.
-- Full-plan binding, execution resume, terminal entry, pre-squash, and Quick-fix verification use the production Contract Validator before consuming plan authority.
-- Plan grammar owns every line: in both the full-plan and Quick-fix forms the title is followed directly by the first section, so preamble content between them is rejected rather than ignored.
+- Full-plan binding, execution resume, terminal entry, and pre-squash use the production Contract Validator before consuming plan authority.
+- Plan grammar owns every line: the title is followed directly by the first section, so preamble content between them is rejected rather than ignored.
 - There is no migration path, compatibility parser, or upgrade command for experimental schemas; a user who needs old work creates a fresh pre-release packet from current sources.
 - Every converged feature records Domain Impact, including a concrete justification for `none`.
-- Every Quick-fix records the exact five-field Domain Impact; semantic fixes own affected shards and no-impact fixes carry concrete evidence.
-- A Quick-fix carries a recorded runtime binding without normal-packet plan authority: its `state.toon` holds the validated `plan_sha256`, and both its resume revalidation and its gate compare that value against an unbound revalidation, since `validate-quick-fix` accepts no bound hash.
-- Resume selects the plan grammar by probing `validate-quick-fix` before the full-plan validator, because runtime state records no grammar kind; a bound full-plan call reports a hash mismatch before parsing, so only an unbound revalidation distinguishes moved bytes from malformed grammar.
 - A resume probe proves the recorded grammar only when the hash matches; on any difference the prior packet kind is unprovable, so resume asks one question and rebinds only to a user-accepted current grammar.
 - Semantic code and affected domain docs share one owning task and agree at each green checkpoint. Both plan grammars enforce this identically: a non-`none` classification requires each affected shard to be owned by a task that runs and changes semantic code, so a superseded, prose-only, or test-only owner is rejected. The inverse holds too: a `none` classification owns no domain documentation at all, so any live task owning a domain shard, `docs/domain/index.md`, or `AGENTS.md` under a `none` classification fails validation as a contradiction of that declaration.
 - Before binding, affected domain paths may be reserved but domain prose never describes unshipped target behavior.
@@ -93,7 +90,7 @@ By default, single-task waves execute inline by the session owner with `gsd-tdd`
 1. Classify the prompt before any route, reading only what it names, into exactly one of `answer`, `clarify`, `research`, `quick`, `plan`, or `milestone`; a direct answer or Nano edit — one literal edit needing no test — loads no skill, scans no state, and writes no scratch artifact or Git change.
 2. Ask exactly one question carrying a recommended default and each option's consequence when intent or requested scope is too vague to act, including a prompt that asserts a behavior the triage cannot confirm from the prompt itself, and state the conservative default and proceed when nothing behavioral turns on the answer.
 3. Gather codebase, external-documentation, reference-repository, or concrete failure evidence before answering a research question — a question whose answer lives in this repo, a document, or a reference — never from memory; name one recommended option with its alternatives and costs for every choice.
-4. Route a concrete failure symptom with an unknown cause through diagnosis; a confirmed non-architectural cause enters a bounded Quick-fix when acceptance is clear.
+4. Route a concrete failure symptom with an unknown cause through diagnosis; a confirmed non-architectural cause is fixed directly when acceptance is clear.
 5. Size the work to the shallowest depth that can express it, raising depth only when the shallower level cannot and never silently shipping a subset as complete.
 
 ### Deliver a feature
@@ -115,14 +112,12 @@ A read-only diff review along two independent axes, each as a bounded read-only 
 
 ### Deliver a bounded quick fix
 
-1. The session owner reads the exact injected hidden Ponytail context path and records the exact Quick-fix plan, including Domain Impact and one or two structured tasks with focused checks.
-2. Validate the exact Quick-fix grammar through the Contract Validator before consuming its tasks.
-3. Implement through Fast TDD and update every affected domain shard in the same task as semantic code.
-4. Block terminal completion when Domain Impact is contradictory or current production prose drifts from the fix.
+1. The session owner edits the bounded change directly and runs its focused test.
+2. It writes no packet, plan, `state.toon`, or commit; the user owns review and commit.
 
 ### Escalate a quick fix
 
-1. Stop the hidden minimal-change context when scope expands or design decisions appear.
+1. Stop the direct edit when scope expands or design decisions appear.
 2. Enter normal feature discovery without shipping a reduced subset as complete.
 
 ### Install and uninstall GSD hosts
@@ -133,7 +128,7 @@ A read-only diff review along two independent axes, each as a bounded read-only 
    plugin command. Claude Code marketplace registration and removal are user-scoped, so
    a same-named marketplace in another scope is never selected or removed.
 2. The bundle exposes only the six visible skills to host skill discovery. The hidden
-   `gsd` master and `gsd-ponytail` context remain under the internal canonical core,
+   `gsd` master and hidden helper skills remain under the internal canonical core,
    while copied adapters resolve that core through the bundle marker.
 3. The plugin bundle includes read-only reviewer definitions for hosts that select
    reviewers by definition. OMP dispatches one isolated read-only reviewer task carrying
@@ -150,13 +145,13 @@ A read-only diff review along two independent axes, each as a bounded read-only 
 | Prompt arrives | Session Owner | Triage classifies exactly one route and one depth before any lifecycle work begins. |
 | Plan converges | Session Owner | Canonical plan bytes bind and ordered execution starts without a prompt. |
 | Validate plan authority | Session Owner | Canonical plan bytes and grammar are accepted with an exact hash or rejected without mutation. |
-| Fix bounded behavior | Session Owner | Quick-fix Domain Impact and structured task ownership govern Fast TDD and domain-drift verification. |
+| Fix bounded behavior | Session Owner | A direct edit proven by a focused test; no packet or commit. |
 | Continue active feature | User | Validated state selects one resumable owner action. |
 | Domain drift detected | Session Owner | Completion is blocked until code and affected shards agree. |
 | Wave reconciled | Session Owner | One independent read-only review of the merged diff runs before the checkpoint. |
 | Green terminal conformance | Session Owner | Deferred Slow E2E becomes eligible on unchanged bytes. |
 | Pause and save | User | One atomic state snapshot records the next action. |
-| Scope expands | Session Owner | Quick-fix context ends and normal discovery begins. |
+| Scope expands | Session Owner | The direct edit stops and normal discovery begins. |
 | Install GSD | User | The CLI builds one self-contained plugin bundle and registers the selected agent through that host's native plugin command. |
 | Uninstall GSD | User | The CLI runs only the selected host's native plugin uninstall command and removes the generated bundle when no recorded agent still uses it. |
 
@@ -173,7 +168,7 @@ None.
 
 ### P-gsd-2: Escalate work that stops being a quick fix
 
-- **Policy:** Clear bounded quick-fix context and enter the normal lifecycle when requested work becomes complex or expands beyond known scope.
+- **Policy:** Stop the direct quick-fix edit and enter the normal lifecycle when requested work becomes complex or expands beyond known scope.
 - **Reason:** Silently reducing requested scope would bypass design and verification.
 
 ### P-gsd-3: Make the session owner the sole lifecycle authority
@@ -206,15 +201,10 @@ None.
 - **Policy:** A verified packet enters phase `ready` and the owner asks whether to merge or open a pull request; after the merge lands, the feature scratch and WIP branch are deleted. A full malformed packet fails closed for every prompt and plan-less malformed residue is skipped; unrelated work proceeds untouched whether it is direct or a new lifecycle, and uncertain relatedness asks one question instead of stopping.
 - **Reason:** Exact ownership removes completed runtime evidence without touching neighboring sessions, and leftover runtime bytes must never block work that does not depend on them.
 
-### P-gsd-9: Keep Quick-fix semantics explicit
+### P-gsd-9: Keep quick fixes direct
 
-- **Policy:** Every Quick-fix records canonical Domain Impact and `Broad bootstrap: not-offered`; `none` carries concrete evidence, while a semantic fix changes production sources in exactly one task and that same task owns every affected current-production shard, validated per task rather than plan-wide. Prose and test paths never count as that semantic change. An absent domain index keeps the fix bounded, holding `Broad bootstrap: not-offered` while the feature-scoped shard is bootstrapped inline; only an explicitly requested broad bootstrap exits the bounded route for normal discovery.
-- **Reason:** A smaller delivery path must not bypass the production meaning and drift guarantees applied to converged features.
-
-### P-gsd-10: Route hidden context without visible dispatch
-
-- **Policy:** The session owner owns bounded Quick-fix delivery, admitting work through the three size gates without requiring prior diagnosis, and reads Ponytail only from the exact extension-injected context path before Fast TDD and the Quick-fix verification gate.
-- **Reason:** Exact injection keeps conservative context reachable without making it a visible owner, catalog route, or persisted preference.
+- **Policy:** A quick fix is a direct edit proven by a focused test, admitted by converged acceptance without prior diagnosis; it writes no packet, plan, `state.toon`, or commit and loads no verification gate. It still updates an affected domain shard in the same edit when one exists.
+- **Reason:** A bounded change does not need lifecycle ceremony; the user reviews and commits it.
 
 ### P-gsd-11: Reject noncanonical state bytes
 
@@ -228,12 +218,12 @@ None.
 
 ### P-gsd-13: Centralize executable plan validation
 
-- **Policy:** Every full-plan binding, execution resume, terminal entry, pre-squash guard, and Quick-fix verification uses the production Contract Validator; structured tasks and canonical Domain Impact are required in every path, bound or unbound.
+- **Policy:** Every full-plan binding, execution resume, terminal entry, and pre-squash guard uses the production Contract Validator; structured tasks and canonical Domain Impact are required in every path, bound or unbound.
 - **Reason:** One executable seam keeps artifact authority, failure modes, and compatibility behavior consistent across lifecycle owners and repository tests.
 
 ### P-gsd-14: Amend an executing plan instead of blocking it
 
-- **Policy:** While a feature executes, its owner amends `.scratch/<feature>/plan.md` in place, optionally normalizes surface-only defects via `normalize-plan [--write]`, revalidates it unbound with the validator matching its packet grammar (`validate-plan` for a full plan, `validate-quick-fix` for a Quick-fix), and rebinds the returned hash (recording checkpoints via `gsd-state.mjs set`). Bookkeeping amendments proceed without a prompt; a material change to acceptance, an invariant, a non-goal, `Domain Impact`, an interface pin, or a completed task's record asks one question and then proceeds with the chosen option, as does a hash mismatch the owner cannot account for. Only a missing or malformed-grammar plan still fails closed.
+- **Policy:** While a feature executes, its owner amends `.scratch/<feature>/plan.md` in place, optionally normalizes surface-only defects via `normalize-plan [--write]`, revalidates it unbound with `validate-plan`, and rebinds the returned hash (recording checkpoints via `gsd-state.mjs set`). Bookkeeping amendments proceed without a prompt; a material change to acceptance, an invariant, a non-goal, `Domain Impact`, an interface pin, or a completed task's record asks one question and then proceeds with the chosen option, as does a hash mismatch the owner cannot account for. Only a missing or malformed-grammar plan still fails closed.
 - **Reason:** Discovering that a plan is incomplete is normal execution evidence, so recording it must cost one revalidation rather than closing the feature and rebinding a near-identical plan.
 
 ### P-gsd-15: Observe the base branch instead of assuming a default
@@ -253,7 +243,7 @@ None.
 
 ### P-gsd-18: Triage the prompt and size its depth
 
-- **Policy:** The session owner classifies every prompt before any route into exactly one of `answer`, `clarify`, `research`, `quick`, `plan`, or `milestone`, reading the prompt and the context it names alone; a direct answer or Nano edit — one literal edit needing no test — loads no skill, scans no state, and writes no scratch artifact or Git change. `clarify` asks exactly one question carrying a recommended default and each option's consequence when intent or requested scope is too vague to act, and proceeds on the conservative default when nothing behavioral turns on the answer; a prompt that asserts a behavior the triage cannot confirm from the prompt itself is `clarify` rather than `research`. `research` gathers codebase, external-documentation, reference-repository, or concrete failure evidence before answering, and a question whose answer lives in this repo, a document, or a reference is `research` rather than `answer`; a concrete symptom with an unknown cause routes through diagnosis, and a confirmed non-architectural cause enters a bounded Quick-fix when acceptance is clear. Depth is chosen by ambiguity, blast radius, reversibility, and acceptance clarity rather than file count, may rise while executing, and never silently falls to ship a subset as complete.
+- **Policy:** The session owner classifies every prompt before any route into exactly one of `answer`, `clarify`, `research`, `quick`, `plan`, or `milestone`, reading the prompt and the context it names alone; a direct answer or Nano edit — one literal edit needing no test — loads no skill, scans no state, and writes no scratch artifact or Git change. `clarify` asks exactly one question carrying a recommended default and each option's consequence when intent or requested scope is too vague to act, and proceeds on the conservative default when nothing behavioral turns on the answer; a prompt that asserts a behavior the triage cannot confirm from the prompt itself is `clarify` rather than `research`. `research` gathers codebase, external-documentation, reference-repository, or concrete failure evidence before answering, and a question whose answer lives in this repo, a document, or a reference is `research` rather than `answer`; a concrete symptom with an unknown cause routes through diagnosis, and a confirmed non-architectural cause is fixed directly when acceptance is clear. Depth is chosen by ambiguity, blast radius, reversibility, and acceptance clarity rather than file count, may rise while executing, and never silently falls to ship a subset as complete.
 - **Reason:** Classifying and sizing before acting keeps the common direct case free of artifacts and skill loads while making routing, clarification, and depth explicit decisions instead of silent assumptions.
 
 ### P-gsd-19: Review reconciled waves independently

@@ -1159,7 +1159,7 @@ describe("automatic GSD bootstrap metadata and catalog contract", () => {
     const root = makeRoot();
     try {
       writeSkill(root, "gsd", "Hidden bootstrap", "# Hidden Bootstrap\nAlready loaded.", "hide: true\n");
-      writeSkill(root, "gsd-ponytail", "Hidden bounded context", "# Ponytail\nContext only.", "hide: true\n");
+      writeSkill(root, "gsd-hidden-helper", "Hidden helper", "# Hidden Helper\nContext only.", "hide: true\n");
       writeSkill(root, "gsd-tdd", "TDD helper", "# Test-Driven Development\nFull TDD body.");
       writeSkill(root, "gsd-diagnosing-bugs", "Bug diagnosis", "# Diagnosing Bugs\nFull diagnosis body.");
 
@@ -1167,7 +1167,7 @@ describe("automatic GSD bootstrap metadata and catalog contract", () => {
       assert.deepEqual(catalog.map(({ name }) => name), ["gsd-diagnosing-bugs", "gsd-tdd"]);
       assert.ok(catalog.every(({ skillPath }) => isAbsolute(skillPath)));
       assert.ok(catalog.every(({ skillPath }) => realpathSync(skillPath).startsWith(realpathSync(join(root, "skills")))));
-      assert.equal(catalog.some(({ name }) => name === "gsd-ponytail"), false);
+      assert.equal(catalog.some(({ name }) => name === "gsd-hidden-helper"), false);
 
       const bootstrap = createBootstrap(root);
       assert.match(bootstrap, /^<GSD_BOOTSTRAP>\ngsd:session-bootstrap:v2\n/);
@@ -1175,10 +1175,8 @@ describe("automatic GSD bootstrap metadata and catalog contract", () => {
       assert.match(bootstrap, /"name":"gsd-diagnosing-bugs"/);
       assert.ok(bootstrap.indexOf('"name":"gsd-diagnosing-bugs"') < bootstrap.indexOf('"name":"gsd-tdd"'));
       assert.doesNotMatch(bootstrap, /# Diagnosing Bugs|# Test-Driven Development/);
-      const ponytailPath = realpathSync(join(root, "skills", "gsd-ponytail", "SKILL.md"));
-      assert.equal(bootstrap.includes(`PONYTAIL_CONTEXT_PATH: ${JSON.stringify(ponytailPath)}`), true);
-      assert.doesNotMatch(bootstrap, /"name":"gsd-ponytail"/);
-      assert.doesNotMatch(bootstrap, /# Ponytail|Context only\./);
+      assert.doesNotMatch(bootstrap, /"name":"gsd-hidden-helper"/);
+      assert.doesNotMatch(bootstrap, /# Hidden Helper|Context only\./);
       assert.match(bootstrap, /<\/GSD_BOOTSTRAP>$/);
       assert.equal(messageContainsBootstrap({ role: "user", content: bootstrap, timestamp: 1 }), true);
       assert.equal(messageContainsBootstrap({ role: "user", content: "ordinary prompt", timestamp: 1 }), false);
@@ -1206,24 +1204,6 @@ describe("automatic GSD bootstrap metadata and catalog contract", () => {
       writeFileSync(outside, '---\nname: gsd-beta\ndescription: "Outside"\n---\n');
       symlinkSync(outside, join(root, "skills", "gsd-beta", "SKILL.md"));
       assert.throws(() => discoverSkillCatalog(root), /regular SKILL\.md|outside .*skills|symlink rejected/);
-    } finally {
-      rmSync(root, { recursive: true, force: true });
-    }
-  });
-
-  test("requires Ponytail to remain hidden before injecting its context path", () => {
-    const root = makeRoot();
-    try {
-      writeSkill(root, "gsd", "Hidden bootstrap", "# Bootstrap", "hide: true\n");
-      writeSkill(root, "gsd-alpha", "Alpha", "# Alpha");
-      assert.throws(() => createBootstrap(root), /hidden Ponytail context is required/);
-
-      writeSkill(root, "gsd-ponytail", "Ponytail context", "# Ponytail");
-      assert.throws(() => createBootstrap(root), /hidden Ponytail context is required/);
-
-      writeSkill(root, "gsd-ponytail", "Ponytail context", "# Ponytail", "hide: true\n");
-      const expected = realpathSync(join(root, "skills", "gsd-ponytail", "SKILL.md"));
-      assert.equal(createBootstrap(root).includes(`PONYTAIL_CONTEXT_PATH: ${JSON.stringify(expected)}`), true);
     } finally {
       rmSync(root, { recursive: true, force: true });
     }
@@ -1289,7 +1269,6 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
   assert.equal(registrationPolicy.systemPrompt[0], baseSystemPrompt[0]);
   assert.match(registrationPolicy.systemPrompt[1], /gsd:system-policy:v1/);
   assert.match(registrationPolicy.systemPrompt[1], /first action MUST be one read tool call/);
-  assert.match(registrationPolicy.systemPrompt[1], /Quick-fix[\s\S]{0,200}one or two tasks/);
   // Decision 0016 gives the primary host its own independent reviewer, so the injected policy
   // must name that wave review instead of leaving it to the on-demand canon alone.
   assert.match(
@@ -2022,7 +2001,6 @@ test("schema v0.0.2 and hidden architecture catalog cutover", () => {
   assert.ok(!catalogNames.includes("gsd-codebase-architecture"));
   assert.ok(!catalogNames.includes("gsd-codebase-design"));
   assert.ok(!catalogNames.includes("gsd-improve-codebase-architecture"));
-  assert.ok(!catalogNames.includes("gsd-ponytail"));
 
   const tmp = mkdtempSync(join(tmpdir(), "gsd-schema-v0-0-2-"));
   try {
@@ -2169,27 +2147,6 @@ test("readStateFile rejects state.toon swap after feature dir pin", () => {
   } finally {
     try { unlinkSync(statePath); } catch {}
     rmSync(tmp, { recursive: true, force: true });
-  }
-});
-
-test("extension policy summary mirrors master Quick-fix lane key phrases", () => {
-  const master = readFileSync(new URL("../skills/gsd/SKILL.md", import.meta.url), "utf8");
-  // The extension body was re-homed to adapters/omp/ (decision 0015); the
-  // extensions/gsd-context.js entry path is now a re-export of this file.
-  const extension = readFileSync(new URL("../adapters/omp/gsd-context.js", import.meta.url), "utf8");
-  for (const phrase of [
-    /Gates: grammar fit \(one\/two tasks\)/i,
-    /Domain Impact none\/single shard/i,
-    /validate-quick-fix/i,
-  ]) {
-    assert.match(master, phrase, `master rule 6 must keep phrase ${phrase}`);
-  }
-  for (const phrase of [
-    /three size gates/i,
-    /one or two tasks proven via validate-quick-fix/i,
-    /none or single-shard Domain Impact/i,
-  ]) {
-    assert.match(extension, phrase, `extension summary must keep phrase ${phrase}`);
   }
 });
 

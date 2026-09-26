@@ -126,15 +126,13 @@ A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active 
 | You say | Primary behavior |
 |---|---|
 | “Fix this typo” | Direct Nano edit; no scratch, branch, commit, or GSD skill. |
-| “Fix this small behavioral bug” | Session-owned Quick-fix with exact Domain Impact, hidden Ponytail context, Fast TDD, domain-drift verification, and no saved Ponytail preference. |
+| “Fix this small behavioral bug” | Direct quick fix: edit plus a focused test; no packet, plan, commit, or verification gate. |
 | “Review this diff” | Standalone read-only review; no merge mechanics. |
 | “Why does X crash?” | Feedback-loop-first diagnosis with `gsd-diagnosing-bugs`. |
 | “Design the public interface for X” | Architecture and domain discovery in `gsd-brainstorming`. |
 | “Audit the architecture” | Architecture and domain discovery in `gsd-brainstorming`. |
 | “Pause and save progress” | Validated `state.toon` checkpoint through `gsd-handoff`. |
 | “Continue the active feature” | Validated resume through `gsd-handoff`. |
-
-For that Quick-fix route, the current session owner reads the exact hidden context path injected by the extension, writes the canonical Quick-fix plan, performs Fast TDD, and hands the unchanged green WIP to `gsd-verify`. Ponytail remains absent from the visible catalog and runtime state.
 
 Missing consumed artifacts do not trigger improvisation. The selected skill returns control to automatic selection or the recorded active owner with an actionable stop or transition.
 
@@ -172,7 +170,7 @@ extensions/
 ├── gsd-context.js                    # stable OMP entry: re-exports adapters/omp/gsd-context.js
 └── gsd-context.d.ts                  # stable type entry: re-exports adapters/omp/gsd-context.d.ts
 lib/
-├── gsd-contract.mjs                 # executable full-plan and Quick-fix grammar
+├── gsd-contract.mjs                 # executable plan grammar
 ├── gsd-domain.mjs                   # domain index/shard grammar and AGENTS.md canonical section
 ├── gsd-fs.mjs                       # pinned directory chain TOCTOU-hardened file primitives
 ├── gsd-record.mjs                   # decision and design record grammar
@@ -181,7 +179,7 @@ lib/
 ├── gsd-state.mjs                    # state.toon schema, validation, and candidate discovery
 └── gsd-bootstrap.mjs                # skill catalog, bootstrap renderer, recovery capsule, message utils
 tools/
-├── gsd-contract.mjs                 # plan and Quick-fix validator CLI
+├── gsd-contract.mjs                 # plan validator CLI
 ├── gsd-domain.mjs                   # domain index/shard validator CLI
 ├── gsd-git.mjs                      # read-only derive-base, preflight, and verify-task-branch queries
 ├── gsd-record.mjs                   # decision and design record validator CLI
@@ -194,7 +192,6 @@ skills/
 ├── gsd-verify/                       # deterministic conformance and acceptance gate
 ├── gsd-handoff/                      # pause, recovery, and portable resume
 ├── gsd-tdd/                          # hidden Fast TDD reference
-├── gsd-ponytail/                     # hidden level-free YAGNI context
 ├── gsd-diagnosing-bugs/              # hard-bug diagnosis loop
 ├── gsd-domain-modeling/              # hidden bounded-context documentation reference
 └── gsd-codebase-architecture/        # hidden named-seam and audit reference
@@ -216,12 +213,6 @@ Execution resume, terminal entry, and pre-squash bind the same command to bound 
 
 ```bash
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex>
-```
-
-Quick fixes select their distinct grammar:
-
-```bash
-bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md
 ```
 
 Successful plan validation emits minimal deterministic TOON with the plan kind, feature, SHA-256, and task count. Artifact failures emit structured TOON on stdout and exit 1, separating an unreadable file (`code: io-error`) from malformed authority (`code: invalid-artifact`); invalid invocations exit 2. The validator reads only a bounded real `.scratch/<feature>/plan.md` and never mutates plan, state, domain, or Git data.

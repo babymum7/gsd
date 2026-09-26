@@ -10,7 +10,7 @@ import {
   validatePlanFile,
 } from "../lib/gsd-contract.mjs";
 
-const COMMANDS = new Set(["validate-plan", "validate-quick-fix", "analyze-waves", "normalize-plan", "init-plan"]);
+const COMMANDS = new Set(["validate-plan", "analyze-waves", "normalize-plan", "init-plan"]);
 
 // The lifecycle runs in workspaces that are not this checkout, so every help and error
 // surface names the path this process was actually loaded from. A repo-relative form here
@@ -31,9 +31,6 @@ function commandUsage(command) {
   if (command === "validate-plan") {
     return `${INVOCATION} validate-plan --path .scratch/<feature>/plan.md [--expected-sha256 <64-hex>] [--expected-base <branch>]`;
   }
-  if (command === "validate-quick-fix") {
-    return `${INVOCATION} validate-quick-fix --path .scratch/<feature>/plan.md [--expected-base <branch>]`;
-  }
   if (command === "analyze-waves") {
     return `${INVOCATION} analyze-waves --path .scratch/<feature>/plan.md [--expected-sha256 <64-hex>] [--expected-base <branch>]`;
   }
@@ -43,7 +40,7 @@ function commandUsage(command) {
   if (command === "init-plan") {
     return `${INVOCATION} init-plan --path .scratch/<feature>/plan.md --base <branch>`;
   }
-  return `${INVOCATION} <validate-plan|validate-quick-fix|analyze-waves|normalize-plan|init-plan> --path <artifact>`;
+  return `${INVOCATION} <validate-plan|analyze-waves|normalize-plan|init-plan> --path <artifact>`;
 }
 function emitHelp(command) {
   write([
@@ -193,9 +190,6 @@ function parseArguments(argv) {
       command,
     };
   }
-  if (command === "validate-quick-fix" && expectedSha256 !== null) {
-    return { usageError: `${command} does not accept --expected-sha256`, command };
-  }
   if (expectedBase !== null && !isSafeBranchRef(expectedBase)) {
     return { usageError: "--expected-base must be one Git branch name able to receive a merge", command };
   }
@@ -233,7 +227,6 @@ if (input.usageError) {
 } else {
   try {
     const result = validatePlanFile(input.planPath, {
-      kind: input.command === "validate-quick-fix" ? "quick-fix" : "plan",
       expectedSha256: input.expectedSha256,
       expectedBase: input.expectedBase,
     });

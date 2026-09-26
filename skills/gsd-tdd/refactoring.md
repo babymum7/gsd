@@ -70,7 +70,7 @@ Tests untouched, still green. `cartTotal` is private to the module; the public i
 
 Refactoring is done when the smell is gone, not when the code is maximally clever.
 
-- **Stop at "no duplication, small interface, tests survive."** Deepening past that is speculative abstraction; apply the hidden Ponytail/YAGNI context rather than adding ceremony.
+- **Stop at "no duplication, small interface, tests survive."** Deepening past that is speculative abstraction; apply YAGNI rather than adding ceremony.
 - **Don't gold-plate.** A helper used once, an interface with one implementation, a config knob nobody asked for — these add interface without leverage. Shallow the other direction.
 - **Don't reopen settled design.** Settled terms and production invariants in the relevant `docs/domain/<scope>.md` shard are not refactor targets; a genuine structural rethink is a `gsd-codebase-architecture` candidate, not a step in this loop.
 - **Time-box it.** If a refactor balloons past the task's scope, note it as a deepening candidate and move on — don't stall the tracer bullet.

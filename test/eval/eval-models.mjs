@@ -93,7 +93,7 @@ const system = [
   "You are a GSD activation classifier. Do NOT perform, answer, or execute the user prompt. Classify only.",
   "The exact production GSD session bootstrap is loaded below.",
   "Given the workspace state and current user prompt, apply the result-marker decision vocabulary and the lazy skill-selection policy this bootstrap states.",
-  "Choose only the primary process owner. Helper skills such as gsd-ponytail are not represented in primarySkill.",
+  "Choose only the primary process owner. Hidden helper skills are not represented in primarySkill.",
   'Reply with ONLY exact JSON: {"decision":"<ordinary-routing|ignore-terminal-record|cleanup-question|cleanup-only|block-resume|fail-closed>","action":"<load|direct|stop>","primarySkill":"<visible gsd-* skill>" or null}.',
   "Use load with one visible primary skill, direct with null when no primary skill applies, and stop with null for every cleanup/block/fail-closed decision.",
   "ordinary-routing and ignore-terminal-record ALWAYS use load or direct. cleanup-question, cleanup-only, block-resume, and fail-closed ALWAYS use stop with null primarySkill.",

@@ -1,6 +1,6 @@
 ---
 name: gsd-verify
-description: "Diff/PR review or planned/quick-fix terminal gate."
+description: "Diff/PR review or planned terminal gate."
 produces: [docs/gsd/<feature>/milestones.md, docs/gsd/<feature>/archive/plan.md, docs/gsd/<feature>/archive/implementation.md, state.toon, plan.md]
 consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md, docs/gsd/<feature>/milestones.md]
 ---
@@ -8,13 +8,13 @@ consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AG
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
-- Intent: review a diff/PR or prove planned or Quick-fix code-and-domain conformance before slow/E2E
+- Intent: review a diff/PR or prove planned code-and-domain conformance before slow/E2E
 - Do-not-load: invent completion without deterministic gates; per-task terminal verification
-- Transition: planned or Quick-fix green path performs squash, automatic cleanup, and optional retain/archive
+- Transition: planned green path performs squash, automatic cleanup, and optional retain/archive
 
 # Verify
 
-> **Invocation guard** — automatic selection loads standalone review; active owners load planned/quick-fix/milestone gates. Select an Invocation Mode and validate only Required state under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Post-plan pipeline contract and § Artifact Contract.
+> **Invocation guard** — automatic selection loads standalone review; active owners load planned/milestone gates. Select an Invocation Mode and validate only Required state under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Post-plan pipeline contract and § Artifact Contract.
 
 ## Invocation modes
 
@@ -23,7 +23,6 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 | Standalone review | — | Markdown packet context | — | — |
 | Planned WIP gate | `plan.md`; bound `state.toon` | authorized ledger | `state.toon`; `docs/gsd/<feature>/milestones.md`; amended `plan.md`; on retain `docs/gsd/<feature>/archive/plan.md` and `docs/gsd/<feature>/archive/implementation.md` | Stop before review/merge only if `plan.md` or `state.toon` is missing/malformed |
 | Milestone WIP gate | Planned state; authoritative ledger | — | `state.toon`; `docs/gsd/<feature>/milestones.md` lifecycle state | Missing source/binding is Spec escalation; missing ledger evidence is Blocker |
-| Quick-fix WIP gate | exact Quick-fix `plan.md`; bound `state.toon` | affected domain shards; `AGENTS.md` | `state.toon`; amended `plan.md` | Missing/malformed grammar, state, or binding blocks; recover real plan, never fabricate it |
 
 ## Planned and milestone WIP gate
 
@@ -62,18 +61,6 @@ Include every mutation in reviewed squash; red gates change no base ledger state
 ## Standalone review
 
 Read-only; no branch/result/merge authority. Supplied context informs, never approves. Report separate bounded-read-only axes: **Standards** — cite documented-standard violations; smells are judgement only, standards win. **Intent** — cite request/plan/context mismatches: missing, partial, scope creep. Do not cross-rerank; summarize per axis.
-
-## Quick-fix WIP gate
-
-Quick fixes have the exact minimal `plan.md` grammar from `REFERENCE.md`, not a full feature packet.
-- Parse its exact five-field `Domain Impact` before review.
-- `none` requires concrete evidence that no term, invariant, workflow, outcome, relationship, policy, or bounded-context meaning changed.
-- Every non-`none` classification requires exactly one semantic-code task owning each affected shard; `Broad bootstrap` must always be `not-offered`.
-- An absent domain index keeps the fix bounded and bootstraps the feature-scoped shard inline; only an explicitly requested broad bootstrap exits Quick-fix for normal discovery.
-- Compare affected domain prose with production code, schemas, contracts, and tests; missing, obsolete, future, or unrelated prose is domain drift and blocks completion as a Blocker.
-- Run code-quality, recorded focused behavior commands, whole-branch builds where available, and applicable E2E before normal squash/cleanup.
-
-Before reviewing a Quick-fix run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-quick-fix --path .scratch/<feature>/plan.md`. Exit 0 must report `kind: quick-fix` and matching feature; exit 1 blocks malformed Quick-fix authority; exit 2 corrects invocation. This command takes no `--expected-sha256`: compare the returned hash with recorded `state.toon` `plan_sha256`. Differences mean plan bytes moved after the last checkpoint; rebind under § Plan amendment before review rather than reviewing unrecorded bytes.
 
 ## Contextual disclosure
 

@@ -192,14 +192,6 @@
     "expectedPrimarySkill": "gsd-handoff"
   },
   {
-    "id": "quick-fix-repair",
-    "state": "active Quick-fix WIP gate returned Quick-fix WIP Fail with terminal_repair_round=1 and preserved plan.md",
-    "prompt": "continue the bounded quick-fix repair",
-    "decision": "ordinary-routing",
-    "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-verify"
-  },
-  {
     "id": "result-pending-unrelated",
     "state": ".scratch/oauth-login/state.toon has phase=merged-cleanup-pending; no active packet",
     "prompt": "fix the typo in README.md",

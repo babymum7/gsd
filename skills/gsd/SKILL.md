@@ -8,7 +8,7 @@ consumes: [state.toon, plan.md, docs/domain/index.md, docs/domain/<scope>.md, do
 
 # GSD Session Bootstrap
 
-Extension-loaded; never reload. Use injected `GSD_ROOT`, `PONYTAIL_CONTEXT_PATH`, catalog `skillPath`; unreadable paths stop.
+Extension-loaded; never reload. Use injected `GSD_ROOT`, catalog `skillPath`; unreadable paths stop.
 
 **Respond in the user's language.** Preserve code, paths, TOON keys, IDs, skill names.
 
@@ -31,8 +31,8 @@ Catalog descriptions select. A matched skill's **first visible action must be on
    Domain/context mapping reads the skill first.
 3. **Bare continue is active state.** `gsd-handoff` first, then `next_action` picks the peer. Named work routes to its owner; plan-hash drift during named execution keeps `gsd-executing-plans`, and Quick-fix repair loads `gsd-verify` before `PONYTAIL_CONTEXT_PATH`. A first-pending ledger row resumes through `gsd-handoff`.
 4. **Choose exactly one primary process owner.** Unclear intents ask one recommended-default question.
-5. **No matching skill means ordinary direct behavior.** Read-only answers, obvious errors, and Nano edits stay direct. A concrete failure symptom with an unknown cause routes through `gsd-diagnosing-bugs`; exact file/line/signature enters direct Quick-fix, never diagnosis.
-   Bounded Quick-fix: read `PONYTAIL_CONTEXT_PATH`, writes its plan, proves fit with `validate-quick-fix`. Gates: grammar fit (one/two tasks), Domain Impact none/single shard, converged acceptance; prior diagnosis is not required. Green WIP and repair go to `gsd-verify`.
+5. **No matching skill means ordinary direct behavior.** Read-only answers, obvious errors, and Nano edits stay direct. A concrete failure symptom with an unknown cause routes through `gsd-diagnosing-bugs`; exact file/line/signature is a direct quick fix, never diagnosis.
+   Quick fix: edit directly, run the focused test, and report; no packet, plan, commit, or `gsd-verify` gate. Escalate to `gsd-brainstorming` when scope grows beyond a known bounded change.
 6. **Lifecycle authority stays session-owner.** Dispatch no repair, diagnosis, architecture, or verification. The owner reconciles every result. Implementation waves follow [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Wave dispatch; single-task waves default inline with `gsd-tdd`.
 
 Injected orchestration never transfers lifecycle ownership; leave the lifecycle. Bounded read-only research is allowed; it is unverified; implementation, repair, diagnosis, architecture, and verification remain prohibited.
@@ -43,7 +43,7 @@ Read `GSD_ROOT/skills/gsd/REFERENCE.md` by named `§` section, whole only if no 
 
 The core pipeline is `gsd-brainstorming` → `gsd-to-plan` → `gsd-executing-plans` → `gsd-verify` → squash cleanup. Brainstorming is the only interactive phase; planning auto-binds; execution starts automatically. Execution runs Fast TDD, deterministic terminal conformance, then Deferred Slow E2E; source changes invalidate evidence.
 
-Reject legacy proposal/spec/design TOON, numbered handoffs, attempts, result markers, reload manifests, and stale non-authoritative state. Preserve the `REFERENCE.md` **Quick-fix plan exception**. If a milestone ledger is all-`done`, fail closed; the final milestone deletes the ledger.
+Reject legacy proposal/spec/design TOON, numbered handoffs, attempts, result markers, reload manifests, and stale non-authoritative state. If a milestone ledger is all-`done`, fail closed; the final milestone deletes the ledger.
 
 ## Completed-state decision matrix
 

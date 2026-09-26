@@ -32,9 +32,9 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
     .sort();
   assert.deepEqual(readdirSync(join(pluginRoot, "skills")).sort(), visible);
   assert.equal(existsSync(join(pluginRoot, "skills", "gsd")), false);
-  assert.equal(existsSync(join(pluginRoot, "skills", "gsd-ponytail")), false);
+  assert.equal(existsSync(join(pluginRoot, "skills", "gsd-codebase-architecture")), false);
   assert.ok(existsSync(join(pluginRoot, "core", "skills", "gsd", "SKILL.md")));
-  assert.ok(existsSync(join(pluginRoot, "core", "skills", "gsd-ponytail", "SKILL.md")));
+  assert.ok(existsSync(join(pluginRoot, "core", "skills", "gsd-codebase-architecture", "SKILL.md")));
   assert.ok(existsSync(join(pluginRoot, "core", "tools", "gsd-contract.mjs")));
   assert.deepEqual(collectSymlinks(pluginRoot), []);
   // Every core tool must load from the built bundle: tools import `../lib`, which shipped

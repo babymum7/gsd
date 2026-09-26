@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { analyzeWaves, initPlanFile, normalizePlanFile, parseQuickFixPlan, readPlanFile } from "../lib/gsd-contract.mjs";
+import { analyzeWaves, initPlanFile, normalizePlanFile, readPlanFile } from "../lib/gsd-contract.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(ROOT, "tools", "gsd-contract.mjs");
@@ -152,13 +152,13 @@ test("active criteria require one concrete scenario while small plans stay light
   }
 });
 
-test("both plan grammars reject content between the title and the first section", () => {
+test("plans reject content between the title and the first section", () => {
   // `validateSections` only inspects `## ` lines and `validateTitle` only counted `# `
   // headings, leaving this region unowned: a canonical title could carry arbitrary
   // preamble, or drift a blank line, and still validate as converged authority.
   const cases = [
     ["prose-preamble", "validate-plan", canonicalPlan().replace("# Plan\n", "# Plan\nstray preamble\n")],
-    ["blank-preamble", "validate-quick-fix", quickFixPlan().replace("# Quick-fix Plan\n", "# Quick-fix Plan\n\n")],
+    ["blank-preamble", "validate-plan", canonicalPlan().replace("# Plan\n", "# Plan\n\n")],
   ];
   for (const [feature, command, content] of cases) {
     const { workspace, planPath } = makePlanWorkspace(feature, content);
@@ -176,7 +176,7 @@ test("both plan grammars reject content between the title and the first section"
     }
   }
 });
-test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks", () => {
+test("full-plan domain shard ownership skips superseded tasks", () => {
   // The rule only ran for `kind === "quick-fix"`, so an identical non-`none` full plan
   // validated with no shard task at all. Full plans differ twice: `parseTasks` scopes
   // path uniqueness per task, so a shard may be re-owned at several checkpoints, and a
@@ -308,22 +308,16 @@ test("full-plan domain shard ownership matches Quick-fix, minus superseded tasks
     for (const entry of cases) rmSync(entry.workspace, { recursive: true, force: true });
   }
 });
-test("both grammars reject a none classification that still owns domain documentation", () => {
+test("a none classification that still owns domain documentation", () => {
   // `classification=none` declares the fix touches no domain meaning, so owning a
   // domain shard, the index, or AGENTS.md contradicts that declaration. The non-`none`
   // branch already enforces the direction it can see; this closes the inverse.
-  const quickFixShard = quickFixPlan("none-shard-qf")
-    .replace("  - `src/fix.js` \u2014 modify: correct the bounded observable behavior", "  - `src/fix.js` \u2014 modify: correct the bounded observable behavior\n  - `docs/domain/gsd.md` \u2014 modify: record the corrected production behavior");
-  const quickFixAgents = quickFixPlan("none-agents-qf")
-    .replace("  - `src/fix.js` \u2014 modify: correct the bounded observable behavior", "  - `src/fix.js` \u2014 modify: correct the bounded observable behavior\n  - `AGENTS.md` \u2014 modify: record the corrected agent instruction");
   const fullPlanShard = canonicalPlan("none-shard-plan")
     .replace("  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation", "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation\n  - `docs/domain/gsd.md` \u2014 modify: record the corrected production behavior");
   const fullPlanIndex = canonicalPlan("none-index-plan")
     .replace("  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation", "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation\n  - `docs/domain/index.md` \u2014 modify: keep the index current");
   const contradiction = /classification none must not own domain documentation/;
   const cases = [
-    { command: "validate-quick-fix", feature: "none-shard-qf", content: quickFixShard, expect: contradiction },
-    { command: "validate-quick-fix", feature: "none-agents-qf", content: quickFixAgents, expect: contradiction },
     { command: "validate-plan", feature: "none-shard-plan", content: fullPlanShard, expect: contradiction },
     { command: "validate-plan", feature: "none-index-plan", content: fullPlanIndex, expect: contradiction },
   ].map((entry) => ({ ...entry, ...makePlanWorkspace(entry.feature, entry.content) }));
@@ -590,35 +584,12 @@ test("the CLI names a runnable invocation in every help and error surface", () =
   }
 });
 
-function quickFixPlan(feature = "quick-fix-plan") {
-  return [
-    "# Quick-fix Plan",
-    "## Feature",
-    `\`${feature}\``,
-    "## Base",
-    "`main`",
-    "## Domain Impact",
-    "- **Classification:** none",
-    "- **Contexts:** none",
-    "- **Documentation:** none",
-    "- **Broad bootstrap:** not-offered",
-    "- **Evidence:** The fixture changes no production term, invariant, workflow, outcome, relationship, policy, or context boundary.",
-    "## Tasks",
-    "### T1: Apply bounded fix",
-    "- **Files:**",
-    "  - `src/fix.js` — modify: correct the bounded observable behavior",
-    "- **Test:** `bun test test/fix.test.js`",
-    "",
-  ].join("\n");
-}
-
 // A worktree session plans on the worktree's own branch, so the base is whatever is
 // checked out — never a hardcoded default. The validator must accept any such base and
 // reject only the packet's own WIP branch, which would leave the squash no merge target.
-test("both grammars accept a non-default base and reject a self-referencing one", () => {
+test("plans accept a non-default base and reject a self-referencing one", () => {
   const cases = [
     { command: "validate-plan", feature: "worktree-base", build: canonicalPlan },
-    { command: "validate-quick-fix", feature: "worktree-base-qf", build: quickFixPlan },
   ];
   for (const { command, feature, build } of cases) {
     const worktreeBase = build(feature).replace("`main`", "`worktree-onboarding`");
@@ -655,7 +626,6 @@ test("both grammars accept a non-default base and reject a self-referencing one"
 test("a bound call rejects a plan whose base differs from the recorded base_ref", () => {
   const cases = [
     { command: "validate-plan", feature: "bound-base", build: canonicalPlan },
-    { command: "validate-quick-fix", feature: "bound-base-qf", build: quickFixPlan },
   ];
   for (const { command, feature, build } of cases) {
     const plan = build(feature).replace("`main`", "`release/2026`");
@@ -753,9 +723,9 @@ test("--expected-base rejects a malformed value and a repeat as usage errors", (
 // Collapsing both into `invalid-artifact` would send an owner to rewrite authority that
 // is actually fine, so the two classes stay distinguishable at the CLI surface.
 test("an unreadable plan is an environment failure, not malformed authority", () => {
-  const readable = quickFixPlan("io-denied");
+  const readable = canonicalPlan("io-denied");
   const denied = makePlanWorkspace("io-denied", readable);
-  const malformed = makePlanWorkspace("io-malformed", "# Quick-fix Plan\n");
+  const malformed = makePlanWorkspace("io-malformed", "# Plan\n");
   chmodSync(denied.planPath, 0o000);
   try {
     const cases = [
@@ -769,7 +739,7 @@ test("an unreadable plan is an environment failure, not malformed authority", ()
     for (const fixture of cases) {
       const result = spawnSync(
         process.execPath,
-        [CLI, "validate-quick-fix", "--path", fixture.entry.planPath],
+        [CLI, "validate-plan", "--path", fixture.entry.planPath],
         { cwd: fixture.entry.workspace, encoding: "utf8" },
       );
       assert.equal(result.status, 1, `${fixture.code}: ${result.stdout}${result.stderr}`);
@@ -780,7 +750,7 @@ test("an unreadable plan is an environment failure, not malformed authority", ()
     }
     chmodSync(denied.planPath, 0o644);
     assert.equal(readFileSync(denied.planPath, "utf8"), readable);
-    assert.equal(readFileSync(malformed.planPath, "utf8"), "# Quick-fix Plan\n");
+    assert.equal(readFileSync(malformed.planPath, "utf8"), "# Plan\n");
   } finally {
     chmodSync(denied.planPath, 0o644);
     for (const workspace of [denied.workspace, malformed.workspace]) {
@@ -790,9 +760,9 @@ test("an unreadable plan is an environment failure, not malformed authority", ()
 });
 
 test("inaccessible feature directory is an environment failure while missing directory is malformed authority", () => {
-  const readable = quickFixPlan("io-dir-denied");
+  const readable = canonicalPlan("io-dir-denied");
   const denied = makePlanWorkspace("io-dir-denied", readable);
-  const missing = makePlanWorkspace("io-missing-dir", quickFixPlan("io-missing-dir"));
+  const missing = makePlanWorkspace("io-missing-dir", canonicalPlan("io-missing-dir"));
   const scratchDir = join(denied.workspace, ".scratch");
   const missingDir = join(missing.workspace, ".scratch", "io-missing-dir");
   rmSync(missingDir, { recursive: true, force: true });
@@ -810,7 +780,7 @@ test("inaccessible feature directory is an environment failure while missing dir
         expect: /feature directory cannot be inspected: ENOENT/,
       },
     ];
-    for (const command of ["validate-quick-fix", "validate-plan"]) {
+    for (const command of ["validate-plan"]) {
       for (const fixture of cases) {
         const result = spawnSync(
           process.execPath,
@@ -832,125 +802,7 @@ test("inaccessible feature directory is an environment failure while missing dir
   }
 });
 
-test("validate-quick-fix enforces its distinct Domain Impact contract", () => {
-  const plan = quickFixPlan();
-  const valid = makePlanWorkspace("quick-fix-plan", plan);
-  const invalidPlan = plan
-    .replace("Classification:** none", "Classification:** change-existing-context")
-    .replace("Contexts:** none", "Contexts:** gsd")
-    .replace("Documentation:** none", "Documentation:** update-existing");
-  const invalid = makePlanWorkspace("quick-fix-plan", invalidPlan);
-  try {
-    const accepted = spawnSync(
-      process.execPath,
-      [CLI, "validate-quick-fix", "--path", valid.planPath],
-      { cwd: valid.workspace, encoding: "utf8" },
-    );
-    const rejected = spawnSync(
-      process.execPath,
-      [CLI, "validate-quick-fix", "--path", invalid.planPath],
-      { cwd: invalid.workspace, encoding: "utf8" },
-    );
 
-    assert.equal(accepted.status, 0, accepted.stderr || accepted.stdout);
-    assert.match(accepted.stdout, /^status: valid\nkind: quick-fix\nfeature: quick-fix-plan\n/);
-    assert.match(accepted.stdout, /\ntasks: 1$/);
-    assert.equal(accepted.stderr, "");
-    assert.equal(rejected.status, 1);
-    assert.match(rejected.stdout, /^status: error\ncode: invalid-artifact\n/);
-    assert.match(rejected.stdout, /must own affected domain shard/);
-    assert.equal(rejected.stderr, "");
-  } finally {
-    rmSync(valid.workspace, { recursive: true, force: true });
-    rmSync(invalid.workspace, { recursive: true, force: true });
-  }
-});
-
-test("Quick-fix domain shard ownership is enforced per task, not plan-wide", () => {
-  const semantic = quickFixPlan()
-    .replace("Classification:** none", "Classification:** change-existing-context")
-    .replace("Contexts:** none", "Contexts:** gsd")
-    .replace("Documentation:** none", "Documentation:** update-existing");
-
-  const codeLine = "  - `src/fix.js` \u2014 modify: correct the bounded observable behavior";
-  const shardLine = "  - `docs/domain/gsd.md` \u2014 modify: record the corrected production behavior";
-
-  // One task owns both the code and its affected shard.
-  const sameTask = semantic.replace(codeLine, `${codeLine}\n${shardLine}`);
-  assert.notEqual(sameTask, semantic);
-
-  // The shard is split into a separate trailing task, so no task owns both.
-  const splitTask = semantic.replace(
-    "- **Test:** `bun test test/fix.test.js`\n",
-    `- **Test:** \`bun test test/fix.test.js\`\n### T2: Document the shard\n- **Files:**\n${shardLine}\n- **Test:** \`bun test test/skills.test.js\`\n`,
-  );
-  assert.notEqual(splitTask, semantic);
-
-  // A later task pairs the shard with different code, leaving T1's semantic change
-  // undocumented at its own green checkpoint.
-  const laterCodeTask = semantic.replace(
-    "- **Test:** `bun test test/fix.test.js`\n",
-    `- **Test:** \`bun test test/fix.test.js\`\n### T2: Adjust the caller\n- **Files:**\n  - \`src/caller.js\` \u2014 modify: pass the corrected value through\n${shardLine}\n- **Test:** \`bun test test/caller.test.js\`\n`,
-  );
-  assert.notEqual(laterCodeTask, semantic);
-
-  // The shard rides with prose only, so the semantic change stays undocumented.
-  const proseOnlyTask = semantic.replace(
-    "- **Test:** `bun test test/fix.test.js`\n",
-    `- **Test:** \`bun test test/fix.test.js\`\n### T2: Note the change\n- **Files:**\n  - \`AGENTS.md\` \u2014 modify: record the corrected agent instruction\n${shardLine}\n- **Test:** \`bun test test/skills.test.js\`\n`,
-  );
-  assert.notEqual(proseOnlyTask, semantic);
-
-  // The shard rides with a test-only task while production code lands later, so the
-  // first green checkpoint documents behavior that does not exist yet.
-  const testOnlyTask = semantic
-    .replace(codeLine, `  - \`test/fix.test.js\` \u2014 create: pin the corrected observable behavior\n${shardLine}`)
-    .replace(
-      "- **Test:** `bun test test/fix.test.js`\n",
-      `- **Test:** \`bun test test/fix.test.js\`\n### T2: Correct the source\n- **Files:**\n${codeLine}\n- **Test:** \`bun test test/fix.test.js\`\n`,
-    );
-  assert.notEqual(testOnlyTask, semantic);
-
-  // A trailing task changes more production code, so its own semantic change lands
-  // at a green checkpoint that no shard edit accompanies.
-  const trailingCodeTask = sameTask.replace(
-    "- **Test:** `bun test test/fix.test.js`\n",
-    "- **Test:** `bun test test/fix.test.js`\n### T2: Adjust the caller\n- **Files:**\n  - `src/caller.js` \u2014 modify: pass the corrected value through\n- **Test:** `bun test test/caller.test.js`\n",
-  );
-  assert.notEqual(trailingCodeTask, sameTask);
-
-  const ownership = /must own affected domain shard/;
-  const single = /must change semantic code in exactly one task/;
-  const cases = [
-    { name: "same-task", content: sameTask, status: 0 },
-    { name: "trailing-code-task", content: trailingCodeTask, status: 1, expect: single },
-    { name: "test-only-owner", content: testOnlyTask, status: 1, expect: ownership },
-    { name: "prose-only-owner", content: proseOnlyTask, status: 1, expect: ownership },
-    { name: "split-task", content: splitTask, status: 1, expect: ownership },
-    { name: "later-code-task", content: laterCodeTask, status: 1, expect: single },
-    { name: "unowned", content: semantic, status: 1, expect: ownership },
-  ].map((entry) => ({ ...entry, ...makePlanWorkspace("quick-fix-plan", entry.content) }));
-
-  try {
-    for (const entry of cases) {
-      const result = spawnSync(
-        process.execPath,
-        [CLI, "validate-quick-fix", "--path", entry.planPath],
-        { cwd: entry.workspace, encoding: "utf8" },
-      );
-      assert.equal(result.status, entry.status, `${entry.name}: ${result.stdout}${result.stderr}`);
-      assert.equal(result.stderr, "");
-      if (entry.status === 0) {
-        assert.match(result.stdout, /^status: valid\nkind: quick-fix\n/);
-      } else {
-        assert.match(result.stdout, /^status: error\ncode: invalid-artifact\n/);
-        assert.match(result.stdout, entry.expect, entry.name);
-      }
-    }
-  } finally {
-    for (const entry of cases) rmSync(entry.workspace, { recursive: true, force: true });
-  }
-});
 
 
 test("lifecycle owners use the production validator and document inert experimental schemas", () => {
@@ -968,10 +820,8 @@ test("lifecycle owners use the production validator and document inert experimen
   // repo-relative path never reaches the CLI. Authority documents carry the injected root
   // substituted into an absolute path, and the bare form must not come back anywhere.
   const absolutePlan = /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" validate-plan --path/;
-  const absoluteQuickFix = /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" validate-quick-fix --path/;
   assert.match(files.get("reference"), absolutePlan);
   assert.match(files.get("reference"), /--expected-sha256/);
-  assert.match(files.get("reference"), absoluteQuickFix);
   assert.match(files.get("planner"), absolutePlan);
   for (const owner of ["execution", "handoff", "verify"]) {
     assert.match(
@@ -980,7 +830,6 @@ test("lifecycle owners use the production validator and document inert experimen
       `${owner} must bind validation to the approved hash`,
     );
   }
-  assert.match(files.get("verify"), absoluteQuickFix);
   assert.match(files.get("readme"), absolutePlan);
   for (const [label, content] of files) {
     assert.doesNotMatch(
@@ -1213,32 +1062,9 @@ test("analyze-waves accepts the bound hash and fails closed on drift", () => {
   }
 });
 
-test("analyze-waves rejects quick-fix grammar and enforces usage", () => {
-  const quickFix = [
-    "# Quick-fix Plan",
-    "## Feature",
-    "`wave-quick`",
-    "## Base",
-    "`main`",
-    "## Domain Impact",
-    "- **Classification:** none",
-    "- **Contexts:** none",
-    "- **Documentation:** none",
-    "- **Broad bootstrap:** not-offered",
-    "- **Evidence:** This fix changes no production term, invariant, workflow, outcome, relationship, policy, or context boundary.",
-    "## Tasks",
-    "### T1: Fix the value",
-    "- **Files:**",
-    "  - `src/a.js` — modify: correct the value",
-    "- **Test:** `bun test test/a.test.js`",
-    "",
-  ].join("\n");
-  const { workspace, planPath } = makePlanWorkspace("wave-quick", quickFix);
+test("analyze-waves enforces usage", () => {
+  const { workspace } = makePlanWorkspace("wave-usage", canonicalPlan("wave-usage"));
   try {
-    const rejected = runWaves(planPath, workspace);
-    assert.equal(rejected.status, 1);
-    assert.match(rejected.stdout, /code: invalid-artifact/);
-
     const missing = spawnSync(process.execPath, [CLI, "analyze-waves"], { cwd: workspace, encoding: "utf8" });
     assert.equal(missing.status, 2);
     assert.match(missing.stdout, /code: usage/);
@@ -1399,40 +1225,6 @@ test("analyzeWaves groups criteria-less parsed tasks by file and check disjointn
   assert.deepEqual(multiWaves, [{ tasks: ["T1", "T2"] }, { tasks: ["T3"] }]);
 });
 
-test("Quick-fix shard ownership treats __tests__/ and spec/ as observation-only test paths", () => {
-  const semantic = quickFixPlan()
-    .replace("Classification:** none", "Classification:** change-existing-context")
-    .replace("Contexts:** none", "Contexts:** gsd")
-    .replace("Documentation:** none", "Documentation:** update-existing");
-
-  const codeLine = "  - `src/fix.js` — modify: correct the bounded observable behavior";
-  const shardLine = "  - `docs/domain/gsd.md` — modify: record the corrected production behavior";
-
-  const makeFixture = (testPath) =>
-    semantic
-      .replace(codeLine, `  - \`${testPath}\` — create: pin the corrected observable behavior\n${shardLine}`)
-      .replace(
-        "- **Test:** `bun test test/fix.test.js`\n",
-        `- **Test:** \`bun test test/fix.test.js\`\n### T2: Correct the source\n- **Files:**\n${codeLine}\n- **Test:** \`bun test test/fix.test.js\`\n`,
-      );
-
-  const testsCase = makeFixture("__tests__/x.js");
-  const specCase = makeFixture("spec/x.js");
-  const controlCase = semantic.replace(codeLine, `${codeLine}\n${shardLine}`);
-
-  assert.throws(
-    () => parseQuickFixPlan({ "plan.md": testsCase }),
-    /must own affected domain shard.*docs\/domain\/gsd\.md/i,
-  );
-  assert.throws(
-    () => parseQuickFixPlan({ "plan.md": specCase }),
-    /must own affected domain shard.*docs\/domain\/gsd\.md/i,
-  );
-
-  const parsed = parseQuickFixPlan({ "plan.md": controlCase });
-  assert.equal(parsed.feature, "quick-fix-plan");
-  assert.equal(parsed.tasks.length, 1);
-});
 
 test("semantic validator failures attach actionable remediation help lines", () => {
   // 1. Multi-AC interface pin conflict: T1 satisfies AC-1 and AC-2, but AC-1 is CLI and AC-2 is other seam
@@ -2229,16 +2021,6 @@ test("location-bearing rejections report the exact 1-based line", () => {
       content: canonicalPlan().replace(domainImpactBlock, swappedDomainImpact),
       expect: (content) => lineOf(content, "- **Contexts:**"),
       message: /fields must be exactly ordered: Classification, Contexts/,
-    },
-    {
-      name: "quick-fix task fields misordered",
-      command: "validate-quick-fix",
-      content: quickFixPlan().replace(
-        "### T1: Apply bounded fix\n- **Files:**\n",
-        "### T1: Apply bounded fix\n- **Test:** `bun test test/fix.test.js`\n- **Files:**\n  - `src/fix.js` — modify: correct the bounded observable behavior\n"
-      ),
-      expect: (content) => lineOf(content, "- **Test:**"),
-      message: /fields must be exactly ordered: Files, Test/,
     },
   ];
   for (const { name, command, content, expect, message } of cases) {
