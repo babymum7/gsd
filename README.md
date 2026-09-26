@@ -214,7 +214,7 @@ Execution resume and terminal entry run the same command against the recorded ba
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-base <base_ref>
 ```
 
-Successful plan validation emits minimal deterministic TOON with the plan kind, feature, base, and task count. Artifact failures emit structured TOON on stdout and exit 1, separating an unreadable file (`code: io-error`) from malformed authority (`code: invalid-artifact`); invalid invocations exit 2. The validator reads only a bounded real `.scratch/<feature>/plan.md` and never mutates plan, state, domain, or Git data.
+Successful plan validation emits minimal deterministic TOON with the plan kind, feature, base, and task count. Artifact failures emit structured TOON on stdout and exit 1, separating an unreadable file (`code: io-error`) from malformed authority (`code: invalid-artifact`); invalid invocations exit 2. `merge-message` takes the same flags and prints the terminal merge message instead: a merge subject, the Summary, and active criterion titles, used for `git merge -F` and as a pull request body. The validator reads only a bounded real `.scratch/<feature>/plan.md` and never mutates plan, state, domain, or Git data.
 
 ## Verification
 

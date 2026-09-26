@@ -66,6 +66,47 @@ function makePlanWorkspace(feature, content) {
   return { workspace, planPath };
 }
 
+test("merge-message prints the Summary and active criteria as a git merge message", () => {
+  const plan = canonicalPlan("merge-note").replace(
+    "## Decisions",
+    [
+      "### AC-2: Retired behavior",
+      "- **State:** superseded",
+      "- **Scenario:** GIVEN a retired criterion WHEN the plan is merged THEN it is left out of the message.",
+      "## Decisions",
+    ].join("\n"),
+  );
+  const { workspace, planPath } = makePlanWorkspace("merge-note", plan);
+  try {
+    const result = spawnSync(process.execPath, [CLI, "merge-message", "--path", planPath, "--expected-base", "main"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(
+      result.stdout,
+      [
+        "Merge wip/merge-note into main",
+        "",
+        "Validate one canonical GSD plan through the production command.",
+        "",
+        "Acceptance criteria:",
+        "- AC-1: Validate canonical plan",
+        "",
+      ].join("\n"),
+    );
+
+    const drifted = spawnSync(process.execPath, [CLI, "merge-message", "--path", planPath, "--expected-base", "trunk"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(drifted.status, 1);
+    assert.match(drifted.stdout, /^status: error$/m);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 test("validate-plan emits deterministic minimal TOON for a canonical plan", () => {
   const plan = canonicalPlan();
   const { workspace, planPath } = makePlanWorkspace("valid-plan", plan);

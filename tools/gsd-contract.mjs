@@ -7,10 +7,11 @@ import {
   initPlanFile,
   isSafeBranchRef,
   normalizePlanFile,
+  renderMergeMessage,
   validatePlanFile,
 } from "../lib/gsd-contract.mjs";
 
-const COMMANDS = new Set(["validate-plan", "analyze-waves", "normalize-plan", "init-plan"]);
+const COMMANDS = new Set(["validate-plan", "analyze-waves", "normalize-plan", "init-plan", "merge-message"]);
 
 // The lifecycle runs in workspaces that are not this checkout, so every help and error
 // surface names the path this process was actually loaded from. A repo-relative form here
@@ -40,7 +41,10 @@ function commandUsage(command) {
   if (command === "init-plan") {
     return `${INVOCATION} init-plan --path .scratch/<feature>/plan.md --base <branch>`;
   }
-  return `${INVOCATION} <validate-plan|analyze-waves|normalize-plan|init-plan> --path <artifact>`;
+  if (command === "merge-message") {
+    return `${INVOCATION} merge-message --path .scratch/<feature>/plan.md [--expected-base <branch>]`;
+  }
+  return `${INVOCATION} <validate-plan|analyze-waves|normalize-plan|init-plan|merge-message> --path <artifact>`;
 }
 function emitHelp(command) {
   write([
@@ -205,6 +209,14 @@ if (input.usageError) {
       "exit=0",
     ];
     write(lines);
+  } catch (error) {
+    failArtifact(error, input.command);
+  }
+} else if (input.command === "merge-message") {
+  // Plain text, not TOON: stdout is the message itself, ready for `git merge -F`.
+  try {
+    const result = validatePlanFile(input.planPath, { expectedBase: input.expectedBase });
+    process.stdout.write(renderMergeMessage(result.parsed));
   } catch (error) {
     failArtifact(error, input.command);
   }

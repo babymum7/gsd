@@ -42,7 +42,10 @@ A finding cites a file and line. Do not cross-rank the axes.
 7. On green, run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>` unpiped. Only `status: ready` proceeds; `status: blocked` stops as Spec escalation.
 8. Write `phase=ready` and `next_action=ask merge or pull request` with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> ...`, then ask one question: merge `wip/<feature>` into `base_ref`, or open a pull request from it. A cross-repo plan asks once for all repositories.
 
-The merge target is exactly the recorded `base_ref` (§ Base derivation and merge target); never widen to repository defaults. On merge, check out `base_ref`, run `git merge --no-ff wip/<feature>`, then delete `wip/<feature>` with `git branch -d`, the retired task branches, and `.scratch/<feature>/`. A cross-repo plan repeats the merge in each listed repository against its row's Base. On pull request, push `wip/<feature>` (in every listed repository) and open the PR with the host's tooling; keep the branch and scratch until the user says it merged.
+The merge target is exactly the recorded `base_ref` (§ Base derivation and merge target); never widen to repository defaults.
+- Message: `bun "<GSD_ROOT>/tools/gsd-contract.mjs" merge-message --path .scratch/<feature>/plan.md --expected-base <state.base_ref> > .scratch/<feature>/merge-message.txt`. It carries the Summary and active criteria past the scratch deletion.
+- Merge: check out `base_ref`, run `git merge --no-ff -F <absolute path of merge-message.txt> wip/<feature>`, then delete `wip/<feature>` with `git branch -d`, the retired task branches, and `.scratch/<feature>/`. A cross-repo plan repeats the merge in each listed repository against its row's Base, with the same message file.
+- Pull request: push `wip/<feature>` (in every listed repository) and open the PR with the host's tooling, using the message after its first line as the body; keep the branch and scratch until the user says it merged.
 
 ## Contextual disclosure
 

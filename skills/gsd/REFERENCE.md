@@ -172,10 +172,11 @@ Full validation blocks only at binding, at resume (so each amendment revalidates
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" normalize-plan --path .scratch/<feature>/plan.md [--write]
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" init-plan --path .scratch/<feature>/plan.md --base <branch>
+bun "<GSD_ROOT>/tools/gsd-contract.mjs" merge-message --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
 ```
 
 - The same command validates a new, resumed, or amended plan; `plan.md` bytes are not pinned, so an edit is judged by grammar, not by a hash.
-- `normalize-plan` proposes or applies surface-only fixes (backticks on Feature/Base, trailing whitespace, final newline). `init-plan` writes a skeleton and refuses to overwrite.
+- `normalize-plan` proposes or applies surface-only fixes (backticks on Feature/Base, trailing whitespace, final newline). `init-plan` writes a skeleton and refuses to overwrite. `merge-message` validates, then prints plain text (a merge subject, the Summary, and active criterion titles) for `git merge -F` and a pull request body.
 - Success prints scalar TOON (`status`, `kind`, `feature`, `base`, `tasks`). Failures print `code: io-error` or `code: invalid-artifact` with a `help:` fix (exit 1); usage errors exit 2.
 - Only `init-plan`, `normalize-plan --write`, and `gsd-state.mjs set` write anything.
 

@@ -101,7 +101,8 @@ By default, single-task waves execute inline by the session owner with `gsd-tdd`
 2. Validate the canonical plan through the Contract Validator, then bind its path and base in `schema:v0.0.3` state.
 3. Execute ordered tasks with Fast TDD and green checkpoints, writing one durable design record when a UI/UX decision settles.
 4. The session owner reviews the whole diff, proves terminal conformance including every owned decision and design record, runs Deferred Slow E2E, then asks whether to merge into base or open a pull request.
-5. After the merge lands, delete the WIP branch, retired task branches, isolated workspaces, and feature scratch; a pull request keeps them until the user says it merged.
+5. The merge commit, or the pull request body, carries the plan's Summary and active acceptance-criterion titles, printed by the Contract Validator's `merge-message` command, because the feature scratch that held the plan is deleted after the merge.
+6. After the merge lands, delete the WIP branch, retired task branches, isolated workspaces, and feature scratch; a pull request keeps them until the user says it merged.
 
 ### Deliver a feature in parts
 
