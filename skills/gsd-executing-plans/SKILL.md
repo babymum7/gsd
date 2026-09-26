@@ -32,14 +32,14 @@ Write `state.toon` only with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature
 
 - **Pause**: at a user request or context pressure, set `phase=paused` through `gsd-state.mjs` and keep the interrupted `next_action`. Hard blockers write `next_action=Spec-escalation`.
 - **Resume**: with no feature named, list owned candidates under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Candidate discovery. One candidate resumes; several ask which one. A packet another session owns resumes only when the user names it, and the resume writes your own `owner`.
-- Validate before acting: run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>`. Exit 0 resumes. On exit 1, rerun without `--expected-sha256`: exit 0 means bytes only moved, so rebind under § Plan amendment; exit 1 is Spec escalation. A base mismatch always stops as Spec escalation, because the merge target never changes mid-lifecycle. Exit 2 corrects invocation.
+- Validate before acting: run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`. Exit 0 resumes, including after an amendment. Exit 1 is Spec escalation; a base mismatch always stops there, because the merge target never changes mid-lifecycle. Exit 2 corrects invocation.
 - Then load the skill `next_action` names under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Skill derivation from phase and next_action. Never reconstruct work from conversation, dirty files, or plan status.
 
 ## Intake and amendments
 
 At entry or resume, validate the plan as above, then build task slices from it. Work on `wip/<feature>` under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics; a plan with `## Repos` has one `wip/<feature>` per listed repository and each task commits in its own repository. Select tasks in heading order from bound state and Git evidence, never from plan prose status.
 
-The plan stays amendable. When work shows it is wrong or incomplete, or the user changes a requirement, amend `.scratch/<feature>/plan.md` under § Plan amendment, revalidate, rebind the returned hash, and continue the same task. Material changes to acceptance, invariants, non-goals, `Domain Impact`, interfaces, or completed tasks ask one question first. New product scope exits to `gsd-brainstorming`.
+The plan stays amendable. When work shows it is wrong or incomplete, or the user changes a requirement, amend `.scratch/<feature>/plan.md` under § Plan amendment, revalidate, and continue the same task. Material changes to acceptance, invariants, non-goals, `Domain Impact`, interfaces, or completed tasks ask one question first. New product scope exits to `gsd-brainstorming`.
 
 ## Per-task loop
 
@@ -50,7 +50,7 @@ Track pending `T1..TN` in the harness todo list as display only; `state.toon` st
 3. Every task runs `gsd-tdd`: RED before implementation, GREEN after, refactor after green. Only fast deterministic checks run here; browser, slow, and E2E suites wait for `gsd-verify`.
 4. A non-`none` `Domain Impact` task updates its named domain shards in the same commit so they describe current production behavior. Skip domain docs in any repository without `docs/domain/index.md`.
 5. A red focused check repairs inline in this task, then reruns only the checks the repair affects.
-6. Before the first commit, prove `wip/<feature>` is checked out and `state.toon` is bound. Commit only green task-owned changes, then set `last_green_task`, `last_green_commit`, and `next_action=start/continue task` (plus a rebound hash if amended). `Tn+1` starts only from the committed green `Tn`.
+6. Before the first commit, prove `wip/<feature>` is checked out and `state.toon` is bound. Commit only green task-owned changes, then set `last_green_task`, `last_green_commit`, and `next_action=start/continue task`. `Tn+1` starts only from the committed green `Tn`.
 
 Record settled UI/UX decisions as `docs/design/NNNN-slug.md` under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Durable decision and design records.
 
@@ -60,7 +60,7 @@ When every task and Fast TDD Check is green, set `next_action=enter terminal ver
 
 Canonical contract: [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Wave dispatch. Authorship is not authority: no sub-agent result counts until the owner inspects, merges, and checkpoints it. Repair, diagnosis, architecture, and verification are never dispatched.
 
-1. At entry or resume, run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>`. Exit 0 prints `waves: T1,T2|T3|...`; each `|` is an independence boundary. Exit 1 resolves like a bound validation failure; exit 2 corrects invocation.
+1. At entry or resume, run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`. Exit 0 prints `waves: T1,T2|T3|...`; each `|` is an independence boundary. Exit 1 resolves like a validation failure; exit 2 corrects invocation.
 2. Each sub-agent gets exactly one task's full slice, the plan path, and base/WIP identity from `plan.md`. Re-read each prompt against its slice before sending. Use the bootstrap's `worker` sub-agent profile when listed.
 3. A sub-agent runs RED, GREEN, refactor, updates affected domain shards in the same commit, and commits only green task-owned changes on its own task branch cut from the wave base. It never touches `state.toon` or `plan.md`, merges, or runs slow/E2E suites.
 4. Reconcile each wave before checkpointing. A sub-agent's own report is not evidence; only Git bytes and commands the owner runs count.

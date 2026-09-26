@@ -22,13 +22,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI = join(__dirname, "..", "tools", "gsd-state.mjs");
 
 const VALID_STATE = {
-  schema: "v0.0.2",
+  schema: "v0.0.3",
   feature: "test-feature",
   owner: "none",
   phase: "approved",
   next_action: "start task T1",
   plan_path: ".scratch/test-feature/plan.md",
-  plan_sha256: "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386",
   base_ref: "main",
   wip_branch: "wip/test-feature",
   last_green_task: "none",
@@ -75,13 +74,12 @@ test("rejects = separator (legacy malformed format)", () => {
 test("rejects missing required field", () => {
   const { scratch } = tmpFeatureDir();
   const content = [
-    "schema:v0.0.2",
+    "schema:v0.0.3",
     "feature:test-feature",
     "owner:none",
     // phase missing
     "next_action:none",
     "plan_path:.scratch/test-feature/plan.md",
-    "plan_sha256:9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386",
     "base_ref:main",
     "wip_branch:wip/test-feature",
     "last_green_task:none",
@@ -98,12 +96,11 @@ test("rejects wrong field order", () => {
   const { scratch } = tmpFeatureDir();
   const content = [
     "feature:test-feature",  // schema missing, wrong position
-    "schema:v0.0.2",
+    "schema:v0.0.3",
     "owner:none",
     "phase:approved",
     "next_action:start task T1",
     "plan_path:.scratch/test-feature/plan.md",
-    "plan_sha256:9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386",
     "base_ref:main",
     "wip_branch:wip/test-feature",
     "last_green_task:none",
@@ -119,14 +116,13 @@ test("rejects wrong field order", () => {
 test("rejects unknown key", () => {
   const { scratch } = tmpFeatureDir();
   const content = [
-    "schema:v0.0.2",
+    "schema:v0.0.3",
     "feature:test-feature",
     "owner:none",
     "phase:approved",
     "plan_hash:some-hash",  // unknown key
     "next_action:start task T1",
     "plan_path:.scratch/test-feature/plan.md",
-    "plan_sha256:9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386",
     "base_ref:main",
     "wip_branch:wip/test-feature",
     "last_green_task:none",
@@ -143,13 +139,12 @@ test("rejects invalid feature slug", () => {
   const { scratch } = tmpFeatureDir();
   // Write raw TOON with invalid feature (serializeState would reject, so write directly)
   const content = [
-    "schema:v0.0.2",
+    "schema:v0.0.3",
     "feature:INVALID_FEATURE",
     "owner:none",
     "phase:approved",
     "next_action:start task T1",
     "plan_path:.scratch/test-feature/plan.md",
-    "plan_sha256:9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386",
     "base_ref:main",
     "wip_branch:wip/test-feature",
     "last_green_task:none",
@@ -165,13 +160,12 @@ test("rejects invalid feature slug", () => {
 test("rejects wip_branch feature mismatch", () => {
   const { scratch } = tmpFeatureDir();
   const content = [
-    "schema:v0.0.2",
+    "schema:v0.0.3",
     "feature:test-feature",
     "owner:none",
     "phase:approved",
     "next_action:start task T1",
     "plan_path:.scratch/test-feature/plan.md",
-    "plan_sha256:9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386",
     "base_ref:main",
     "wip_branch:wip/wrong-feature",
     "last_green_task:none",
@@ -187,7 +181,7 @@ test("rejects wip_branch feature mismatch", () => {
 
 test("rejects blank lines", () => {
   const { scratch } = tmpFeatureDir();
-  writeFileSync(join(scratch, "state.toon"), "schema:v0.0.2\n\nfeature:test-feature\n");
+  writeFileSync(join(scratch, "state.toon"), "schema:v0.0.3\n\nfeature:test-feature\n");
   const r = cli(["validate-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 1);
   assert.match(r.stdout, /blank lines are not allowed/);
@@ -195,13 +189,13 @@ test("rejects blank lines", () => {
 
 test("rejects carriage return line endings", () => {
   const { scratch } = tmpFeatureDir();
-  writeFileSync(join(scratch, "state.toon"), "schema:v0.0.2\r\nfeature:test-feature\r\n");
+  writeFileSync(join(scratch, "state.toon"), "schema:v0.0.3\r\nfeature:test-feature\r\n");
   const r = cli(["validate-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 1);
   assert.match(r.stdout, /carriage return rejected/);
 });
 
-// ─── Canonical v0.0.2 write/readback ──────────────────────────────────────
+// ─── Canonical v0.0.3 write/readback ──────────────────────────────────────
 
 test("writeStateAtomic produces canonical TOON format", () => {
   const { scratch } = tmpFeatureDir();
@@ -209,14 +203,14 @@ test("writeStateAtomic produces canonical TOON format", () => {
   const raw = readFileSync(join(scratch, "state.toon"), "utf8");
 
   const lines = raw.trim().split("\n");
-  assert.equal(lines.length, 12, "should have exactly 12 fields");
+  assert.equal(lines.length, 11, "should have exactly 11 fields");
   for (const line of lines) {
     assert.match(line, /^[a-z0-9_]+:.+/, `line should be key:value format: ${line}`);
     assert.ok(!line.includes("="), `should not use = separator: ${line}`);
   }
 
   const expectedOrder = [
-    "schema", "feature", "owner", "phase", "next_action", "plan_path", "plan_sha256",
+    "schema", "feature", "owner", "phase", "next_action", "plan_path",
     "base_ref", "wip_branch", "last_green_task", "last_green_commit", "checkpoint_revision",
   ];
   const actualOrder = lines.map(l => l.split(":")[0]);
@@ -228,7 +222,7 @@ test("writeStateAtomic readback matches input", () => {
   const written = writeStateAtomic(scratch, VALID_STATE);
   const read = readStateFile(join(scratch, "state.toon"));
   assert.deepEqual(read, written);
-  assert.equal(read.schema, "v0.0.2");
+  assert.equal(read.schema, "v0.0.3");
   assert.equal(read.feature, "test-feature");
   assert.equal(read.wip_branch, "wip/test-feature");
 });
@@ -250,7 +244,7 @@ test("CLI read-state outputs valid JSON", () => {
   const r = cli(["read-state", "--path", join(scratch, "state.toon")]);
   assert.equal(r.exitCode, 0);
   const parsed = JSON.parse(r.stdout);
-  assert.equal(parsed.schema, "v0.0.2");
+  assert.equal(parsed.schema, "v0.0.3");
   assert.equal(parsed.feature, "test-feature");
 });
 
@@ -272,11 +266,11 @@ test("CLI write-state creates valid file and outputs JSON", () => {
   ]);
   assert.equal(r.exitCode, 0);
   const parsed = JSON.parse(r.stdout);
-  assert.equal(parsed.schema, "v0.0.2");
+  assert.equal(parsed.schema, "v0.0.3");
   assert.equal(parsed.feature, "test-feature");
 
   const raw = readFileSync(join(scratch, "state.toon"), "utf8");
-  assert.ok(raw.startsWith("schema:v0.0.2\n"), "file should start with schema:v0.0.2");
+  assert.ok(raw.startsWith("schema:v0.0.3\n"), "file should start with schema:v0.0.3");
   assert.ok(!raw.includes("="), "file should not contain = separator");
 });
 
@@ -296,7 +290,7 @@ test("CLI write-state rejects incomplete state", () => {
   const r = cli([
     "write-state",
     "--feature-dir", scratch,
-    "--json", JSON.stringify({ schema: "v0.0.2", feature: "test-feature" }),
+    "--json", JSON.stringify({ schema: "v0.0.3", feature: "test-feature" }),
   ]);
   assert.equal(r.exitCode, 1);
 });
@@ -324,7 +318,7 @@ test("CLI flag without a value gives a naming usage error", () => {
 test("CLI validate-state rejects a path whose basename is not state.toon", () => {
   const { scratch } = tmpFeatureDir();
   const alias = join(scratch, "state.toon.bak");
-  writeFileSync(alias, "schema:v0.0.2\n");
+  writeFileSync(alias, "schema:v0.0.3\n");
   const r = cli(["validate-state", "--path", alias]);
   assert.equal(r.exitCode, 1);
   assert.match(r.stdout, /expected state\.toon/);
@@ -340,7 +334,6 @@ test("CLI rejects experimental schemas without rewriting them", () => {
     "phase:executing",
     "next_action:continue task T1",
     "plan_path:.scratch/test-feature/plan.md",
-    "plan_sha256:9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386",
     "base_ref:main",
     "wip_branch:wip/test-feature",
     "last_green_task:none",
@@ -369,7 +362,7 @@ test("CLI --help shows usage", () => {
   assert.match(r.stdout, /validate-state/);
 });
 
-test("CLI write-state --help documents every canonical v0.0.2 field", () => {
+test("CLI write-state --help documents every canonical v0.0.3 field", () => {
   const r = cli(["--help", "write-state"]);
   assert.equal(r.exitCode, 0);
   for (const field of STATE_FIELD_ORDER) {
@@ -469,7 +462,7 @@ test("serializeState produces colon-separated output", () => {
   for (const line of lines) {
     assert.match(line, /^[a-z0-9_]+:.+/);
   }
-  assert.ok(result.startsWith("schema:v0.0.2\n"));
+  assert.ok(result.startsWith("schema:v0.0.3\n"));
   assert.ok(result.endsWith("checkpoint_revision:1\n"));
 });
 
@@ -588,7 +581,7 @@ test("detectCandidates attributes discovery defects to feature directory in faul
     const scratch = join(dir, ".scratch", "label-check");
     mkdirSync(scratch, { recursive: true });
     writeFileSync(join(scratch, "plan.md"), "# Plan\n");
-    writeFileSync(join(scratch, "state.toon"), "schema:v0.0.2\nnot-a-real-field: x\n");
+    writeFileSync(join(scratch, "state.toon"), "schema:v0.0.3\nnot-a-real-field: x\n");
 
     const result = detectCandidates(dir, { faultTolerant: true });
     assert.equal(result.candidates.length, 0);
@@ -621,7 +614,7 @@ test("detectCandidates surfaces packet-directory defects in strict mode and skip
   const featureDir = join(scratch, "symlink-feat");
   mkdirSync(featureDir);
   writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
-  writeFileSync(join(featureDir, "state.toon"), "schema:v0.0.2\nfeature:symlink-feat\nphase:executing\n");
+  writeFileSync(join(featureDir, "state.toon"), "schema:v0.0.3\nfeature:symlink-feat\nphase:executing\n");
 
   const origLstat = fs.lstatSync;
   try {
@@ -654,7 +647,7 @@ test("detectCandidates surfaces packet-directory defects in strict mode and skip
     const vanishDir = join(scratch, "vanish-feat");
     mkdirSync(vanishDir);
     writeFileSync(join(vanishDir, "plan.md"), "# Plan\n");
-    writeFileSync(join(vanishDir, "state.toon"), "schema:v0.0.2\nfeature:vanish-feat\nphase:executing\n");
+    writeFileSync(join(vanishDir, "state.toon"), "schema:v0.0.3\nfeature:vanish-feat\nphase:executing\n");
 
     let deleted = false;
     fs.lstatSync = (p, ...args) => {
@@ -690,14 +683,12 @@ test("DEFAULT_PHASE_NEXT_ACTIONS defines required canonical defaults", () => {
 test("CLI set creates new approved packet with default next_action and matches write-state bytes (AC-4)", () => {
   const { scratch: scratchSet } = tmpFeatureDir("test-feature");
   const { scratch: scratchWrite } = tmpFeatureDir("test-feature");
-  const sha = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
 
   // 1. Invocation 1: set new approved packet omitting next_action
   const rSet1 = cli([
     "set",
     "--feature-dir", scratchSet,
     "phase=approved",
-    `plan_sha256=${sha}`,
     "base_ref=main",
   ]);
   assert.equal(rSet1.exitCode, 0, `set failed: ${rSet1.stderr || rSet1.stdout}`);
@@ -709,13 +700,12 @@ test("CLI set creates new approved packet with default next_action and matches w
 
   // Equivalent write-state for comparison
   const expectedState1 = {
-    schema: "v0.0.2",
+    schema: "v0.0.3",
     feature: "test-feature",
     owner: "none",
     phase: "approved",
     next_action: "start/continue task",
     plan_path: ".scratch/test-feature/plan.md",
-    plan_sha256: sha,
     base_ref: "main",
     wip_branch: "wip/test-feature",
     last_green_task: "none",
@@ -768,12 +758,10 @@ test("CLI set creates new approved packet with default next_action and matches w
 
 test("CLI set allows explicit next_action override", () => {
   const { scratch } = tmpFeatureDir("test-feature");
-  const sha = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
   const r = cli([
     "set",
     "--feature-dir", scratch,
     "phase=approved",
-    `plan_sha256=${sha}`,
     "base_ref=main",
     "next_action=custom start action",
   ]);
@@ -815,7 +803,6 @@ test("CLI set --help documents command usage", () => {
 
 test("CLI set updates checkpoint fields without phase change and preserves existing next_action", () => {
   const { scratch } = tmpFeatureDir("test-feature");
-  const sha = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
   const commit = "a".repeat(40);
   
   // Setup initial approved packet
@@ -823,7 +810,6 @@ test("CLI set updates checkpoint fields without phase change and preserves exist
     "set",
     "--feature-dir", scratch,
     "phase=approved",
-    `plan_sha256=${sha}`,
     "base_ref=main",
     "next_action=custom action",
   ]);
@@ -846,8 +832,7 @@ test("CLI set updates checkpoint fields without phase change and preserves exist
 
 test("CLI set records the session owner and rejects a malformed owner token", () => {
   const { scratch } = tmpFeatureDir("test-feature");
-  const sha = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
-  const r = cli(["set", "--feature-dir", scratch, `plan_sha256=${sha}`, "base_ref=main", "owner=claude-3f2a:9"]);
+  const r = cli(["set", "--feature-dir", scratch, "base_ref=main", "owner=claude-3f2a:9"]);
   assert.equal(r.exitCode, 0, r.stdout);
   const parsed = JSON.parse(r.stdout);
   assert.equal(parsed.phase, "approved", "a new packet starts approved");

@@ -6,7 +6,7 @@ import {
 } from "./support/skills-fixtures.js";
 import {
   analyzeWaves, isSafeBranchRef, parseMarkdownPacket, 
-  sha256, verifyApprovedSources, validateSectionEdges,
+  validateSectionEdges,
 } from "../lib/gsd-contract.mjs";
 
 test("structured task file intents parse deterministically", () => {
@@ -148,39 +148,27 @@ test("domain-impact packet grammar is enforced whenever the section is present",
     "",
   );
   const legacyFiles = { "plan.md": legacyPlan };
-  const legacyBinding = { "plan.md": sha256(legacyPlan) };
 
   // Domain Impact is optional: an absent section makes no domain claim.
-  assert.deepEqual(verifyApprovedSources(legacyFiles, legacyBinding), legacyBinding);
   assert.equal(parseMarkdownPacket(legacyFiles).domainImpact, null);
-  assert.throws(
-    () => verifyApprovedSources({ "plan.md": `${legacyPlan}\n` }, legacyBinding),
-    /hash mismatch/i,
-  );
 
   const malformedNew = canonical["plan.md"].replace(
     "- **Evidence:** Parser-only fixture changes no production domain behavior.\n",
     "",
   );
   assert.throws(
-    () => verifyApprovedSources(
-      { "plan.md": malformedNew },
-      { "plan.md": sha256(malformedNew) },
-    ),
+    () => parseMarkdownPacket({ "plan.md": malformedNew }),
     /fields must be exactly ordered/i,
   );
 });
 
-test("canonical Markdown packet is concrete and hash-bound", () => {
+test("canonical Markdown packet is concrete", () => {
   const files = canonicalPacket();
   const parsed = parseMarkdownPacket(files);
   assert.equal(parsed.feature, "canonical-fixture");
   assert.deepEqual(parsed.tasks.map(({ id }) => id), ["T1"]);
-  const binding = { "plan.md": sha256(files["plan.md"]) };
-  assert.deepEqual(verifyApprovedSources(files, binding), binding);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("**State:** active", "**State:** draft") }), /invalid state/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.", "- **Expected:** Return the matching feature and acceptance criterion.\n- **Action:** Parse the approved Markdown plan.") }), /fields must be ordered/);
-  assert.throws(() => verifyApprovedSources({ ...files, "plan.md": files["plan.md"].replace("Parse plan", "Parse bound plan") }, binding), /hash mismatch/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("**Outcome:** A valid plan becomes an execution contract.", "**Outcome:** success") }), /outcome, action, and expected/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replaceAll("\n", "\r\n") }), /LF line endings/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": `\n${files["plan.md"]}` }), /leading or trailing blank lines/);

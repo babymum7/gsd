@@ -45,13 +45,12 @@ function projectWithActiveFeature(owner = "none") {
   writeFileSync(
     join(featureDir, "state.toon"),
     [
-      "schema:v0.0.2",
+      "schema:v0.0.3",
       "feature:demo",
       `owner:${owner}`,
       "phase:approved",
       "next_action:start task",
       "plan_path:.scratch/demo/plan.md",
-      `plan_sha256:${"a".repeat(64)}`,
       "base_ref:main",
       "wip_branch:wip/demo",
       "last_green_task:none",

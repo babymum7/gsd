@@ -25,20 +25,18 @@ import gsdContextExtension, {
   serializeState,
 } from "../extensions/gsd-context.js";
 
-const FIXTURE_PLAN_SHA = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
 // The OMP adapter scopes the capsule to packets its session owns: fixtures are owned by
 // this fake session, and every compaction context carries its session manager.
 const TEST_SESSION = { getSessionId: () => "test-session" };
 const TEST_OWNER = "omp-test-session";
 function writeActiveStateFixture(featureDir, feature, overrides = {}) {
   writeStateAtomic(featureDir, {
-    schema: "v0.0.2",
+    schema: "v0.0.3",
     feature,
     owner: TEST_OWNER,
     phase: "executing",
     next_action: "start/continue task",
     plan_path: `.scratch/${feature}/plan.md`,
-    plan_sha256: FIXTURE_PLAN_SHA,
     base_ref: "main",
     wip_branch: `wip/${feature}`,
     last_green_task: "none",
@@ -404,9 +402,8 @@ describe("capsule extension production API contract", () => {
       mkdirSync(seedFeat, { recursive: true });
       writeFileSync(join(seedFeat, "plan.md"), "# Plan\n## Feature\n`seed-feature`\n");
       writeFileSync(join(seedFeat, "state.toon"), [
-        "schema:v0.0.2", "feature:seed-feature", "owner:" + TEST_OWNER, "phase:executing", "next_action:start task T1",
+        "schema:v0.0.3", "feature:seed-feature", "owner:" + TEST_OWNER, "phase:executing", "next_action:start task T1",
         "plan_path:.scratch/seed-feature/plan.md",
-        "plan_sha256:" + "c".repeat(64),
         "base_ref:main", "wip_branch:wip/seed-feature",
         "last_green_task:none", "last_green_commit:none",
         "checkpoint_revision:1",
@@ -439,9 +436,8 @@ describe("capsule extension production API contract", () => {
       mkdirSync(seedFeat2, { recursive: true });
       writeFileSync(join(seedFeat2, "plan.md"), "# Plan\n## Feature\n`seed-two`\n");
       writeFileSync(join(seedFeat2, "state.toon"), [
-        "schema:v0.0.2", "feature:seed-two", "owner:" + TEST_OWNER, "phase:executing", "next_action:start task T1",
+        "schema:v0.0.3", "feature:seed-two", "owner:" + TEST_OWNER, "phase:executing", "next_action:start task T1",
         "plan_path:.scratch/seed-two/plan.md",
-        "plan_sha256:" + "d".repeat(64),
         "base_ref:main", "wip_branch:wip/seed-two",
         "last_green_task:none", "last_green_commit:none",
         "checkpoint_revision:1",
@@ -500,9 +496,8 @@ describe("capsule extension production API contract", () => {
       mkdirSync(validDir, { recursive: true });
       writeFileSync(join(validDir, "plan.md"), "# Plan\n## Feature\n`good-feature`\n");
       writeFileSync(join(validDir, "state.toon"), [
-        "schema:v0.0.2", "feature:good-feature", "owner:" + TEST_OWNER, "phase:executing", "next_action:start task T1",
+        "schema:v0.0.3", "feature:good-feature", "owner:" + TEST_OWNER, "phase:executing", "next_action:start task T1",
         "plan_path:.scratch/good-feature/plan.md",
-        "plan_sha256:" + "b".repeat(64),
         "base_ref:main", "wip_branch:wip/good-feature",
         "last_green_task:none", "last_green_commit:none",
         "checkpoint_revision:1",
@@ -539,9 +534,8 @@ describe("capsule extension production API contract", () => {
         mkdirSync(featureDir, { recursive: true });
         writeFileSync(join(featureDir, "plan.md"), "# Plan\n## Feature\n`active-plan`\n");
         writeFileSync(join(featureDir, "state.toon"), [
-          "schema:v0.0.2", "feature:active-plan", "owner:" + TEST_OWNER, "phase:executing", "next_action:verify",
+          "schema:v0.0.3", "feature:active-plan", "owner:" + TEST_OWNER, "phase:executing", "next_action:verify",
           "plan_path:.scratch/active-plan/plan.md",
-          "plan_sha256:" + "a".repeat(64),
           "base_ref:main", "wip_branch:wip/active-plan",
           "last_green_task:none", "last_green_commit:none",
           "checkpoint_revision:1",
@@ -817,7 +811,7 @@ describe("T3 Review Fixes detailed behavior", () => {
     const scratchDir = join(tempDir, ".scratch");
     mkdirSync(scratchDir);
     const target = join(tempDir, "state-target.toon");
-    writeFileSync(target, "schema:v0.0.2\n");
+    writeFileSync(target, "schema:v0.0.3\n");
 
     // Plan-less residue: a symlink state.toon and a directory state.toon are both left alone.
     const linkOnly = join(scratchDir, "residual-link");
@@ -1413,15 +1407,13 @@ test("state.toon lifecycle checkpoint contract", async () => {
     ACTIVE_STATE_PHASES,
   } = await import("../extensions/gsd-context.js");
 
-  const PLAN_SHA = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
   const baseFields = {
-    schema: "v0.0.2",
+    schema: "v0.0.3",
     feature: "demo-feature",
     owner: "none",
     phase: "executing",
     next_action: "start/continue task",
     plan_path: ".scratch/demo-feature/plan.md",
-    plan_sha256: PLAN_SHA,
     base_ref: "main",
     wip_branch: "wip/demo-feature",
     last_green_task: "T1",
@@ -1438,7 +1430,6 @@ test("state.toon lifecycle checkpoint contract", async () => {
   const parsed = parseState(serialize(baseFields));
   assert.equal(parsed.feature, "demo-feature");
   assert.equal(parsed.phase, "executing");
-  assert.equal(parsed.plan_sha256, PLAN_SHA);
   assert.deepEqual(validateState(parsed), parsed);
   assert.ok(ACTIVE_STATE_PHASES.includes("executing"));
 
@@ -1456,14 +1447,11 @@ test("state.toon lifecycle checkpoint contract", async () => {
   );
 
   // Malformed schema / unknown keys / partial rows fail closed
-  assert.throws(() => parseState("schema:v0.0.2\nfeature:demo-feature\n"), /schema|missing required field/i);
+  assert.throws(() => parseState("schema:v0.0.3\nfeature:demo-feature\n"), /schema|missing required field/i);
   assert.throws(() => parseState(serialize({ ...baseFields, extra_key: "nope" })), /unknown|extra|key/i);
   assert.throws(() => parseState("schema:v1\nfeature:\n"), /unsupported schema: v1/i);
   assert.throws(() => parseState(serialize({ ...baseFields, phase: "task-active" })), /phase/i);
-  assert.throws(
-    () => parseState(serialize({ ...baseFields, plan_sha256: "not-a-hash" })),
-    /plan_sha256|hash/i,
-  );
+  assert.throws(() => parseState(`${serialize(baseFields)}plan_sha256:${"a".repeat(64)}\n`), /unknown|extra|key/i);
 
   // `base_ref` is the recorded merge target that a Git command consumes verbatim, so its shape
   // is validated here rather than trusted from whatever wrote the packet. A self-referencing
@@ -1564,7 +1552,7 @@ test("state.toon lifecycle checkpoint contract", async () => {
     rmSync(symDir, { recursive: true, force: true });
 
     // Partial / truncated body fails closed
-    writeFileSync(join(featureDir, "state.toon"), "schema:v0.0.2\nfeature:demo-feature\nphase:execut");
+    writeFileSync(join(featureDir, "state.toon"), "schema:v0.0.3\nfeature:demo-feature\nphase:execut");
     assert.throws(() => readStateFile(statePath), /malformed|incomplete|phase|required/i);
     // Restore a valid checkpoint after the partial-write probe.
     writeStateAtomic(featureDir, baseFields);
@@ -1731,13 +1719,12 @@ test("atomic state writes survive feature-directory swaps", () => {
 
 test("plan_path and wip_branch must match state.feature on read/validate", () => {
   const base = {
-    schema: "v0.0.2",
+    schema: "v0.0.3",
     feature: "demo-feature",
     owner: "none",
     phase: "executing",
     next_action: "start/continue task",
     plan_path: ".scratch/demo-feature/plan.md",
-    plan_sha256: "a".repeat(64),
     base_ref: "main",
     wip_branch: "wip/demo-feature",
     last_green_task: "none",
@@ -1782,13 +1769,12 @@ test("plan_path and wip_branch must match state.feature on read/validate", () =>
 
 test("session-owner state schema omits every model and review binding", () => {
   const state = {
-    schema: "v0.0.2",
+    schema: "v0.0.3",
     feature: "demo-feature",
     owner: "none",
     phase: "approved",
     next_action: "start/continue task",
     plan_path: ".scratch/demo-feature/plan.md",
-    plan_sha256: "c".repeat(64),
     base_ref: "main",
     wip_branch: "wip/demo-feature",
     last_green_task: "none",
@@ -1797,8 +1783,8 @@ test("session-owner state schema omits every model and review binding", () => {
   };
 
   const serialized = serializeState(state);
-  assert.equal(validateState(state).schema, "v0.0.2");
-  assert.equal(parseState(serialized).schema, "v0.0.2");
+  assert.equal(validateState(state).schema, "v0.0.3");
+  assert.equal(parseState(serialized).schema, "v0.0.3");
   assert.doesNotMatch(serialized, /^(?:executor_model|reviewer_model|review_round|blocking_fingerprint|reviewed_commit|progress_status|ponytail_level):/m);
 });
 
@@ -1838,7 +1824,6 @@ test("candidate discovery is bounded and ignores experimental authority", () => 
       phase: "paused",
       next_action: "start/continue task",
       plan_path: ".scratch/legacy-active/plan.md",
-      plan_sha256: "e".repeat(64),
       base_ref: "main",
       wip_branch: "wip/legacy-active",
       last_green_task: "none",
@@ -1868,7 +1853,6 @@ test("candidate discovery is bounded and ignores experimental authority", () => 
       phase: "executing",
       next_action: "x".repeat(70 * 1024),
       plan_path: ".scratch/oversized-state/plan.md",
-      plan_sha256: "a".repeat(64),
       base_ref: "main",
       wip_branch: "wip/oversized-state",
       last_green_task: "none",
@@ -1937,13 +1921,12 @@ test("readStateFile binds authority to its feature directory", () => {
     mkdirSync(featureDir, { recursive: true });
     writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
     const mismatchedState = {
-      schema: "v0.0.2",
+      schema: "v0.0.3",
       feature: "other-feature",
       owner: "none",
       phase: "executing",
       next_action: "start/continue task",
       plan_path: ".scratch/other-feature/plan.md",
-      plan_sha256: "a".repeat(64),
       base_ref: "main",
       wip_branch: "wip/other-feature",
       last_green_task: "none",
@@ -1960,7 +1943,7 @@ test("readStateFile binds authority to its feature directory", () => {
   }
 });
 
-test("schema v0.0.2 and hidden architecture catalog cutover", () => {
+test("schema v0.0.3 and hidden architecture catalog cutover", () => {
   const catalogNames = discoverSkillCatalog(ROOT).map(({ name }) => name);
   const installedNames = readdirSync(join(ROOT, "skills"));
   assert.ok(installedNames.includes("gsd-codebase-architecture"));
@@ -1974,13 +1957,12 @@ test("schema v0.0.2 and hidden architecture catalog cutover", () => {
     mkdirSync(featureDir, { recursive: true });
     const statePath = join(featureDir, "state.toon");
     const state = [
-      "schema:v0.0.2",
+      "schema:v0.0.3",
       "feature:demo",
       "owner:none",
       "phase:executing",
       "next_action:start/continue task",
       "plan_path:.scratch/demo/plan.md",
-      `plan_sha256:${FIXTURE_PLAN_SHA}`,
       "base_ref:main",
       "wip_branch:wip/demo",
       "last_green_task:none",
@@ -1991,7 +1973,7 @@ test("schema v0.0.2 and hidden architecture catalog cutover", () => {
     writeFileSync(statePath, state);
 
     const parsed = readStateFile(statePath);
-    assert.equal(parsed.schema, "v0.0.2");
+    assert.equal(parsed.schema, "v0.0.3");
     assert.equal(parsed.owner, "none");
     assert.equal(readFileSync(statePath, "utf8"), state);
   } finally {
@@ -2008,12 +1990,11 @@ test("readStateFile rejects FIFO instead of blocking", () => {
 
   // Write a valid state file first so lstat sees a regular file.
   writeFileSync(statePath, [
-    "schema:v0.0.2",
+    "schema:v0.0.3",
     "feature:demo",
     "owner:none",
     "phase:executing",
     "plan_path:.scratch/demo/plan.md",
-    `plan_sha256:${FIXTURE_PLAN_SHA}`,
     "base_ref:main",
     "wip_branch:wip/demo",
     "last_green_task:none",
@@ -2060,12 +2041,11 @@ test("readStateFile rejects state.toon swap after feature dir pin", () => {
   const statePath = join(featureDir, "state.toon");
 
   writeFileSync(statePath, [
-    "schema:v0.0.2",
+    "schema:v0.0.3",
     "feature:demo",
     "owner:none",
     "phase:executing",
     "plan_path:.scratch/demo/plan.md",
-    `plan_sha256:${FIXTURE_PLAN_SHA}`,
     "base_ref:main",
     "wip_branch:wip/demo",
     "last_green_task:none",

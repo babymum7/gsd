@@ -9,13 +9,12 @@ import { readStateFile, writeStateAtomic } from '../lib/gsd-state.mjs';
 const FEATURE = 'parity-feature';
 
 const VALID_STATE = {
-  schema: 'v0.0.2',
+  schema: 'v0.0.3',
   feature: FEATURE,
   owner: 'none',
   phase: 'approved',
   next_action: 'start task T1',
   plan_path: `.scratch/${FEATURE}/plan.md`,
-  plan_sha256: '9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386',
   base_ref: 'main',
   wip_branch: `wip/${FEATURE}`,
   last_green_task: 'none',
@@ -53,7 +52,7 @@ const SCENARIOS = [
       fs.mkdirSync(path.join(workspace, '.scratch'), { recursive: true });
       fs.mkdirSync(outside, { recursive: true });
       fs.writeFileSync(path.join(outside, 'plan.md'), CANONICAL_PLAN);
-      fs.writeFileSync(path.join(outside, 'state.toon'), `schema:v0.0.2\nfeature:${FEATURE}\nowner:none\nphase:approved\n`);
+      fs.writeFileSync(path.join(outside, 'state.toon'), `schema:v0.0.3\nfeature:${FEATURE}\nowner:none\nphase:approved\n`);
 
       const featureDir = path.join(workspace, '.scratch', FEATURE);
       fs.symlinkSync(outside, featureDir);
@@ -85,7 +84,7 @@ const SCENARIOS = [
       fs.mkdirSync(workspace, { recursive: true });
       fs.mkdirSync(outsideFeature, { recursive: true });
       fs.writeFileSync(path.join(outsideFeature, 'plan.md'), CANONICAL_PLAN);
-      fs.writeFileSync(path.join(outsideFeature, 'state.toon'), `schema:v0.0.2\nfeature:${FEATURE}\nowner:none\nphase:approved\n`);
+      fs.writeFileSync(path.join(outsideFeature, 'state.toon'), `schema:v0.0.3\nfeature:${FEATURE}\nowner:none\nphase:approved\n`);
 
       const scratchDir = path.join(workspace, '.scratch');
       fs.symlinkSync(outside, scratchDir);
@@ -157,7 +156,7 @@ const SCENARIOS = [
       const outsidePlan = path.join(outside, 'external-plan.md');
       const outsideState = path.join(outside, 'external-state.toon');
       fs.writeFileSync(outsidePlan, CANONICAL_PLAN);
-      fs.writeFileSync(outsideState, `schema:v0.0.2\nfeature:${FEATURE}\nowner:none\nphase:approved\nnext_action:start task T1\nplan_path:.scratch/${FEATURE}/plan.md\nplan_sha256:9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386\nbase_ref:main\nwip_branch:wip/${FEATURE}\nlast_green_task:none\nlast_green_commit:none\ncheckpoint_revision:1\n`);
+      fs.writeFileSync(outsideState, `schema:v0.0.3\nfeature:${FEATURE}\nowner:none\nphase:approved\nnext_action:start task T1\nplan_path:.scratch/${FEATURE}/plan.md\nbase_ref:main\nwip_branch:wip/${FEATURE}\nlast_green_task:none\nlast_green_commit:none\ncheckpoint_revision:1\n`);
 
       const planPath = path.join(featureDir, 'plan.md');
       const statePath = path.join(featureDir, 'state.toon');

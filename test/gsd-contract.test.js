@@ -1,6 +1,5 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { createHash } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
@@ -76,7 +75,6 @@ test("validate-plan emits deterministic minimal TOON for a canonical plan", () =
       "kind: plan",
       "feature: valid-plan",
       "base: main",
-      `sha256: ${createHash("sha256").update(plan).digest("hex")}`,
       "tasks: 1",
     ].join("\n");
 
@@ -409,47 +407,36 @@ test("plan-owned durable records enforce NNNN-slug.md and allow prose-only owner
 });
 
 
-test("legacy path-only task grammar is rejected bound and unbound", () => {
+test("legacy path-only task grammar is rejected", () => {
   const plan = canonicalPlan("legacy-task").replace(
     "- **Files:**\n  - `tools/gsd-contract.mjs` — create: expose canonical plan validation",
     "- **Files:** `tools/gsd-contract.mjs`",
   );
   const { workspace, planPath } = makePlanWorkspace("legacy-task", plan);
   try {
-    const hash = createHash("sha256").update(plan).digest("hex");
     const unbound = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], {
       cwd: workspace,
       encoding: "utf8",
     });
-    const bound = spawnSync(
-      process.execPath,
-      [CLI, "validate-plan", "--path", planPath, "--expected-sha256", hash],
-      { cwd: workspace, encoding: "utf8" },
-    );
 
     assert.equal(unbound.status, 1);
     assert.match(unbound.stdout, /^status: error\ncode: invalid-artifact\n/);
     assert.match(unbound.stdout, /structured task fields must be exactly ordered/);
     assert.equal(unbound.stderr, "");
-    assert.equal(bound.status, 1);
-    assert.match(bound.stdout, /structured task fields must be exactly ordered/);
-    assert.equal(bound.stderr, "");
     assert.equal(readFileSync(planPath, "utf8"), plan);
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }
 });
 
-test("a plan without Domain Impact validates bound to its hash", () => {
+test("a plan without Domain Impact validates", () => {
   const plan = canonicalPlan("no-impact").replace(/## Domain Impact\n(?:- .+\n){5}/, "");
   const { workspace, planPath } = makePlanWorkspace("no-impact", plan);
   try {
-    const hash = createHash("sha256").update(plan).digest("hex");
-    const bound = spawnSync(
-      process.execPath,
-      [CLI, "validate-plan", "--path", planPath, "--expected-sha256", hash],
-      { cwd: workspace, encoding: "utf8" },
-    );
+    const bound = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
 
     assert.equal(bound.status, 0, bound.stdout);
     assert.match(bound.stdout, /^status: valid\n/);
@@ -653,31 +640,11 @@ test("a bound call rejects a plan whose base differs from the recorded base_ref"
       );
       assert.equal(drifted.status, 1, `${command} must reject a drifted base: ${drifted.stdout}`);
       assert.match(drifted.stdout, /^code: invalid-artifact$/m);
-      // Resume branches on this phrase to stop instead of rebinding, so it is a contract.
+      // Resume branches on this phrase to stop as Spec escalation, so it is a contract.
       assert.match(drifted.stdout, /plan base release\/2026 does not match recorded base_ref main/);
     } finally {
       rmSync(workspace, { recursive: true, force: true });
     }
-  }
-});
-
-// Resume separates moved bytes from malformed grammar by revalidating without the bound hash.
-// If that call dropped the base check, a base mismatch would come back clean and be rebound as
-// an ordinary amendment — silently retargeting the merge. The base check is hash-independent.
-test("an unbound revalidation still rejects a drifted base", () => {
-  const feature = "unbound-base";
-  const plan = canonicalPlan(feature).replace("`main`", "`release/2026`");
-  const { workspace, planPath } = makePlanWorkspace(feature, plan);
-  try {
-    const result = spawnSync(
-      process.execPath,
-      [CLI, "validate-plan", "--path", planPath, "--expected-base", "main"],
-      { cwd: workspace, encoding: "utf8" },
-    );
-    assert.equal(result.status, 1, `an unbound call must still check the base: ${result.stdout}`);
-    assert.match(result.stdout, /does not match recorded base_ref main/);
-  } finally {
-    rmSync(workspace, { recursive: true, force: true });
   }
 });
 
@@ -827,13 +794,13 @@ test("lifecycle owners use the production validator and document inert experimen
   // substituted into an absolute path, and the bare form must not come back anywhere.
   const absolutePlan = /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" validate-plan --path/;
   assert.match(files.get("reference"), absolutePlan);
-  assert.match(files.get("reference"), /--expected-sha256/);
+  assert.match(files.get("reference"), /--expected-base/);
   assert.match(files.get("planner"), absolutePlan);
   for (const owner of ["execution", "verify"]) {
     assert.match(
       files.get(owner),
-      /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" validate-plan --path[\s\S]*--expected-sha256/,
-      `${owner} must bind validation to the approved hash`,
+      /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" validate-plan --path[\s\S]*--expected-base/,
+      `${owner} must bind validation to the recorded base`,
     );
   }
   assert.match(files.get("readme"), absolutePlan);
@@ -874,7 +841,6 @@ test("the validator resolves a foreign workspace by absolute script path", () =>
         "kind: plan",
         "feature: foreign-workspace",
         "base: main",
-        `sha256: ${createHash("sha256").update(plan).digest("hex")}`,
         "tasks: 1",
       ].join("\n"),
     );
@@ -1046,21 +1012,21 @@ test("analyze-waves skips superseded tasks without letting them break a wave", (
   }
 });
 
-test("analyze-waves accepts the bound hash and fails closed on drift", () => {
+test("analyze-waves accepts the recorded base and fails closed on drift", () => {
   const plan = wavePlan("wave-bound", [
     { title: "A", ac: "A", file: "src/a.js", test: "bun test test/a.test.js" },
     { title: "B", ac: "B", file: "src/b.js", test: "bun test test/b.test.js" },
   ]);
   const { workspace, planPath } = makePlanWorkspace("wave-bound", plan);
   try {
-    const bound = runWaves(planPath, workspace, ["--expected-sha256", createHash("sha256").update(plan).digest("hex")]);
+    const bound = runWaves(planPath, workspace, ["--expected-base", "main"]);
     assert.equal(bound.status, 0, bound.stderr || bound.stdout);
     assert.match(bound.stdout, /waves: T1,T2$/);
 
-    const drifted = runWaves(planPath, workspace, ["--expected-sha256", "a".repeat(64)]);
+    const drifted = runWaves(planPath, workspace, ["--expected-base", "develop"]);
     assert.equal(drifted.status, 1);
     assert.match(drifted.stdout, /code: invalid-artifact/);
-    assert.match(drifted.stdout, /hash mismatch after approval/);
+    assert.match(drifted.stdout, /does not match recorded base_ref develop/);
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }
@@ -1345,19 +1311,18 @@ test("semantic validator failures attach concrete remediation help lines across 
     assert.match(domainResult.stdout, /Domain Impact Contexts must be sorted/);
     assert.match(domainResult.stdout, /^help: ".*sort contexts alphabetically in ascending order.*"$/m);
 
-    // 4. Bound-hash mismatch via CLI spawn
+    // 4. The retired hash binding flag is a usage error, never a silent no-op
     const hashResult = spawnSync(
       process.execPath,
-      [CLI, "validate-plan", "--path", hashPlanPath, "--expected-sha256", "0000000000000000000000000000000000000000000000000000000000000000"],
+      [CLI, "validate-plan", "--path", hashPlanPath, "--expected-sha256", "0".repeat(64)],
       {
         cwd: hashWs,
         encoding: "utf8",
       },
     );
-    assert.equal(hashResult.status, 1);
-    assert.match(hashResult.stdout, /^status: error\ncode: invalid-artifact\n/);
-    assert.match(hashResult.stdout, /hash mismatch after approval/);
-    assert.match(hashResult.stdout, /^help: ".*revalidate unbound and rebind through the amendment flow, never silently overwrite.*"$/m);
+    assert.equal(hashResult.status, 2);
+    assert.match(hashResult.stdout, /^status: error\ncode: usage\n/);
+    assert.match(hashResult.stdout, /unknown argument: --expected-sha256/);
 
     // 5. Base mismatch via CLI spawn
     const baseResult = spawnSync(

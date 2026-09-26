@@ -28,7 +28,7 @@ Depth follows ambiguity, blast radius, reversibility, and acceptance clarity, ne
 | Produced | May be created by the selected mode. |
 | Missing required | The documented recovery, reconstruction, or blocker path when a required artifact is absent. Never invent a file or contents. |
 
-Explicit intent and entry context choose the mode; artifact presence never does. Validate `phase` against fixed schema enums; preserve opaque `next_action` values on resume. A missing, malformed, or duplicate **required** artifact fails closed; optional state does not; bound-hash mismatches rebind under § Plan amendment.
+Explicit intent and entry context choose the mode; artifact presence never does. Validate `phase` against fixed schema enums; preserve opaque `next_action` values on resume. A missing, malformed, or duplicate **required** artifact fails closed; optional state does not; an edited `plan.md` is an amendment under § Plan amendment.
 
 ## Visible skill mandatory-use matrix
 
@@ -93,7 +93,7 @@ A **wave** is a maximal contiguous run of non-superseded tasks in heading order 
 Each sub-agent receives one complete task slice rebuilt from `plan.md`, runs RED→GREEN→refactor, updates affected domain shards in the same commit as the code, and commits only green task-owned changes. It MUST NOT mutate `state.toon`, amend `plan.md`, merge, decide lifecycle, or run Deferred Slow E2E.
 
 The owner reconciles each wave in plan order before checkpointing. A sub-agent's report is inadmissible; only Git bytes and commands the owner runs count.
-1. Mechanical proof: `bun "<GSD_ROOT>/tools/gsd-git.mjs" verify-task-branch --feature-dir .scratch/<feature> --task <Tn> --branch <task-branch> --wave-base <ref>`. Only `status: ready` on exit 0 admits the branch; `status: blocked` with a `code:` (`branch-missing`, `base-not-ancestor`, `empty-diff`, `out-of-slice-path`, `scratch-mutated`, `plan-unbound`) is an integrity failure; exit 2 corrects invocation.
+1. Mechanical proof: `bun "<GSD_ROOT>/tools/gsd-git.mjs" verify-task-branch --feature-dir .scratch/<feature> --task <Tn> --branch <task-branch> --wave-base <ref>`. Only `status: ready` on exit 0 admits the branch; `status: blocked` with a `code:` (`branch-missing`, `base-not-ancestor`, `empty-diff`, `out-of-slice-path`, `scratch-mutated`, `plan-invalid`) is an integrity failure; exit 2 corrects invocation.
 2. Integration proof: merge the wave's branches into `wip/<feature>` in plan order, rerun every merged task's focused check there, and only then checkpoint with `last_green_task` set to the wave's last task.
 
 Any failed layer returns to inline owner repair and is never re-dispatched. There is no reviewer sub-agent: the owner reviews the whole diff once, in the `gsd-verify` terminal gate.
@@ -162,7 +162,7 @@ Decisions is exact `None.` or sequential blocks of `### D-1: <title>`, `- **Deci
 - `Repos` is only for a plan that touches more than one repository. It lists every repository once, including this one as path `.` with the plan's Base; a task's `Repo` names a row, its `Files` are relative to that repository, and a task without `Repo` belongs to this repository.
 - Every task owns at least one unique safe relative path with one `create|modify|delete` operation and a concise intent, plus one focused command; `none` is only for non-observable mechanical work. Paths under test directories or `*.test.*` / `*.spec.*` count as observation-only for shard ownership.
 
-Full validation blocks only at binding (and each rebind after an amendment) and at the terminal gate; drafts in between are not revalidated.
+Full validation blocks only at binding, at resume (so each amendment revalidates), and at the terminal gate; drafts in between are not revalidated.
 
 ### Executable contract validator
 
@@ -170,21 +170,20 @@ Full validation blocks only at binding (and each rebind after an amendment) and 
 
 ```text
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
-bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex> --expected-base <base_ref>
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" normalize-plan --path .scratch/<feature>/plan.md [--write]
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" init-plan --path .scratch/<feature>/plan.md --base <branch>
 ```
 
-- The unbound form validates a new or amended plan and returns its SHA-256. The bound form first requires bytes to match; a moved byte exits 1 and resolves through § Plan amendment.
+- The same command validates a new, resumed, or amended plan; `plan.md` bytes are not pinned, so an edit is judged by grammar, not by a hash.
 - `normalize-plan` proposes or applies surface-only fixes (backticks on Feature/Base, trailing whitespace, final newline). `init-plan` writes a skeleton and refuses to overwrite.
-- Success prints scalar TOON (`status`, `kind`, `feature`, `base`, `sha256`, `tasks`). Failures print `code: io-error` or `code: invalid-artifact` with a `help:` fix (exit 1); usage errors exit 2.
+- Success prints scalar TOON (`status`, `kind`, `feature`, `base`, `tasks`). Failures print `code: io-error` or `code: invalid-artifact` with a `help:` fix (exit 1); usage errors exit 2.
 - Only `init-plan`, `normalize-plan --write`, and `gsd-state.mjs set` write anything.
 
 ### Plan binding and auto-execution
 
-`gsd-to-plan` validates `plan.md`, prints its task/AC summary, and binds its SHA-256 into `state.toon` (`phase=approved`) through `gsd-state.mjs set`, then loads `gsd-executing-plans`; there is no approval prompt or post-plan menu.
+`gsd-to-plan` validates `plan.md`, prints its task/AC summary, and binds its path and base into `state.toon` (`phase=approved`) through `gsd-state.mjs set`, then loads `gsd-executing-plans`; there is no approval prompt or post-plan menu.
 - Once `state.toon` exists, validator calls pass `--expected-base <state.base_ref>`, so a drifted § Base fails closed instead of retargeting the merge.
-- Resume runs the bound form first; an unbound rerun separates moved bytes from malformed grammar.
+- Resume revalidates the current bytes; exit 1 is Spec escalation.
 - No model or agent identity participates in binding; the current top-level session is the sole lifecycle authority.
 
 ## Runtime state contract
@@ -194,13 +193,12 @@ bun "<GSD_ROOT>/tools/gsd-contract.mjs" init-plan --path .scratch/<feature>/plan
 Exactly one `.scratch/<feature>/state.toon` owns resume discovery. It is a fixed-schema UTF-8/LF scalar record in this field order:
 
 ```toon
-schema:v0.0.2
+schema:v0.0.3
 feature:<feature-slug>
 owner:<GSD_SESSION token>|none
 phase:approved|executing|paused|verifying|repair|ready
 next_action:<opaque next action>
 plan_path:.scratch/<feature>/plan.md
-plan_sha256:<64-hex>
 base_ref:<branch>
 wip_branch:wip/<feature>
 last_green_task:T<n>|none
@@ -230,11 +228,10 @@ The owner rebuilds task and terminal slices from plan, state, and Git.
 
 ### Plan amendment
 
-A bound-hash mismatch means bytes moved, never a stop; only a missing or malformed `plan.md` fails closed. The owner amends it, revalidates unbound, and rebinds the returned hash with an incremented `checkpoint_revision`. No branch closes and no new feature opens.
+`plan.md` stays editable while its feature executes; only a missing or malformed `plan.md` fails closed. The owner amends it in place, revalidates, and records the next checkpoint with an incremented `checkpoint_revision`. No branch closes and no new feature opens.
 - Bookkeeping amendments are self-service: recording touched files, fixing paths or intents, splitting or reordering pending tasks, or sharpening wording that leaves acceptance intact.
-- A user-stated requirement change mid-execution is an amendment: amend, revalidate, rebind, and continue.
+- A user-stated requirement change mid-execution is an amendment: amend, revalidate, and continue.
 - Material amendments ask one question first: changing an active criterion, weakening invariants or non-goals, changing `Domain Impact`, replacing interface pins, or rewriting completed tasks.
-- An unexplained mismatch asks one question naming the affected sections; the answer picks rebind or restore.
 
 ### Skill derivation from phase and next_action
 
@@ -314,7 +311,7 @@ At packet creation run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and reco
 Before merge run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`, unpiped or under `set -o pipefail`.
 - Exit 0 prints `status: ready`, the observed base, WIP branch, and HEAD (equal to `wip_branch`), one `repo:` line per other listed repository, and a trailing `exit=0` line.
 - Exit 1 prints `status: blocked`, a `code:`, and `exit=1`; it blocks as Spec escalation and never retargets the merge. Exit 2 corrects invocation.
-- Codes include `detached-head`, `head-not-wip`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `plan-unbound`, and Git-query failures; an unanswered query blocks.
+- Codes include `detached-head`, `head-not-wip`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `plan-invalid`, and Git-query failures; an unanswered query blocks.
 - `dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, both sides of a rename included. Both commands are read-only.
 
 The merge or pull request targets exactly the recorded `base_ref`; never widen to repository defaults. Promoting base onward is separate user-owned work.

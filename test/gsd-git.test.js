@@ -91,15 +91,13 @@ function makePacket({ feature = "git-demo", base = "main" } = {}) {
   mkdirSync(featureDir, { recursive: true });
   const planPath = join(featureDir, "plan.md");
   writeFileSync(planPath, minimalPlan(feature, base));
-  const plan_sha256 = createHash("sha256").update(readFileSync(planPath)).digest("hex");
   writeStateAtomic(featureDir, {
-    schema: "v0.0.2",
+    schema: "v0.0.3",
     feature,
     owner: "none",
     phase: "verifying",
     next_action: "terminal gate",
     plan_path: `.scratch/${feature}/plan.md`,
-    plan_sha256,
     base_ref: base,
     wip_branch: `wip/${feature}`,
     last_green_task: "T1",
@@ -302,7 +300,7 @@ test("preflight blocks a rewritten plan", () => {
     const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
     assert.equal(result.status, 1, result.stdout);
     assert.match(result.stdout, /^status: blocked$/m);
-    assert.match(result.stdout, /^code: plan-unbound$/m);
+    assert.match(result.stdout, /^code: plan-invalid$/m);
     assert.doesNotMatch(result.stdout, /^status: ready$/m);
   } finally {
     rmSync(packet.root, { recursive: true, force: true });
@@ -316,7 +314,7 @@ test("preflight blocks when plan.md does not exist", () => {
     const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
     assert.equal(result.status, 1, `missing plan must block: ${result.stdout}`);
     assert.match(result.stdout, /^status: blocked$/m);
-    assert.match(result.stdout, /^code: plan-unbound$/m);
+    assert.match(result.stdout, /^code: plan-invalid$/m);
     assert.doesNotMatch(result.stdout, /^status: ready$/m);
   } finally {
     rmSync(packet.root, { recursive: true, force: true });
@@ -334,8 +332,8 @@ test("preflight blocks a symlinked plan and refuses to read the target", () => {
     const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
     assert.equal(result.status, 1, `symlink must block: ${result.stdout}`);
     assert.match(result.stdout, /^status: blocked$/m);
-    assert.match(result.stdout, /^code: plan-unbound$/m);
-    assert.match(result.stdout, /symlink rejected/);
+    assert.match(result.stdout, /^code: plan-invalid$/m);
+    assert.match(result.stdout, /plan file is a symlink/);
     assert.doesNotMatch(result.stdout, /SECRET_TOKEN_DO_NOT_READ/);
     assert.doesNotMatch(result.stdout, /^status: ready$/m);
   } finally {
@@ -352,8 +350,8 @@ test("preflight blocks an oversized plan without allocating over-bound memory", 
     const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
     assert.equal(result.status, 1, `oversized plan must block: ${result.stdout}`);
     assert.match(result.stdout, /^status: blocked$/m);
-    assert.match(result.stdout, /^code: plan-unbound$/m);
-    assert.match(result.stdout, /exceeds size limit/);
+    assert.match(result.stdout, /^code: plan-invalid$/m);
+    assert.match(result.stdout, /plan file exceeds 1048576 bytes/);
     assert.doesNotMatch(result.stdout, /^status: ready$/m);
   } finally {
     rmSync(packet.root, { recursive: true, force: true });
@@ -872,7 +870,7 @@ test("verify-task-branch blocks when plan is missing, malformed, or does not def
     );
     assert.equal(notFound.status, 1, notFound.stdout + notFound.stderr);
     assert.match(notFound.stdout, /^status: blocked$/m);
-    assert.match(notFound.stdout, /^code: plan-unbound$/m);
+    assert.match(notFound.stdout, /^code: plan-invalid$/m);
     assert.match(notFound.stdout, /^exit=1$/m);
 
     writeFileSync(join(root, relative, "plan.md"), "malformed garbage\n");
@@ -892,7 +890,7 @@ test("verify-task-branch blocks when plan is missing, malformed, or does not def
     );
     assert.equal(malformed.status, 1, malformed.stdout + malformed.stderr);
     assert.match(malformed.stdout, /^status: blocked$/m);
-    assert.match(malformed.stdout, /^code: plan-unbound$/m);
+    assert.match(malformed.stdout, /^code: plan-invalid$/m);
     assert.match(malformed.stdout, /^exit=1$/m);
 
     rmSync(join(root, relative, "plan.md"));
@@ -912,7 +910,7 @@ test("verify-task-branch blocks when plan is missing, malformed, or does not def
     );
     assert.equal(missing.status, 1, missing.stdout + missing.stderr);
     assert.match(missing.stdout, /^status: blocked$/m);
-    assert.match(missing.stdout, /^code: plan-unbound$/m);
+    assert.match(missing.stdout, /^code: plan-invalid$/m);
     assert.match(missing.stdout, /^exit=1$/m);
   } finally {
     rmSync(root, { recursive: true, force: true });
@@ -1009,17 +1007,16 @@ test("verify-task-branch reads a cross-repo task's branch in its own repository"
 });
 
 test("preflight proves every listed repository sits on its WIP branch", () => {
-  const { parent, app, api, feature, relative, plan } = makeCrossRepoPacket();
+  const { parent, app, api, feature, relative } = makeCrossRepoPacket();
   try {
     git(["checkout", "-q", "-b", `wip/${feature}`], app);
     writeStateAtomic(join(app, relative), {
-      schema: "v0.0.2",
+      schema: "v0.0.3",
       feature,
       owner: "none",
       phase: "verifying",
       next_action: "terminal gate",
       plan_path: `.scratch/${feature}/plan.md`,
-      plan_sha256: createHash("sha256").update(plan).digest("hex"),
       base_ref: "main",
       wip_branch: `wip/${feature}`,
       last_green_task: "T1",

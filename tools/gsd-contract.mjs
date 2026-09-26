@@ -29,10 +29,10 @@ function write(lines) {
 
 function commandUsage(command) {
   if (command === "validate-plan") {
-    return `${INVOCATION} validate-plan --path .scratch/<feature>/plan.md [--expected-sha256 <64-hex>] [--expected-base <branch>]`;
+    return `${INVOCATION} validate-plan --path .scratch/<feature>/plan.md [--expected-base <branch>]`;
   }
   if (command === "analyze-waves") {
-    return `${INVOCATION} analyze-waves --path .scratch/<feature>/plan.md [--expected-sha256 <64-hex>] [--expected-base <branch>]`;
+    return `${INVOCATION} analyze-waves --path .scratch/<feature>/plan.md [--expected-base <branch>]`;
   }
   if (command === "normalize-plan") {
     return `${INVOCATION} normalize-plan --path .scratch/<feature>/plan.md [--write]`;
@@ -79,9 +79,7 @@ function failArtifact(error, command) {
     ? String(error.hint).replace(/[\x00-\x1F\x7F]+/g, " ").trim()
     : null;
   if (!remediation) {
-    if (/hash mismatch/i.test(message)) {
-      remediation = "revalidate unbound and rebind through the amendment flow, never silently overwrite";
-    } else if (/does not match recorded base_ref/i.test(message)) {
+    if (/does not match recorded base_ref/i.test(message)) {
       remediation = "align --expected-base with plan § Base";
     } else {
       remediation = commandUsage(command);
@@ -107,11 +105,10 @@ function parseArguments(argv) {
   if (args.length === 1 && args[0] === "--help") return { command, help: true };
 
   let planPath = null;
-  let expectedSha256 = null;
   let expectedBase = null;
   let base = null;
   let write = false;
-  const FLAGS = new Set(["--path", "--expected-sha256", "--expected-base", "--base", "--write"]);
+  const FLAGS = new Set(["--path", "--expected-base", "--base", "--write"]);
   for (let index = 0; index < args.length; index += 1) {
     const flag = args[index];
     if (!FLAGS.has(flag)) {
@@ -135,11 +132,6 @@ function parseArguments(argv) {
     if (flag === "--path") {
       if (planPath !== null) return { usageError: "--path may be supplied only once", command };
       planPath = value;
-    } else if (flag === "--expected-sha256") {
-      if (expectedSha256 !== null) {
-        return { usageError: "--expected-sha256 may be supplied only once", command };
-      }
-      expectedSha256 = value;
     } else if (flag === "--expected-base") {
       if (expectedBase !== null) {
         return { usageError: "--expected-base may be supplied only once", command };
@@ -171,11 +163,9 @@ function parseArguments(argv) {
     return { usageError: "--path must be formatted as .scratch/<feature>/plan.md", command };
   }
   if (command === "normalize-plan") {
-    if (expectedSha256 !== null) return { usageError: `${command} does not accept --expected-sha256`, command };
     if (expectedBase !== null) return { usageError: `${command} does not accept --expected-base`, command };
   }
   if (command === "init-plan") {
-    if (expectedSha256 !== null) return { usageError: `${command} does not accept --expected-sha256`, command };
     if (expectedBase !== null) return { usageError: `${command} does not accept --expected-base`, command };
     if (base === null) return { usageError: "--base is required", command };
     if (!isSafeBranchRef(base)) {
@@ -184,16 +174,10 @@ function parseArguments(argv) {
   } else {
     if (base !== null) return { usageError: `${command} does not accept --base`, command };
   }
-  if (expectedSha256 !== null && !/^[a-f0-9]{64}$/.test(expectedSha256)) {
-    return {
-      usageError: "--expected-sha256 must be exactly 64 lowercase hexadecimal characters",
-      command,
-    };
-  }
   if (expectedBase !== null && !isSafeBranchRef(expectedBase)) {
     return { usageError: "--expected-base must be one Git branch name able to receive a merge", command };
   }
-  return { command, planPath, expectedSha256, expectedBase, base, write };
+  return { command, planPath, expectedBase, base, write };
 }
 
 const input = parseArguments(process.argv.slice(2));
@@ -227,7 +211,6 @@ if (input.usageError) {
 } else {
   try {
     const result = validatePlanFile(input.planPath, {
-      expectedSha256: input.expectedSha256,
       expectedBase: input.expectedBase,
     });
     const lines = [
@@ -235,7 +218,6 @@ if (input.usageError) {
       `kind: ${result.kind}`,
       `feature: ${result.feature}`,
       `base: ${result.base}`,
-      `sha256: ${result.sha256}`,
       `tasks: ${result.tasks}`,
     ];
     if (input.command === "analyze-waves") {

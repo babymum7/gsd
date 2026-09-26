@@ -63,12 +63,11 @@ testDarwin('T2: writeStateAtomic and readStateFile roundtrip on darwin', () => {
   writeFileSync(join(featureDir, 'plan.md'), canonicalPlanFixture(feature));
 
   const stateInput = {
-    schema: 'v0.0.2',
+    schema: 'v0.0.3',
     feature,
     phase: 'executing',
     next_action: 'start/continue task',
     plan_path: `.scratch/${feature}/plan.md`,
-    plan_sha256: 'a'.repeat(64),
     base_ref: 'main',
     wip_branch: `wip/${feature}`,
     last_green_task: 'none',
@@ -86,7 +85,6 @@ testDarwin('T2: writeStateAtomic and readStateFile roundtrip on darwin', () => {
     assert.equal(read.feature, feature);
     assert.equal(read.phase, 'executing');
     assert.equal(read.plan_path, `.scratch/${feature}/plan.md`);
-    assert.equal(read.plan_sha256, 'a'.repeat(64));
     assert.equal(read.base_ref, 'main');
     assert.equal(read.wip_branch, `wip/${feature}`);
   } finally {
@@ -121,12 +119,11 @@ testDarwin('T2: dynamic import of extensions/gsd-context.js exercises state read
   writeFileSync(join(featureDir, 'plan.md'), canonicalPlanFixture(feature));
 
   const stateInput = {
-    schema: 'v0.0.2',
+    schema: 'v0.0.3',
     feature,
     phase: 'executing',
     next_action: 'start/continue task',
     plan_path: `.scratch/${feature}/plan.md`,
-    plan_sha256: 'b'.repeat(64),
     base_ref: 'main',
     wip_branch: `wip/${feature}`,
     last_green_task: 'none',
@@ -141,7 +138,6 @@ testDarwin('T2: dynamic import of extensions/gsd-context.js exercises state read
     const read = ext.readStateFile(statePath);
     assert.equal(read.feature, feature);
     assert.equal(read.phase, 'executing');
-    assert.equal(read.plan_sha256, 'b'.repeat(64));
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }

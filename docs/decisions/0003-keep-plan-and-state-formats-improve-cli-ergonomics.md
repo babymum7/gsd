@@ -6,7 +6,7 @@
 ## Decision
 
 GSD keeps `plan.md` canonical Markdown and `state.toon` schema v4 as two separate
-authoritative artifacts — the plan stays hash-bound bytes, state keeps moving per
+authoritative artifacts — the plan stays validated grammar (see 0028), state keeps moving per
 checkpoint. Agent ergonomics ship as CLI behavior only: semantic validator failures
 print actionable help lines, a `normalize-plan` command proposes and applies a closed
 set of surface-only fixes as a reviewable diff (`--write` to mutate), and

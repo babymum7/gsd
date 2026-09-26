@@ -6,17 +6,8 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
-import {
-  closeSync,
-  constants,
-  fstatSync,
-  lstatSync,
-  openSync,
-  readSync,
-  realpathSync,
-} from "node:fs";
-import { createHash } from "node:crypto";
-import { isSafeBranchRef, PLAN_FILE_MAX_BYTES, validatePlanFile } from "../lib/gsd-contract.mjs";
+import { realpathSync } from "node:fs";
+import { isSafeBranchRef, validatePlanFile } from "../lib/gsd-contract.mjs";
 import { inspectStateFile } from "../lib/gsd-state.mjs";
 
 const COMMANDS = new Set(["derive-base", "preflight", "verify-task-branch"]);
@@ -123,6 +114,7 @@ function emitHelp(command) {
       "  - base_ref is not checked out in another linked worktree",
       "  - wip_branch resolves to a local branch",
       "  - no path outside .scratch/ is uncommitted, staged, or untracked",
+      "  - plan.md validates and names base_ref as its Base",
       "",
       "Blocked means the gate stops; it never retargets the merge.",
       "",
@@ -236,7 +228,7 @@ function checkedOutElsewhere(branch, cwd) {
   return null;
 }
 
-// Canon requires the reviewed non-scratch tree to match the recorded binding before the
+// Canon requires the reviewed non-scratch tree to be clean before the
 // merge. It is not cosmetic: the merge commit `git merge` records takes the whole
 // index, so anything staged outside `.scratch/` rides into the merge without being reviewed
 // or covered by the conformance run, which proved only the current commit.
@@ -331,65 +323,6 @@ function parseArguments(argv) {
   return result;
 }
 
-function readBoundedFile(filePath, maxBytes, label) {
-  let lst;
-  try {
-    lst = lstatSync(filePath);
-  } catch (error) {
-    throw new Error(`${label}: cannot inspect file (${error.message})`);
-  }
-  if (lst.isSymbolicLink()) throw new Error(`${label}: symlink rejected`);
-  if (!lst.isFile()) throw new Error(`${label}: expected a regular file`);
-  if (lst.size > maxBytes) {
-    throw new Error(`${label}: exceeds size limit of ${maxBytes} bytes`);
-  }
-  const flags = constants.O_RDONLY | (constants.O_NOFOLLOW ?? 0) | constants.O_NONBLOCK;
-  let fd;
-  try {
-    fd = openSync(filePath, flags);
-  } catch (error) {
-    if (error.code === "ELOOP") throw new Error(`${label}: symlink rejected`);
-    if (error.code === "ENOENT") throw new Error(`${label}: file not found`);
-    throw new Error(`${label}: cannot open file (${error.message})`);
-  }
-  try {
-    const opened = fstatSync(fd);
-    if (!opened.isFile()) throw new Error(`${label}: expected a regular file`);
-    if (opened.dev !== lst.dev || opened.ino !== lst.ino) {
-      throw new Error(`${label}: file identity changed before open`);
-    }
-    if (opened.size > maxBytes) {
-      throw new Error(`${label}: exceeds size limit of ${maxBytes} bytes`);
-    }
-    const capacity = Math.min(maxBytes + 1, opened.size + 1);
-    const buffer = Buffer.allocUnsafe(Math.max(1, capacity));
-    let total = 0;
-    while (total < buffer.length) {
-      const bytesRead = readSync(fd, buffer, total, buffer.length - total, null);
-      if (bytesRead === 0) break;
-      total += bytesRead;
-    }
-    if (total > maxBytes) {
-      throw new Error(`${label}: exceeds size limit of ${maxBytes} bytes`);
-    }
-    const afterRead = fstatSync(fd);
-    if (
-      afterRead.dev !== opened.dev ||
-      afterRead.ino !== opened.ino ||
-      afterRead.size !== opened.size ||
-      afterRead.mtimeMs !== opened.mtimeMs ||
-      afterRead.ctimeMs !== opened.ctimeMs
-    ) {
-      throw new Error(`${label}: file changed during read`);
-    }
-    return buffer.subarray(0, total);
-  } finally {
-    if (fd !== undefined) {
-      try { closeSync(fd); } catch { /* ignore */ }
-    }
-  }
-}
-
 // One repository's branch identity: base and WIP resolve locally, the base is free to
 // receive the merge, HEAD rests on the WIP branch, and nothing outside .scratch/ is dirty.
 function proveBranchIdentity(dir, base, wip, where) {
@@ -454,27 +387,13 @@ function preflight(cwd, featureDir) {
   const base = requireBranchName(state.base_ref, "base_ref");
   const wip = requireBranchName(state.wip_branch, "wip_branch");
   const head = proveBranchIdentity(cwd, base, wip, "");
-  const scratchPlanPath = join(cwd, featureDir, "plan.md");
-  let scratchBytes;
-  try {
-    scratchBytes = readBoundedFile(scratchPlanPath, PLAN_FILE_MAX_BYTES, "plan");
-  } catch (error) {
-    blocked("plan-unbound", `cannot read approved plan ${scratchPlanPath}: ${error.message}`);
-  }
-  const scratchHash = createHash("sha256").update(scratchBytes).digest("hex");
-  if (scratchHash !== state.plan_sha256) {
-    blocked(
-      "plan-unbound",
-      `plan.md SHA-256 (${scratchHash}) does not match bound plan_sha256 (${state.plan_sha256})`,
-    );
-  }
   // A cross-repo plan carries one `wip/<feature>` branch per listed repository, each
   // merging into its own recorded base, so every one must hold before the gate is ready.
   let repos = [];
   try {
-    repos = validatePlanFile(join(featureDir, "plan.md"), { cwd, kind: "plan" }).parsed.repos;
+    repos = validatePlanFile(join(featureDir, "plan.md"), { cwd, kind: "plan", expectedBase: base }).parsed.repos;
   } catch (error) {
-    blocked("plan-unbound", `cannot parse approved plan ${scratchPlanPath}: ${error.message}`);
+    blocked("plan-invalid", `cannot validate plan ${join(featureDir, "plan.md")}: ${error.message}`);
   }
   const repoLines = [];
   for (const repo of repos.filter((entry) => entry.path !== ".")) {
@@ -506,12 +425,12 @@ function verifyTaskBranch(cwd, featureDir, taskId, branch, waveBase) {
   try {
     validated = validatePlanFile(planPath, { cwd, kind: "plan" });
   } catch (planError) {
-    blocked("plan-unbound", `cannot read or parse approved plan at ${planPath}: ${planError.message}`);
+    blocked("plan-invalid", `cannot read or parse approved plan at ${planPath}: ${planError.message}`);
   }
 
   const task = validated.parsed.tasks.find((t) => t.id === taskId);
   if (!task) {
-    blocked("plan-unbound", `task ${taskId} is not defined in ${planPath}`);
+    blocked("plan-invalid", `task ${taskId} is not defined in ${planPath}`);
   }
   // A task of a cross-repo plan lives in its own repository: its branch, ancestry,
   // and diff are read there, while the plan stays in this one.

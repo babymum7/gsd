@@ -33,7 +33,7 @@ A finding cites a file and line. Do not cross-rank the axes.
 
 ## Terminal gate
 
-1. Run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>`. Exit 0 continues. A hash mismatch means bytes moved: revalidate and rebind under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment. A malformed plan or base mismatch stops as Spec escalation. Exit 2 corrects invocation.
+1. Run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`. Exit 0 continues. A malformed plan or base mismatch stops as Spec escalation. Exit 2 corrects invocation.
 2. Review the whole diff of `wip/<feature>` against `base_ref` yourself (in a plan with `## Repos`, each repository's `wip/<feature>` against its row's Base), in plan order: every active acceptance criterion is covered by a completed task, every changed path is owned by a task, and the diff honors the plan's decisions, invariants, and non-goals.
 3. Check `Domain Impact`: `none` needs concrete evidence that no domain meaning changed; otherwise the affected shards must describe current production behavior. Skip this in any repository without `docs/domain/index.md`.
 4. Validate each owned decision or design record with `bun "<GSD_ROOT>/tools/gsd-record.mjs" validate --path <record> --kind decisions|design`.

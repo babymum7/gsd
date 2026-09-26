@@ -1,5 +1,5 @@
 /** GSD state file schema version. */
-export type StateSchema = "v0.0.2";
+export type StateSchema = "v0.0.3";
 
 /** Lifecycle phases; a packet is deleted once its integration lands. */
 export type ActivePhase = "approved" | "executing" | "paused" | "verifying" | "repair" | "ready";
@@ -16,7 +16,6 @@ export interface State {
   phase: Phase;
   next_action: string;
   plan_path: string;
-  plan_sha256: string;
   base_ref: string;
   wip_branch: string;
   last_green_task: string;
@@ -41,7 +40,7 @@ export interface SkillCatalogRow {
 /** Frozen array of active state phases. */
 export const ACTIVE_STATE_PHASES: readonly ActivePhase[];
 
-/** Frozen canonical v0.0.2 field order for a state.toon packet. */
+/** Frozen canonical v0.0.3 field order for a state.toon packet. */
 export const STATE_FIELD_ORDER: readonly (keyof State)[];
 
 /** Frozen per-phase default `next_action` values for canonical state writes. */
