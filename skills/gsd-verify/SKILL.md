@@ -31,6 +31,8 @@ Read-only; no branch or merge authority. Supplied context informs, never approve
 
 A finding cites a file and line. Do not cross-rank the axes.
 
+When the user asks for comments on a PR, post the same findings as one PR review with the host's tooling: an inline comment at each cited line, prefixed by its axis. Never post unasked, and never approve or request changes unless the user says so.
+
 ## Terminal gate
 
 1. Run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`. Exit 0 continues. A malformed plan or base mismatch stops as Spec escalation. Exit 2 corrects invocation.

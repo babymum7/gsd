@@ -118,7 +118,7 @@ By default, single-task waves execute inline by the session owner with `gsd-tdd`
 
 ### Standalone review
 
-A read-only diff review by the session owner along two independent axes: **Standards** (documented project coding standards plus lightweight smell heuristics as judgement calls, with documented standards always overriding heuristics) and **Intent** (the diff against the originating request, plan, or supplied context, reporting missing, partial, or scope-creeped requirements). Findings are reported under their axis headings without cross-axis reranking.
+A read-only diff review by the session owner along two independent axes: **Standards** (documented project coding standards plus lightweight smell heuristics as judgement calls, with documented standards always overriding heuristics) and **Intent** (the diff against the originating request, plan, or supplied context, reporting missing, partial, or scope-creeped requirements). Findings are reported under their axis headings without cross-axis reranking. On request, the same findings post as one pull request review of inline comments at their cited lines; the review never posts unasked and never approves or requests changes unless the user says so.
 
 ### Resume active work
 1. Fatally decode LF-only state bytes, then validate the schema, plan path and grammar, Git identity, green checkpoint, and current tree.
