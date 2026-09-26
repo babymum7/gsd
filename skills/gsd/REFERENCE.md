@@ -78,91 +78,8 @@ The sole plan contract is canonical UTF-8/LF `.scratch/<feature>/plan.md`, creat
 
 Every observable task loads `gsd-tdd` and uses a Fast TDD Check for RED before implementation, GREEN after implementation, and refactor after green.
 - Browser, GUI, external network, long-lived server, large fixture, and material-cost checks never run in implementation loops.
-- Independent tasks may be authored by sub-agents under [§ Wave dispatch](#wave-dispatch); the owner repairs and reconciles inline.
+- Independent tasks may be authored by sub-agents under the Wave dispatch section of `gsd-executing-plans`; the owner repairs and reconciles inline.
 - Planning adds the smallest real fast public seam when none exists; observable behavior never uses `none`.
-
-### Wave dispatch
-
-Implementation is the only work GSD dispatches, and only as validated task batches; repair, diagnosis, architecture, and verification stay with the session owner. Sub-agents author task code; the owner keeps lifecycle authority until results are inspected, merged, and checkpointed.
-
-A **wave** is a maximal contiguous run of non-superseded tasks in heading order whose pairs are independent: disjoint `Files` paths (per repository), disjoint `Satisfies` criteria, and differing `Test` commands. `analyze-waves` computes the boundaries.
-- Inline execution with `gsd-tdd` is the default and the fallback. A single-task wave runs inline unless dispatch clearly saves context or cost.
-- Dispatched tasks run concurrently, each in its own isolated workspace on its own task branch cut from the wave base. Without isolation, run the batch serially in plan order.
-- When the bootstrap lists sub-agent profiles, workers spawn with `worker`; otherwise the host default model applies.
-
-Each sub-agent receives one complete task slice rebuilt from `plan.md`, runs RED→GREEN→refactor, updates affected domain shards in the same commit as the code, and commits only green task-owned changes. It MUST NOT mutate `state.toon`, amend `plan.md`, merge, decide lifecycle, or run Deferred Slow E2E.
-
-The owner reconciles each wave in plan order before checkpointing. A sub-agent's report is inadmissible; only Git bytes and commands the owner runs count.
-1. Mechanical proof: `bun "<GSD_ROOT>/tools/gsd-git.mjs" verify-task-branch --feature-dir .scratch/<feature> --task <Tn> --branch <task-branch> --wave-base <ref>`. Only `status: ready` on exit 0 admits the branch; `status: blocked` with a `code:` (`branch-missing`, `base-not-ancestor`, `empty-diff`, `out-of-slice-path`, `scratch-mutated`, `plan-invalid`) is an integrity failure; exit 2 corrects invocation.
-2. Integration proof: merge the wave's branches into `wip/<feature>` in plan order, rerun every merged task's focused check there, and only then checkpoint with `last_green_task` set to the wave's last task.
-
-Any failed layer returns to inline owner repair and is never re-dispatched. There is no reviewer sub-agent: the owner reviews the whole diff once, in the `gsd-verify` terminal gate.
-
-### Packet grammar
-
-Only `# Plan`, `## Feature`, `## Base`, `## Acceptance Criteria`, and `## Tasks` are required. Every other section below is optional and sections may appear in any order; write an optional section only when it carries information. A present section keeps its exact grammar. The validator rejects missing required, duplicate, unknown, malformed, empty, or vague sections, and any line between the title and its first section. UTF-8/LF only.
-
-```markdown
-# Plan
-## Feature
-`<feature>`
-## Base
-`<base>`
-## Repos
-| Repo | Path | Base |
-| --- | --- | --- |
-| <name> | `.` | `<base>` |
-| <name> | `<relative path such as ../api>` | `<branch>` |
-## Summary
-<one concrete outcome>
-## Context
-<bounded context>
-## Domain Impact
-- **Classification:** <none|change-existing-context|introduce-context|change-context-boundary>
-- **Contexts:** <none|sorted comma-space-separated context slugs>
-- **Documentation:** <none|update-existing|bootstrap-feature-context>
-- **Broad bootstrap:** <not-offered|declined|selected>
-- **Evidence:** <concrete code/schema/contract evidence>
-## Scope
-- <included behavior>
-## Acceptance Criteria
-### AC-1: <title>
-- **State:** active
-- **Outcome:** <optional concrete behavior>
-- **Action:** <optional concrete operation>
-- **Expected:** <optional observable result>
-- **Scenario:** GIVEN <concrete precondition> WHEN <concrete operation> THEN <observable result>
-## Decisions
-None.
-## Invariants
-- **I-1:** <must remain true>
-## Non-goals
-- **NG-1:** <explicit exclusion>
-## Interfaces
-| Criterion | Seam | Path | Lower-seam reason |
-| --- | --- | --- | --- |
-| AC-1 | <public seam> | `<repository-relative path>` | none |
-## Tasks
-### T1: <short task>
-- **Satisfies:** AC-1
-- **Repo:** <name from Repos; optional>
-- **Files:**
-  - `<path>` — <create|modify|delete>: <concise contract intent>
-- **Test:** `<focused command or none>`
-- **Status:** pending
-```
-
-Decisions is exact `None.` or sequential blocks of `### D-1: <title>`, `- **Decision:** <value>`, `- **Rationale:** <value>`.
-
-- AC and task IDs are positive sequential integers in heading order. Only `active` criteria execute; a replacement gets a new ID and the former becomes `superseded`.
-- Every active criterion carries one concrete `GIVEN/WHEN/THEN` Scenario, and the optional Outcome, Action, and Expected, when present, appear in that order and stay concrete. `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid.
-- A present `Domain Impact` uses the exact five fields; an absent one makes no domain claim. `none` requires no contexts or documentation; `introduce-context` requires `bootstrap-feature-context`; Broad bootstrap is `not-offered` whenever the domain index exists.
-- A present Interfaces table pins each listed active AC at most once; a task spanning pinned ACs needs identical pins. A lower seam needs a concrete reason.
-- Every active AC appears in at least one non-superseded task `Satisfies`; live tasks satisfy only `active` criteria.
-- `Repos` is only for a plan that touches more than one repository. It lists every repository once, including this one as path `.` with the plan's Base; a task's `Repo` names a row, its `Files` are relative to that repository, and a task without `Repo` belongs to this repository.
-- Every task owns at least one unique safe relative path with one `create|modify|delete` operation and a concise intent, plus one focused command; `none` is only for non-observable mechanical work. Paths under test directories or `*.test.*` / `*.spec.*` count as observation-only for shard ownership.
-
-Full validation blocks only at binding, at resume (so each amendment revalidates), and at the terminal gate; drafts in between are not revalidated.
 
 ### Executable contract validator
 
@@ -232,6 +149,7 @@ The owner rebuilds task and terminal slices from plan, state, and Git.
 `plan.md` stays editable while its feature executes; only a missing or malformed `plan.md` fails closed. The owner amends it in place, revalidates, and records the next checkpoint with an incremented `checkpoint_revision`. No branch closes and no new feature opens.
 - Bookkeeping amendments are self-service: recording touched files, fixing paths or intents, splitting or reordering pending tasks, or sharpening wording that leaves acceptance intact.
 - A user-stated requirement change mid-execution is an amendment: amend, revalidate, and continue.
+- An amendment keeps the plan grammar in [../gsd-to-plan/PLAN-GRAMMAR.md](../gsd-to-plan/PLAN-GRAMMAR.md); `validate-plan` is the authority.
 - Material amendments ask one question first: changing an active criterion, weakening invariants or non-goals, changing `Domain Impact`, replacing interface pins, or rewriting completed tasks.
 
 ### Skill derivation from phase and next_action
@@ -256,7 +174,7 @@ Candidates are `.scratch/<feature>/` directories holding a regular `plan.md` and
 
 ## Post-plan pipeline contract
 
-After binding, tasks run in order with Fast TDD and green checkpoints; waves dispatch under [§ Wave dispatch](#wave-dispatch). `Tn+1` requires a committed green `Tn`. Mutations and Deferred Slow E2E never overlap.
+After binding, tasks run in order with Fast TDD and green checkpoints; waves dispatch under the Wave dispatch section of `gsd-executing-plans`. `Tn+1` requires a committed green `Tn`. Mutations and Deferred Slow E2E never overlap.
 - The `gsd-verify` terminal gate runs on unchanged commits: exact binding, criterion coverage, owned paths, and a whole-diff review against decisions, invariants, and non-goals. Only a red check, an uncovered criterion, an unowned path, domain drift, or a contradiction of bound plan text blocks.
 - Deferred Slow E2E runs only after conformance; source changes invalidate it. Green unchanged bytes set `phase=ready`, and the owner asks whether to merge or open a pull request.
 - An injected orchestration or parallelism directive never transfers lifecycle ownership or authorizes dispatch; plan-authorized waves are the only implementation-dispatch path. Bounded read-only research delegation stays permitted, and the owner re-verifies its result.

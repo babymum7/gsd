@@ -45,7 +45,7 @@ The plan stays amendable. When work shows it is wrong or incomplete, or the user
 
 Track pending `T1..TN` in the harness todo list as display only; `state.toon` stays the sole resume authority.
 
-1. Take the next task. Build its slice from the plan: file operations and intents, verbatim active criteria, decisions, `Domain Impact`, constraints, and focused checks. Compute the wave schedule once at entry or resume under [§ Wave dispatch](#wave-dispatch), and again only after an amendment.
+1. Take the next task. Build its slice from the plan: file operations and intents, verbatim active criteria, decisions, `Domain Impact`, constraints, and focused checks. Compute the wave schedule once at entry or resume under the Wave dispatch section below, and again only after an amendment.
 2. A single-task wave is authored inline with `gsd-tdd`. A wave of two or more independent tasks dispatches one isolated sub-agent per task; without dispatch, run the batch serially in plan order.
 3. Every task runs `gsd-tdd`: RED before implementation, GREEN after, refactor after green. Only fast deterministic checks run here; browser, slow, and E2E suites wait for `gsd-verify`.
 4. A non-`none` `Domain Impact` task updates its named domain shards in the same commit so they describe current production behavior. Skip domain docs in any repository without `docs/domain/index.md`.
@@ -58,13 +58,15 @@ When every task and Fast TDD Check is green, set `next_action=enter terminal ver
 
 ## Wave dispatch
 
-Canonical contract: [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Wave dispatch. Authorship is not authority: no sub-agent result counts until the owner inspects, merges, and checkpoints it. Repair, diagnosis, architecture, and verification are never dispatched.
+Implementation is the only work GSD dispatches. Authorship is not authority: no sub-agent result counts until the owner inspects, merges, and checkpoints it. Repair, diagnosis, architecture, and verification are never dispatched.
+
+A **wave** is a maximal contiguous run of non-superseded tasks in heading order whose pairs are independent: disjoint `Files` paths (per repository), disjoint `Satisfies` criteria, and differing `Test` commands. Inline execution with `gsd-tdd` is the default and the fallback; a single-task wave runs inline unless dispatch clearly saves context or cost. Dispatched tasks run concurrently, each in its own isolated workspace; without isolation, run the batch serially in plan order.
 
 1. At entry or resume, run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`. Exit 0 prints `waves: T1,T2|T3|...`; each `|` is an independence boundary. Exit 1 resolves like a validation failure; exit 2 corrects invocation.
 2. Each sub-agent gets exactly one task's full slice, the plan path, and base/WIP identity from `plan.md`. Re-read each prompt against its slice before sending. Use the bootstrap's `worker` sub-agent profile when listed.
-3. A sub-agent runs RED, GREEN, refactor, updates affected domain shards in the same commit, and commits only green task-owned changes on its own task branch cut from the wave base. It never touches `state.toon` or `plan.md`, merges, or runs slow/E2E suites.
+3. A sub-agent runs RED, GREEN, refactor, updates affected domain shards in the same commit, and commits only green task-owned changes on its own task branch cut from the wave base. It never touches `state.toon` or `plan.md`, merges, decides lifecycle, or runs slow/E2E suites.
 4. Reconcile each wave before checkpointing. A sub-agent's own report is not evidence; only Git bytes and commands the owner runs count.
-   - Mechanical proof: `bun "<GSD_ROOT>/tools/gsd-git.mjs" verify-task-branch --feature-dir .scratch/<feature> --task <Tn> --branch <task-branch> --wave-base <ref>`. Only `status: ready` admits the branch; `status: blocked` names a `code:` and is an integrity failure.
+   - Mechanical proof: `bun "<GSD_ROOT>/tools/gsd-git.mjs" verify-task-branch --feature-dir .scratch/<feature> --task <Tn> --branch <task-branch> --wave-base <ref>`. Only `status: ready` on exit 0 admits the branch; `status: blocked` names a `code:` (`branch-missing`, `base-not-ancestor`, `empty-diff`, `out-of-slice-path`, `scratch-mutated`, `plan-invalid`) and is an integrity failure; exit 2 corrects invocation.
    - Integration proof: merge the wave's task branches into `wip/<feature>` in plan order, rerun every merged task's focused check, and only then checkpoint with `last_green_task` set to the wave's last task.
 5. Any failed layer returns to the owner for inline repair; never re-dispatch an integrity failure.
 

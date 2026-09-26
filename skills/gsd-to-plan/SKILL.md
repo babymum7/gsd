@@ -37,7 +37,7 @@ Write `Domain Impact` only when a touched repository has `docs/domain/index.md` 
 - `Broad bootstrap` is `not-offered` when the domain index exists; for an accepted bootstrap it records the user's `selected` or `declined` choice. Never reconstruct paths by scanning docs or dirty files.
 ## Write plan.md
 
-Write `.scratch/<feature>/plan.md` exactly from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Packet grammar. Writing may start by scaffolding the skeleton via `bun "<GSD_ROOT>/tools/gsd-contract.mjs" init-plan --path .scratch/<feature>/plan.md --base <branch>`, which refuses to overwrite an existing `plan.md`. The scaffold defaults Domain Impact to `none`; fill the slots and delete every optional section that carries nothing before the `validate-plan` gate.
+Write `.scratch/<feature>/plan.md` exactly from [PLAN-GRAMMAR.md](PLAN-GRAMMAR.md). Writing may start by scaffolding the skeleton via `bun "<GSD_ROOT>/tools/gsd-contract.mjs" init-plan --path .scratch/<feature>/plan.md --base <branch>`, which refuses to overwrite an existing `plan.md`. The scaffold defaults Domain Impact to `none`; fill the slots and delete every optional section that carries nothing before the `validate-plan` gate.
 
 This skill is the sole writer at creation and finalization; after binding the executing owner amends it in place under § Plan amendment. Required: Feature, Base, one concrete `GIVEN/WHEN/THEN` Scenario per active criterion (Outcome, Action, and Expected are optional), and structured tasks with unique path operation/intents, focused checks, and pending status. Add Summary, Context, `Domain Impact`, Scope, Decisions, Invariants, Non-goals, or Interfaces only when they carry information; `Domain Impact` is needed whenever the change touches domain semantics.
 
