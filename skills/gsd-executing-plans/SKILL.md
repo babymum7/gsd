@@ -37,7 +37,7 @@ Write `state.toon` only with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature
 
 ## Intake and amendments
 
-At entry or resume, validate the plan as above, then build task slices from it. Work on `wip/<feature>` under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics. Select tasks in heading order from bound state and Git evidence, never from plan prose status.
+At entry or resume, validate the plan as above, then build task slices from it. Work on `wip/<feature>` under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Git/base/WIP/scratch mechanics; a plan with `## Repos` has one `wip/<feature>` per listed repository and each task commits in its own repository. Select tasks in heading order from bound state and Git evidence, never from plan prose status.
 
 The plan stays amendable. When work shows it is wrong or incomplete, or the user changes a requirement, amend `.scratch/<feature>/plan.md` under § Plan amendment, revalidate, rebind the returned hash, and continue the same task. Material changes to acceptance, invariants, non-goals, `Domain Impact`, interfaces, or completed tasks ask one question first. New product scope exits to `gsd-brainstorming`.
 
@@ -48,7 +48,7 @@ Track pending `T1..TN` in the harness todo list as display only; `state.toon` st
 1. Take the next task. Build its slice from the plan: file operations and intents, verbatim active criteria, decisions, `Domain Impact`, constraints, and focused checks. Compute the wave schedule once at entry or resume under [§ Wave dispatch](#wave-dispatch), and again only after an amendment.
 2. A single-task wave is authored inline with `gsd-tdd`. A wave of two or more independent tasks dispatches one isolated sub-agent per task; without dispatch, run the batch serially in plan order.
 3. Every task runs `gsd-tdd`: RED before implementation, GREEN after, refactor after green. Only fast deterministic checks run here; browser, slow, and E2E suites wait for `gsd-verify`.
-4. A non-`none` `Domain Impact` task updates its named domain shards in the same commit so they describe current production behavior. Skip domain docs where the repo has no `docs/domain/index.md`.
+4. A non-`none` `Domain Impact` task updates its named domain shards in the same commit so they describe current production behavior. Skip domain docs in any repository without `docs/domain/index.md`.
 5. A red focused check repairs inline in this task, then reruns only the checks the repair affects.
 6. Before the first commit, prove `wip/<feature>` is checked out and `state.toon` is bound. Commit only green task-owned changes, then set `last_green_task`, `last_green_commit`, and `next_action=start/continue task` (plus a rebound hash if amended). `Tn+1` starts only from the committed green `Tn`.
 

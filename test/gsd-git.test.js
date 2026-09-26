@@ -46,6 +46,34 @@ function fakeGitPath(failWhen) {
   return dir;
 }
 
+// The smallest plan the validator accepts: only the required sections.
+function minimalPlan(feature, base, { repos = null, repo = null } = {}) {
+  return [
+    "# Plan",
+    "## Feature",
+    `\`${feature}\``,
+    "## Base",
+    `\`${base}\``,
+    ...(repos ? ["## Repos", "| Repo | Path | Base |", "| --- | --- | --- |", ...repos] : []),
+    "## Acceptance Criteria",
+    "### AC-1: App updates",
+    "- **State:** active",
+    "- **Outcome:** The app file changes.",
+    "- **Action:** Edit the app file.",
+    "- **Expected:** The app file holds new bytes.",
+    "- **Scenario:** GIVEN the base app WHEN the task edits it THEN the app file holds new bytes.",
+    "## Tasks",
+    "### T1: Update app",
+    "- **Satisfies:** AC-1",
+    ...(repo ? [`- **Repo:** ${repo}`] : []),
+    "- **Files:**",
+    "  - `src/app.js` — modify: update the app file",
+    "- **Test:** `bun test`",
+    "- **Status:** pending",
+    "",
+  ].join("\n");
+}
+
 // A packet the preflight can read: a real repo on a WIP branch cut from a real base.
 function makePacket({ feature = "git-demo", base = "main" } = {}) {
   const root = mkdtempSync(join(tmpdir(), "gsd-git-test-"));
@@ -62,7 +90,7 @@ function makePacket({ feature = "git-demo", base = "main" } = {}) {
   const featureDir = join(root, ".scratch", feature);
   mkdirSync(featureDir, { recursive: true });
   const planPath = join(featureDir, "plan.md");
-  writeFileSync(planPath, "# Plan\n");
+  writeFileSync(planPath, minimalPlan(feature, base));
   const plan_sha256 = createHash("sha256").update(readFileSync(planPath)).digest("hex");
   writeStateAtomic(featureDir, {
     schema: "v0.0.2",
@@ -931,3 +959,83 @@ test("verify-task-branch exits 2 with code: usage on unknown argument or missing
   }
 });
 
+
+// Two sibling repositories: `app` holds `.scratch/`, `api` is listed under ## Repos.
+function makeCrossRepoPacket({ feature = "cross-demo" } = {}) {
+  const parent = mkdtempSync(join(tmpdir(), "gsd-cross-test-"));
+  const init = (name, base) => {
+    const dir = join(parent, name);
+    mkdirSync(join(dir, "src"), { recursive: true });
+    git(["init", "-q", "--initial-branch", base, "."], dir);
+    git(["config", "user.email", "test@example.com"], dir);
+    git(["config", "user.name", "test"], dir);
+    writeFileSync(join(dir, "src", "app.js"), `${name}\n`);
+    git(["add", "-A"], dir);
+    git(["commit", "-qm", "init"], dir);
+    return dir;
+  };
+  const app = init("app", "main");
+  const api = init("api", "develop");
+  const featureDir = join(app, ".scratch", feature);
+  mkdirSync(featureDir, { recursive: true });
+  const plan = minimalPlan(feature, "main", {
+    repos: ["| app | `.` | `main` |", "| api | `../api` | `develop` |"],
+    repo: "api",
+  });
+  writeFileSync(join(featureDir, "plan.md"), plan);
+  return { parent, app, api, feature, relative: join(".scratch", feature), plan };
+}
+
+test("verify-task-branch reads a cross-repo task's branch in its own repository", () => {
+  const { parent, app, api, relative } = makeCrossRepoPacket();
+  try {
+    git(["checkout", "-q", "-b", "task-t1", "develop"], api);
+    writeFileSync(join(api, "src", "app.js"), "api updated\n");
+    git(["commit", "-qam", "work for t1"], api);
+    const args = ["verify-task-branch", "--feature-dir", relative, "--task", "T1", "--branch", "task-t1", "--wave-base", "develop"];
+    const ready = cli(args, app);
+    assert.equal(ready.status, 0, ready.stdout + ready.stderr);
+    assert.match(ready.stdout, /^status: ready$/m);
+
+    writeFileSync(join(api, "stray.txt"), "stray\n");
+    git(["add", "stray.txt"], api);
+    git(["commit", "-qm", "stray"], api);
+    const stray = cli(args, app);
+    assert.equal(stray.status, 1, stray.stdout);
+    assert.match(stray.stdout, /^code: out-of-slice-path$/m);
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("preflight proves every listed repository sits on its WIP branch", () => {
+  const { parent, app, api, feature, relative, plan } = makeCrossRepoPacket();
+  try {
+    git(["checkout", "-q", "-b", `wip/${feature}`], app);
+    writeStateAtomic(join(app, relative), {
+      schema: "v0.0.2",
+      feature,
+      owner: "none",
+      phase: "verifying",
+      next_action: "terminal gate",
+      plan_path: `.scratch/${feature}/plan.md`,
+      plan_sha256: createHash("sha256").update(plan).digest("hex"),
+      base_ref: "main",
+      wip_branch: `wip/${feature}`,
+      last_green_task: "T1",
+      last_green_commit: git(["rev-parse", "HEAD"], api),
+      checkpoint_revision: "1",
+    });
+    const missing = cli(["preflight", "--feature-dir", relative], app);
+    assert.equal(missing.status, 1, missing.stdout);
+    assert.match(missing.stdout, /^code: wip-missing$/m);
+    assert.match(missing.stdout, /in repo api/);
+
+    git(["checkout", "-q", "-b", `wip/${feature}`], api);
+    const ready = cli(["preflight", "--feature-dir", relative], app);
+    assert.equal(ready.status, 0, ready.stdout + ready.stderr);
+    assert.match(ready.stdout, new RegExp(`^repo: api base=develop wip=wip/${feature}$`, "m"));
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});

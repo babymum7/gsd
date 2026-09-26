@@ -30,18 +30,18 @@ In `Resume/finalize` mode, read canonical `.scratch/<feature>/plan.md`.
 - Stale pre-binding `proposal.toon`, `spec.toon`, `design.toon`, and `plan.toon` cannot provide missing scope, ACs, task order, or recovery.
 - In `Initial converged creation` mode, optional draft state/context is consumed without reading an existing plan.
 
-Consume converged `Domain Impact` fields in exact order:
+Write `Domain Impact` only when a touched repository has `docs/domain/index.md` or the user accepted a domain bootstrap; otherwise omit the section. When present, consume its fields in exact order:
 `Classification`, `Contexts`, `Documentation`, `Broad bootstrap`, `Evidence`.
 - `classification=none` requires `contexts=none`, `documentation=none`, and concrete no-impact evidence; every other classification requires sorted context slugs and documentation actions.
 - Bind exact reserved domain-documentation paths returned by `gsd-domain-modeling` to the same tasks as their implementing code; the plan owns target behavior until implementation, while existing domain prose remains current-production-only.
-- `Broad bootstrap` must be `not-offered` when the domain index exists; when absent, record user `selected` or `declined` choice after mandatory paths are set. Never reconstruct paths by scanning docs or dirty files.
+- `Broad bootstrap` is `not-offered` when the domain index exists; for an accepted bootstrap it records the user's `selected` or `declined` choice. Never reconstruct paths by scanning docs or dirty files.
 ## Write plan.md
 
-Write `.scratch/<feature>/plan.md` exactly from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Packet grammar. Writing may start by scaffolding the skeleton via `bun "<GSD_ROOT>/tools/gsd-contract.mjs" init-plan --path .scratch/<feature>/plan.md --base <branch>`, which refuses to overwrite an existing `plan.md`. The scaffold defaults Domain Impact to `none` and the model then fills slots, after which the same `validate-plan` gate applies unchanged.
+Write `.scratch/<feature>/plan.md` exactly from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Packet grammar. Writing may start by scaffolding the skeleton via `bun "<GSD_ROOT>/tools/gsd-contract.mjs" init-plan --path .scratch/<feature>/plan.md --base <branch>`, which refuses to overwrite an existing `plan.md`. The scaffold defaults Domain Impact to `none`; fill the slots and delete every optional section that carries nothing before the `validate-plan` gate.
 
 This skill is the sole writer at creation and finalization; after binding the executing owner amends it in place under § Plan amendment. Required: Feature, Base, concrete Outcome/Action/Expected criteria with one concrete `GIVEN/WHEN/THEN` Scenario per active criterion, and structured tasks with unique path operation/intents, focused checks, and pending status. Add Summary, Context, `Domain Impact`, Scope, Decisions, Invariants, Non-goals, or Interfaces only when they carry information; `Domain Impact` is needed whenever the change touches domain semantics.
 
-A part of a larger feature (the Parts section of `gsd-brainstorming`) is planned as its own feature `<feature>-pN`.
+When the work spans several repositories, add `## Repos` with every repository (this one as path `.`), run `derive-base` in each for its Base, and give each task outside this repository a `- **Repo:**` line; `Files` stay relative to that task's repository. A part of a larger feature (the Parts section of `gsd-brainstorming`) is planned as its own feature `<feature>-pN`.
 
 Read `plan.md` § Base from the work tree, never from convention: before `wip/<feature>` exists run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed branch, so a linked worktree records its own branch. Exit 1 with `code: detached-head` stops packet creation until the user checks out a branch, because a commit oid cannot receive a merge. Never read the base by hand with `git rev-parse --abbrev-ref HEAD`, which prints the literal `HEAD` when detached. See [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Base derivation and merge target.
 

@@ -140,7 +140,7 @@ Missing consumed artifacts do not trigger improvisation. The selected skill retu
 
 `docs/domain/index.md` maps stable production contexts to shards. Shards describe current terms, actors, invariants, workflows, commands/events/outcomes, context relationships, and policies—not package layouts, refactor journals, or future designs. Production code, schemas, contracts, and tests remain authoritative when documentation drifts.
 
-Every plan that changes domain semantics includes `Domain Impact`. Semantic code and its affected domain shards land in the same owning task; `gsd-verify` blocks completion on drift. If the index already exists, the workflow reads only affected mapped shards and never suggests a broad codebase/domain scan. A broad bootstrap is an optional decision only while creating the first index; declining it never skips mandatory feature-scoped documentation. The canonical `## Domain documentation` section in `AGENTS.md` gives future coding agents the same constraints.
+Domain docs are opt-in: they apply only in repositories with `docs/domain/index.md` or after the user accepts a bootstrap, and only there does a plan include `Domain Impact`. Semantic code and its affected domain shards land in the same owning task; `gsd-verify` blocks completion on drift. If the index already exists, the workflow reads only affected mapped shards and never suggests a broad codebase/domain scan. A broad bootstrap is an optional decision only while creating the first index. The canonical `## Domain documentation` section in `AGENTS.md` gives future coding agents the same constraints.
 
 Architecture and domain discovery in `gsd-brainstorming` align backend and frontend boundaries to these production contexts while keeping domain/application policy framework-independent and adapters idiomatic. A context is not automatically a service, package, page, database, or deployment unit.
 
@@ -154,6 +154,7 @@ The current top-level session is the sole lifecycle authority. It interprets the
 - `plan.md` remains the human-readable plan authority. The atomic `state.toon` snapshot binds its bytes and carries runtime progress; it does not replace design authority.
 - Each feature executes on `wip/<feature>`; after the terminal gate the owner asks whether to merge it into the base branch or open a pull request.
 - A feature too large for one plan is split into parts in `.scratch/<feature>/parts.md`, a plain checklist; each part is delivered as its own feature `<feature>-pN`.
+- A plan touching several repositories lists them under `## Repos` (`| Repo | Path | Base |`) and tags each task with `- **Repo:**`; every repository gets its own `wip/<feature>`, `.scratch/` stays in the repository that holds the plan, and one merge-or-PR answer covers them all.
 
 ```text
 adapters/

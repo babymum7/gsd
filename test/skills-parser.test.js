@@ -5,7 +5,7 @@ import {
   replaceOnce, 
 } from "./support/skills-fixtures.js";
 import {
-  isSafeBranchRef, parseMarkdownPacket, 
+  analyzeWaves, isSafeBranchRef, parseMarkdownPacket, 
   sha256, verifyApprovedSources, validateSectionEdges,
 } from "../lib/gsd-contract.mjs";
 
@@ -45,6 +45,30 @@ test("a plan needs only Feature, Base, Acceptance Criteria, and Tasks, in any or
   assert.throws(() => parseMarkdownPacket({ "plan.md": `# Plan\n${withoutTasks}` }), /missing Tasks section/);
   assert.throws(() => parseMarkdownPacket({ "plan.md": `# Plan\n${minimal}## Notes\nFree prose.\n` }), /unknown section ## Notes/);
   assert.throws(() => parseMarkdownPacket({ "plan.md": `# Plan\n${minimal}## Publication\nnull\n` }), /unknown section ## Publication/);
+});
+
+test("a cross-repo plan lists its repositories and tags each task with one", () => {
+  const plan = canonicalPacket()["plan.md"];
+  const repos = "## Repos\n| Repo | Path | Base |\n| --- | --- | --- |\n| app | `.` | `main` |\n| api | `../api` | `develop` |\n";
+  const t2 = T1_BLOCK.replace("### T1:", "### T2:").replace("- **Satisfies:** AC-1", "- **Satisfies:** AC-1\n- **Repo:** api").replace("`bun test test/skills.test.js`", "`bun test api.test.js`");
+  const crossRepo = replaceOnce(replaceOnce(plan, "## Summary\n", `${repos}## Summary\n`), T1_BLOCK, `${T1_BLOCK}\n${t2}`);
+  const parsed = parseMarkdownPacket({ "plan.md": crossRepo });
+  assert.deepEqual(parsed.repos, [
+    { name: "app", path: ".", base: "main" },
+    { name: "api", path: "../api", base: "develop" },
+  ]);
+  assert.deepEqual(parsed.tasks.map(({ repo }) => repo), ["app", "api"]);
+  // The same path in two repositories never collides, so both tasks share one wave.
+  const task = (id, repo, satisfies) => ({ id, repo, satisfies: [satisfies], files: ["src/app.js"], test: `bun test ${id}`, status: "pending" });
+  assert.deepEqual(analyzeWaves([task("T1", "app", "AC-1"), task("T2", "api", "AC-2")]).map(({ tasks }) => tasks), [["T1", "T2"]]);
+  assert.deepEqual(analyzeWaves([task("T1", "api", "AC-1"), task("T2", "api", "AC-2")]).map(({ tasks }) => tasks), [["T1"], ["T2"]]);
+
+  assert.throws(() => parseMarkdownPacket({ "plan.md": crossRepo.replace("- **Repo:** api", "- **Repo:** web") }), /T2 names unknown repo web/);
+  assert.throws(() => parseMarkdownPacket({ "plan.md": crossRepo.replace("| app | `.` | `main` |", "| app | `.` | `trunk` |") }), /must equal Base main/);
+  assert.throws(() => parseMarkdownPacket({ "plan.md": crossRepo.replace("| app | `.` | `main` |\n", "") }), /must include this repository as path `\.`/);
+  assert.throws(() => parseMarkdownPacket({ "plan.md": crossRepo.replace("`../api`", "`../.scratch`") }), /Repos path must be/);
+  // Without ## Repos, a Repo field names nothing.
+  assert.throws(() => parseMarkdownPacket({ "plan.md": crossRepo.replace(repos, "") }), /T2 names unknown repo api/);
 });
 
 test("every active criterion needs at least one active task, and may have several", () => {

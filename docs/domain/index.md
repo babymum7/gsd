@@ -4,4 +4,4 @@
 
 | Scope | File | Purpose |
 | --- | --- | --- |
-| gsd | `gsd.md` | GSD delivery lifecycle, artifact authority, Domain Impact, pause and resume, verification, and parts. |
+| gsd | `gsd.md` | GSD delivery lifecycle, artifact authority, Domain Impact, pause and resume, verification, parts, and cross-repo plans. |

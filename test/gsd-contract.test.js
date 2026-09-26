@@ -1265,7 +1265,7 @@ test("semantic validator failures attach actionable remediation help lines", () 
     });
     assert.equal(orderResult.status, 1);
     assert.match(orderResult.stdout, /^status: error\ncode: invalid-artifact\n/);
-    assert.match(orderResult.stdout, /structured task fields must be exactly ordered: Satisfies, Files, Test, Status/);
+    assert.match(orderResult.stdout, /structured task fields must be exactly ordered: Satisfies, Repo \(optional\), Files, Test, Status/);
     assert.match(orderResult.stdout, /^help: ".*reorder fields to match the canonical order.*"$/m);
   } finally {
     rmSync(pinWs, { recursive: true, force: true });

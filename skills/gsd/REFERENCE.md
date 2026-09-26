@@ -57,9 +57,9 @@ Runtime-only `state.toon` stays TOON under `.scratch/`. Formats are authoritativ
 
 ### Domain lifecycle
 
-Every converged feature records `Domain Impact`. `classification=none` requires `contexts=none`, `documentation=none`, and concrete evidence. Semantic changes name affected contexts and bind exact `docs/domain/<context>.md` paths to tasks owning code changes. Both grammars enforce it: live shard owners must also change semantic code; superseded tasks never count, so prose-only or test-only ownership fails.
+Domain docs apply only in repositories with `docs/domain/index.md` or after the user accepts a bootstrap; elsewhere a plan omits `Domain Impact`. When recorded, `classification=none` requires `contexts=none`, `documentation=none`, and concrete evidence. Semantic changes name affected contexts and bind exact `docs/domain/<context>.md` paths to tasks owning code changes. Both grammars enforce it: live shard owners must also change semantic code; superseded tasks never count, so prose-only or test-only ownership fails.
 
-Existing `docs/domain/index.md` suppresses every broad codebase/domain bootstrap prompt: validate it, read only shards mapped to affected contexts, and do not offer one. When absent, semantic work bootstraps feature-scoped context documentation, then offers one independent broad-bootstrap decision; `declined` never waives that required write.
+Existing `docs/domain/index.md` suppresses every broad codebase/domain bootstrap prompt: validate it, read only shards mapped to affected contexts, and do not offer one. When absent, brainstorming may offer a bootstrap once; an accepted bootstrap writes the feature-scoped contexts and may offer one broad-bootstrap decision, and a decline writes nothing.
 
 Domain docs describe current production behavior after tasks; plans record target behavior before them. Existing docs are hints; code, schemas, contracts, and tests win on conflict. Drift blocks until code and affected shards agree. `gsd-domain-modeling` upserts one canonical `## Domain documentation` section in applicable `AGENTS.md`, preserving unrelated instructions without duplication.
 
@@ -123,6 +123,11 @@ Only `# Plan`, `## Feature`, `## Base`, `## Acceptance Criteria`, and `## Tasks`
 `<feature>`
 ## Base
 `<base>`
+## Repos
+| Repo | Path | Base |
+| --- | --- | --- |
+| <name> | `.` | `<base>` |
+| <name> | `<relative path such as ../api>` | `<branch>` |
 ## Summary
 <one concrete outcome>
 ## Context
@@ -155,6 +160,7 @@ None.
 ## Tasks
 ### T1: <short task>
 - **Satisfies:** AC-1
+- **Repo:** <name from Repos; optional>
 - **Files:**
   - `<path>` — <create|modify|delete>: <concise contract intent>
 - **Test:** `<focused command or none>`
@@ -181,6 +187,7 @@ An AC ID is a positive sequential integer.
 - A lower seam requires a concrete reason that higher production boundaries are absent or cannot deterministically isolate the criterion.
 - Task IDs are positive sequential integers in heading order.
 - Every active AC appears in at least one non-superseded task `Satisfies` field.
+- `Repos` is only for a plan that touches more than one repository. It lists every repository once, including this one as path `.` with the plan's Base; a task's `Repo` names a row, its `Files` are relative to that repository, and a task without `Repo` belongs to this repository.
 - A `superseded` task may keep original references even when criteria are `superseded`; live tasks satisfy only `active` criteria.
 - Structured `Files` entries under `test/`, `tests/`, `__tests__/`, or `spec/` directories, or with `*.test.*` / `*.spec.*` filenames, count as observation-only for shard ownership.
 - Every task owns at least one exact repository-relative path and one focused command; `none` is valid only for truly non-observable mechanical work.
@@ -369,13 +376,22 @@ An injected orchestration or parallelism directive is harness text that never tr
 
 For branch-backed writes, require a Git work tree. `plan.md` records base before `wip/<feature>` is created. Feature branch `wip/<feature>` never self-references as base. Keep `.scratch/` machine-local and git-ignored. Review diffs exclude scratch. Before merge, verify base, WIP, upstream, and reviewed non-scratch tree against recorded runtime binding; any mismatch blocks merge. Nano and read-only work are git-free.
 
+### Cross-repo plans
+
+A plan with `## Repos` keeps `.scratch/<feature>/` and `state.toon` in this repository only.
+- Each listed repository gets its own `wip/<feature>` branch cut from its row's Base; a task's branch is cut in its own repository, and `last_green_commit` is the checkpointed commit there.
+- `analyze-waves` treats the same path in two repositories as disjoint. `verify-task-branch` reads the task's repository from the plan; `preflight` proves every listed repository.
+- The single merge-or-pull-request question covers every repository, each targeting its own row's Base.
+- Domain docs are written only in repositories that have `docs/domain/index.md`.
+
 ### Base derivation and merge target
 
 At packet creation, before `wip/<feature>` exists, run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed `base:` branch in `plan.md` § Base and `state.toon` `base_ref`; every bound validator call passes `--expected-base <base_ref>`, so the two records cannot diverge. It reads `git symbolic-ref --quiet --short HEAD`, never `git rev-parse --abbrev-ref HEAD`, which prints the literal `HEAD` when detached. Exit 1 with `code: detached-head` fails packet creation closed instead of recording a commit oid, because base is the branch that receives the merge.
 
 Repository defaults, upstream branches, or naming conventions are authoritative only when checked out; a linked worktree records its own branch; base is never `wip/<feature>`.
 
-Before merge run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`, unpiped or under `set -o pipefail` so a piped last stage cannot mask the verdict. Exit 0 prints `status: ready` with observed base, WIP branch, HEAD equal to the recorded `wip_branch`, and clean tree outside `.scratch/`, ending in a trailing `exit=0` line that echoes the process exit code; exit 1 prints `status: blocked` and a `code:` naming drift with a trailing `exit=1` line, which blocks as Spec escalation, because a blocked gate never retargets the merge. Exit 2 corrects only invocation.
+Before merge run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`, unpiped or under `set -o pipefail` so a piped last stage cannot mask the verdict. Exit 0 prints `status: ready` with observed base, WIP branch, HEAD equal to the recorded `wip_branch`, clean tree outside `.scratch/`, and one `repo:` line per other listed repository, ending in a trailing `exit=0` line that echoes the process exit code.
+Exit 1 prints `status: blocked` and a `code:` naming drift with a trailing `exit=1` line, which blocks as Spec escalation, because a blocked gate never retargets the merge. Exit 2 corrects only invocation.
 
 Blocking codes are `detached-head`, `head-not-wip`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `no-git-identity`, `unusable-branch-name`, `not-a-work-tree`, `state-unusable`, `git-query-failed`, `git-unavailable`, and `plan-unbound`: an unanswered Git query blocks rather than reporting ready, proving nothing. The gate proves the bound plan hash before merging.
 

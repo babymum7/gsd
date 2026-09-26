@@ -8,13 +8,13 @@ consumes: []
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
-- Intent: resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract
+- Intent: resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance contract
 - Do-not-load: read-only questions, pure mechanical edits, known single-spot quick fix
 - Transition: on convergence load `gsd-to-plan`
 
 # GSD Brainstorming
 
-> **Invocation guard** — pre-binding discovery and convergence only. Creates no plan, state, or TOON artifact; sole durable writes are a decision record for a settled tradeoff or pre-binding domain bootstrap when an index is absent. When acceptance or target is unclear, ask one recommended question before further inspection. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract after selecting an invocation mode. Read-only questions, Nano edits, known fixes, delegated tasks, and bound work do not enter.
+> **Invocation guard** — pre-binding discovery and convergence only. Creates no plan, state, or TOON artifact; sole durable writes are a decision record for a settled tradeoff or an accepted pre-binding domain bootstrap. When acceptance or target is unclear, ask one recommended question before further inspection. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract after selecting an invocation mode. Read-only questions, Nano edits, known fixes, delegated tasks, and bound work do not enter.
 
 ## Invocation modes
 
@@ -57,14 +57,13 @@ When a load-bearing tradeoff settles, write one `docs/decisions/NNNN-slug.md` re
 
 ## Conservative context harvest and Domain Impact
 
-Domain impact is mandatory for every converged feature:
+Domain docs are opt-in per repository: they apply only where `docs/domain/index.md` exists.
 
-1. Classify as exactly `none`, `change-existing-context`, `introduce-context`, or `change-context-boundary`. Record sorted context slugs, documentation actions, broad-bootstrap disposition, and evidence. `none` requires evidence showing no production semantics, terms, invariants, workflows, outcomes, relationships, or policy changes.
-2. When `docs/domain/index.md` exists, validate it and read only mapped shards for affected contexts. Do not offer or suggest a broad scan. Unrelated contexts stay unread.
-3. When `docs/domain/index.md` is absent and the feature changes production semantics, feature-scoped context bootstrap is mandatory. After bounding that required context, offer one independent broad-bootstrap choice. If declined, still load `gsd-domain-modeling` for the required feature-scoped context; declining broad bootstrap never skips affected-context documentation.
-4. Reuse only evidence needed for the selected design. Generic terms, identifiers, preferences, and code shape without production meaning are no-ops. Existing docs are navigation hints, not authority over code, schemas, contracts, or tests.
-5. Load `gsd-domain-modeling` as sole writer for non-`none` classifications. Before binding, material ambiguity asks one focused question and writes nothing. Otherwise it returns exact affected paths for the eventual owning code task and writes no future behavior; pre-binding documentation describes only shipped behavior.
-6. After binding, load-bearing ambiguity returns through the Spec-gap transition. Prose uncertainty never widens scope; required current-behavior documentation remains part of the owning task.
+1. When no touched repository has `docs/domain/index.md`, omit `Domain Impact` and write no domain docs. Offer a domain bootstrap once only when the feature introduces lasting business terms; a decline ends the topic.
+2. When the index exists, classify as exactly `none`, `change-existing-context`, `introduce-context`, or `change-context-boundary`, with sorted context slugs, documentation action, broad-bootstrap disposition (`not-offered`), and evidence. `none` requires evidence that no production semantics, terms, invariants, workflows, outcomes, relationships, or policy change. Read only mapped shards for affected contexts; never offer a broad scan.
+3. Reuse only evidence needed for the selected design. Generic terms, identifiers, preferences, and code shape without production meaning are no-ops. Existing docs are navigation hints, not authority over code, schemas, contracts, or tests.
+4. Load `gsd-domain-modeling` as sole writer for non-`none` classifications or an accepted bootstrap. Before binding, material ambiguity asks one focused question and writes nothing. Otherwise it returns exact affected paths for the eventual owning code task and writes no future behavior.
+5. After binding, load-bearing ambiguity returns through the Spec-gap transition. Prose uncertainty never widens scope.
 
 ## Parts
 

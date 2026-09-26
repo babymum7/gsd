@@ -5,7 +5,7 @@
 // invocation goes through `git()`, which admits only the exact argv shapes below.
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { join } from "node:path";
+import { join, resolve } from "node:path";
 import {
   closeSync,
   constants,
@@ -390,6 +390,53 @@ function readBoundedFile(filePath, maxBytes, label) {
   }
 }
 
+// One repository's branch identity: base and WIP resolve locally, the base is free to
+// receive the merge, HEAD rests on the WIP branch, and nothing outside .scratch/ is dirty.
+function proveBranchIdentity(dir, base, wip, where) {
+  if (base === wip) blocked("base-is-wip", `base_ref ${base}${where} is the branch being squashed`);
+  if (!localBranchExists(base, dir)) {
+    blocked("base-missing", `base_ref ${base}${where} no longer resolves to a local branch, so the squash has no target`);
+  }
+  if (!localBranchExists(wip, dir)) {
+    blocked("wip-missing", `wip_branch ${wip}${where} no longer resolves to a local branch`);
+  }
+  const elsewhere = checkedOutElsewhere(base, dir);
+  if (elsewhere !== null) {
+    blocked(
+      "base-checked-out-elsewhere",
+      `base_ref ${base}${where} is checked out in the linked worktree ${elsewhere}, which cannot receive this squash`,
+    );
+  }
+  // A detached HEAD at the gate is not a cosmetic detail: commits made there sit on no
+  // branch, so squashing the recorded WIP branch would silently drop them. The same holds
+  // when HEAD sits on any branch other than the recorded WIP branch: the gate observed that
+  // exact incident, where HEAD rested on the base while the WIP branch held the work, and
+  // the squash landed wherever HEAD pointed. Identity of HEAD with the recorded WIP branch
+  // is the proof that the squash target holds the reviewed work.
+  const head = git(["symbolic-ref", "--quiet", "--short", "HEAD"], dir);
+  if (head.status !== 0 || head.stdout === "") {
+    blocked(
+      "detached-head",
+      `HEAD${where} is detached, so no branch holds the work about to be squashed: check out ${wip} before the gate`,
+    );
+  }
+  if (head.stdout !== wip) {
+    blocked(
+      "head-not-wip",
+      `HEAD${where} rests on ${head.stdout} while the packet's work is recorded on ${wip}: check out ${wip} before the gate so the squash receives the reviewed work`,
+    );
+  }
+  const dirty = dirtyNonScratchPaths(dir);
+  if (dirty.length > 0) {
+    const shown = dirty.slice(0, 3).join(", ");
+    blocked(
+      "dirty-worktree",
+      `${dirty.length} non-scratch path(s)${where} are uncommitted, so the squash would carry unreviewed bytes: ${shown}${dirty.length > 3 ? ", …" : ""}`,
+    );
+  }
+  return head.stdout;
+}
+
 function preflight(cwd, featureDir) {
   requireWorkTree(cwd);
   let state;
@@ -406,47 +453,7 @@ function preflight(cwd, featureDir) {
   }
   const base = requireBranchName(state.base_ref, "base_ref");
   const wip = requireBranchName(state.wip_branch, "wip_branch");
-  if (base === wip) blocked("base-is-wip", `base_ref ${base} is the branch being squashed`);
-  if (!localBranchExists(base, cwd)) {
-    blocked("base-missing", `base_ref ${base} no longer resolves to a local branch, so the squash has no target`);
-  }
-  if (!localBranchExists(wip, cwd)) {
-    blocked("wip-missing", `wip_branch ${wip} no longer resolves to a local branch`);
-  }
-  const elsewhere = checkedOutElsewhere(base, cwd);
-  if (elsewhere !== null) {
-    blocked(
-      "base-checked-out-elsewhere",
-      `base_ref ${base} is checked out in the linked worktree ${elsewhere}, which cannot receive this squash`,
-    );
-  }
-  // A detached HEAD at the gate is not a cosmetic detail: commits made there sit on no
-  // branch, so squashing the recorded WIP branch would silently drop them. The same holds
-  // when HEAD sits on any branch other than the recorded WIP branch: the gate observed that
-  // exact incident, where HEAD rested on the base while the WIP branch held the work, and
-  // the squash landed wherever HEAD pointed. Identity of HEAD with the recorded WIP branch
-  // is the proof that the squash target holds the reviewed work.
-  const head = git(["symbolic-ref", "--quiet", "--short", "HEAD"], cwd);
-  if (head.status !== 0 || head.stdout === "") {
-    blocked(
-      "detached-head",
-      `HEAD is detached, so no branch holds the work about to be squashed: check out ${wip} before the gate`,
-    );
-  }
-  if (head.stdout !== wip) {
-    blocked(
-      "head-not-wip",
-      `HEAD rests on ${head.stdout} while the packet's work is recorded on ${wip}: check out ${wip} before the gate so the squash receives the reviewed work`,
-    );
-  }
-  const dirty = dirtyNonScratchPaths(cwd);
-  if (dirty.length > 0) {
-    const shown = dirty.slice(0, 3).join(", ");
-    blocked(
-      "dirty-worktree",
-      `${dirty.length} non-scratch path(s) are uncommitted, so the squash would carry unreviewed bytes: ${shown}${dirty.length > 3 ? ", …" : ""}`,
-    );
-  }
+  const head = proveBranchIdentity(cwd, base, wip, "");
   const scratchPlanPath = join(cwd, featureDir, "plan.md");
   let scratchBytes;
   try {
@@ -461,6 +468,21 @@ function preflight(cwd, featureDir) {
       `plan.md SHA-256 (${scratchHash}) does not match bound plan_sha256 (${state.plan_sha256})`,
     );
   }
+  // A cross-repo plan carries one `wip/<feature>` branch per listed repository, each
+  // merging into its own recorded base, so every one must hold before the gate is ready.
+  let repos = [];
+  try {
+    repos = validatePlanFile(join(featureDir, "plan.md"), { cwd, kind: "plan" }).parsed.repos;
+  } catch (error) {
+    blocked("plan-unbound", `cannot parse approved plan ${scratchPlanPath}: ${error.message}`);
+  }
+  const repoLines = [];
+  for (const repo of repos.filter((entry) => entry.path !== ".")) {
+    const dir = resolve(cwd, repo.path);
+    requireWorkTree(dir);
+    proveBranchIdentity(dir, repo.base, wip, ` in repo ${repo.name}`);
+    repoLines.push(`repo: ${repo.name} base=${repo.base} wip=${wip}`);
+  }
   // The trailing exit line is the report's own echo of the process exit code. A consumer
   // that reads the report through a pipe sees the last stage's exit status, so without this
   // line a blocked run can travel downstream looking successful; with it, the verdict is
@@ -469,8 +491,9 @@ function preflight(cwd, featureDir) {
     "status: ready",
     `base: ${base}`,
     `wip: ${wip}`,
-    `head: ${head.stdout}`,
+    `head: ${head}`,
     "tree: clean outside .scratch/",
+    ...repoLines,
     "exit=0",
   ]);
 }
@@ -489,6 +512,13 @@ function verifyTaskBranch(cwd, featureDir, taskId, branch, waveBase) {
   const task = validated.parsed.tasks.find((t) => t.id === taskId);
   if (!task) {
     blocked("plan-unbound", `task ${taskId} is not defined in ${planPath}`);
+  }
+  // A task of a cross-repo plan lives in its own repository: its branch, ancestry,
+  // and diff are read there, while the plan stays in this one.
+  const repo = validated.parsed.repos.find((entry) => entry.name === task.repo);
+  if (repo && repo.path !== ".") {
+    cwd = resolve(cwd, repo.path);
+    requireWorkTree(cwd);
   }
 
   if (!isSafeBranchRef(branch) || !localBranchExists(branch, cwd)) {
