@@ -110,6 +110,15 @@ test("active criteria require one concrete scenario while small plans stay light
       expectedStatus: 0,
     },
     {
+      feature: "scenario-only",
+      command: "validate-plan",
+      content: canonicalPlan("scenario-only")
+        .split("\n")
+        .filter((line) => !/^- \*\*(Outcome|Action|Expected):\*\*/.test(line))
+        .join("\n"),
+      expectedStatus: 0,
+    },
+    {
       feature: "missing-scenario",
       command: "validate-plan",
       content: canonicalPlan("missing-scenario")
@@ -117,7 +126,7 @@ test("active criteria require one concrete scenario while small plans stay light
         .filter((line) => !line.startsWith("- **Scenario:**"))
         .join("\n"),
       expectedStatus: 1,
-      expectedError: /6-line blocks.*Scenario/s,
+      expectedError: /then Scenario/,
     },
     {
       feature: "placeholder-scenario",
@@ -2118,16 +2127,16 @@ test("criteria field failures point at the offending row", () => {
   const lineOf = (content, needle) => content.split("\n").findIndex((line) => line.includes(needle)) + 1;
   const cases = [
     {
-      name: "missing outcome points at the malformed row",
+      name: "misspelled outcome points at the malformed row",
       content: canonicalPlan().replace("- **Outcome:** The canonical plan is accepted through the production command.", "- **Outcom:** The canonical plan is accepted through the production command."),
       needle: "- **Outcom:**",
-      message: /fields must be exactly ordered: State, Outcome, Action, Expected, Scenario/,
+      message: /fields must be ordered: State, optional Outcome, Action, Expected, then Scenario/,
     },
     {
-      name: "missing expected points at the malformed row",
+      name: "misspelled expected points at the malformed row",
       content: canonicalPlan().replace("- **Expected:** The command reports the feature and exact source hash.", "- **Expecte:** The command reports the feature and exact source hash."),
       needle: "- **Expecte:**",
-      message: /fields must be exactly ordered: State, Outcome, Action, Expected, Scenario/,
+      message: /fields must be ordered: State, optional Outcome, Action, Expected, then Scenario/,
     },
     {
       name: "vague outcome points at the outcome row",
@@ -2180,9 +2189,6 @@ test("init-plan creates parser-valid skeleton plan and verifies with validate-pl
       "## Acceptance Criteria",
       "### AC-1: <title>",
       "- **State:** active",
-      "- **Outcome:** <concrete behavior>",
-      "- **Action:** <concrete operation>",
-      "- **Expected:** <observable result>",
       "- **Scenario:** GIVEN a scaffolded plan WHEN the validator reads it THEN it reports the feature and exact source hash.",
       "## Decisions",
       "None.",

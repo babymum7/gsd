@@ -128,9 +128,9 @@ Only `# Plan`, `## Feature`, `## Base`, `## Acceptance Criteria`, and `## Tasks`
 ## Acceptance Criteria
 ### AC-1: <title>
 - **State:** active
-- **Outcome:** <concrete behavior>
-- **Action:** <concrete operation>
-- **Expected:** <observable result>
+- **Outcome:** <optional concrete behavior>
+- **Action:** <optional concrete operation>
+- **Expected:** <optional observable result>
 - **Scenario:** GIVEN <concrete precondition> WHEN <concrete operation> THEN <observable result>
 ## Decisions
 None.
@@ -155,7 +155,7 @@ None.
 Decisions is exact `None.` or sequential blocks of `### D-1: <title>`, `- **Decision:** <value>`, `- **Rationale:** <value>`.
 
 - AC and task IDs are positive sequential integers in heading order. Only `active` criteria execute; a replacement gets a new ID and the former becomes `superseded`.
-- Every active criterion carries one concrete `GIVEN/WHEN/THEN` Scenario, and Outcome, Action, and Expected each name concrete behavior, operation, and observable result. `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid.
+- Every active criterion carries one concrete `GIVEN/WHEN/THEN` Scenario, and the optional Outcome, Action, and Expected, when present, appear in that order and stay concrete. `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid.
 - A present `Domain Impact` uses the exact five fields; an absent one makes no domain claim. `none` requires no contexts or documentation; `introduce-context` requires `bootstrap-feature-context`; Broad bootstrap is `not-offered` whenever the domain index exists.
 - A present Interfaces table pins each listed active AC at most once; a task spanning pinned ACs needs identical pins. A lower seam needs a concrete reason.
 - Every active AC appears in at least one non-superseded task `Satisfies`; live tasks satisfy only `active` criteria.

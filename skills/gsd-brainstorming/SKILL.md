@@ -43,7 +43,7 @@ Match exploration breadth to prompt: read named areas and dependencies first; wa
 
 ## Acceptance and interface convergence
 
-Convergence fixes behavior before planning. Active criteria require observable **Outcome**, executable **Action**, and deterministic **Expected** results, bounded by invariants and non-goals. Unresolved ideas remain one concise note, never vague criteria or speculative tasks.
+Convergence fixes behavior before planning. Each active criterion is one concrete `GIVEN/WHEN/THEN` scenario with an observable result, bounded by invariants and non-goals. Unresolved ideas remain one concise note, never vague criteria or speculative tasks.
 
 Pin one existing public test seam per active criterion before convergence:
 - Prefer the highest deterministic **fast** boundary observing production behavior: local module, contract, or in-process harness first.
