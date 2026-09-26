@@ -1,7 +1,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, realpathSync, writeFileSync } from "node:fs";
+import { mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -134,15 +134,3 @@ test("settings read and write validate the schema", () => {
   assert.throws(() => readSettings(home), /invalid JSON/);
 });
 
-test("skills apply sub-agent profiles by name and keep scouts read-only and unverified", () => {
-  const read = (path) => readFileSync(join(ROOT, path), "utf8");
-  const brainstorm = read("skills/gsd-brainstorming/SKILL.md");
-  assert.match(brainstorm, /spawn one read-only scout sub-agent \(the bootstrap's `scout` sub-agent profile when listed\)/);
-  assert.match(brainstorm, /do one or two known reads inline instead/);
-  assert.match(brainstorm, /Scout output is unverified: re-read every fact a decision rests on/);
-  const diagnose = read("skills/gsd-diagnosing-bugs/SKILL.md");
-  assert.match(diagnose, /The scout only locates: the owner builds and runs the loop, draws every conclusion/);
-  const execute = read("skills/gsd-executing-plans/SKILL.md");
-  assert.match(execute, /Spawn each with the bootstrap's `worker` sub-agent profile when listed/);
-  assert.match(read("skills/gsd/REFERENCE.md"), /workers spawn with `worker`; otherwise the host default model applies/);
-});

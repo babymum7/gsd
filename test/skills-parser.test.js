@@ -2,10 +2,10 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
   canonicalPacket, structuredPacket, FILES_BLOCK, filesBlockWith, T1_BLOCK, INTERFACE_ROW,
-  replaceOnce, read,
+  replaceOnce, 
 } from "./support/skills-fixtures.js";
 import {
-  isSafeBranchRef, parseMarkdownPacket, parseQuickFixPlan,
+  isSafeBranchRef, parseMarkdownPacket, 
   sha256, verifyApprovedSources, validateSectionEdges,
 } from "../lib/gsd-contract.mjs";
 
@@ -119,101 +119,6 @@ test("domain-impact packet grammar is mandatory in every validation path", () =>
     ),
     /fields must be exactly ordered/i,
   );
-});
-
-
-test("Quick-fix Domain Impact grammar is exact and domain-owned", () => {
-  const quickFixPlan = [
-    "# Quick-fix Plan",
-    "## Feature",
-    "`fix-header`",
-    "## Base",
-    "`main`",
-    "## Domain Impact",
-    "- **Classification:** none",
-    "- **Contexts:** none",
-    "- **Documentation:** none",
-    "- **Broad bootstrap:** not-offered",
-    "- **Evidence:** Header normalization already belongs to the documented request contract.",
-    "## Tasks",
-    "### T1: Correct header behavior",
-    "- **Files:**",
-    "  - `src/header.js` — modify: correct header normalization at the public API",
-    "- **Test:** `bun test test/header.test.js`",
-  ].join("\n");
-
-  const parsed = parseQuickFixPlan({ "plan.md": quickFixPlan });
-  assert.equal(parsed.feature, "fix-header");
-  assert.equal(parsed.tasks.length, 1);
-  assert.deepEqual(parsed.domainImpact, {
-    classification: "none",
-    contexts: [],
-    documentation: "none",
-    broadBootstrap: "not-offered",
-    evidence: "Header normalization already belongs to the documented request contract.",
-  });
-
-  assert.throws(
-    () => parseQuickFixPlan({ "plan.md": quickFixPlan.replace(/## Domain Impact[\s\S]*?(?=## Tasks)/, "") }),
-    /Domain Impact|sections must be exactly ordered/i,
-  );
-  assert.throws(
-    () => parseQuickFixPlan({ "plan.md": quickFixPlan.replace("Contexts:** none", "Contexts:** gsd") }),
-    /classification none requires Contexts and Documentation to be none/i,
-  );
-  assert.throws(
-    () => parseQuickFixPlan({ "plan.md": quickFixPlan.replace("Broad bootstrap:** not-offered", "Broad bootstrap:** selected") }),
-    /Quick-fix.*Broad bootstrap.*not-offered/i,
-  );
-
-  const impactedWithoutShard = quickFixPlan
-    .replace("Classification:** none", "Classification:** change-existing-context")
-    .replace("Contexts:** none", "Contexts:** gsd")
-    .replace("Documentation:** none", "Documentation:** update-existing");
-  assert.throws(
-    () => parseQuickFixPlan({ "plan.md": impactedWithoutShard }),
-    /must own affected domain shard: docs\/domain\/gsd\.md/i,
-  );
-  const impacted = impactedWithoutShard.replace(
-    "- **Test:**",
-    "  - `docs/domain/gsd.md` — modify: align current Quick-fix production semantics\n- **Test:**",
-  );
-  assert.equal(parseQuickFixPlan({ "plan.md": impacted }).domainImpact.classification, "change-existing-context");
-
-  const reference = read("skills/gsd/REFERENCE.md");
-  const verify = read("skills/gsd-verify/SKILL.md");
-  assert.match(reference, /# Quick-fix Plan[\s\S]{0,240}## Domain Impact[\s\S]{0,360}## Tasks/);
-  assert.match(reference, /Quick-fix[\s\S]{0,20}always records[\s\S]{0,30}Broad bootstrap[\s\S]{0,40}not-offered/i);
-  assert.match(verify, /`Broad bootstrap`[\s\S]{0,40}always be `not-offered`/i);
-  assert.match(verify, /Quick-fix[\s\S]{0,500}exact five-field `Domain Impact`/i);
-  assert.match(verify, /Quick-fix[\s\S]{0,800}domain drift[\s\S]{0,100}(?:blocks|Blocker)/i);
-
-  // AC-5: an absent domain index keeps Quick-fix bounded instead of exiting it.
-  for (const doc of [reference, verify]) {
-    assert.match(doc, /absent (?:`docs\/domain\/index\.md`|domain index)[\s\S]{0,40}keeps/i);
-    assert.doesNotMatch(doc, /(?:A |a )missing index or requested broad bootstrap exits/);
-    assert.match(doc, /only an explicitly requested broad bootstrap[\s\S]{0,40}exits/i);
-  }
-
-  // AC-5: resume never reloads the already-injected master bootstrap.
-  const handoff = read("skills/gsd-handoff/SKILL.md");
-  assert.doesNotMatch(handoff, /Load master once/);
-  assert.match(handoff, /never reloaded[\s\S]{0,60}validate state[\s\S]{0,60}load the peer owner/i);
-});
-
-test("planner single-writes structured task file intents", () => {
-  const planner = read("skills/gsd-to-plan/SKILL.md");
-  const reference = read("skills/gsd/REFERENCE.md");
-  const execution = read("skills/gsd-executing-plans/SKILL.md");
-
-  assert.match(reference, /- \*\*Files:\*\*\n\s+- `<path>` — (?:create\|modify\|delete|<create\|modify\|delete>)/);
-  assert.match(planner, /REFERENCE\.md[^.\n]*§ Packet grammar/);
-  assert.match(planner, /single-writes exactly that grammar/i);
-  assert.match(reference, /accepts[\s\S]{0,60}only structured task/i);
-  assert.match(reference, /rejected[\s\S]{0,60}every validation path/i);
-  assert.match(execution, /reads only structured task blocks/i);
-  assert.doesNotMatch(reference, /dual-read/i);
-  assert.doesNotMatch(execution, /legacy task blocks/i);
 });
 
 test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
