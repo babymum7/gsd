@@ -1,67 +1,49 @@
 ---
 name: gsd-verify
 description: "Diff/PR review or planned terminal gate."
-produces: [docs/gsd/<feature>/milestones.md, docs/gsd/<feature>/archive/plan.md, docs/gsd/<feature>/archive/implementation.md, state.toon, plan.md]
-consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md, docs/gsd/<feature>/milestones.md]
+produces: [state.toon, plan.md]
+consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md]
 ---
 
 ## Dispatch contract
 Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
 - Role: owner
-- Intent: review a diff/PR or prove planned code-and-domain conformance before slow/E2E
+- Intent: review a diff/PR, or prove a planned feature conforms before asking to merge
 - Do-not-load: invent completion without deterministic gates; per-task terminal verification
-- Transition: planned green path performs squash, automatic cleanup, and optional retain/archive
+- Transition: a green terminal gate sets `phase=ready` and asks whether to merge or open a pull request
 
 # Verify
 
-> **Invocation guard** — automatic selection loads standalone review; active owners load planned/milestone gates. Select an Invocation Mode and validate only Required state under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Post-plan pipeline contract and § Artifact Contract.
+> **Invocation guard** — automatic selection loads diff review; an active owner loads the terminal gate. The session owner does both itself; never spawn a reviewer sub-agent.
 
 ## Invocation modes
 
 | Mode | Required | Optional | Produced | Missing required |
 |---|---|---|---|---|
-| Standalone review | — | Markdown packet context | — | — |
-| Planned WIP gate | `plan.md`; bound `state.toon` | authorized ledger | `state.toon`; `docs/gsd/<feature>/milestones.md`; amended `plan.md`; on retain `docs/gsd/<feature>/archive/plan.md` and `docs/gsd/<feature>/archive/implementation.md` | Stop before review/merge only if `plan.md` or `state.toon` is missing/malformed |
-| Milestone WIP gate | Planned state; authoritative ledger | — | `state.toon`; `docs/gsd/<feature>/milestones.md` lifecycle state | Missing source/binding is Spec escalation; missing ledger evidence is Blocker |
+| Diff review | a diff, branch, or PR | plan or request context | — | Ask which diff to review |
+| Terminal gate | `plan.md`; bound `state.toon` | affected domain shards; `AGENTS.md` | `state.toon`; amended `plan.md` | Stop and name the missing or malformed file |
 
-## Planned and milestone WIP gate
+## Diff review
 
-At terminal entry, validate canonical `schema:v0.0.2`, exact plan hash/binding, base/WIP identity, last green checkpoint, current tree, and required artifacts; rebuild terminal slice including `Domain Impact`. Malformed grammar, feature mismatch, missing artifacts, or Git drift is Spec escalation. Repeat digest guard before squash. Select `Milestone WIP gate` when `plan.md` `## Publication` is non-`null`; otherwise `Planned WIP gate`.
+Read-only; no branch or merge authority. Supplied context informs, never approves. Report two axes separately:
+- **Standards** — cite documented-standard violations; smells are judgement only, standards win.
+- **Intent** — cite request, plan, or context mismatches: missing, partial, scope creep.
 
-Terminal entry never blocks on moved plans: changed plan bytes revalidate and rebind under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment; conformance proves amended plans on unchanged commits. Amend here only to record what the work actually did; a material change or drift the owner cannot account for asks one question first. Rebinding after pre-squash guards requires rerunning them.
+A finding cites a file and line. Do not cross-rank the axes.
 
-At terminal entry and before squash run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>`. Exit 0 must report bound feature, hash, and base before cumulative proof continues; exit 1 on malformed grammar or base mismatch blocks as Spec escalation; hash mismatches route to § Plan amendment. Exit 2 corrects invocation; use unbound forms only to revalidate amendments before rebinding.
+## Terminal gate
 
-After all tasks and Fast TDD Checks are green, the session owner performs deterministic cumulative conformance before Deferred Slow E2E. This gate does not repeat task or batch review; terminal verification is the final whole-diff review of all merged task diffs:
+1. Run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <state.plan_sha256> --expected-base <state.base_ref>`. Exit 0 continues. A hash mismatch means bytes moved: revalidate and rebind under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Plan amendment. A malformed plan or base mismatch stops as Spec escalation. Exit 2 corrects invocation.
+2. Review the whole diff of `wip/<feature>` against `base_ref` yourself, in plan order: every active acceptance criterion is covered by a completed task, every changed path is owned by a task, and the diff honors the plan's decisions, invariants, and non-goals.
+3. Check `Domain Impact`: `none` needs concrete evidence that no domain meaning changed; otherwise the affected shards must describe current production behavior. Skip this when the repo has no `docs/domain/index.md`.
+4. Validate each owned decision or design record with `bun "<GSD_ROOT>/tools/gsd-record.mjs" validate --path <record> --kind decisions|design`.
+5. Run the focused checks, whole-branch builds, and the feature-affected slow/E2E suite on the unchanged commit. Start any server as a supervised named process with an observed readiness condition, and tear it down afterwards.
+6. Only a red check, an uncovered criterion, an unowned path, domain drift, or a contradiction of bound plan text blocks. Taste and style never block. A blocker sets `phase=repair`; repair plan-owned source, rerun the affected checks, and repeat this gate from step 2.
+7. On green, run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>` unpiped. Only `status: ready` proceeds; `status: blocked` stops as Spec escalation.
+8. Write `phase=ready` and `next_action=ask merge or pull request` with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> ...`, then ask one question: merge `wip/<feature>` into `base_ref`, or open a pull request from it.
 
-Deterministic gates remain the only terminal authority: an advisory finding blocks only by citing bound plan text or a red deterministic check.
-
-1. Prove every active AC maps exactly once to one completed task and one public interface pin; every changed path is task-owned. Read task diffs in plan order against explicit Decisions, invariants, non-goals, file intents, and focused-check evidence on the unchanged current commit.
-2. Prove `Domain Impact` against cumulative diff: `none` requires concrete evidence that no term, invariant, workflow, outcome, relationship, policy, or bounded-context meaning changed. Every non-`none` classification requires exact affected shards and index/AGENTS upserts owned by the same tasks as code; with an existing index, broad-bootstrap offers/selections are contradictory.
-3. Compare affected domain shards with production code, schemas, contracts, and tests: they must describe current production behavior, contain no obsolete or future target state, and leave unrelated contexts untouched. Domain drift blocks completion as a Blocker.
-4. Prove every owned durable decision and design record carries mandatory minimal headers: run `bun "<GSD_ROOT>/tools/gsd-record.mjs" validate --path <record> --kind decisions|design` on each owned `docs/decisions/NNNN-slug.md` and `docs/design/NNNN-slug.md`; exit 0 proves records, exit 1 blocks as a Blocker. See [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Durable decision and design records.
-5. Only a malformed binding, ownership/coverage mismatch, explicit contract contradiction, domain drift, unresolved change, or red deterministic check blocks. No free-form critique or model-generated verdict is terminal authority: a judgement finding blocks only by citing bound plan text (a Decision, invariant, non-goal, acceptance criterion, or file intent) or a red deterministic check, while taste, style, and unsourced verdicts never block and never persist as prose. Green is current-commit conformance, never persisted prose.
-6. A blocker keeps `phase=repair` and `next_action=enter terminal verification/repair`; repair only plan-owned source, run affected Fast TDD Checks, and repeat invalidated proofs. Any source change invalidates prior conformance.
-7. Run the complete feature-affected Deferred Slow E2E suite only after current-commit conformance. Any needed server, watcher, or daemon starts as a supervised named process with observed readiness condition (never a bare shell launch), torn down before the merge gate. Failure returns to repair, affected fast checks, invalidated conformance, then the complete slow suite. Merge requires full slow/E2E GREEN on the same unchanged commit.
-
-For squash, scratch disposition, archive, and cleanup use § Git/base/WIP/scratch mechanics and § Feature cleanup. Archive-and-delete materializes bound plan and outcome before conformance: canonical archive destinations are terminal-cleanup-owned lifecycle paths in changed-path proof; every other changed path must be task-owned.
-
-The merge target is exactly the recorded `state.toon` `base_ref`; never ask whether to merge into `main` and never widen to repo defaults.
-The owner retires wave-dispatched task branches and isolated workspaces under feature cleanup before squash: prove each an ancestor of `wip/<feature>` via `merge-base --is-ancestor`, delete via `git branch -d` (never `-D`), remove clean workspaces, and surface unmerged or dirty residue unforced.
-Before squash run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>` unpiped or under `set -o pipefail` — a piped last stage masks the gate's exit status: only `status: ready` proceeds, on exit 0 with a trailing `exit=0` line, proving HEAD rests on the recorded `wip_branch` and no path outside `.scratch/` is staged, modified, or untracked, so squashes carry only reviewed bytes; a `status: blocked` code with its `exit=1` line is Spec escalation that stops the gate instead of retargeting the merge.
-Promoting that base onward is separate user-owned work after this packet ends green.
-
-After green merge, use `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> phase=merged-cleanup-pending` to atomically write the cleanup-pending phase (never the `write` tool directly; `write-state --json-file` remains the fallback for values `key=value` cannot express).
-
-For `Milestone WIP gate`, prove ledger matches packet and remains sequential:
-- Validate: `bun "<GSD_ROOT>/tools/gsd-milestone.mjs" validate --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>` must exit 0, reporting matching feature/base with first `pending` row as selected milestone.
-- Complete: run `bun "<GSD_ROOT>/tools/gsd-milestone.mjs" complete --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>` once per remaining pending milestone in plan order; each non-final invocation marks exactly that row `done`; the final milestone deletes the ledger.
-Include every mutation in reviewed squash; red gates change no base ledger state; changed prefixes, other rows, appends, reorders, or wrong rows block.
-
-## Standalone review
-
-Read-only; no branch/result/merge authority. Supplied context informs, never approves. Report separate bounded-read-only axes: **Standards** — cite documented-standard violations; smells are judgement only, standards win. **Intent** — cite request/plan/context mismatches: missing, partial, scope creep. Do not cross-rerank; summarize per axis.
+The merge target is exactly the recorded `base_ref` (§ Base derivation and merge target); never widen to repository defaults. On merge, check out `base_ref`, run `git merge --no-ff wip/<feature>`, then delete `wip/<feature>` with `git branch -d`, the retired task branches, and `.scratch/<feature>/`. On pull request, push `wip/<feature>` and open the PR with the host's tooling; keep the branch and scratch until the user says it merged.
 
 ## Contextual disclosure
 
-Use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates. Pipeline mode reports progress or blockers only; standalone review may use its report surface.
+Use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates. The terminal gate reports progress or blockers only; diff review uses its report surface.

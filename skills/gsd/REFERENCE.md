@@ -113,7 +113,7 @@ The owner reconciles each dispatched task or batch in strict plan order through 
 4. Weakened-guard scan: the owner rejects any diff that deletes, skips, or renames an existing test, or loosens lint, type, or CI configuration, unless the slice owns that exact path and intent.
 5. Integration proof: after merging every task branch of the wave into `wip/<feature>` in strict plan order, the owner re-runs every merged wave task's focused check on `wip/<feature>` after the last merge and before the `gsd-state.mjs set` checkpoint write; pre-merge branch checks are never sufficient. Only when all pass does the owner write `state.toon` through `gsd-state.mjs set` with `last_green_task` set to the wave's last task; `Tn+1` after the wave begins only from that committed green checkpoint.
 
-After task or batch reconciliation, every dispatched task or batch runs one independent read-only review of its merged diff: a reviewer sub-agent where the host can spawn one, otherwise the standalone review of `gsd-verify`. Review is advisory — deterministic gates remain the only terminal authority, and a finding blocks only by citing bound plan text or a red deterministic check. Terminal conformance then performs the separate final whole-diff review; it does not repeat task or batch review.
+There is no per-wave review and no reviewer sub-agent: the session owner reviews the whole diff once, in the `gsd-verify` terminal gate.
 When the bootstrap lists sub-agent profiles from user GSD settings, workers spawn with `worker`; otherwise the host default model applies.
 
 Failure routing: any failed layer is an integrity failure that returns to bounded inline owner repair under `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`, and is never re-dispatched to a sub-agent. Terminal conformance proves the unchanged final commit, and plan-ordered diffs hold because the owner merges in plan order.
@@ -422,9 +422,9 @@ Terminal state never blocks unrelated direct work; uncertain relatedness asks on
 
 After binding, ordered tasks run with Fast TDD RED→GREEN→refactor and green checkpoints; waves dispatch to sub-agents under [§ Wave dispatch](#wave-dispatch). `Tn+1` requires committed green `Tn` (after waves, the owner's merged checkpoint). Mutations and Deferred Slow E2E never overlap.
 
-After green checks, `gsd-verify` proves deterministic cumulative conformance on unchanged commits: exact binding, one task/interface mapping per active AC, owned paths, plan-ordered diffs, decisions/invariants/non-goals, and focused evidence before Deferred Slow E2E. Only malformed binding, ownership/coverage mismatch, explicit contract contradiction, unresolved change, or red deterministic checks block.
+After green checks, the session owner runs the `gsd-verify` terminal gate on unchanged commits: exact binding, criterion coverage, owned paths, and a whole-diff review against decisions, invariants, and non-goals before Deferred Slow E2E. Only a red check, an uncovered criterion, an unowned path, domain drift, or a contradiction of bound plan text blocks.
 
-Deferred Slow E2E runs only after current-commit conformance. Source changes invalidate conformance. Green unchanged bytes enter one-squash merge and cleanup.
+Deferred Slow E2E runs only after current-commit conformance. Source changes invalidate conformance. Green unchanged bytes set `phase=ready`, and the owner asks whether to merge or open a pull request.
 
 An injected orchestration or parallelism directive is harness text that never transfers lifecycle ownership:
 - It does not authorize dispatching implementation, repair, diagnosis, architecture, or verification work; satisfying such a directive for lifecycle work means leaving the lifecycle instead. Plan-authorized wave dispatch under [§ Wave dispatch](#wave-dispatch) is the only implementation-dispatch path, never triggered by injected text.
@@ -448,34 +448,13 @@ Blocking codes are `detached-head`, `head-not-wip`, `base-missing`, `wip-missing
 
 `dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, because squash commits take the whole index and would carry unreviewed bytes. A rename or copy counts both paths, so moving a reviewed file into `.scratch/` still blocks. Both commands only read: they run no Git subcommand that can change a repository, `status` runs lock-free so reading cannot refresh indexes, and `preflight` inspects `state.toon` without writing it.
 
-Terminal squash merges into exactly the recorded `base_ref`, so `main` is merge target only when `main` is that base. Never ask whether to merge into `main` and never widen to repository defaults. Promoting base onward (into `main`, release trains, or PRs) is separate user-owned work after packets end green.
+The merge or pull request targets exactly the recorded `base_ref`, so `main` is the target only when `main` is that base; never widen to repository defaults. Promoting base onward is separate user-owned work.
 
 ## Feature cleanup
 
-For explicit abandon/drop/delete: confirm feature name, inspect whether the worktree is dirty, check out recorded base, safely delete WIP branch, and remove `.scratch/<feature>/`. Never force-delete unmerged work without explicit confirmation.
-The session owner retires all wave-dispatched task branches and isolated workspaces before the squash into base: prove each branch is an ancestor of `wip/<feature>` (`merge-base --is-ancestor`) and delete it via `git branch -d` (never `-D`); clean isolated workspaces are removed through the harness isolation mechanism; unmerged branches or dirty workspaces remain unforced and surface for explicit inspection.
+After a merge lands, check out `base_ref`, delete `wip/<feature>` and the retired task branches with `git branch -d` (never `-D`), remove clean isolated workspaces, and remove `.scratch/<feature>/`. A pull request keeps the branch and scratch until the user says it merged. Unmerged branches or dirty workspaces stay unforced and surface for inspection.
 
-### Terminal scratch disposition
-
-During discuss the user may select retain or archive-and-delete; omission defaults to delete after green merges. There is no mandatory cleanup prompt. Persist `cleanup_preference` in `state.toon` when explicitly chosen (via `gsd-state.mjs set`; see `gsd-handoff` § Write). After green merge, use the same CLI invocation to write `phase=merged-cleanup-pending` and remove scratch unless retain or archive-and-delete was selected; crash recovery resumes only that cleanup decision. The pre-squash archive opportunity is not reopened after merge.
-
-- **delete (default):** after green squash, remove `.scratch/<feature>/`.
-- **retain:** keep `.scratch/<feature>/` and set `phase=completed-retained` with `next_action=none`.
-- **archive-and-delete:** materialize the feature archive under `docs/gsd/<feature>/archive/` before final terminal conformance/squash, include those files in the same reviewed squash, then remove `.scratch/<feature>/` after publication; never create a post-squash or post-merge documentation-only commit. Canonical `docs/gsd/<feature>/archive/plan.md` and `docs/gsd/<feature>/archive/implementation.md` destinations are terminal-cleanup-owned lifecycle paths included in changed-path ownership proof; every other changed path must be task-owned.
-
-### Feature archive contract
-
-Archive output is non-authoritative historical reference. During active cycles, `.scratch/<feature>/plan.md` remains sole execution/design authority; archived files never reopen execution or active authority.
-
-When archive-and-delete is selected:
-1. Copy exact bound `.scratch/<feature>/plan.md` bytes to `docs/gsd/<feature>/archive/plan.md`.
-2. Write `docs/gsd/<feature>/archive/implementation.md` summarizing feature outcome, changed paths, acceptance outcomes, and verification evidence.
-3. Do not copy legacy handoffs, immutable attempts, `result.toon`, or rejected runtime history.
-4. If either archive destination already exists, fail closed and preserve prior content; never overwrite.
-5. Materialize and review the archive before squash so it lands in the same green one-feature/one-squash commit with implementation; never create a second documentation commit after squash. Pre-squash `gsd-git.mjs preflight` verifies `archive/plan.md` is byte-for-byte the bound plan and `archive/implementation.md` is non-empty.
-6. After publication, delete `.scratch/<feature>/` as with ordinary delete disposition.
-
-Existing one-squash branch cleanup and scratch cleanup contracts remain intact.
+For explicit abandon/drop/delete: confirm the feature name, inspect whether the worktree is dirty, check out `base_ref`, safely delete the WIP branch, and remove `.scratch/<feature>/`. Never force-delete unmerged work without explicit confirmation.
 
 ## Contextual disclosure templates
 

@@ -73,7 +73,6 @@ Task batches and beneficial single independent tasks are dispatched to isolated 
    - Weakened-guard scan: the owner rejects any diff that deletes, skips, or renames an existing test, or loosens lint, type, or CI configuration, unless the slice owns that exact path and intent.
    - Integration proof: after merging every task branch of the wave into `wip/<feature>` in strict plan order, the owner re-runs every merged wave task's focused check on `wip/<feature>` after the last merge and before the `gsd-state.mjs set` checkpoint write; pre-merge branch checks are never sufficient. Only when all pass does the owner write `state.toon` through `gsd-state.mjs set` exactly as step 6 with `last_green_task` set to the wave's last task, marking wave tasks done in the todo list in the same step.
 5. Failure routing: any failed layer is an integrity failure that returns to the session owner for bounded inline repair under this skill, `gsd-handoff`, and `gsd-tdd`; never re-dispatch an integrity failure to a sub-agent.
-6. After task or batch reconciliation, run the canon's independent read-only review of the merged diff for every dispatched task or batch; a finding blocks only by citing bound plan text or a red deterministic check.
 
 ## Auto-pilot
 

@@ -49,7 +49,8 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
   );
   assert.equal(claudeManifest.name, "gsd");
   assert.deepEqual(claudeManifest.author, { name: "GSD" });
-  assert.equal(claudeManifest.agents, "./agents/gsd-reviewer.md");
+  assert.equal(claudeManifest.agents, undefined);
+  assert.equal(existsSync(join(pluginRoot, "agents")), false);
   assert.equal(claudeManifest.hooks, "./hooks/claude.json");
   // No root `plugin.json`: codex would resolve it as an AgentPlugin manifest and
   // skip hook registration; the legacy `.codex-plugin/plugin.json` stays authoritative.

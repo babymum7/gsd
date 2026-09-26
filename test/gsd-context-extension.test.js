@@ -1269,13 +1269,6 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
   assert.equal(registrationPolicy.systemPrompt[0], baseSystemPrompt[0]);
   assert.match(registrationPolicy.systemPrompt[1], /gsd:system-policy:v1/);
   assert.match(registrationPolicy.systemPrompt[1], /first action MUST be one read tool call/);
-  // Decision 0016 gives the primary host its own independent reviewer, so the injected policy
-  // must name that wave review instead of leaving it to the on-demand canon alone.
-  assert.match(
-    registrationPolicy.systemPrompt[1],
-    /reconciled wave runs one isolated read-only reviewer task over its merged diff/,
-    "the OMP policy must name the independent wave reviewer",
-  );
   // The system-prompt reinforcement must carry the decision-0013 triage front door, not just
   // the post-state routing rules, or the prompt's most salient guidance predates the revamp.
   const triagePolicy = registrationPolicy.systemPrompt[1].match(/Triage the prompt before any route:([^\n]*)/)?.[1] ?? "";

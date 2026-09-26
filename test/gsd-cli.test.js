@@ -91,11 +91,7 @@ test("uninstall is plugin-only and leaves legacy-looking host files unchanged", 
   const userSkill = mkdtempSync(join(tmpdir(), "gsd-user-skill-"));
   symlinkSync(join(ROOT, "skills", "gsd-brainstorming"), join(skillsDir, "gsd-brainstorming"), "dir");
   symlinkSync(userSkill, join(skillsDir, "my-skill"), "dir");
-  symlinkSync(
-    join(ROOT, "adapters", "claude-code", "agents", "gsd-reviewer.md"),
-    join(agentsDir, "gsd-reviewer.md"),
-    "file",
-  );
+  writeFileSync(join(agentsDir, "gsd-reviewer.md"), "---\nname: gsd-reviewer\n---\n");
   writeFileSync(join(agentsDir, "my-agent.md"), "---\nname: my-agent\n---\n");
   writeFileSync(
     join(configDir, "settings.json"),

@@ -99,16 +99,8 @@ export function buildPluginBundle(root, marketplaceRoot) {
     path.join(pluginRoot, 'adapters', 'claude-code', 'gsd-context.mjs'),
   );
   copyFile(
-    path.join(sourceRoot, 'adapters', 'claude-code', 'agents', 'gsd-reviewer.md'),
-    path.join(pluginRoot, 'agents', 'gsd-reviewer.md'),
-  );
-  copyFile(
     path.join(sourceRoot, 'adapters', 'codex', 'gsd-context.mjs'),
     path.join(pluginRoot, 'adapters', 'codex', 'gsd-context.mjs'),
-  );
-  copyFile(
-    path.join(sourceRoot, 'adapters', 'codex', 'agents', 'gsd-reviewer.toml'),
-    path.join(pluginRoot, 'agents', 'gsd-reviewer.toml'),
   );
 
   fs.writeFileSync(path.join(pluginRoot, PLUGIN_MARKER), '');
@@ -119,7 +111,6 @@ export function buildPluginBundle(root, marketplaceRoot) {
     description: packageJson.description,
     author: { name: 'GSD' },
     skills: './skills/',
-    agents: './agents/gsd-reviewer.md',
     hooks: './hooks/claude.json',
   });
   // No root agent-plugins `plugin.json`: codex prefers it over `.codex-plugin/plugin.json`

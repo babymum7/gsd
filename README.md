@@ -34,7 +34,7 @@ Add `--dry-run` to print the exact host commands. The CLI builds one self-contai
 - Claude Code: `claude plugin marketplace add <marketplace> --scope user` then `claude plugin install gsd@gsd-local --scope user`
 - Codex: `codex plugin marketplace add <marketplace>` then `codex plugin add gsd@gsd-local`
 
-The bundle carries `lib/`, the canonical skills and tools under `core/`, only the six visible skills in the host-facing `skills/` directory, reviewer definitions, and host manifests. Hidden runtime skills stay internal. Claude Code and Codex hooks still require their normal trust review. Uninstall is the inverse CLI operation:
+The bundle carries `lib/`, the canonical skills and tools under `core/`, only the six visible skills in the host-facing `skills/` directory, and host manifests. Hidden runtime skills stay internal. Claude Code and Codex hooks still require their normal trust review. Uninstall is the inverse CLI operation:
 
 Relocation of the checkout does not require reinstall because the installed plugin is a copied, self-contained bundle. Editing the checkout does not update the installed bundle; run `bun bin/gsd.mjs install` again to refresh it, then follow the selected host's normal reload and trust behavior.
 
@@ -160,8 +160,8 @@ The current top-level session is the sole lifecycle authority. It interprets the
 adapters/
 ├── plugin/                          # cross-host plugin CLI and bundle builder
 ├── omp/                              # OMP adapter: extension factory and public types
-├── claude-code/                      # Claude Code adapter: hooks and reviewer agent
-└── codex/                            # Codex adapter: hooks and reviewer agent
+├── claude-code/                      # Claude Code adapter hooks
+└── codex/                            # Codex adapter hooks
 bin/
 └── gsd.mjs                          # executable entry for the unified host plugin CLI
 docs/
@@ -199,7 +199,7 @@ skills/
 
 `adapters/omp/gsd-context.d.ts` is a hand-maintained public type surface for the OMP adapter; `test/gsd-context-dts.test.js` asserts the facade's runtime exports stay mirrored in it. The `extensions/gsd-context.{js,d.ts}` paths remain stable importer entry points, and each is a thin re-export of the adapter (decision 0015).
 
-Development checks: `bun test --timeout=30000 test/*.test.js` runs the full suite; `bun run lint` runs Biome with the repository rule set (currently zero diagnostics); and `bun run format -- <path>` reformats the passed JS/MJS/JSON files through Biome (the existing hand-formatted tree is intentionally not bulk-reformatted). The suite also pins host capability with `test/gsd-host-subagents.test.js`, which checks the OMP, Claude Code, and Codex sub-agent launch surfaces, the bundled reviewer agents, and the familiar brainstorm-routing fixtures.
+Development checks: `bun test --timeout=30000 test/*.test.js` runs the full suite; `bun run lint` runs Biome with the repository rule set (currently zero diagnostics); and `bun run format -- <path>` reformats the passed JS/MJS/JSON files through Biome (the existing hand-formatted tree is intentionally not bulk-reformatted).
 
 ## Plan contract validation
 

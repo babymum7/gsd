@@ -71,22 +71,10 @@ cannot satisfy takes the named fallback; it is never faked.
 | Goals | None; milestone ledger is the goal record | `/goal` runs a host completion condition judged by a separate evaluator; GSD never treats it as the goal record | `/goal` runs a persistent host goal with its own completion criteria; GSD never treats it as the goal record |
 | Sub-agent implementation | One task per isolated sub-agent, serial fallback | Agent-tool subagents from `.claude/agents/*.md` | Spawned agent threads from `.codex/agents/*.toml`, collected by the main thread |
 | Isolated task workspaces | Per-task isolated workspaces with `merge: branch` | Subagent `isolation` when available, else serial in plan order | Per-agent `sandbox_mode`; a `Worktree` environment isolates a chat, while subagents share the parent environment, so a wave without a per-task workspace runs serially |
-| Independent review | One isolated read-only reviewer sub-agent task carrying the `gsd-verify` standalone-review brief | `gsd-reviewer` subagent (read-only) | `gsd-reviewer` subagent (`sandbox_mode = "read-only"`) |
 | Sub-agent profiles | Values name OMP agents, passed as the task tool `agent`; each agent's model role picks the model | Agent-tool model aliases (`sonnet`, `opus`, `haiku`, ...) passed as the Agent tool `model` | Model ids passed as `spawn_agent` `model` |
 
-A reconciled wave of two or more tasks runs one independent read-only review of the
-merged diff, as canon `REFERENCE.md` § Wave dispatch requires. The review is
-advisory: the deterministic gates stay the terminal authority, and a finding blocks
-only by citing bound plan text or a red deterministic check. Each adapter uses the
-host feature in its row above and the named fallback when the host has none: Claude
-Code and Codex publish a `gsd-reviewer` definition whose read-only guarantee the host
-enforces, OMP dispatches one isolated sub-agent task carrying the same `gsd-verify`
-standalone-review brief, and a host that can do neither falls back to the owner
-running that standalone review.
-
-`test/gsd-host-subagents.test.js` pins the launch-surface rows above and verifies that
-the generated plugin carries the Claude and Codex reviewer agent definitions with their
-read-only guarantees, while OMP keeps its task-isolation extension surface.
+There is no reviewer sub-agent: the session owner reviews the whole diff itself in the
+`gsd-verify` terminal gate, on every host.
 
 Codex spills `additionalContext` larger than a per-handler budget into a saved file
 plus a head-and-tail preview. The Codex adapter pins `additionalContextLimit` above
