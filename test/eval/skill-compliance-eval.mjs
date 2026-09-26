@@ -1,10 +1,10 @@
 #!/usr/bin/env bun
-// Optional live-LLM first-action compliance evaluation for the exact production GSD bootstrap.
+// Optional live-LLM skill-reach evaluation for the exact production GSD bootstrap.
 //
 // This is deliberately different from activation/triage classifiers: the model receives the
-// production bootstrap and the user prompt, then may call only the OMP `read` tool. We score
-// the first visible assistant action, so a model that merely names a skill but does not read
-// its SKILL.md cannot pass.
+// production bootstrap and the user prompt, then may call only the OMP `read` tool. A fixture
+// passes when the model reads the expected SKILL.md within its first few actions and before
+// answering, so a model that merely names a skill but never reads it cannot pass.
 //
 // Usage: GSD_EVAL_MODEL=<model> bun test/eval/skill-compliance-eval.mjs
 //          [--only <fixture-id>] [--report-path <file>]
@@ -159,7 +159,7 @@ function askOmp(model, fixture, expectedPath) {
           && content.some((item) => item?.type !== "thinking")
         ) {
           const verdict = parseSkillComplianceEvents(completeOutput, expectedPath);
-          if (verdict.ok) {
+          if (verdict.decided) {
             child.kill("SIGTERM");
             finish(completeOutput);
           }

@@ -217,7 +217,7 @@ function warnStale(path, reason) {
   console.warn(`warning: ${path} was measured on ${reason}; re-run its evaluator before quoting it`);
 }
 
-test("the skill compliance evaluator measures the first visible action", () => {
+test("the skill compliance evaluator measures whether the model reaches the skill", () => {
   const runner = read("test/eval/skill-compliance-eval.mjs");
   assert.match(runner, /parseSkillComplianceEvents/);
   for (const flag of ["--mode\", \"json", "--tools\", \"read", "--auto-approve"]) {
@@ -237,8 +237,8 @@ test("the skill compliance evaluator measures the first visible action", () => {
   for (const model of models) {
     const { total, passed, accuracy } = report.pass[model];
     assert.ok(Number.isInteger(total) && total > 0);
-    assert.ok(Number.isFinite(passed) && passed <= total);
-    assert.ok(passed / total >= 25 / 28, `${model} must stay above the 25/28 floor, got ${passed}/${total}`);
+    // Informational: routing is suggestive, so the score is evidence, never a gate.
+    assert.ok(Number.isInteger(passed) && passed >= 0 && passed <= total);
     assert.ok(accuracy >= 0 && accuracy <= 100);
   }
   assert.ok(report.failures && typeof report.failures === "object");

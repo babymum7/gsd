@@ -1,23 +1,40 @@
 {
   "scope": "bootstrap only (skill compliance axis)",
-  "bootstrap_sha256": "70495183c266fcf34ad6101d976a900a7e8d33325cb40acbe079471acb9d2941",
-  "bootstrap_words": 884,
+  "bootstrap_sha256": "ee68a4afb74439a991074e83a7fc75111e416d048f1ad73f21c74333cc68dede",
+  "bootstrap_words": 497,
   "pass": {
-    "opencode-go/deepseek-v4.1-flash": {
-      "passed": 28,
-      "total": 28,
-      "accuracy": 100
-    },
     "google-antigravity/gemini-3.8-flash": {
-      "passed": 28,
-      "total": 28,
-      "accuracy": 100
-    },
-    "opencode-go/glm-5.3-flash": {
-      "passed": 28,
-      "total": 28,
-      "accuracy": 100
+      "passed": 16,
+      "total": 22,
+      "accuracy": 72.73
     }
   },
-  "failures": {}
+  "failures": {
+    "google-antigravity/gemini-3.8-flash": [
+      {
+        "fixture": "arch-audit",
+        "detail": "skill not read in the first 3 actions: write xd://run, write xd://mcp__gitea_repo_list_my, read /"
+      },
+      {
+        "fixture": "architecture-this-repo",
+        "detail": "skill not read in the first 3 actions: read /tmp, read /home/trong/Documents/personal/gsd, read /home/trong/Documents/personal/gsd/package.json"
+      },
+      {
+        "fixture": "public-api-interface",
+        "detail": "answered before reading the skill: To design an effective public interface for the **Billing Module**, we need to align on the core billing model and techn"
+      },
+      {
+        "fixture": "domain-glossary",
+        "detail": "skill not read in the first 3 actions: read docs/domain/index.md, read docs/domain/billing.md, write docs/domain/billing.md"
+      },
+      {
+        "fixture": "arch-audit-during-execution",
+        "detail": "skill not read in the first 3 actions: read /tmp/.scratch/oauth-login/plan.md, read .scratch/oauth-login/plan.md, read xd://mcp__google_workspace_gdrive_search_files"
+      },
+      {
+        "fixture": "domain-context-mapping",
+        "detail": "skill not read in the first 3 actions: read docs/domain, read /home/trong/Documents/personal/gsd, read /home/trong/Documents/personal/gsd/docs/domain"
+      }
+    ]
+  }
 }

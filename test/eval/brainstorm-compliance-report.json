@@ -1,22 +1,12 @@
 {
   "scope": "bootstrap + brainstorm skill (behavior compliance axis)",
-  "bootstrap_sha256": "70495183c266fcf34ad6101d976a900a7e8d33325cb40acbe079471acb9d2941",
-  "bootstrap_words": 884,
+  "bootstrap_sha256": "ee68a4afb74439a991074e83a7fc75111e416d048f1ad73f21c74333cc68dede",
+  "bootstrap_words": 497,
   "canon_sha256": null,
   "canon_words": null,
-  "brainstorm_skill_sha256": "c48ef274bfaa7f6667c257ac519d031f79032963cd42fdcdd9ee87769cab74cf",
+  "brainstorm_skill_sha256": "f7c2fcc21a5592d4ab2313a2c88e65d08094cab3fc268676cc7057d5ba81f143",
   "pass": {
-    "opencode-go/deepseek-v4.1-flash": {
-      "passed": 5,
-      "total": 5,
-      "accuracy": 100
-    },
     "google-antigravity/gemini-3.8-flash": {
-      "passed": 5,
-      "total": 5,
-      "accuracy": 100
-    },
-    "opencode-go/glm-5.3-flash": {
       "passed": 5,
       "total": 5,
       "accuracy": 100

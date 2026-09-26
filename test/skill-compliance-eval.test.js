@@ -14,7 +14,7 @@ function assistantEvent(content) {
   return `${JSON.stringify({ type: "message_end", message: { role: "assistant", content } })}\n`;
 }
 
-test("thinking is ignored and the first visible exact read passes", () => {
+test("thinking is ignored and an immediate exact read passes", () => {
   const raw = [
     JSON.stringify({ type: "session_start" }),
     assistantEvent([
@@ -25,52 +25,59 @@ test("thinking is ignored and the first visible exact read passes", () => {
 
   assert.deepEqual(parseSkillComplianceEvents(raw, verifyPath), {
     ok: true,
+    decided: true,
     pass: true,
-    detail: `first action read ${verifyPath}`,
+    detail: `reached ${verifyPath} at action 1`,
   });
 });
 
-test("the first visible action is scored, not a later correct read", () => {
-  const raw = assistantEvent([
-    { type: "text", text: "I will inspect the skill." },
-    { type: "toolCall", id: "call-1", name: "read", arguments: { path: verifyPath } },
-  ]);
-
-  const verdict = parseSkillComplianceEvents(raw, verifyPath);
-  assert.equal(verdict.ok, true);
-  assert.equal(verdict.pass, false);
-  assert.match(verdict.detail, /first visible action was text/);
-});
-
-test("thinking-only assistant messages do not hide a later visible action", () => {
+test("orienting reads before the skill still reach it within the budget", () => {
   const raw = [
-    assistantEvent([{ type: "thinking", text: "private reasoning only" }]),
+    assistantEvent([{ type: "toolCall", id: "call-1", name: "read", arguments: { path: "docs/domain/index.md" } }]),
     assistantEvent([
-      { type: "toolCall", id: "call-1", name: "read", arguments: { path: verifyPath } },
+      { type: "text", text: "Now the skill." },
+      { type: "toolCall", id: "call-2", name: "read", arguments: { path: verifyPath } },
     ]),
   ].join("\n");
 
-  assert.deepEqual(parseSkillComplianceEvents(raw, verifyPath), {
-    ok: true,
-    pass: true,
-    detail: `first action read ${verifyPath}`,
-  });
+  const verdict = parseSkillComplianceEvents(raw, verifyPath);
+  assert.equal(verdict.pass, true);
+  assert.equal(verdict.detail, `reached ${verifyPath} at action 2`);
 });
 
-test("wrong tools, wrong paths, and absent actions fail concretely", () => {
-  const wrongTool = parseSkillComplianceEvents(
-    assistantEvent([{ type: "toolCall", id: "call-1", name: "bash", arguments: { command: "cat" } }]),
-    verifyPath,
-  );
-  assert.equal(wrongTool.pass, false);
-  assert.match(wrongTool.detail, /wrong tool bash/);
+test("a text answer before the skill read fails and is decided", () => {
+  const raw = [
+    assistantEvent([{ type: "text", text: "Here is the answer without the skill." }]),
+    assistantEvent([{ type: "toolCall", id: "call-1", name: "read", arguments: { path: verifyPath } }]),
+  ].join("\n");
 
-  const wrongPath = parseSkillComplianceEvents(
-    assistantEvent([{ type: "toolCall", id: "call-1", name: "read", arguments: { path: "/tmp/wrong.md" } }]),
+  const verdict = parseSkillComplianceEvents(raw, verifyPath);
+  assert.equal(verdict.pass, false);
+  assert.equal(verdict.decided, true);
+  assert.match(verdict.detail, /answered before reading the skill/);
+});
+
+test("the action budget, wrong tools, and absent actions fail concretely", () => {
+  const wandering = parseSkillComplianceEvents(
+    [
+      assistantEvent([{ type: "toolCall", id: "c1", name: "bash", arguments: { command: "cat" } }]),
+      assistantEvent([{ type: "toolCall", id: "c2", name: "read", arguments: { path: "/tmp/a.md" } }]),
+      assistantEvent([{ type: "toolCall", id: "c3", name: "write", arguments: { path: "/tmp/b.md" } }]),
+      assistantEvent([{ type: "toolCall", id: "c4", name: "read", arguments: { path: verifyPath } }]),
+    ].join("\n"),
     verifyPath,
   );
-  assert.equal(wrongPath.pass, false);
-  assert.match(wrongPath.detail, /wrong path \/tmp\/wrong\.md/);
+  assert.equal(wandering.pass, false);
+  assert.equal(wandering.decided, true);
+  assert.match(wandering.detail, /not read in the first 3 actions: bash cat, read \/tmp\/a\.md, write \/tmp\/b\.md/);
+
+  const unfinished = parseSkillComplianceEvents(
+    assistantEvent([{ type: "toolCall", id: "c1", name: "read", arguments: { path: "/tmp/wrong.md" } }]),
+    verifyPath,
+  );
+  assert.equal(unfinished.pass, false);
+  assert.equal(unfinished.decided, false, "a streaming runner keeps listening after one wrong read");
+  assert.match(unfinished.detail, /not read before the session ended: read \/tmp\/wrong\.md/);
 
   const noAction = parseSkillComplianceEvents(
     assistantEvent([{ type: "thinking", text: "only private reasoning" }]),
