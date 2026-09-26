@@ -1,5 +1,5 @@
 #!/usr/bin/env bun
-// Observed Git state, never asserted Git state. Base derivation and the pre-squash gate were
+// Observed Git state, never asserted Git state. Base derivation and the pre-merge gate were
 // prose-only rules, so nothing could tell a session that followed them from one that assumed
 // `main`. This tool answers both questions from the work tree and never writes: every Git
 // invocation goes through `git()`, which admits only the exact argv shapes below.
@@ -101,7 +101,7 @@ function emitHelp(command) {
       "",
       "Print the branch a packet must record as its base: the branch checked out in this",
       "work tree, so a linked worktree derives its own branch. A detached HEAD is blocked",
-      "rather than reported as a commit oid, because a commit can receive no squash.",
+      "rather than reported as a commit oid, because a commit can receive no merge.",
       "",
       "Options:",
       "  --cwd <dir>    Work tree to inspect (default: current directory)",
@@ -114,7 +114,7 @@ function emitHelp(command) {
     write_([
       "Usage: " + commandUsage(command),
       "",
-      "Verify the recorded Git identity still holds before a terminal squash. Reads",
+      "Verify the recorded Git identity still holds before a terminal merge. Reads",
       "state.toon without migrating it and checks that:",
       "",
       "  - HEAD is attached, so every commit made is on a branch",
@@ -164,7 +164,7 @@ function emitHelp(command) {
     "",
     "Commands:",
     "  derive-base         Print the branch this work tree is on, for plan.md Base and base_ref",
-    "  preflight           Prove the recorded base and WIP branch still hold before squashing",
+    "  preflight           Prove the recorded base and WIP branch still hold before merging",
     "  verify-task-branch  Prove task branch ancestry, diff bounds, and file scope before verification",
     "",
     "This tool only ever reads: it runs no Git subcommand that can change a repository.",
@@ -223,7 +223,7 @@ function checkedOutElsewhere(branch, cwd) {
   if (listing.status !== 0 || self.status !== 0) {
     blocked(
       "git-query-failed",
-      `git could not report this repository's worktrees, so base_ref ${branch} cannot be proven free to receive the squash`,
+      `git could not report this repository's worktrees, so base_ref ${branch} cannot be proven free to receive the merge`,
     );
   }
   let current = null;
@@ -237,8 +237,8 @@ function checkedOutElsewhere(branch, cwd) {
 }
 
 // Canon requires the reviewed non-scratch tree to match the recorded binding before the
-// squash. It is not cosmetic: the commit that follows `git merge --squash` commits the whole
-// index, so anything staged outside `.scratch/` rides into the squash without being reviewed
+// merge. It is not cosmetic: the merge commit `git merge` records takes the whole
+// index, so anything staged outside `.scratch/` rides into the merge without being reviewed
 // or covered by the conformance run, which proved only the current commit.
 function dirtyNonScratchPaths(cwd) {
   const report = git(
@@ -256,7 +256,7 @@ function dirtyNonScratchPaths(cwd) {
     // An index-side rename or copy reports its destination and carries its origin as the
     // following record. Both are affected: `git mv src/app.js .scratch/<feature>/app.js`
     // names only a scratch destination while staging the removal of a reviewed file, so
-    // reading the destination alone would clear a squash that deletes reviewed work.
+    // reading the destination alone would clear a merge that deletes reviewed work.
     if ((record[0] === "R" || record[0] === "C") && index + 1 < records.length) {
       index += 1;
       paths.push(records[index]);
@@ -272,7 +272,7 @@ function deriveBase(cwd) {
   if (head.status !== 0 || head.stdout === "") {
     blocked(
       "detached-head",
-      "HEAD is detached, so no branch can hold this packet's squash: check out or create the branch this work belongs on, then derive the base again",
+      "HEAD is detached, so no branch can hold this packet's merge: check out or create the branch this work belongs on, then derive the base again",
     );
   }
   return requireBranchName(head.stdout, "the checked-out branch");
@@ -393,9 +393,9 @@ function readBoundedFile(filePath, maxBytes, label) {
 // One repository's branch identity: base and WIP resolve locally, the base is free to
 // receive the merge, HEAD rests on the WIP branch, and nothing outside .scratch/ is dirty.
 function proveBranchIdentity(dir, base, wip, where) {
-  if (base === wip) blocked("base-is-wip", `base_ref ${base}${where} is the branch being squashed`);
+  if (base === wip) blocked("base-is-wip", `base_ref ${base}${where} is the branch being merged`);
   if (!localBranchExists(base, dir)) {
-    blocked("base-missing", `base_ref ${base}${where} no longer resolves to a local branch, so the squash has no target`);
+    blocked("base-missing", `base_ref ${base}${where} no longer resolves to a local branch, so the merge has no target`);
   }
   if (!localBranchExists(wip, dir)) {
     blocked("wip-missing", `wip_branch ${wip}${where} no longer resolves to a local branch`);
@@ -404,26 +404,26 @@ function proveBranchIdentity(dir, base, wip, where) {
   if (elsewhere !== null) {
     blocked(
       "base-checked-out-elsewhere",
-      `base_ref ${base}${where} is checked out in the linked worktree ${elsewhere}, which cannot receive this squash`,
+      `base_ref ${base}${where} is checked out in the linked worktree ${elsewhere}, which cannot receive this merge`,
     );
   }
   // A detached HEAD at the gate is not a cosmetic detail: commits made there sit on no
-  // branch, so squashing the recorded WIP branch would silently drop them. The same holds
+  // branch, so merging the recorded WIP branch would silently drop them. The same holds
   // when HEAD sits on any branch other than the recorded WIP branch: the gate observed that
   // exact incident, where HEAD rested on the base while the WIP branch held the work, and
-  // the squash landed wherever HEAD pointed. Identity of HEAD with the recorded WIP branch
-  // is the proof that the squash target holds the reviewed work.
+  // the merge landed wherever HEAD pointed. Identity of HEAD with the recorded WIP branch
+  // is the proof that the merge target holds the reviewed work.
   const head = git(["symbolic-ref", "--quiet", "--short", "HEAD"], dir);
   if (head.status !== 0 || head.stdout === "") {
     blocked(
       "detached-head",
-      `HEAD${where} is detached, so no branch holds the work about to be squashed: check out ${wip} before the gate`,
+      `HEAD${where} is detached, so no branch holds the work about to be merged: check out ${wip} before the gate`,
     );
   }
   if (head.stdout !== wip) {
     blocked(
       "head-not-wip",
-      `HEAD${where} rests on ${head.stdout} while the packet's work is recorded on ${wip}: check out ${wip} before the gate so the squash receives the reviewed work`,
+      `HEAD${where} rests on ${head.stdout} while the packet's work is recorded on ${wip}: check out ${wip} before the gate so the merge receives the reviewed work`,
     );
   }
   const dirty = dirtyNonScratchPaths(dir);
@@ -431,7 +431,7 @@ function proveBranchIdentity(dir, base, wip, where) {
     const shown = dirty.slice(0, 3).join(", ");
     blocked(
       "dirty-worktree",
-      `${dirty.length} non-scratch path(s)${where} are uncommitted, so the squash would carry unreviewed bytes: ${shown}${dirty.length > 3 ? ", …" : ""}`,
+      `${dirty.length} non-scratch path(s)${where} are uncommitted, so the merge would carry unreviewed bytes: ${shown}${dirty.length > 3 ? ", …" : ""}`,
     );
   }
   return head.stdout;

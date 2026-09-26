@@ -1,6 +1,6 @@
 # 0013 — Triage front door and right-sized depth
 
-- **Status:** Accepted
+- **Status:** Superseded by 0027
 - **Date:** 2026-09-19
 
 ## Decision

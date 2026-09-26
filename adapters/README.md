@@ -38,8 +38,8 @@ Each host receives its native registration:
 | Host | Bundle surface | Native install |
 | --- | --- | --- |
 | OMP | `package.json` with `omp.extensions` | `omp plugin link <bundle>` |
-| Claude Code | `.claude-plugin/plugin.json`, `skills/`, `agents/`, `hooks/claude.json` | local marketplace plus `claude plugin install` |
-| Codex | portable `plugin.json`, `.codex-plugin/plugin.json`, `skills/`, `hooks/codex.json` | local marketplace plus `codex plugin add` |
+| Claude Code | `.claude-plugin/plugin.json`, `skills/`, `hooks/claude.json` | local marketplace plus `claude plugin install` |
+| Codex | `.codex-plugin/plugin.json`, `skills/`, `hooks/codex.json` (no root `plugin.json`, which Codex would prefer) | local marketplace plus `codex plugin add` |
 
 The local marketplace is generated beside the bundle and named `gsd-local`.
 Uninstall delegates only to each host's native plugin uninstall command. The CLI
@@ -69,7 +69,7 @@ cannot satisfy takes the named fallback; it is never faked.
 | Current-request preservation | Extracted from the pre-compaction message list | The prompt stashed on `UserPromptSubmit` and attached to the capsule | Not needed: the live next prompt follows the continuing `SessionStart` |
 | Plan mode | Read-only plan mode with a plan todo list; the canonical `plan.md` is the only authority | Presentation only; a host plan file beside `plan.md` asks one question and never binds | `/plan` toggles host plan mode; the canonical `plan.md` is the only authority |
 | Goals | None; the canonical `plan.md` acceptance criteria are the goal record | `/goal` runs a host completion condition judged by a separate evaluator; GSD never treats it as the goal record | `/goal` runs a persistent host goal with its own completion criteria; GSD never treats it as the goal record |
-| Sub-agent implementation | One task per isolated sub-agent, serial fallback | Agent-tool subagents from `.claude/agents/*.md` | Spawned agent threads from `.codex/agents/*.toml`, collected by the main thread |
+| Sub-agent implementation | One task per isolated sub-agent, serial fallback | Agent-tool subagents with the host's default agent; GSD ships no agent definitions | `spawn_agent` threads collected by the main thread; GSD ships no agent definitions |
 | Isolated task workspaces | Per-task isolated workspaces with `merge: branch` | Subagent `isolation` when available, else serial in plan order | Per-agent `sandbox_mode`; a `Worktree` environment isolates a chat, while subagents share the parent environment, so a wave without a per-task workspace runs serially |
 | Sub-agent profiles | Values name OMP agents, passed as the task tool `agent`; each agent's model role picks the model | Agent-tool model aliases (`sonnet`, `opus`, `haiku`, ...) passed as the Agent tool `model` | Model ids passed as `spawn_agent` `model` |
 
@@ -85,9 +85,8 @@ without one.
 Subagent contracts come from Claude Code sub-agents
 <https://code.claude.com/docs/en/sub-agents> (the Agent tool, and `isolation: worktree`
 for an isolated repository copy) and Codex subagents
-<https://learn.chatgpt.com/docs/agent-configuration/subagents> (custom agents in
-`.codex/agents/*.toml` that inherit the parent's sandbox, permission, and environment
-unless the file overrides them). Codex `/plan` and `/goal` are defined in the slash
+<https://learn.chatgpt.com/docs/agent-configuration/subagents> (spawned threads that
+inherit the parent's sandbox, permission, and environment). Codex `/plan` and `/goal` are defined in the slash
 commands reference <https://learn.chatgpt.com/docs/reference/slash-commands>, and
 the Claude Code `/goal` completion condition in
 <https://code.claude.com/docs/en/goal>.

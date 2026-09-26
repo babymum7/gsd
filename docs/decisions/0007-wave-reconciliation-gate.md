@@ -1,6 +1,6 @@
 # 0007 — Layered wave reconciliation gate
 
-- **Status:** Accepted
+- **Status:** Superseded by 0027
 - **Date:** 2026-09-08
 
 ## Decision

@@ -1,6 +1,6 @@
 # 0005 — Owner verification at both ends of wave dispatch
 
-- **Status:** Accepted
+- **Status:** Superseded by 0027
 - **Date:** 2026-08-29
 
 ## Decision

@@ -109,7 +109,7 @@ flowchart LR
     P -->|auto-bind| E[Ordered session-owner execution on wip/]
     E --> V[Deterministic terminal conformance]
     V -->|green| S[Deferred Slow E2E]
-    S -->|green| M[Squash to base]
+    S -->|green| M[Merge to base]
     V -.implementation issue.-> E
     V -.load-bearing plan gap.-> B
 ```
@@ -208,7 +208,7 @@ The lifecycle validates actual plan authority through one production parser. New
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md
 ```
 
-Execution resume, terminal entry, and pre-squash bind the same command to bound bytes:
+Execution resume, terminal entry, and pre-merge bind the same command to bound bytes:
 
 ```bash
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-sha256 <64-hex>

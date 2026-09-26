@@ -1,6 +1,6 @@
 # 0016 — Independent wave review is a spawned read-only reviewer
 
-- **Status:** Accepted
+- **Status:** Superseded by 0027
 - **Date:** 2026-09-19
 
 ## Decision
