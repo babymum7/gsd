@@ -1,31 +1,23 @@
 {
   "scope": "bootstrap only (skill compliance axis)",
-  "bootstrap_sha256": "545124e0bd2499a3a6e6573f9b033b9c973267e72512b84fe2f81c921603fa37",
-  "bootstrap_words": 511,
+  "bootstrap_sha256": "5a7ce41aa040742af6e1f32b06045266e147c103a005cca2d10221b874dee8e2",
+  "bootstrap_words": 513,
   "pass": {
     "google-antigravity/gemini-3.8-flash": {
-      "passed": 18,
+      "passed": 20,
       "total": 22,
-      "accuracy": 81.82
+      "accuracy": 90.91
     }
   },
   "failures": {
     "google-antigravity/gemini-3.8-flash": [
       {
         "fixture": "review-diff",
-        "detail": "answered before reading the skill: ### Code Review\n\n#### Critical Security Finding\n- **Token is decoded without signature verification (`jwt.decode`)**:\n  "
-      },
-      {
-        "fixture": "arch-audit",
-        "detail": "skill not read in the first 3 actions: read /tmp, read /home/trong/Documents/personal/gsd, read /home/trong/Documents/personal/gsd/README.md"
+        "detail": "answered before reading the skill: ### Critical Security Issue: Token Decoded Without Verification\n\n**Severity:** Critical / Blocker\n\n```javascript\n+  if ("
       },
       {
         "fixture": "architecture-this-repo",
-        "detail": "skill not read in the first 3 actions: read xd://internal_bash_execute, write xd://mcp__gitea_repo_list_my, write xd://mcp__gitea_user_get_my_userinfo"
-      },
-      {
-        "fixture": "domain-context-mapping",
-        "detail": "skill not read in the first 3 actions: read docs/domain, read /tmp, read /home/trong/Documents/personal/gsd"
+        "detail": "skill not read in the first 3 actions: read ., read /home/trong/Documents/personal/gsd, read /home/trong/Documents/personal/gsd/README.md"
       }
     ]
   }
