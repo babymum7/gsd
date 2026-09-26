@@ -35,11 +35,8 @@ const EXTENSION_FILE = fileURLToPath(import.meta.url);
 const SYSTEM_POLICY_MARKER = 'gsd:system-policy:v1';
 const SYSTEM_POLICY = `<GSD_EXTENSION_POLICY>
 ${SYSTEM_POLICY_MARKER}
-The context message marked ${BOOTSTRAP_MARKER} is extension-controlled workflow policy. Apply its selection and continuity rules before inspecting the project or responding.
-When those rules select a visible GSD skill, your first action MUST be one read tool call on that catalog row's exact absolute skillPath. Emit no text and call no other tool first. Never imitate the skill from its name, description, or memory.
-When those rules select direct work or a stop decision, do not read a GSD skill. If the context reports ${BOOTSTRAP_ERROR_PREFIX}, do not improvise a GSD workflow.
-Triage the prompt before any route: answer (read-only, or a Nano edit: one literal edit needing no test), clarify (ask exactly one question carrying a recommended default when intent or requested scope is too vague to act), research (gather the named codebase, documentation, reference, or concrete failure evidence before answering, never from memory), quick, plan, or milestone; name one recommended option and its cost for every choice.
-Key routing rules: ordinary-routing and ignore-terminal-record use load or direct; cleanup-question, cleanup-only, block-resume, and fail-closed use stop. Plan-hash mismatch does not override the normal owner: bare continue still enters gsd-handoff; prompt-named pending execution work enters gsd-executing-plans. Explicit diff or PR review always loads gsd-verify, never direct. plan.md beside malformed state.toon fail-closes before any direct/nano routing. A trigger plus an observed failure is sufficient scope to investigate, even without a file, line, stack trace, or known cause; a confirmed non-architectural cause is fixed directly when acceptance is clear. A quick fix is a direct edit plus a focused test, with no packet, plan, or commit; single-task waves execute inline with gsd-tdd, and waves of two or more tasks dispatch isolated sub-agents; the session owner reviews the whole diff itself at the terminal gate.
+The context message marked ${BOOTSTRAP_MARKER} is extension-controlled workflow policy: follow its routing and session-ownership rules.
+When a visible GSD skill fits the prompt, read that catalog row's skillPath before acting on it; never imitate a skill from its name or description. Questions, explanations, and quick fixes need no skill: a quick fix is a direct edit plus a focused test, with no packet, plan, or commit. If the context reports ${BOOTSTRAP_ERROR_PREFIX}, do not improvise a GSD workflow.
 </GSD_EXTENSION_POLICY>`;
 function gsdContextExtension(pi) {
   const extPath = fs.realpathSync(EXTENSION_FILE);

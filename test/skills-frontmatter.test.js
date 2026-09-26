@@ -38,7 +38,6 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
     "Base derivation and merge target",
     "Candidate discovery",
     "Canonical Markdown contract",
-    "Completed-state and cleanup matrix",
     "Contextual disclosure templates",
     "Durable decision and design records",
     "Fast TDD and task-loop constraints",
@@ -67,7 +66,7 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
         const where = `${name}:${index + 1}`;
         for (const match of line.matchAll(/§\s+([A-Z][^.,;:§\n]*)/g)) {
           const cited = match[1].trim();
-          if (/`(plan\.md|milestones\.md|state\.toon)`\s*$/.test(line.slice(0, match.index))) {
+          if (/`(plan\.md|state\.toon)`\s*$/.test(line.slice(0, match.index))) {
             artifact += 1;
             continue;
           }
@@ -87,7 +86,7 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
       });
   }
   assert.ok(canon > 0, "skills must cite the canon");
-  assert.ok(artifact >= 2, `plan-section citations must stay qualified, found ${artifact}`);
+  assert.ok(artifact >= 1, `plan-section citations must stay qualified, found ${artifact}`);
 });
 
 test("visible catalog descriptions stay within the injected byte budget", () => {
@@ -109,7 +108,7 @@ test("visible catalog descriptions stay within the injected byte budget", () => 
   assert.doesNotMatch(reference, /UTF-8 bytes\)/);
   assert.doesNotMatch(reference, /Byte-Budget Limits|Caps are a maximum/);
   assert.match(reference, /A rendered capsule over 4000 bytes fails closed/);
-  assert.match(read("lib/gsd-bootstrap.mjs"), /1826|1953/);
+  assert.match(read("lib/gsd-bootstrap.mjs"), /1835|1962/);
   for (const name of skillNames()) {
     assert.doesNotMatch(read(`skills/${name}/SKILL.md`), /^triggers:/m, `${name} triggers`);
   }

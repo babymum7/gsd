@@ -68,7 +68,7 @@ cannot satisfy takes the named fallback; it is never faked.
 | Recovery capsule across compaction | Capsule staged on the pre-compaction hook, delivered next turn after compaction | `SessionStart` with `source: "compact"` or `"resume"`, which fires before the next request | `SessionStart` with `source: "compact"` or `"resume"`, which fires before the next request |
 | Current-request preservation | Extracted from the pre-compaction message list | The prompt stashed on `UserPromptSubmit` and attached to the capsule | Not needed: the live next prompt follows the continuing `SessionStart` |
 | Plan mode | Read-only plan mode with a plan todo list; the canonical `plan.md` is the only authority | Presentation only; a host plan file beside `plan.md` asks one question and never binds | `/plan` toggles host plan mode; the canonical `plan.md` is the only authority |
-| Goals | None; milestone ledger is the goal record | `/goal` runs a host completion condition judged by a separate evaluator; GSD never treats it as the goal record | `/goal` runs a persistent host goal with its own completion criteria; GSD never treats it as the goal record |
+| Goals | None; the canonical `plan.md` acceptance criteria are the goal record | `/goal` runs a host completion condition judged by a separate evaluator; GSD never treats it as the goal record | `/goal` runs a persistent host goal with its own completion criteria; GSD never treats it as the goal record |
 | Sub-agent implementation | One task per isolated sub-agent, serial fallback | Agent-tool subagents from `.claude/agents/*.md` | Spawned agent threads from `.codex/agents/*.toml`, collected by the main thread |
 | Isolated task workspaces | Per-task isolated workspaces with `merge: branch` | Subagent `isolation` when available, else serial in plan order | Per-agent `sandbox_mode`; a `Worktree` environment isolates a chat, while subagents share the parent environment, so a wave without a per-task workspace runs serially |
 | Sub-agent profiles | Values name OMP agents, passed as the task tool `agent`; each agent's model role picks the model | Agent-tool model aliases (`sonnet`, `opus`, `haiku`, ...) passed as the Agent tool `model` | Model ids passed as `spawn_agent` `model` |
@@ -112,10 +112,10 @@ onto the host features above, and never fakes a feature the host lacks:
 | `direct` | No skill, artifact, or host feature: the ordinary prompt is answered as-is | Same | Same |
 | `quick` | A direct edit plus a focused test; no packet, plan, or commit | Same | Same |
 | `plan` | Canonical `plan.md`; the host plan and its todo list stay display-only | Plan mode is presentation-only, so a host plan file beside `plan.md` asks one question and never binds | Canonical `plan.md` only; a host `/plan` artifact stays non-authoritative |
-| `milestone` | Canonical `plan.md` plus the milestone ledger | Same; the host `/goal` evaluator is not the goal record | Same; the host `/goal` runs a persistent goal of its own, and the ledger is the goal record |
 
-So `direct` and `quick` add no host-specific setup on any host; only `plan` and
-`milestone` reach dispatch, isolation, milestone, and review features.
+So `direct` and `quick` add no host-specific setup on any host; only `plan` reaches
+dispatch and isolation features. A feature too large for one plan splits into parts,
+each its own `plan`.
 
 Host plan and goal features are affordances, not authority (decision 0017). The
 adapter names the affordance in the recommendation it hands the owner, and the host
@@ -123,7 +123,7 @@ artifact stays context: OMP plan mode and its plan todo list stay read-only disp
 state, Codex recommends `/plan` to shape a multi-step change, Claude Code plan mode
 is presentation that lifecycle work leaves first, and the Claude Code and Codex
 `/goal` completion condition is judged by a separate evaluator rather than by the
-work it gates. On every host `plan.md`, the milestone ledger, and the deterministic
+work it gates. On every host `plan.md` and the deterministic
 gates remain the only definition of done, and no host plan or goal artifact is ever
 lifecycle state: triage still classifies the prompt.
 

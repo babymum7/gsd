@@ -1,7 +1,7 @@
 #!/usr/bin/env bun
 // Optional live-LLM evaluation for the decision-0013 triage front door: classify a prompt
-// into exactly one route (answer|clarify|research|quick|plan|milestone) from the exact
-// production GSD bootstrap. The completed-state matrix keeps its own runner in
+// into exactly one route (answer|clarify|research|quick|plan) from the exact
+// production GSD bootstrap. Activation decisions keep their own runner in
 // activation-eval.mjs, so neither axis leaks the other's vocabulary into its prompt.
 //
 // Backend selection (see selectEvalBackend):
@@ -97,13 +97,12 @@ const system = [
   "You are a GSD triage classifier. Do NOT perform, answer, or execute the user prompt. Classify only.",
   "The exact production GSD session bootstrap is loaded below.",
   "Apply its Triage rule: classify the prompt into exactly one route before any lifecycle work, reading only the prompt and the context it names.",
-  'Reply with ONLY exact JSON: {"route":"<answer|clarify|research|quick|plan|milestone>"}.',
+  'Reply with ONLY exact JSON: {"route":"<answer|clarify|research|quick|plan>"}.',
   "answer = read-only question, or a Nano edit: one literal edit needing no test, even when phrased as fix. A behavioral correction is quick even when one line, never Nano or answer.",
   "clarify = intent, outcomes, or scope too vague to act, supplied-design, or false-premise intent. Multiple or vaguely scoped requested fixes need one question. A failure prompt with no concrete symptom, or a why prompt asserts a behavior it cannot confirm, is clarify even when it sounds investigable.",
   "research = a question whose answer lives in this repo, a document, or a reference, including external-system behavior. A trigger plus an observed failure whose cause is not yet known is research; it is sufficient scope even without an exact file/line or failure signature.",
   "quick = one bounded change whose acceptance already converged from the prompt, or a named failure with exact file/line or exact failure signature.",
-  "plan = multi-task behavior whose acceptance must be written down.",
-  "milestone = only independently releasable outcomes or portable multi-session publication; all other multi-task behavior is plan.",
+  "plan = multi-task behavior whose acceptance must be written down, including a large feature split into parts.",
   "Boundary examples: a user-triggered crash is research; an off-by-one behavior correction is quick; a literal typo replacement is answer.",
   "Your entire response must be exactly one raw JSON object. No prose, no explanation, no markdown fence, no tool_call tags, no wrapper of any kind. Any text besides the JSON object is a failure.",
   "",

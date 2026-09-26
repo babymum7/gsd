@@ -18,7 +18,7 @@
   {
     "id": "obvious-error",
     "state": "clean repo; no .scratch/ directory",
-    "prompt": "tests fail with `TypeError: cfg.retries is undefined` at src/http.js:12 \u2014 fix it",
+    "prompt": "tests fail with `TypeError: cfg.retries is undefined` at src/http.js:12 — fix it",
     "decision": "ordinary-routing",
     "expectedAction": "direct",
     "expectedPrimarySkill": null
@@ -45,7 +45,7 @@
     "prompt": "continue",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-handoff"
+    "expectedPrimarySkill": "gsd-executing-plans"
   },
   {
     "id": "pause-save",
@@ -53,7 +53,7 @@
     "prompt": "pause here, I'll pick this up on my laptop tonight",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-handoff"
+    "expectedPrimarySkill": "gsd-executing-plans"
   },
   {
     "id": "hard-bug",
@@ -168,14 +168,6 @@
     "expectedPrimarySkill": "gsd-brainstorming"
   },
   {
-    "id": "milestone-ledger-recovery",
-    "state": "fresh clone; .scratch/ is absent; origin/wip/oauth-rollout is absent; docs/gsd/oauth-rollout/milestones.md has one first pending row and matching base",
-    "prompt": "continue the oauth-rollout milestone",
-    "decision": "ordinary-routing",
-    "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-handoff"
-  },
-  {
     "id": "plan-binding-drift",
     "state": ".scratch/oauth-login has a bound plan.md and state.toon, but plan.md no longer matches the recorded SHA-256 binding",
     "prompt": "implement the next OAuth task",
@@ -189,79 +181,7 @@
     "prompt": "continue",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-handoff"
-  },
-  {
-    "id": "result-pending-unrelated",
-    "state": ".scratch/oauth-login/state.toon has phase=merged-cleanup-pending; no active packet",
-    "prompt": "fix the typo in README.md",
-    "decision": "ordinary-routing",
-    "expectedAction": "direct",
-    "expectedPrimarySkill": null
-  },
-  {
-    "id": "result-pending-related",
-    "state": ".scratch/oauth-login/state.toon has phase=merged-cleanup-pending; no active packet",
-    "prompt": "continue oauth-login",
-    "decision": "cleanup-question",
-    "expectedAction": "stop",
-    "expectedPrimarySkill": null
-  },
-  {
-    "id": "result-pending-unrelated-lifecycle",
-    "state": ".scratch/oauth-login/state.toon has phase=merged-cleanup-pending; no active packet",
-    "prompt": "add a nightly CSV export job to the reporting service",
-    "decision": "ordinary-routing",
-    "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-brainstorming"
-  },
-  {
-    "id": "result-retained-related-resume",
-    "state": ".scratch/oauth-login/state.toon has phase=completed-retained",
-    "prompt": "continue implementing oauth-login",
-    "decision": "block-resume",
-    "expectedAction": "stop",
-    "expectedPrimarySkill": null
-  },
-  {
-    "id": "result-retained-related-cleanup",
-    "state": ".scratch/oauth-login/state.toon has phase=completed-retained",
-    "prompt": "delete the completed oauth-login packet",
-    "decision": "cleanup-only",
-    "expectedAction": "stop",
-    "expectedPrimarySkill": null
-  },
-  {
-    "id": "result-retained-unrelated",
-    "state": ".scratch/oauth-login/state.toon has phase=completed-retained; no active packet",
-    "prompt": "add a nightly CSV export job to the reporting service",
-    "decision": "ignore-terminal-record",
-    "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-brainstorming"
-  },
-  {
-    "id": "result-residual-related-resume",
-    "state": ".scratch/oauth-login/state.toon has phase=completed-retained residual cleanup",
-    "prompt": "continue implementing oauth-login",
-    "decision": "block-resume",
-    "expectedAction": "stop",
-    "expectedPrimarySkill": null
-  },
-  {
-    "id": "result-residual-related-cleanup",
-    "state": ".scratch/oauth-login/state.toon has phase=completed-retained residual cleanup",
-    "prompt": "clean up the remaining oauth-login merge residue",
-    "decision": "cleanup-only",
-    "expectedAction": "stop",
-    "expectedPrimarySkill": null
-  },
-  {
-    "id": "result-residual-unrelated",
-    "state": ".scratch/oauth-login/state.toon contains a valid phase=completed-retained record with residual cleanup files; no active packet",
-    "prompt": "add a nightly CSV export job to the reporting service",
-    "decision": "ignore-terminal-record",
-    "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-brainstorming"
+    "expectedPrimarySkill": "gsd-executing-plans"
   },
   {
     "id": "result-malformed-unrelated",
@@ -280,20 +200,12 @@
     "expectedPrimarySkill": null
   },
   {
-    "id": "result-retained-newer-than-active",
-    "state": ".scratch/oauth-login has a newer completed-retained state.toon; .scratch/csv-export has an older valid state.toon and bound plan",
-    "prompt": "continue",
-    "decision": "ignore-terminal-record",
-    "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-handoff"
-  },
-  {
     "id": "compaction-capsule-resume",
     "state": ".scratch/oauth-login/compaction-capsule.toon exists containing a valid recovery capsule; .scratch/oauth-login/plan.md is present",
     "prompt": "continue implementation",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-handoff"
+    "expectedPrimarySkill": "gsd-executing-plans"
   },
   {
     "id": "malformed-packet-direct-prompt",
@@ -325,7 +237,7 @@
     "prompt": "continue",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-handoff"
+    "expectedPrimarySkill": "gsd-executing-plans"
   },
   {
     "id": "compaction-preserves-unrelated-request",
@@ -341,6 +253,6 @@
     "prompt": "continue",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-handoff"
+    "expectedPrimarySkill": "gsd-executing-plans"
   }
 ]

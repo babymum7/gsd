@@ -33,6 +33,7 @@ Match exploration breadth to prompt: read named areas and dependencies first; wa
 
 - **Discovery:** inspect bounded behavior and public seams; clarify questions; present 2–3 approaches with tradeoffs and a recommendation.
 - **Scout:** when discovery spans many files, unfamiliar areas, or external references, spawn one read-only scout sub-agent (the bootstrap's `scout` sub-agent profile when listed) with a bounded question returning paths, seams, and facts; do one or two known reads inline instead. Scout output is unverified: re-read every fact a decision rests on before presenting it.
+- **Architecture:** for module boundaries, seams, or refactoring candidates, read `GSD_ROOT/skills/gsd-codebase-architecture/SKILL.md` and apply its vocabulary and deepening tests.
 - **Stress-test:** challenge decisions for risks, edge cases, missing constraints, hidden assumptions, irreversible choices, and conflicting acceptance.
 - Recommend answers for all questions. Batch independent questions; ask dependent questions sequentially by branch.
 - Ask only when answers change behavior, scope, interfaces, destructive actions, or tradeoffs; otherwise state conservative defaults.
@@ -65,11 +66,16 @@ Domain impact is mandatory for every converged feature:
 5. Load `gsd-domain-modeling` as sole writer for non-`none` classifications. Before binding, material ambiguity asks one focused question and writes nothing. Otherwise it returns exact affected paths for the eventual owning code task and writes no future behavior; pre-binding documentation describes only shipped behavior.
 6. After binding, load-bearing ambiguity returns through the Spec-gap transition. Prose uncertainty never widens scope; required current-behavior documentation remains part of the owning task.
 
-## Large-feature decomposition
+## Parts
 
-Use Milestone Ledgers only when converged work has independently releasable milestones or requires portable multi-session publication. Milestones require user-visible outcomes and dependency order; never split by file, layer, or task count. Set plan `## Publication` to `docs/gsd/<feature>/milestones.md` only when publication slug equals `## Feature`; otherwise use `null`.
+When one feature needs several pieces that each need their own discussion, write `.scratch/<feature>/parts.md` as a plain checklist, one line per part in dependency order:
 
-Do not create ledgers here: `gsd-to-plan` owns canonical plans and binds intentional publications. Ledgers are completion metadata, not pre-binding design authority.
+```markdown
+- [ ] P1: <user-visible outcome>
+- [ ] P2: <user-visible outcome>
+```
+
+Split by user-visible outcome, never by file, layer, or task count. Converge only the next unchecked part, and plan it as its own feature `<feature>-pN` through the full cycle. When that part merges or its pull request opens, tick it `[x]` and ask whether to start the next part. The checklist has no validator and no lifecycle authority; `state.toon` of the current part stays the resume source.
 
 ## Convergence transition
 

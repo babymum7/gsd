@@ -1,9 +1,8 @@
 #!/usr/bin/env bun
 // Two-pass activation eval: first-attempt accuracy + correction pass for failures.
 //
-// Scope: only the injected bootstrap is supplied, while the row-level completed-state matrix
-// lives in the on-demand canon an owner reads before lifecycle work, so both passes measure a
-// bootstrap-only lower bound on live behavior. Fixture expectations still encode that canon.
+// Scope: only the injected bootstrap is supplied, so both passes measure a bootstrap-only
+// lower bound on live behavior.
 //
 // Usage:
 //   GSD_EVAL_BACKEND=omp bun test/eval/eval-models.mjs
@@ -19,7 +18,6 @@ import { fileURLToPath } from "node:url";
 import {
   describeEvalBackendError,
   evalSurfaceFingerprint,
-  loadLifecycleMatrix,
   parseActivationResponse,
   responseMatchesFixture,
   selectEvalBackend,
@@ -80,13 +78,9 @@ if (backend.kind !== "omp") {
   process.exit(2);
 }
 
-// GSD_EVAL_CANON=1 supplies the on-demand canon section the bootstrap points at, which is what a
-// live owner holds when it routes lifecycle work. Left off, the run stays the bootstrap-only
-// lower bound that activation-eval.mjs measures.
-const canonSection = process.env.GSD_EVAL_CANON === "1" ? loadLifecycleMatrix(repoRoot) : null;
-const scope = canonSection ? "bootstrap + on-demand lifecycle matrix" : "bootstrap only";
+const scope = "bootstrap only";
 // Bind every reported number to the exact injected bytes that produced it.
-const fingerprint = evalSurfaceFingerprint({ bootstrap, repoRoot, canonSection });
+const fingerprint = evalSurfaceFingerprint({ bootstrap, repoRoot });
 
 // --- System prompt (the bootstrap half is identical to activation-eval.mjs) ---
 const system = [
@@ -94,22 +88,14 @@ const system = [
   "The exact production GSD session bootstrap is loaded below.",
   "Given the workspace state and current user prompt, apply the result-marker decision vocabulary and the lazy skill-selection policy this bootstrap states.",
   "Choose only the primary process owner. Hidden helper skills are not represented in primarySkill.",
-  'Reply with ONLY exact JSON: {"decision":"<ordinary-routing|ignore-terminal-record|cleanup-question|cleanup-only|block-resume|fail-closed>","action":"<load|direct|stop>","primarySkill":"<visible gsd-* skill>" or null}.',
-  "Use load with one visible primary skill, direct with null when no primary skill applies, and stop with null for every cleanup/block/fail-closed decision.",
-  "ordinary-routing and ignore-terminal-record ALWAYS use load or direct. cleanup-question, cleanup-only, block-resume, and fail-closed ALWAYS use stop with null primarySkill.",
-  "Plan-hash mismatch does not override the normal owner: bare continue still enters gsd-handoff; prompt-named pending execution work enters gsd-executing-plans. Bare 'continue' or generic resume with a validated active .scratch plan/state = gsd-handoff; named task/feature work with validated active plan = its owner skill, not gsd-handoff.",
+  'Reply with ONLY exact JSON: {"decision":"<ordinary-routing|fail-closed>","action":"<load|direct|stop>","primarySkill":"<visible gsd-* skill>" or null}.',
+  "Use load with one visible primary skill, direct with null when no primary skill applies, and stop with null for fail-closed.",
+  "ordinary-routing ALWAYS uses load or direct. fail-closed ALWAYS uses stop with null primarySkill.",
+  "Bare 'continue', pause, or resume of an owned active .scratch plan/state = gsd-executing-plans. A moved plan hash does not change the owner.",
   "Explicit diff or PR review prompt always loads gsd-verify, never direct. plan.md beside malformed state.toon fail-closes before any direct/nano routing.",
   "Your entire response must be exactly one raw JSON object. No prose, no explanation, no markdown fence, no tool_call tags, no wrapper of any kind. Any text besides the JSON object is a failure.",
   "",
   bootstrap,
-  ...(canonSection
-    ? [
-        "",
-        "The on-demand canon section this bootstrap points to for lifecycle state is loaded below. Apply its rows.",
-        "",
-        canonSection,
-      ]
-    : []),
 ].join("\n");
 
 const askUser = (fixture) => `Workspace state: ${fixture.state}\n\nUser prompt:\n${fixture.prompt}`;
@@ -214,9 +200,6 @@ console.log(`Concurrency: ${CONCURRENCY}`);
 console.log(`Backend: ${backend.kind} (${backend.command})`);
 console.log(`Scope: ${scope}`);
 console.log(`Bootstrap: ${fingerprint.bootstrap_sha256.slice(0, 12)} (${fingerprint.bootstrap_words} rendered words)`);
-if (fingerprint.canon_sha256) {
-  console.log(`Canon: ${fingerprint.canon_sha256.slice(0, 12)} (${fingerprint.canon_words} words)`);
-}
 console.log("─".repeat(70));
 
 // ═══ Pass 1: first-attempt (all models × fixtures in parallel) ═══

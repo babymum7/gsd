@@ -4,7 +4,7 @@ Load only the `§` sections the flow needs. It defines the shared meaning of art
 
 ## Triage and depth ladder
 
-Triage runs before every route and classifies exactly one of `answer` (read-only or Nano), `clarify`, `research`, `quick`, `plan`, or `milestone` from the prompt and only the context it names, never a repository sweep. Direct work loads no skill, scans no state, and writes no scratch artifact or Git change.
+Triage runs before every route and classifies exactly one of `answer` (read-only or Nano), `clarify`, `research`, `quick`, or `plan` from the prompt and only the context it names, never a repository sweep. Direct work loads no skill, scans no state, and writes no scratch artifact or Git change.
 
 - `clarify` covers missing intent or scope too vague to act, a claimed cause, a supplied design, or a false premise, and asks exactly one question carrying a recommended default and each option's consequence; when nothing behavioral turns on the answer it states the conservative default and proceeds.
 - `research` gathers codebase, documentation, reference-repository, or concrete failure evidence before answering, never from memory; bounded read-only delegation stays allowed and carries no authority, so the owner re-verifies every fact.
@@ -14,8 +14,7 @@ Triage runs before every route and classifies exactly one of `answer` (read-only
 Depth follows ambiguity, blast radius, reversibility, and acceptance clarity, never file count:
 - `direct` — read-only answers and Nano edits: no scratch, branch, commit, or skill.
 - `quick` — one bounded change with acceptance converged from the prompt: a direct edit plus a focused test, with no packet, plan, or commit.
-- `plan` — multi-task behavior whose acceptance must be written down: the canonical `plan.md`.
-- `milestone` — independently releasable outcomes or portable multi-session publication: the full plan plus the milestone ledger.
+- `plan` — multi-task behavior whose acceptance must be written down: the canonical `plan.md`. A feature too large for one plan splits into parts under `gsd-brainstorming`, each its own plan.
 - A deeper level is chosen only when the shallower one cannot express the work; depth may rise mid-flight under § Plan amendment and never silently falls to ship a subset.
 
 ## Artifact Contract
@@ -34,15 +33,14 @@ Explicit intent and entry context choose the mode; artifact presence never does.
 
 ## Visible skill mandatory-use matrix
 
-Canonical dispatch authority for the 6 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill.
+Canonical dispatch authority for the 5 visible GSD skills. Shared semantics live only here; each skill file restates only its mode-specific guard and transition. Exactly one row per visible skill.
 
 | Skill | Role | Intent | Prerequisites | Do-not-load | Transition | Helper-when |
 | --- | --- | --- | --- | --- | --- | --- |
 | `gsd-brainstorming` | owner | Resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract | Explicit design intent or load-bearing Spec-gap return | Read-only questions, pure mechanical edits, known single-spot quick fix | On convergence load `gsd-to-plan` | — |
 | `gsd-to-plan` | owner | Create or finalize canonical `plan.md` with bound Domain Impact after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unfinalized plan | Design decisions still open; Nano edits | On `validate-plan` success use `gsd-state.mjs set` to write `state.toon` and load `gsd-executing-plans` | — |
-| `gsd-executing-plans` | owner | Own bound plan tasks and domain docs on `wip/<feature>`: sub-agents author each wave's tasks, the owner reconciles and repairs | Valid bound `plan.md` and bound `state.toon` whose pending work the prompt names | No bound plan/state; a bare resume naming no work; inventing authority | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
-| `gsd-handoff` | owner | Pause, save, resume, or recover from a valid `state.toon`, ledger, or capsule | Valid `state.toon`, ledger, or capsule; every bare resume naming no work enters here first | Missing/malformed state used to invent work | Load the peer named by validated `next_action` | — |
-| `gsd-verify` | owner | Review a diff/PR or prove planned code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Invent completion without deterministic gates | Planned green path: squash, cleanup, optional retain/archive | — |
+| `gsd-executing-plans` | owner | Own bound plan tasks and domain docs on `wip/<feature>`, and pause or resume that work | Valid bound `plan.md` and `state.toon`; a bare `continue` or pause/resume intent | Missing or malformed state used to invent work | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
+| `gsd-verify` | owner | Review a diff/PR or prove planned code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Invent completion without deterministic gates | Green terminal gate: `phase=ready`, ask merge or pull request | — |
 | `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | An unlocated or non-obvious cause needing evidence | A located failure: the prompt names the file/line or exact failure signature | Fix a confirmed non-architectural cause directly with a focused regression test, or an architectural cause to `gsd-brainstorming` | — |
 
 The quick-fix route belongs to the session owner, not a visible skill: a bounded change with converged acceptance is edited directly, proven by its focused test, and reported. It writes no packet, plan, `state.toon`, or commit and loads no `gsd-verify` gate; scope growth escalates to `gsd-brainstorming`.
@@ -53,9 +51,7 @@ The quick-fix route belongs to the session owner, not a visible skill: a bounded
 Git-tracked knowledge for people and agents is strict Markdown under `docs/`; TOON is never used for durable prose or human-approved goals.
 
 - `docs/domain/index.md` is a small bounded-context index; `docs/domain/<scope>.md` shards describe current production terms, actors, invariants, workflows, outcomes, relationships, and policies. Shard by bounded context, never feature; they are not implementation plans or journals. `gsd-domain-modeling` owns the exact schema and is sole writer.
-- `docs/gsd/<feature>/milestones.md` is the human-reviewable milestone contract and ledger. Its goals are approved authority; its status column is controlled by terminal verification.
 - `docs/decisions/NNNN-slug.md` and `docs/design/NNNN-slug.md` are durable decision and UI/UX design records with one mandatory minimal header; numbering is sequential and gap-free per directory.
-- `docs/gsd/<feature>/archive/plan.md` and `docs/gsd/<feature>/archive/implementation.md` are optional history only, never execution authority and never reopening completed features.
 
 Runtime-only `state.toon` stays TOON under `.scratch/`. Formats are authoritative by declared role and canonical path, never extension alone.
 
@@ -72,7 +68,7 @@ Domain docs describe current production behavior after tasks; plans record targe
 Decision records capture load-bearing tradeoffs settled during convergence; design records capture UI/UX decisions settled during execution. Both carry one mandatory minimal header: `# NNNN — Title`, exactly one `- **Status:** Accepted|Rejected|Superseded by NNNN`, exactly one `- **Date:** YYYY-MM-DD`, and a non-empty `## Decision` section; measurement sections stay optional.
 `bun "<GSD_ROOT>/tools/gsd-record.mjs" validate --path <record> --kind decisions|design` proves the header: exit 0 is `status: valid`, exit 1 is `code: invalid-record` or `io-error`, exit 2 is usage.
 Record naming is opt-in per file: only paths under `docs/decisions/` or `docs/design/` whose basenames start with digits must match canonical `NNNN-slug.md` form; ordinary prose in those directories keeps repository naming.
-The terminal gate runs validation on every owned record before squash. `AGENTS.md` gains one `## Decisions` and one `## Design` section, upserted without duplication.
+The terminal gate validates every owned record before merge. `AGENTS.md` gains one `## Decisions` and one `## Design` section, upserted without duplication.
 
 ## Canonical Markdown contract
 
@@ -116,7 +112,7 @@ The owner reconciles each dispatched task or batch in strict plan order through 
 There is no per-wave review and no reviewer sub-agent: the session owner reviews the whole diff once, in the `gsd-verify` terminal gate.
 When the bootstrap lists sub-agent profiles from user GSD settings, workers spawn with `worker`; otherwise the host default model applies.
 
-Failure routing: any failed layer is an integrity failure that returns to bounded inline owner repair under `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`, and is never re-dispatched to a sub-agent. Terminal conformance proves the unchanged final commit, and plan-ordered diffs hold because the owner merges in plan order.
+Failure routing: any failed layer is an integrity failure that returns to bounded inline owner repair under `gsd-executing-plans` and `gsd-tdd`, and is never re-dispatched to a sub-agent. Terminal conformance proves the unchanged final commit, and plan-ordered diffs hold because the owner merges in plan order.
 
 ### Packet grammar
 
@@ -225,52 +221,13 @@ Actionable failures use TOON on stdout:
 `gsd-to-plan` validates canonical structured `plan.md`, prints its task/AC/Domain Impact summary, calculates SHA-256, and binds it for execution without approval prompts or post-plan menus.
 - Binding records feature, exact plan path/hash, base/WIP identity, no completed task, canonical preferences, and checkpoint revision in atomic `schema:v0.0.2` `state.toon` with `phase=approved` (plan-bound automatically), reading back before loading `gsd-executing-plans`.
 - Fresh bindings after Spec escalation atomically supersede older bindings.
-- Semantic parse and binding checks run at binding, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use retained validated slices.
+- Semantic parse and binding checks run at binding, resume, terminal entry, and pre-merge; ordinary task selection and green checkpoints use retained validated slices.
 
-The validator runs unbound at new-plan binding and when revalidating amendments before rebinding; other full-plan calls use the bound-hash form. Once `state.toon` exists, calls pass `--expected-base <state.base_ref>`, so plans with drifted § Base fail closed instead of retargeting squashes.
+The validator runs unbound at new-plan binding and when revalidating amendments before rebinding; other full-plan calls use the bound-hash form. Once `state.toon` exists, calls pass `--expected-base <state.base_ref>`, so plans with drifted § Base fail closed instead of retargeting the merge.
 
 Resume runs the bound form first; bound calls check hashes before parsing, so an unbound revalidation separates moved bytes from malformed grammar.
 
 No model, agent, or persistent session identity participates in binding. Current top-level session is sole lifecycle authority; later sessions assume that role through canonical rehydration.
-
-### Convergence Ledger publication contract
-
-A milestone ledger is optional Git-tracked Markdown at exactly `docs/gsd/<feature>/milestones.md`, allowed only when large features have materially precise, user-approved milestone goals. Creation/update is a convergence-time write owned by one plan task's Files field under review. `plan.md` must contain `## Publication` with `null` or the canonical ledger path whose slug equals Feature. It authorizes planned publication only, never completion, task selection, or resume; ledger presence is metadata.
-
-The canonical UTF-8/LF grammar is:
-
-```markdown
-# Milestones
-
-## Feature
-
-`<feature>`
-
-## Base
-
-`<base>`
-
-## Milestones
-
-| ID | Slug | Goal | Status |
-| --- | --- | --- | --- |
-| M1 | <milestone-slug> | <precise user-approved goal> | pending |
-```
-
-IDs are positive sequential `M1..MN`; slugs are unique lowercase kebab-case; goals are non-empty single-line text without `|`; status is exactly `pending` or `done`.
-- Feature equals directory slug, Base names recorded base branch, headings and columns are exact, and no extra sections, rows, or columns are allowed.
-- Rows consist of a possibly empty `done` prefix followed by a non-empty `pending` suffix.
-- Creation or appends preserve existing rows byte-for-byte, adding only new `pending` rows.
-- Ledgers with no pending row are stale lifecycle residuals, not completed canonical ledgers.
-
-### Milestone Ledger completion contract
-
-Only the `Milestone WIP gate` completes ledger lifecycle state. `gsd-executing-plans` treats the selected first-pending row and ledger bytes as read-only during tasks. At terminal verification, `gsd-verify` proves the selected row still matches the bound milestone and remains first pending with `bun "<GSD_ROOT>/tools/gsd-milestone.mjs" validate --path docs/gsd/<feature>/milestones.md --expected-feature <state.feature> --expected-base <state.base_ref>`, then applies the transition with `... complete ...` under the same binding.
-
-- **Non-final milestone:** change the selected row's status from `pending` to `done`; preserve every other byte.
-- **Final milestone:** delete `docs/gsd/<feature>/milestones.md` instead of writing an all-`done` ledger.
-
-Status transitions or deletions are part of the reviewed WIP diff, landing in the same green squash commit as the milestone implementation. Red gates never change base ledger state. Normal execution/publication never completes or deletes rows. `tools/gsd-milestone.mjs` is deterministic executor: `complete` marks the first pending row `done`, or deletes the ledger when final.
 
 ## Runtime state contract
 
@@ -281,16 +238,15 @@ Exactly one current `.scratch/<feature>/state.toon` owns resume discovery. It is
 ```toon
 schema:v0.0.2
 feature:<feature-slug>
-phase:draft|approved|executing|paused|verifying|repair|merged-cleanup-pending|completed-retained
-next_action:<opaque next action or none>
-plan_path:.scratch/<feature>/plan.md|none
-plan_sha256:<64-hex>|none
-base_ref:<branch>|none
-wip_branch:wip/<feature>|none
+owner:<GSD_SESSION token>|none
+phase:approved|executing|paused|verifying|repair|ready
+next_action:<opaque next action>
+plan_path:.scratch/<feature>/plan.md
+plan_sha256:<64-hex>
+base_ref:<branch>
+wip_branch:wip/<feature>
 last_green_task:T<n>|none
 last_green_commit:<40-hex>|none
-autosync:none|on|off
-cleanup_preference:none|delete|retain|archive-and-delete
 checkpoint_revision:<positive int>
 ```
 
@@ -310,18 +266,17 @@ State updates are recorded through `gsd-state.mjs set key=value…` with derived
 
 Persist only:
 
-- draft plan existence
 - plan binding (`phase=approved`)
 - green task commit (`last_green_task` / `last_green_commit`)
 - pause or automatic context pressure (`phase=paused`)
 - terminal entry, repair, or current-commit conformance (`phase=verifying|repair`)
-- merged cleanup (`phase=merged-cleanup-pending|completed-retained`)
+- green terminal gate (`phase=ready`)
 
 Do not write active-task, numbered-history, reload-manifest, or persistent identity checkpoints. The session owner rebuilds complete task or terminal slices from canonical plan/state/Git; structured slices preserve ordered file paths, operations, intents, and applicable AC/Decision constraints.
 
 ### Plan amendment
 
-A bound-hash mismatch means bytes moved, never a stop; only missing or malformed-grammar `plan.md` fails closed. Drift never diverts prompt-named work to `gsd-handoff`: the executing owner amends it, revalidates unbound with `validate-plan`, and rebinds the returned hash into `state.toon` with an incremented `checkpoint_revision`. No branch closes and no fresh feature opens.
+A bound-hash mismatch means bytes moved, never a stop; only missing or malformed-grammar `plan.md` fails closed. The executing owner amends it, revalidates unbound with `validate-plan`, and rebinds the returned hash into `state.toon` with an incremented `checkpoint_revision`. No branch closes and no fresh feature opens.
 - Bookkeeping amendments are self-service: recording touched files, fixing paths or intents, splitting or reordering pending tasks, or sharpening wording that leaves acceptance intact.
 - User-stated requirement changes mid-execution are amendments, never new features: amend, revalidate, rebind, and continue without re-asking.
 - Material amendments ask one question first, then proceed with chosen options: changing an active criterion's Outcome/Action/Expected/Scenario, weakening invariants or non-goals, changing `Domain Impact`, replacing interface pins, or rewriting completed task records. Ask before rebinding.
@@ -332,9 +287,10 @@ A bound-hash mismatch means bytes moved, never a stop; only missing or malformed
 
 Active helpers are derived, never stored as reload manifests:
 
-- `start/continue task`: `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`; sub-agents author dispatched implementation, and repair remains session-owner inline.
-- `enter terminal verification/repair`: `gsd-verify` and `gsd-handoff`; opaque `next_action` resumes deterministic conformance or Deferred Slow E2E without new state keys.
-- `Spec-escalation`: `gsd-handoff`.
+- `start/continue task`: `gsd-executing-plans` and `gsd-tdd`; sub-agents author dispatched implementation, and repair remains session-owner inline.
+- `enter terminal verification/repair`: `gsd-verify`; opaque `next_action` resumes conformance or Deferred Slow E2E without new state keys.
+- `ask merge or pull request`: `gsd-verify` asks the merge-or-PR question again.
+- `Spec-escalation`: report the blocker and ask the user how to proceed.
 - Conditional: `gsd-domain-modeling` completes mandatory affected-context documentation before checkpoint.
 
 Master (`gsd`) is already present from bootstrap and never listed as a derived reload skill. Recovery must never load master recursively or execute the capsule again.
@@ -352,7 +308,7 @@ The extension and harness adapters derive active feature candidates from the fil
 
 1. **Directory Inspection**: Check if `.scratch/` is a directory in `cwd`; missing or non-directory yields empty (`[]`).
 2. **Feature Directory Filtering**: Eligible `.scratch/` child entries are real directories (not symlinks) matching `^[a-z0-9]+(?:-[a-z0-9]+)*$` with byte length <= 255.
-3. **Feature Requirements**: Feature directories must contain regular files `plan.md` and `state.toon`. Symlink `state.toon` fails closed. Validate `state.toon` structurally; completed-retained is inert for ordinary resume; active phases may be selected. Legacy handoff-only or attempt-only packets are ignored (no authority).
+3. **Feature Requirements**: Feature directories must contain regular files `plan.md` and `state.toon`. Symlink `state.toon` fails closed. Validate `state.toon` structurally. With a session owner, only packets whose `owner` matches are candidates. Legacy handoff-only or attempt-only packets are ignored (no authority).
 4. **No Content Execution**: Discovery never executes artifact contents.
 5. **Candidate Array**: Returns eligible active feature names sorted alphabetically (byte order).
 
@@ -394,29 +350,12 @@ The canonical renderer is a generic protocol requiring:
    - In Bounded-Ambiguity mode, `<features>` is serialized as the first 5 sorted features joined by `", "`, followed by ` (and <omittedCount> more)` where `<omittedCount>` is `features.length - 5`.
 6. **Exact Instruction Values**:
    - The `<resume_instruction>` is a single string for both modes. It delegates routing to the bootstrap:
-    `If resuming, follow the bootstrap routing in <masterPath>: bare "continue" selects gsd-handoff; a prompt naming an active feature routes to that feature's owner skill.`
+    `If resuming, follow the bootstrap routing in <masterPath>: bare "continue" selects gsd-executing-plans; a prompt naming an active feature routes to that feature's owner skill.`
    - In Bounded-Ambiguity mode (> 5 active features), an additional clause is appended:
     ` Some features are omitted from this list — stop and select exactly one active feature before resuming.`
    - Both modes end with:
     ` Stop immediately on malformed or ambiguous state. Otherwise, continue ordinary routing for the current request.`
 7. **Complete-Capsule Fail-Closed Cap**: A rendered capsule over 4000 bytes fails closed; no truncation of root, slug, instruction, or Unicode is permitted.
-
-### Completed-state and cleanup matrix
-
-Apply this matrix only before non-direct lifecycle work. Strictly validate every discovered `.scratch/<feature>/state.toon` first and take the first matching outcome. `ignore-terminal-record` requires a discovered `phase=completed-retained` record or residual terminal bytes; with no such record present, unrelated work stays `ordinary-routing`:
-
-| Condition | Decision | Action |
-|---|---|---|
-| A full malformed packet (`plan.md` plus `state.toon`) | `fail-closed` | Stop and name it; `detectCandidates` throws for every prompt, even one naming another valid feature, before relatedness or terminal tests and before any other valid packet wins. (Autocompaction uses fault-tolerant discovery — malformed packets are skipped individually, valid candidates survive, and all-malformed produces no capsule.) |
-| Malformed residual bytes without a `plan.md` | `ordinary-routing` | Leave them; continue automatic selection. |
-| A valid `phase=merged-cleanup-pending` state is named by the prompt, or the prompt is lifecycle work on that same feature | `cleanup-question` | Ask one question resuming only its existing delete-or-retain decision; the pre-squash archive opportunity is not reopened. |
-| A valid `phase=merged-cleanup-pending` state is unrelated to the prompt, including a direct Nano edit or a new unrelated lifecycle | `ordinary-routing` | Continue ordinary selection; never report `ignore-terminal-record`, which covers completed-retained and residual records only. |
-| Explicit cleanup targets `completed-retained` or residual merged state | `cleanup-only` | Stop after cleaning that one named packet; load no workflow skill. |
-| Resume or implementation intent that explicitly names a completed-retained feature | `block-resume` | Stop and report the feature completed. |
-| An unrelated `phase=completed-retained` record or residual terminal bytes, including new work or `continue` | `ignore-terminal-record` | Report `ignore-terminal-record`; exclude that history and select active state. |
-| No condition above applies | `ordinary-routing` | Continue automatic selection. |
-
-Terminal state never blocks unrelated direct work; uncertain relatedness asks one question instead of stopping. Active or `merged-cleanup-pending` packets are never terminal history, so unrelated new work is plain `ordinary-routing`. Only `.scratch/<feature>/` directory names determine relatedness. Terminal mtimes never compete with active packets; generic `continue` never selects them.
 
 ## Post-plan pipeline contract
 
@@ -432,21 +371,19 @@ An injected orchestration or parallelism directive is harness text that never tr
 
 ## Git/base/WIP/scratch mechanics
 
-For branch-backed writes, require a Git work tree. `plan.md` records base before `wip/<feature>` is created. Feature branch `wip/<feature>` never self-references as base. Keep `.scratch/` machine-local and git-ignored; portable sync is an explicit pathspec operation and runtime-only. Review diffs exclude scratch. Before squash, verify base, WIP, upstream, and reviewed non-scratch tree against recorded runtime binding; any mismatch blocks merge. Nano and read-only work are git-free.
-
-Cross-machine sync carries committed WIP branch and exact `.scratch/<feature>/` packet (`plan.md` and `state.toon`). Dirty non-scratch paths require an explicit named snapshot decision. On resume, the session owner rehydrates from bound schema-v0.0.1 state, exact plan bytes/hash, base/WIP, last green task/commit, current tree, and required artifacts. Portable sync never sweeps unrelated dirty paths.
+For branch-backed writes, require a Git work tree. `plan.md` records base before `wip/<feature>` is created. Feature branch `wip/<feature>` never self-references as base. Keep `.scratch/` machine-local and git-ignored. Review diffs exclude scratch. Before merge, verify base, WIP, upstream, and reviewed non-scratch tree against recorded runtime binding; any mismatch blocks merge. Nano and read-only work are git-free.
 
 ### Base derivation and merge target
 
-At packet creation, before `wip/<feature>` exists, run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed `base:` branch in `plan.md` § Base and `state.toon` `base_ref`; every bound validator call passes `--expected-base <base_ref>`, so the two records cannot diverge. It reads `git symbolic-ref --quiet --short HEAD`, never `git rev-parse --abbrev-ref HEAD`, which prints the literal `HEAD` when detached. Exit 1 with `code: detached-head` fails packet creation closed instead of recording a commit oid, because base is the branch that must hold the squash.
+At packet creation, before `wip/<feature>` exists, run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed `base:` branch in `plan.md` § Base and `state.toon` `base_ref`; every bound validator call passes `--expected-base <base_ref>`, so the two records cannot diverge. It reads `git symbolic-ref --quiet --short HEAD`, never `git rev-parse --abbrev-ref HEAD`, which prints the literal `HEAD` when detached. Exit 1 with `code: detached-head` fails packet creation closed instead of recording a commit oid, because base is the branch that receives the merge.
 
 Repository defaults, upstream branches, or naming conventions are authoritative only when checked out; a linked worktree records its own branch; base is never `wip/<feature>`.
 
-Before squash run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`, unpiped or under `set -o pipefail` so a piped last stage cannot mask the verdict. Exit 0 prints `status: ready` with observed base, WIP branch, HEAD equal to the recorded `wip_branch`, and clean tree outside `.scratch/`, ending in a trailing `exit=0` line that echoes the process exit code; exit 1 prints `status: blocked` and a `code:` naming drift with a trailing `exit=1` line, which blocks as Spec escalation, because a blocked gate never retargets the merge. Exit 2 corrects only invocation.
+Before merge run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`, unpiped or under `set -o pipefail` so a piped last stage cannot mask the verdict. Exit 0 prints `status: ready` with observed base, WIP branch, HEAD equal to the recorded `wip_branch`, and clean tree outside `.scratch/`, ending in a trailing `exit=0` line that echoes the process exit code; exit 1 prints `status: blocked` and a `code:` naming drift with a trailing `exit=1` line, which blocks as Spec escalation, because a blocked gate never retargets the merge. Exit 2 corrects only invocation.
 
-Blocking codes are `detached-head`, `head-not-wip`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `no-git-identity`, `unusable-branch-name`, `not-a-work-tree`, `state-unusable`, `git-query-failed`, `git-unavailable`, and `plan-unbound`: an unanswered Git query blocks rather than reporting ready, proving nothing. The gate proves the bound plan hash for every cleanup disposition before squashing.
+Blocking codes are `detached-head`, `head-not-wip`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `no-git-identity`, `unusable-branch-name`, `not-a-work-tree`, `state-unusable`, `git-query-failed`, `git-unavailable`, and `plan-unbound`: an unanswered Git query blocks rather than reporting ready, proving nothing. The gate proves the bound plan hash before merging.
 
-`dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, because squash commits take the whole index and would carry unreviewed bytes. A rename or copy counts both paths, so moving a reviewed file into `.scratch/` still blocks. Both commands only read: they run no Git subcommand that can change a repository, `status` runs lock-free so reading cannot refresh indexes, and `preflight` inspects `state.toon` without writing it.
+`dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, because unreviewed bytes would otherwise ride into the merge. A rename or copy counts both paths, so moving a reviewed file into `.scratch/` still blocks. Both commands only read: they run no Git subcommand that can change a repository, `status` runs lock-free so reading cannot refresh indexes, and `preflight` inspects `state.toon` without writing it.
 
 The merge or pull request targets exactly the recorded `base_ref`, so `main` is the target only when `main` is that base; never widen to repository defaults. Promoting base onward is separate user-owned work.
 

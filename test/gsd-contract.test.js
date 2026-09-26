@@ -810,7 +810,6 @@ test("lifecycle owners use the production validator and document inert experimen
     ["reference", readFileSync(join(ROOT, "skills", "gsd", "REFERENCE.md"), "utf8")],
     ["planner", readFileSync(join(ROOT, "skills", "gsd-to-plan", "SKILL.md"), "utf8")],
     ["execution", readFileSync(join(ROOT, "skills", "gsd-executing-plans", "SKILL.md"), "utf8")],
-    ["handoff", readFileSync(join(ROOT, "skills", "gsd-handoff", "SKILL.md"), "utf8")],
     ["verify", readFileSync(join(ROOT, "skills", "gsd-verify", "SKILL.md"), "utf8")],
     ["domain", readFileSync(join(ROOT, "docs", "domain", "gsd.md"), "utf8")],
     ["readme", readFileSync(join(ROOT, "README.md"), "utf8")],
@@ -823,7 +822,7 @@ test("lifecycle owners use the production validator and document inert experimen
   assert.match(files.get("reference"), absolutePlan);
   assert.match(files.get("reference"), /--expected-sha256/);
   assert.match(files.get("planner"), absolutePlan);
-  for (const owner of ["execution", "handoff", "verify"]) {
+  for (const owner of ["execution", "verify"]) {
     assert.match(
       files.get(owner),
       /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" validate-plan --path[\s\S]*--expected-sha256/,

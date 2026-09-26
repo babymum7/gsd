@@ -93,12 +93,12 @@
     "id": "independent-milestones",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "ship the billing module as independently releasable milestones: invoices, then payments, then dunning, each deployable on its own",
-    "route": "milestone"
+    "route": "plan"
   },
   {
     "id": "portable-publication",
     "state": "clean repo; no .scratch/ directory",
     "prompt": "plan a multi-session release of the plugin system with a portable publication ledger for each milestone",
-    "route": "milestone"
+    "route": "plan"
   }
 ]

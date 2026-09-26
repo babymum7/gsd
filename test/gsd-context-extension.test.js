@@ -6,7 +6,6 @@ import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { sanitizeBootstrapError } from "../lib/gsd-bootstrap.mjs";
-import { ACTIVATING_DECISIONS, STOPPING_DECISIONS } from "./eval/activation-eval-contract.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -839,22 +838,6 @@ describe("T3 Review Fixes detailed behavior", () => {
     }
   });
 
-  // 5. recursion/repeated capsule instructions test:
-  test("proves no recursion/repeated capsule instructions in master or handoff", () => {
-    const master = readFileSync(join(ROOT, "skills/gsd/SKILL.md"), "utf8");
-    const handoff = readFileSync(join(ROOT, "skills/gsd-handoff/SKILL.md"), "utf8");
-    const reference = readFileSync(join(ROOT, "skills/gsd/REFERENCE.md"), "utf8");
-
-    // Proves that recovery resumes through handoff without invoking the capsule again
-    assert.match(master, /Do not invoke or execute the capsule again, avoiding circular re-entry/);
-    
-    // Proves handoff does not tell ordinary processing to reload the same bootstrap/capsule
-    assert.match(handoff, /without circular re-entry[\s\S]{0,60}capsule execution[\s\S]{0,60}duplicated action/i);
-
-    // Proves REFERENCE.md specifies no recursive master loading
-    assert.match(reference, /never load master recursively or execute the capsule again/);
-  });
-
   // 6. five maximum-length valid slugs through both hooks test:
   test("proves five maximum-length valid slugs through both hooks", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-maxlen-"));
@@ -1105,7 +1088,7 @@ describe("T3 Review Fixes detailed behavior", () => {
     const expectedMasterPath = `${specialRoot}/skills/gsd/SKILL.md`;
     const handWrittenExpected = `[GSD Recovery Capsule]
 GSD features owned by this session: feat-a
-If resuming, follow the bootstrap routing in ${expectedMasterPath}: bare "continue" selects gsd-handoff; a prompt naming an active feature routes to that feature's owner skill. Stop immediately on malformed or ambiguous state. Otherwise, continue ordinary routing for the current request.
+If resuming, follow the bootstrap routing in ${expectedMasterPath}: bare "continue" selects gsd-executing-plans; a prompt naming an active feature routes to that feature's owner skill. Stop immediately on malformed or ambiguous state. Otherwise, continue ordinary routing for the current request.
 Compaction MUST preserve and continue the current user request. Only resume an active feature when the preserved request or a bare continue explicitly selects it.`;
 
     assert.equal(capsule, handWrittenExpected, "Capsule must match hand-written expected bytes exactly with literal special characters");
@@ -1268,16 +1251,6 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
   assert.deepEqual(baseSystemPrompt, ["base system prompt"], "base system prompt must not be mutated");
   assert.equal(registrationPolicy.systemPrompt[0], baseSystemPrompt[0]);
   assert.match(registrationPolicy.systemPrompt[1], /gsd:system-policy:v1/);
-  assert.match(registrationPolicy.systemPrompt[1], /first action MUST be one read tool call/);
-  // The system-prompt reinforcement must carry the decision-0013 triage front door, not just
-  // the post-state routing rules, or the prompt's most salient guidance predates the revamp.
-  const triagePolicy = registrationPolicy.systemPrompt[1].match(/Triage the prompt before any route:([^\n]*)/)?.[1] ?? "";
-  for (const route of ["answer", "clarify", "research", "quick", "plan", "milestone"]) {
-    assert.ok(triagePolicy.includes(route), `the OMP system policy must name the ${route} route`);
-  }
-  assert.match(triagePolicy, /recommended default/, "clarify must carry a recommended default");
-  assert.match(triagePolicy, /never from memory/, "research must gather facts rather than answer from memory");
-  assert.match(triagePolicy, /recommended option and its cost/, "every choice must carry a recommendation");
   assert.equal(
     await events.before_agent_start({ systemPrompt: registrationPolicy.systemPrompt }),
     undefined,
@@ -2143,18 +2116,3 @@ test("readStateFile rejects state.toon swap after feature dir pin", () => {
   }
 });
 
-// The injected system policy is the most salient state guidance a session gets, so its
-// decision vocabulary has to be the same one the evaluator scores and the canon enumerates.
-// A rename or a regrouped bucket there would drive wrong routing with nothing to catch it.
-test("the OMP system policy names the canonical decisions and their action buckets", () => {
-  const extension = readFileSync(new URL("../adapters/omp/gsd-context.js", import.meta.url), "utf8");
-  const policy = extension.match(/const SYSTEM_POLICY = `([\s\S]*?)`;/)?.[1];
-  assert.ok(policy, "the extension must declare its system policy template");
-  const routing = policy.match(/Key routing rules:([^.]*)\./)?.[1] ?? "";
-  assert.notEqual(routing, "", "the policy must state the key routing rules");
-  for (const decision of [...ACTIVATING_DECISIONS, ...STOPPING_DECISIONS]) {
-    assert.ok(routing.includes(decision), `the policy must name the canonical decision ${decision}`);
-  }
-  assert.match(routing, /ordinary-routing and ignore-terminal-record use load or direct/);
-  assert.match(routing, /cleanup-question, cleanup-only, block-resume, and fail-closed use stop/);
-});

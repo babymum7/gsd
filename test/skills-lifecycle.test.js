@@ -3,13 +3,13 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { read, readdirSync, skillNames, ROOT, } from "./support/skills-fixtures.js";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createBootstrap, discoverSkillCatalog } from "../lib/gsd-bootstrap.mjs";
 import {
   describeEvalBackendError, selectEvalBackend,
-  evalSurfaceFingerprint, loadLifecycleMatrix,
+  evalSurfaceFingerprint,
 } from "./eval/activation-eval-contract.mjs";
 
 test("AC-11: the repository manifest publishes the deterministic contract suite", () => {
@@ -351,24 +351,6 @@ test("the skill compliance evaluator scores before a later OMP timeout", () => {
   assert.deepEqual(report.pass["fake-model"], { passed: 1, total: 1, accuracy: 100 });
 });
 
-test("the canon-loaded eval mode supplies the on-demand lifecycle matrix", () => {
-  const matrix = loadLifecycleMatrix(ROOT);
-  assert.match(matrix, /^### Completed-state and cleanup matrix/, "the slice starts at the heading");
-  assert.match(matrix, /Malformed residual bytes without a `plan\.md`/, "the slice carries matrix rows");
-  assert.match(matrix, /Terminal mtimes never compete with active packets/, "the slice keeps the tail");
-  assert.doesNotMatch(matrix, /Post-plan pipeline contract/, "the slice stops at the next section");
-
-  // A canon that lost the heading fails closed instead of silently scoring as loaded.
-  const dir = mkdtempSync(join(tmpdir(), "gsd-canon-missing-"));
-  mkdirSync(join(dir, "skills", "gsd"), { recursive: true });
-  writeFileSync(join(dir, "skills", "gsd", "REFERENCE.md"), "## Something else\n");
-  assert.throws(
-    () => loadLifecycleMatrix(dir),
-    /Completed-state and cleanup matrix/,
-    "a missing matrix heading must throw",
-  );
-});
-
 test("the eval surface fingerprint binds a report to the bytes it measured", () => {
   const base = evalSurfaceFingerprint({ bootstrap: 'GSD_ROOT: "/tmp/one"\nbody', repoRoot: "/tmp/one" });
   assert.match(base.bootstrap_sha256, /^[0-9a-f]{64}$/);
@@ -398,13 +380,13 @@ test("the eval surface fingerprint binds a report to the bytes it measured", () 
   assert.equal(canon.canon_words, 3);
 });
 
-test("the two-pass runner only loads the canon when the scope flag is set", () => {
+test("the two-pass runner reports its bootstrap-only scope", () => {
   const dir = mkdtempSync(join(tmpdir(), "gsd-eval-canon-"));
   const fakeOmp = join(dir, "omp");
   const dump = join(dir, "prompt.txt");
   writeFileSync(
     fakeOmp,
-    `#!/bin/sh\nprintf '%s' "$*" > "$GSD_EVAL_DUMP"\nprintf '%s' '{"decision":"block-resume","action":"stop","primarySkill":null}'\n`,
+    `#!/bin/sh\nprintf '%s' "$*" > "$GSD_EVAL_DUMP"\nprintf '%s' '{"decision":"fail-closed","action":"stop","primarySkill":null}'\n`,
   );
   chmodSync(fakeOmp, 0o755);
   const runScope = (extraEnv, reportName) =>
@@ -413,7 +395,7 @@ test("the two-pass runner only loads the canon when the scope flag is set", () =
       [
         "test/eval/eval-models.mjs",
         "--only",
-        "result-retained-related-resume",
+        "result-malformed-with-active",
         "--report-path",
         join(dir, reportName),
       ],
@@ -431,35 +413,18 @@ test("the two-pass runner only loads the canon when the scope flag is set", () =
       },
     );
 
-  const bootstrapOnly = runScope({ GSD_EVAL_CANON: "0" }, "report-bootstrap.json");
+  const bootstrapOnly = runScope({}, "report-bootstrap.json");
   assert.equal(bootstrapOnly.status, 0, bootstrapOnly.stderr);
   assert.match(bootstrapOnly.stdout, /Scope: bootstrap only/);
   assert.match(bootstrapOnly.stdout, /Bootstrap: [0-9a-f]{12} \(\d+ rendered words\)/);
-  assert.doesNotMatch(bootstrapOnly.stdout, /Canon: /, "bootstrap-only scope reports no canon hash");
-  const withoutMatrix = readFileSync(dump, "utf8");
-  assert.doesNotMatch(withoutMatrix, /Malformed residual bytes/, "the default scope stays bootstrap-only");
-
-  const canonLoaded = runScope({ GSD_EVAL_CANON: "1" }, "report-canon.json");
-  assert.equal(canonLoaded.status, 0, canonLoaded.stderr);
-  assert.match(canonLoaded.stdout, /Scope: bootstrap \+ on-demand lifecycle matrix/);
-  assert.match(canonLoaded.stdout, /Canon: [0-9a-f]{12} \(\d+ words\)/);
-  const withMatrix = readFileSync(dump, "utf8");
-  assert.match(withMatrix, /Malformed residual bytes/, "the canon scope must reach the prompt");
-  assert.match(withMatrix, /Selection and continuity/, "the bootstrap still travels");
 
   // The report records which scope produced its numbers and which bytes it measured, so the
   // artifact cannot be misread as a claim about a different tree.
-  const report = JSON.parse(readFileSync(join(dir, "report-canon.json"), "utf8"));
-  assert.equal(report.scope, "bootstrap + on-demand lifecycle matrix");
+  const report = JSON.parse(readFileSync(join(dir, "report-bootstrap.json"), "utf8"));
+  assert.equal(report.scope, "bootstrap only");
   assert.match(report.bootstrap_sha256, /^[0-9a-f]{64}$/);
   assert.ok(Number.isInteger(report.bootstrap_words) && report.bootstrap_words > 0);
-  assert.match(report.canon_sha256, /^[0-9a-f]{64}$/);
-  assert.ok(Number.isInteger(report.canon_words) && report.canon_words > 0);
-
-  const bootstrapReport = JSON.parse(readFileSync(join(dir, "report-bootstrap.json"), "utf8"));
-  assert.equal(bootstrapReport.scope, "bootstrap only");
-  assert.equal(bootstrapReport.bootstrap_sha256, report.bootstrap_sha256);
-  assert.equal(bootstrapReport.canon_sha256, null, "the bootstrap-only report carries no canon hash");
+  assert.equal(report.canon_sha256, null, "the report carries no canon hash");
 });
 
 test("the two-pass runner records expected and actual activation misses", () => {
@@ -472,7 +437,7 @@ test("the two-pass runner records expected and actual activation misses", () => 
 
   const result = spawnSync(
     process.execPath,
-    ["test/eval/eval-models.mjs", "--only", "result-retained-related-resume", "--report-path", reportPath],
+    ["test/eval/eval-models.mjs", "--only", "result-malformed-with-active", "--report-path", reportPath],
     {
       cwd: ROOT,
       encoding: "utf8",
@@ -489,10 +454,10 @@ test("the two-pass runner records expected and actual activation misses", () => 
   const report = JSON.parse(readFileSync(reportPath, "utf8"));
   assert.deepEqual(report.failures["fake-model"], [
     {
-      fixture: "result-retained-related-resume",
-      expected: { decision: "block-resume", action: "stop", primarySkill: null },
+      fixture: "result-malformed-with-active",
+      expected: { decision: "fail-closed", action: "stop", primarySkill: null },
       actual: { decision: "ordinary-routing", action: "direct", primarySkill: null },
-      detail: "want block-resume:stop->null, got ordinary-routing:direct->null",
+      detail: "want fail-closed:stop->null, got ordinary-routing:direct->null",
     },
   ]);
 });
@@ -505,15 +470,9 @@ test("the two-pass runner records expected and actual activation misses", () => 
 test("the committed eval reports describe the live bytes they claim", () => {
   const bootstrap = createBootstrap(ROOT);
   const live = evalSurfaceFingerprint({ bootstrap, repoRoot: ROOT });
-  const canon = evalSurfaceFingerprint({
-    bootstrap,
-    repoRoot: ROOT,
-    canonSection: loadLifecycleMatrix(ROOT),
-  });
 
   const committed = [
     ["test/eval/eval-report.json", "bootstrap only", null],
-    ["test/eval/eval-report-canon.json", "bootstrap + on-demand lifecycle matrix", canon],
     ["test/eval/triage-report.json", "bootstrap only (triage axis)", null],
     ["test/eval/brainstorm-compliance-report.json", "bootstrap + brainstorm skill (behavior compliance axis)", null],
   ];
@@ -532,7 +491,6 @@ test("the committed eval reports describe the live bytes they claim", () => {
   // added or dropped without re-running has to fail here rather than in a reader's head.
   const liveTotals = new Map([
     ["test/eval/eval-report.json", activationFixtures.length],
-    ["test/eval/eval-report-canon.json", activationFixtures.length],
     ["test/eval/triage-report.json", triageFixtures.length],
     ["test/eval/brainstorm-compliance-report.json", brainstormFixtures.length],
   ]);
@@ -583,7 +541,7 @@ test("the committed eval reports describe the live bytes they claim", () => {
         liveTotals.get(path),
         `${path} must be scored against the live fixture set for ${model}`,
       );
-      if (path === "test/eval/eval-report.json" || path === "test/eval/eval-report-canon.json") {
+      if (path === "test/eval/eval-report.json") {
         for (const failure of report.failures?.[model] ?? []) {
           assert.equal(typeof failure.fixture, "string");
           assert.deepEqual(

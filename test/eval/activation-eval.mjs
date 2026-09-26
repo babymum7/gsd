@@ -1,10 +1,8 @@
 #!/usr/bin/env bun
 // Optional live-LLM activation evaluation for the exact production GSD bootstrap.
 //
-// Scope: only the injected bootstrap is supplied, while the row-level completed-state matrix
-// lives in the on-demand canon an owner reads before lifecycle work. A score here is therefore
-// a bootstrap-only lower bound on live behavior, not the whole routing contract; fixture
-// expectations still encode that canon, so a miss is canon-adherence data either way.
+// Scope: only the injected bootstrap is supplied, so a score here is a bootstrap-only lower
+// bound on live behavior.
 //
 // Backend selection (see selectEvalBackend):
 //   the local `omp` binary is preferred and needs no key; it runs one isolated
@@ -98,10 +96,10 @@ const system = [
   "The exact production GSD session bootstrap is loaded below.",
   "Given the workspace state and current user prompt, apply the result-marker decision vocabulary and the lazy skill-selection policy this bootstrap states.",
   "Choose only the primary process owner. Hidden helper skills are not represented in primarySkill.",
-  'Reply with ONLY exact JSON: {"decision":"<ordinary-routing|ignore-terminal-record|cleanup-question|cleanup-only|block-resume|fail-closed>","action":"<load|direct|stop>","primarySkill":"<visible gsd-* skill>" or null}.',
-  "Use load with one visible primary skill, direct with null when no primary skill applies, and stop with null for every cleanup/block/fail-closed decision.",
-  "ordinary-routing and ignore-terminal-record ALWAYS use load or direct. cleanup-question, cleanup-only, block-resume, and fail-closed ALWAYS use stop with null primarySkill.",
-  "Plan-hash mismatch does not override the normal owner: bare continue still enters gsd-handoff; prompt-named pending execution work enters gsd-executing-plans. Bare 'continue' or generic resume with a validated active .scratch plan/state = gsd-handoff; named task/feature work with validated active plan = its owner skill, not gsd-handoff.",
+  'Reply with ONLY exact JSON: {"decision":"<ordinary-routing|fail-closed>","action":"<load|direct|stop>","primarySkill":"<visible gsd-* skill>" or null}.',
+  "Use load with one visible primary skill, direct with null when no primary skill applies, and stop with null for fail-closed.",
+  "ordinary-routing ALWAYS uses load or direct. fail-closed ALWAYS uses stop with null primarySkill.",
+  "Bare 'continue', pause, or resume of an owned active .scratch plan/state = gsd-executing-plans. A moved plan hash does not change the owner.",
   "Explicit diff or PR review prompt always loads gsd-verify, never direct. plan.md beside malformed state.toon fail-closes before any direct/nano routing.",
   "Your entire response must be exactly one raw JSON object. No prose, no explanation, no markdown fence, no tool_call tags, no wrapper of any kind. Any text besides the JSON object is a failure.",
   "",

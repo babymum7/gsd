@@ -1,6 +1,6 @@
 # GSD Core
 
-GSD is an automatic, repository-backed software delivery flow: discovery, planning, execution, verification, review, handoff, and recovery. The harness-generic core renders one small session bootstrap and the recovery capsule; each supported host installs it through the unified plugin CLI. Talk to the agent normally. The injected bootstrap classifies the prompt, selects one process owner from intent and validated state, and reads that skill only when needed.
+GSD is an automatic, repository-backed software delivery flow: discovery, planning, execution, verification, review, pause, and resume. The harness-generic core renders one small session bootstrap and the recovery capsule; each supported host installs it through the unified plugin CLI. Talk to the agent normally. The injected bootstrap suggests the lightest route for the prompt and reads a skill only when one fits.
 
 Inspired by:
 
@@ -34,7 +34,7 @@ Add `--dry-run` to print the exact host commands. The CLI builds one self-contai
 - Claude Code: `claude plugin marketplace add <marketplace> --scope user` then `claude plugin install gsd@gsd-local --scope user`
 - Codex: `codex plugin marketplace add <marketplace>` then `codex plugin add gsd@gsd-local`
 
-The bundle carries `lib/`, the canonical skills and tools under `core/`, only the six visible skills in the host-facing `skills/` directory, and host manifests. Hidden runtime skills stay internal. Claude Code and Codex hooks still require their normal trust review. Uninstall is the inverse CLI operation:
+The bundle carries `lib/`, the canonical skills and tools under `core/`, only the five visible skills in the host-facing `skills/` directory, and host manifests. Hidden runtime skills stay internal. Claude Code and Codex hooks still require their normal trust review. Uninstall is the inverse CLI operation:
 
 Relocation of the checkout does not require reinstall because the installed plugin is a copied, self-contained bundle. Editing the checkout does not update the installed bundle; run `bun bin/gsd.mjs install` again to refresh it, then follow the selected host's normal reload and trust behavior.
 
@@ -91,7 +91,7 @@ test, so it cannot drift quietly:
   when no step names a required contract. No owner depends on most of it: the widest
   named set is 8645 bytes of the 50330-byte file, about 1879 tokens against about 10966,
   and a test caps any owner at 10000 bytes (decision 0020).
-- One visible skill body at a time. The six visible skills cap at 9850 words in total,
+- One visible skill body at a time. The five visible skills cap at 9850 words in total,
   and the bootstrap carries their metadata, not their bodies.
 - Recovery is bounded and rare. A capsule is emitted only after a compaction and fails
   closed above 4000 bytes rather than truncating.
@@ -131,8 +131,8 @@ A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active 
 | “Why does X crash?” | Feedback-loop-first diagnosis with `gsd-diagnosing-bugs`. |
 | “Design the public interface for X” | Architecture and domain discovery in `gsd-brainstorming`. |
 | “Audit the architecture” | Architecture and domain discovery in `gsd-brainstorming`. |
-| “Pause and save progress” | Validated `state.toon` checkpoint through `gsd-handoff`. |
-| “Continue the active feature” | Validated resume through `gsd-handoff`. |
+| “Pause and save progress” | Validated `state.toon` checkpoint through `gsd-executing-plans`. |
+| “Continue the active feature” | Validated resume through `gsd-executing-plans`. |
 
 Missing consumed artifacts do not trigger improvisation. The selected skill returns control to automatic selection or the recorded active owner with an actionable stop or transition.
 
@@ -152,9 +152,8 @@ The current top-level session is the sole lifecycle authority. It interprets the
 
 - `.scratch/` is ignored and machine-local by default.
 - `plan.md` remains the human-readable plan authority. The atomic `state.toon` snapshot binds its bytes and carries runtime progress; it does not replace design authority.
-- Each feature executes on `wip/<feature>` and reaches the base branch as one squash commit.
-- Durable multi-milestone publication uses `docs/gsd/<feature>/milestones.md`; final completion removes the ledger in the same green squash.
-- A portable pause can explicitly synchronize committed WIP state and the exact feature scratch packet (`plan.md`, `state.toon`). Dirty-path snapshots require explicit consent; automatic context-pressure checkpoints stay local.
+- Each feature executes on `wip/<feature>`; after the terminal gate the owner asks whether to merge it into the base branch or open a pull request.
+- A feature too large for one plan is split into parts in `.scratch/<feature>/parts.md`, a plain checklist; each part is delivered as its own feature `<feature>-pN`.
 
 ```text
 adapters/
@@ -188,9 +187,8 @@ skills/
 ├── gsd/                              # hidden session bootstrap + canonical reference
 ├── gsd-brainstorming/                # discovery and requirements convergence
 ├── gsd-to-plan/                      # executable Markdown plan
-├── gsd-executing-plans/              # ordered task execution, wave-dispatched by default
+├── gsd-executing-plans/              # ordered task execution, pause, and resume
 ├── gsd-verify/                       # deterministic conformance and acceptance gate
-├── gsd-handoff/                      # pause, recovery, and portable resume
 ├── gsd-tdd/                          # hidden Fast TDD reference
 ├── gsd-diagnosing-bugs/              # hard-bug diagnosis loop
 ├── gsd-domain-modeling/              # hidden bounded-context documentation reference
@@ -237,7 +235,7 @@ A non-zero exit is not automatically a routing regression: a chatty model can em
 
 An exit code of 3 is never a routing verdict: it means the backend itself failed (a rejected credential or a dead endpoint), so the run aborts before any fixture is scored instead of reporting the failure as `0/N checks pass`.
 
-Two scopes measure two different things. Activation alone is the lower bound: only the injected bootstrap travels, while the row-level completed-state matrix lives in the on-demand canon an owner reads before lifecycle work. `GSD_EVAL_CANON=1 bun test/eval/eval-models.mjs` adds that canon section, which is what a live owner holds when it routes lifecycle work, and the two-pass report records which scope produced its numbers in a `scope` field. `GSD_EVAL_JOB_TIMEOUT` (milliseconds, default 120000) raises the per-call ceiling for slower models, which matters once several models share one report.
+Activation measures a lower bound: only the injected bootstrap travels. `bun test/eval/eval-models.mjs` runs a two-pass variant that records its scope in a `scope` field. `GSD_EVAL_JOB_TIMEOUT` (milliseconds, default 120000) raises the per-call ceiling for slower models, which matters once several models share one report.
 
 The two committed reports on the current bytes each score three models in one run, at fingerprint `70495183c266`. With the canon loaded, `opencode-go/deepseek-v4.1-flash` and `google-antigravity/gemini-3.8-flash` scored 44/44 first attempt, while `opencode-go/glm-5.3-flash` scored 43/44 first attempt and 44/44 after correction, for 132/132 (100%) overall. The bootstrap-only lower bound scored 38/44, 40/44, and 37/44 first attempt for 115/132 (87.1%), then 39/44, 40/44, and 38/44 after correction for 117/132 (88.6%); its misses concentrate on terminal-state rows (`result-*`) — exactly the rows the on-demand canon owns, which is why the canon scope is the operative measure and the bootstrap stays lean with a `§` pointer instead of that matrix.
 
@@ -245,7 +243,7 @@ Run-to-run spread is larger than any wording effect measured here, so the number
 
 Every report also carries the fingerprint of the bytes it measured: `bootstrap_sha256` and `bootstrap_words` for the rendered bootstrap, plus `canon_sha256` and `canon_words` when the canon section traveled. Those word counts describe the text the model received, so they run above the source-file cap numbers. The repository root is normalized out of the hash, so two checkouts of one revision agree, and any change to the bootstrap, the visible skill catalog, or the canon moves it. A report whose fingerprint does not match the tree is history, not evidence: re-run the evaluator instead of quoting its number. The suite enforces that rule. `test/skills-lifecycle.test.js` recomputes the live fingerprint the same way the runners do and fails when a committed report, or the prefix quoted in this README, no longer matches the bytes on disk.
 
-The triage front door is scored by its own runner, so neither axis leaks the other's vocabulary into its prompt: `bun test/eval/triage-eval.mjs` checks `test/eval/triage-fixtures.json` against the same production bootstrap and requires the strict JSON object `{ "route": "..." }` for all six routes. The 17 fixtures hold one or more per route, and the runner writes the same fingerprint-bound report shape to `test/eval/triage-report.json`, overridable with `--report-path`.
+The triage front door is scored by its own runner, so neither axis leaks the other's vocabulary into its prompt: `bun test/eval/triage-eval.mjs` checks `test/eval/triage-fixtures.json` against the same production bootstrap and requires the strict JSON object `{ "route": "..." }` for all five routes. The 17 fixtures hold one or more per route, and the runner writes the same fingerprint-bound report shape to `test/eval/triage-report.json`, overridable with `--report-path`.
 
 Skill compliance is the narrow third axis: it proves that a model actually performs the bootstrap-required first action, not merely names the skill. `GSD_EVAL_MODEL=opencode-go/deepseek-v4.1-flash,google-antigravity/gemini-3.8-flash,opencode-go/glm-5.3-flash bun test/eval/skill-compliance-eval.mjs` runs the 28 activation fixtures that expect a primary skill in isolated OMP JSON sessions, enables only the `read` tool, and passes a fixture only when the first visible assistant action is an exact `read` of that skill's catalog path. The committed report scores all three models 28/28, for 84/84 aggregate, and records the concrete first-action miss for any failure; use `--report-path` to write a fresh report without touching the committed one.
 

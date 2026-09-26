@@ -1,17 +1,7 @@
 import { createHash } from "node:crypto";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 
-export const ACTIVATING_DECISIONS = new Set([
-  "ordinary-routing",
-  "ignore-terminal-record",
-]);
-export const STOPPING_DECISIONS = new Set([
-  "cleanup-question",
-  "cleanup-only",
-  "block-resume",
-  "fail-closed",
-]);
+export const ACTIVATING_DECISIONS = new Set(["ordinary-routing"]);
+export const STOPPING_DECISIONS = new Set(["fail-closed"]);
 const ALLOWED_DECISIONS = new Set([
   ...ACTIVATING_DECISIONS,
   ...STOPPING_DECISIONS,
@@ -265,9 +255,9 @@ export function responseMatchesFixture(value, fixture) {
 }
 
 // The triage front door (decision 0013) classifies a prompt into exactly one route before
-// any lifecycle work. It is a separate axis from the completed-state matrix above, so it
+// any lifecycle work. It is a separate axis from the activation decisions above, so it
 // gets its own fixture shape, parser, and coverage check.
-export const TRIAGE_ROUTES = ["answer", "clarify", "research", "quick", "plan", "milestone"];
+export const TRIAGE_ROUTES = ["answer", "clarify", "research", "quick", "plan"];
 const TRIAGE_ROUTE_SET = new Set(TRIAGE_ROUTES);
 
 export function validateTriageFixtureSet(fixtures) {
@@ -331,25 +321,4 @@ export function parseTriageResponse(text) {
 
 export function triageResponseMatchesFixture(value, fixture) {
   return value.route === fixture.route;
-}
-
-// The bootstrap names the six completed-state decisions and points at the on-demand canon that
-// carries their rows. A live owner reads that section before lifecycle work, so a faithful
-// measurement can hand it over, while the bootstrap-only runner stays the lower bound.
-// Extraction fails closed when the heading is gone, so a moved canon cannot be scored as loaded.
-export function loadLifecycleMatrix(repoRoot) {
-  const canon = readFileSync(join(repoRoot, "skills", "gsd", "REFERENCE.md"), "utf8");
-  const lines = canon.split("\n");
-  const start = lines.findIndex((line) => /^### Completed-state and cleanup matrix\s*$/.test(line));
-  if (start === -1) {
-    throw new Error("the canon no longer defines ### Completed-state and cleanup matrix");
-  }
-  let end = lines.length;
-  for (let index = start + 1; index < lines.length; index += 1) {
-    if (/^#{2,3} /.test(lines[index])) {
-      end = index;
-      break;
-    }
-  }
-  return lines.slice(start, end).join("\n").trim();
 }

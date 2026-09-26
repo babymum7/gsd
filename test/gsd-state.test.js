@@ -510,7 +510,7 @@ function getLifecycleMarkdownFiles() {
 // Mutation verbs targeting state.toon, .scratch paths, or phase= writes.
 // Bounded .{0,60}? between verb and target catches "Persist `key` in `state.toon`".
 const STATE_WRITE_RE = /(?:atomically\s+)?(?:write|update|persist)\b.{0,60}?(?:`[^`]*`(?:\.scratch|\/state\.toon)|`[^`]*state\.toon|`phase=)/gi;
-const ALLOWED_RE = /gsd-state\.mjs|write-state|gsd-handoff/gi;
+const ALLOWED_RE = /gsd-state\.mjs|write-state/gi;
 
 // Scan lines in a file for unguarded state-write instructions.
 // Table rows are split into cells and scanned independently to avoid
@@ -553,7 +553,6 @@ test("state-write detector catches bare mutation verbs", () => {
     "| Pre-plan state write | — | `state.toon` |",    // should NOT catch (verb and target in different cells)
     "| Persist `cleanup_preference` in `state.toon` | via gsd-state.mjs |", // should NOT catch (allowed in same row)
     "Persist `cleanup_preference` in `state.toon` when chosen (via `gsd-state.mjs write-state`)", // should NOT catch (allowed)
-    "write `phase=approved` via gsd-handoff",         // should NOT catch (allowed)
     "    write `x`/state.toon",                       // code block — skip
   ].join("\n"));
   const violations = findViolations(p);
@@ -568,7 +567,7 @@ test("state-write detector catches bare mutation verbs", () => {
   rmSync(dir, { recursive: true, force: true });
 });
 
-test("every lifecycle Markdown file's state-write instructions use the CLI or delegate to gsd-handoff", () => {
+test("every lifecycle Markdown file's state-write instructions use the CLI", () => {
   const violations = [];
   for (const filePath of getLifecycleMarkdownFiles()) {
     const rel = filePath.replace(SKILLS_DIR + "/", "");
@@ -579,7 +578,7 @@ test("every lifecycle Markdown file's state-write instructions use the CLI or de
   assert.deepEqual(
     violations,
     [],
-    `Found state.toon write instructions without gsd-state.mjs/gsd-handoff:\n${violations.join("\n")}`
+    `Found state.toon write instructions without gsd-state.mjs:\n${violations.join("\n")}`
   );
 });
 
