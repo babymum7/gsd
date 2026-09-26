@@ -65,7 +65,7 @@ testDarwin('T2: writeStateAtomic and readStateFile roundtrip on darwin', () => {
   writeFileSync(join(featureDir, 'plan.md'), canonicalPlanFixture(feature));
 
   const stateInput = {
-    schema: 'v0.0.1',
+    schema: 'v0.0.2',
     feature,
     phase: 'executing',
     next_action: 'start/continue task',
@@ -75,8 +75,6 @@ testDarwin('T2: writeStateAtomic and readStateFile roundtrip on darwin', () => {
     wip_branch: `wip/${feature}`,
     last_green_task: 'none',
     last_green_commit: 'none',
-    autosync: 'none',
-    cleanup_preference: 'none',
     checkpoint_revision: '1',
   };
 
@@ -125,7 +123,7 @@ testDarwin('T2: dynamic import of extensions/gsd-context.js exercises state read
   writeFileSync(join(featureDir, 'plan.md'), canonicalPlanFixture(feature));
 
   const stateInput = {
-    schema: 'v0.0.1',
+    schema: 'v0.0.2',
     feature,
     phase: 'executing',
     next_action: 'start/continue task',
@@ -135,8 +133,6 @@ testDarwin('T2: dynamic import of extensions/gsd-context.js exercises state read
     wip_branch: `wip/${feature}`,
     last_green_task: 'none',
     last_green_commit: 'none',
-    autosync: 'none',
-    cleanup_preference: 'none',
     checkpoint_revision: '1',
   };
 

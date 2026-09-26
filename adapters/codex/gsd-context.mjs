@@ -21,6 +21,8 @@ import { loadSubagentProfiles, withSubagentProfiles } from '../../lib/gsd-settin
 import {
   createMarkerStore,
   renderRecoveryCapsule,
+  sessionOwnerToken,
+  withSessionOwner,
 } from '../../lib/gsd-session-context.mjs';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -48,9 +50,17 @@ function readInput() {
   }
 }
 
-// The core render plus the user's codex sub-agent profiles, when any are set.
-function renderBootstrap() {
-  return withSubagentProfiles(createBootstrap(GSD_ROOT), loadSubagentProfiles('codex', '`spawn_agent` `model`'));
+// The core render plus the user's codex sub-agent profiles, when any are set, and the
+// session owner token that scopes which packets this session may see.
+function renderBootstrap(owner) {
+  return withSessionOwner(
+    withSubagentProfiles(createBootstrap(GSD_ROOT), loadSubagentProfiles('codex', '`spawn_agent` `model`')),
+    owner,
+  );
+}
+
+function ownerOf(input) {
+  return sessionOwnerToken('codex', input.session_id);
 }
 
 function emit(eventName, text) {
@@ -68,20 +78,20 @@ function handleSessionStart(input) {
   const store = createMarkerStore(STATE_ROOT, input.session_id);
   store.write('bootstrap-emitted');
   if (input.source === 'compact' || input.source === 'resume') {
-    const capsule = renderRecoveryCapsule(GSD_ROOT, cwdOf(input));
+    const capsule = renderRecoveryCapsule(GSD_ROOT, cwdOf(input), ownerOf(input));
     if (capsule) {
       emit('SessionStart', capsule);
       return;
     }
   }
-  emit('SessionStart', renderBootstrap());
+  emit('SessionStart', renderBootstrap(ownerOf(input)));
 }
 
 function handleUserPromptSubmit(input) {
   const store = createMarkerStore(STATE_ROOT, input.session_id);
   if (store.read('bootstrap-emitted')) return;
   store.write('bootstrap-emitted');
-  emit('UserPromptSubmit', renderBootstrap());
+  emit('UserPromptSubmit', renderBootstrap(ownerOf(input)));
 }
 
 function main() {

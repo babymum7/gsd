@@ -4,7 +4,6 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ACTIVE_STATE_PHASES,
-  COMPLETED_STATE_PHASES,
   STATE_FIELD_ORDER,
   defaultNextActionForPhase,
   inspectStateFile,
@@ -60,13 +59,13 @@ function emitHelp(command) {
       "Usage: " + usage,
       "",
       "Write a state.toon file atomically with validation and readback.",
-      "The JSON must be an object with exactly these v0.0.1 fields (order is normalised):",
+      "The JSON must be an object with exactly these v0.0.2 fields (order is normalised):",
       "",
       ...STATE_FIELD_ORDER.map((f) => `  ${f}`),
       "",
       "Unset fields use the literal string \"none\" (never null or \"\").",
       "Constraints:",
-      `  phase                  one of: ${[...ACTIVE_STATE_PHASES, ...COMPLETED_STATE_PHASES].join(", ")}`,
+      `  phase                  one of: ${ACTIVE_STATE_PHASES.join(", ")}`,
       "  plan_path              .scratch/<feature>/plan.md",
       "  wip_branch             wip/<feature>",
       "  plan_sha256            64 lowercase hex chars",
@@ -101,7 +100,7 @@ function emitHelp(command) {
       "Usage: " + usage,
       "",
       "Set state fields atomically with validation and derived defaults.",
-      "Accepts key=value pairs for canonical v0.0.1 state fields.",
+      "Accepts key=value pairs for canonical v0.0.2 state fields.",
       "",
       "Options:",
       "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
@@ -110,11 +109,13 @@ function emitHelp(command) {
       ...STATE_FIELD_ORDER.map((f) => `  ${f}`),
       "",
       "Defaults:",
-      "  schema                 v0.0.1",
+      "  schema                 v0.0.2",
       "  feature                basename of --feature-dir",
+      "  owner                  none (pass the session GSD_SESSION token)",
+      "  phase                  approved",
       "  next_action            derived from phase when omitted",
-      "  plan_path              .scratch/<feature>/plan.md (when phase != draft)",
-      "  wip_branch             wip/<feature> (when phase != draft)",
+      "  plan_path              .scratch/<feature>/plan.md",
+      "  wip_branch             wip/<feature>",
       "  checkpoint_revision    incremented if existing state.toon, else 1",
       "",
       "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
@@ -277,9 +278,10 @@ if (input.usageError) {
     }
   } else {
     baseState = {
-      schema: "v0.0.1",
+      schema: "v0.0.2",
       feature: featureMetaName,
-      phase: "draft",
+      owner: "none",
+      phase: "approved",
       next_action: "none",
       plan_path: "none",
       plan_sha256: "none",
@@ -287,8 +289,6 @@ if (input.usageError) {
       wip_branch: "none",
       last_green_task: "none",
       last_green_commit: "none",
-      autosync: "none",
-      cleanup_preference: "none",
       checkpoint_revision: "1",
     };
   }
@@ -309,10 +309,10 @@ if (input.usageError) {
       }
     }
   } else {
-    if (!updateKeys.has("plan_path") && state.phase !== "draft") {
+    if (!updateKeys.has("plan_path")) {
       state.plan_path = `.scratch/${state.feature}/plan.md`;
     }
-    if (!updateKeys.has("wip_branch") && state.phase !== "draft") {
+    if (!updateKeys.has("wip_branch")) {
       state.wip_branch = `wip/${state.feature}`;
     }
     if (!updateKeys.has("next_action")) {

@@ -27,10 +27,15 @@ import gsdContextExtension, {
 } from "../extensions/gsd-context.js";
 
 const FIXTURE_PLAN_SHA = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
+// The OMP adapter scopes the capsule to packets its session owns: fixtures are owned by
+// this fake session, and every compaction context carries its session manager.
+const TEST_SESSION = { getSessionId: () => "test-session" };
+const TEST_OWNER = "omp-test-session";
 function writeActiveStateFixture(featureDir, feature, overrides = {}) {
   writeStateAtomic(featureDir, {
-    schema: "v0.0.1",
+    schema: "v0.0.2",
     feature,
+    owner: TEST_OWNER,
     phase: "executing",
     next_action: "start/continue task",
     plan_path: `.scratch/${feature}/plan.md`,
@@ -39,8 +44,6 @@ function writeActiveStateFixture(featureDir, feature, overrides = {}) {
     wip_branch: `wip/${feature}`,
     last_green_task: "none",
     last_green_commit: "none",
-    autosync: "none",
-    cleanup_preference: "none",
     checkpoint_revision: "1",
     ...overrides,
   });
@@ -178,18 +181,6 @@ describe("capsule extension production API contract", () => {
     assert.ok(Buffer.byteLength(capsule2, 'utf8') < 4000, "Capsule too long with multiple features");
   });
 
-  // 3. Exact order
-  test("proves exact order of rehydration steps is preserved", () => {
-    const capsule = createCapsule(["feature-a"], ROOT);
-    
-    const routingIdx = capsule.indexOf("If resuming, follow the bootstrap routing in ");
-    const inventoryIdx = capsule.indexOf("workspace inventory only");
-
-    assert.ok(routingIdx !== -1, "Routing instruction missing");
-    assert.ok(inventoryIdx !== -1, "Inventory-only wording missing");
-    assert.ok(routingIdx > inventoryIdx, "Routing instruction must follow inventory-only wording");
-  });
-
   // 4. Safe serialization of feature names/paths and hardening
   test("proves safe serialization of feature names and paths", () => {
     // Empty feature list should throw
@@ -204,7 +195,7 @@ describe("capsule extension production API contract", () => {
 
     // Check stable alphabetical sorting (stable slug order)
     const capsule = createCapsule(["feat-z", "feat-a", "feat-m"], ROOT);
-    assert.match(capsule, /Active GSD features: feat-a, feat-m, feat-z/);
+    assert.match(capsule, /GSD features owned by this session: feat-a, feat-m, feat-z/);
     assert.match(capsule, /Compaction MUST preserve and continue the current user request/);
 
     // Invalid names (paths, spaces, capitals, etc.) should throw
@@ -228,7 +219,7 @@ describe("capsule extension production API contract", () => {
     // So we don't throw on features.length > 5, but we can verify it contains "and 1 more" and the selection step.
     // Let's update this assertion to test that it returns the ambiguity capsule!
     const ambiguityCapsule = createCapsule(["f-1", "f-2", "f-3", "f-4", "f-5", "f-6"], ROOT);
-    assert.match(ambiguityCapsule, /Active GSD features: f-1, f-2, f-3, f-4, f-5 \(and 1 more\)/);
+    assert.match(ambiguityCapsule, /GSD features owned by this session: f-1, f-2, f-3, f-4, f-5 \(and 1 more\)/);
     assert.match(ambiguityCapsule, /Some features are omitted from this list — stop and select exactly one active feature before resuming\./);
 
     // Five maximum-length (255-byte) valid slugs do NOT throw and yield a capsule < 4000 bytes
@@ -252,10 +243,10 @@ describe("capsule extension production API contract", () => {
     }, /path separators or dots are rejected/);
   });
 
-  // 5. Workspace inventory and current-request-preservation language
-  test("proves workspace inventory and current-request-preservation language exists", () => {
+  // 5. Owned-feature scope and current-request-preservation language
+  test("proves owned-feature scope and current-request-preservation language exists", () => {
     const capsule = createCapsule(["feature-a"], ROOT);
-    assert.ok(capsule.includes("workspace inventory only"), "Workspace inventory language missing");
+    assert.ok(capsule.includes("GSD features owned by this session"), "Owned-feature scope language missing");
     assert.ok(capsule.includes("Compaction MUST preserve and continue the current user request"), "Current request preservation language missing");
   });
 
@@ -350,7 +341,8 @@ describe("capsule extension production API contract", () => {
       };
 
       const ctxMock = {
-        cwd: tempDir
+        cwd: tempDir,
+        sessionManager: TEST_SESSION,
       };
 
       // Load extension factory
@@ -366,7 +358,7 @@ describe("capsule extension production API contract", () => {
       assert.equal(compactingResult.context.length, 1);
       
       const injectedCapsule = compactingResult.context[0];
-      assert.match(injectedCapsule, /Active GSD features: feat-one, feat-six/);
+      assert.match(injectedCapsule, /GSD features owned by this session: feat-one, feat-six/);
       assert.match(injectedCapsule, /skills\/gsd\/SKILL\.md/); // exact root/master path
 
       // Trigger session_compact handler
@@ -408,17 +400,17 @@ describe("capsule extension production API contract", () => {
       // Regression: a compacting failure must clear pendingCapsule so session_compact emits nothing.
       // Step 1 — seed an unsent successful capsule via a valid feature (do NOT call session_compact).
       const seedDir = mkdtempSync(join(tmpdir(), "omp-gsd-seed-"));
-      const seedCtx = { cwd: seedDir };
+      const seedCtx = { cwd: seedDir, sessionManager: TEST_SESSION };
       const seedFeat = join(seedDir, ".scratch", "seed-feature");
       mkdirSync(seedFeat, { recursive: true });
       writeFileSync(join(seedFeat, "plan.md"), "# Plan\n## Feature\n`seed-feature`\n");
       writeFileSync(join(seedFeat, "state.toon"), [
-        "schema:v0.0.1", "feature:seed-feature", "phase:executing", "next_action:start task T1",
+        "schema:v0.0.2", "feature:seed-feature", "owner:" + TEST_OWNER, "phase:executing", "next_action:start task T1",
         "plan_path:.scratch/seed-feature/plan.md",
         "plan_sha256:" + "c".repeat(64),
         "base_ref:main", "wip_branch:wip/seed-feature",
         "last_green_task:none", "last_green_commit:none",
-        "autosync:none", "cleanup_preference:none", "checkpoint_revision:1",
+        "checkpoint_revision:1",
       ].join("\n") + "\n");
       const seedResult = await registeredEvents["session.compacting"]({}, seedCtx);
       assert.ok(seedResult.context?.length, "seed: compacting returns a nonempty context (pendingCapsule is set)");
@@ -426,7 +418,7 @@ describe("capsule extension production API contract", () => {
       // returns { candidates: [], defects: [] } early (opendirSync never reached).
       // pendingCapsule must still be cleared.
       const failDir = mkdtempSync(join(tmpdir(), "omp-gsd-empty-"));
-      const failCtx = { cwd: failDir };
+      const failCtx = { cwd: failDir, sessionManager: TEST_SESSION };
       mkdirSync(join(failDir, ".scratch"), { recursive: true });
       rmSync(join(failDir, ".scratch"), { recursive: true, force: true });
       writeFileSync(join(failDir, ".scratch"), "not a directory");
@@ -443,17 +435,17 @@ describe("capsule extension production API contract", () => {
       // which throws "entry limit".  The handler catch sets features=[].
       // Seed another capsule first.
       const seedDir2 = mkdtempSync(join(tmpdir(), "omp-gsd-seed2-"));
-      const seedCtx2 = { cwd: seedDir2 };
+      const seedCtx2 = { cwd: seedDir2, sessionManager: TEST_SESSION };
       const seedFeat2 = join(seedDir2, ".scratch", "seed-two");
       mkdirSync(seedFeat2, { recursive: true });
       writeFileSync(join(seedFeat2, "plan.md"), "# Plan\n## Feature\n`seed-two`\n");
       writeFileSync(join(seedFeat2, "state.toon"), [
-        "schema:v0.0.1", "feature:seed-two", "phase:executing", "next_action:start task T1",
+        "schema:v0.0.2", "feature:seed-two", "owner:" + TEST_OWNER, "phase:executing", "next_action:start task T1",
         "plan_path:.scratch/seed-two/plan.md",
         "plan_sha256:" + "d".repeat(64),
         "base_ref:main", "wip_branch:wip/seed-two",
         "last_green_task:none", "last_green_commit:none",
-        "autosync:none", "cleanup_preference:none", "checkpoint_revision:1",
+        "checkpoint_revision:1",
       ].join("\n") + "\n");
       const seedResult2 = await registeredEvents["session.compacting"]({}, seedCtx2);
       assert.ok(seedResult2.context?.length, "seed2: compacting returns nonempty context (capsule set before failure)");
@@ -471,7 +463,7 @@ describe("capsule extension production API contract", () => {
         "detectCandidates must throw entry limit on >2048 scratch entries"
       );
       // Now invoke the handler: it catches the throw and logs it.
-      const throwCtx = { cwd: throwDir };
+      const throwCtx = { cwd: throwDir, sessionManager: TEST_SESSION };
       piMock._lastError = null;
       const beforeLimitCount = sentMessages.length;
       const limitResult = await registeredEvents["session.compacting"]({}, throwCtx);
@@ -503,18 +495,18 @@ describe("capsule extension production API contract", () => {
       assert.ok(sentMessages.length > beforeCompactCycleCount, "session_compact sends capsule for surviving valid features");
       // Mixed valid + malformed: valid feature must survive alongside a bad packet.
       const mixedDir = mkdtempSync(join(tmpdir(), "omp-gsd-mixed-"));
-      const mixedCtx = { cwd: mixedDir };
+      const mixedCtx = { cwd: mixedDir, sessionManager: TEST_SESSION };
       // Create valid feature
       const validDir = join(mixedDir, ".scratch", "good-feature");
       mkdirSync(validDir, { recursive: true });
       writeFileSync(join(validDir, "plan.md"), "# Plan\n## Feature\n`good-feature`\n");
       writeFileSync(join(validDir, "state.toon"), [
-        "schema:v0.0.1", "feature:good-feature", "phase:executing", "next_action:start task T1",
+        "schema:v0.0.2", "feature:good-feature", "owner:" + TEST_OWNER, "phase:executing", "next_action:start task T1",
         "plan_path:.scratch/good-feature/plan.md",
         "plan_sha256:" + "b".repeat(64),
         "base_ref:main", "wip_branch:wip/good-feature",
         "last_green_task:none", "last_green_commit:none",
-        "autosync:none", "cleanup_preference:none", "checkpoint_revision:1",
+        "checkpoint_revision:1",
       ].join("\n") + "\n");
       // Create malformed feature
       const badDir = join(mixedDir, ".scratch", "bad-feature");
@@ -531,7 +523,7 @@ describe("capsule extension production API contract", () => {
 
       // Test inert behavior (empty candidates)
       const emptyTempDir = mkdtempSync(join(tmpdir(), "omp-gsd-empty-"));
-      const emptyCtx = { cwd: emptyTempDir };
+      const emptyCtx = { cwd: emptyTempDir, sessionManager: TEST_SESSION };
 
       const emptyCompactingResult = await registeredEvents["session.compacting"]({}, emptyCtx);
       assert.deepEqual(emptyCompactingResult, {}, "Inert compacting should return empty object");
@@ -548,12 +540,12 @@ describe("capsule extension production API contract", () => {
         mkdirSync(featureDir, { recursive: true });
         writeFileSync(join(featureDir, "plan.md"), "# Plan\n## Feature\n`active-plan`\n");
         writeFileSync(join(featureDir, "state.toon"), [
-          "schema:v0.0.1", "feature:active-plan", "phase:executing", "next_action:verify",
+          "schema:v0.0.2", "feature:active-plan", "owner:" + TEST_OWNER, "phase:executing", "next_action:verify",
           "plan_path:.scratch/active-plan/plan.md",
           "plan_sha256:" + "a".repeat(64),
           "base_ref:main", "wip_branch:wip/active-plan",
           "last_green_task:none", "last_green_commit:none",
-          "autosync:none", "cleanup_preference:none", "checkpoint_revision:1",
+          "checkpoint_revision:1",
         ].join("\n") + "\n");
 
         // Simulate: user asked to fix a bug (unrelated to active-plan)
@@ -566,7 +558,7 @@ describe("capsule extension production API contract", () => {
         assert.ok(Array.isArray(result.context), "Context must be an array");
         assert.equal(result.context.length, 2, "Context must contain capsule and current request");
         assert.match(result.context[0], /\[GSD Recovery Capsule\]/, "First item must be capsule");
-        assert.match(result.context[0], /workspace inventory only/, "Capsule must state inventory-only");
+        assert.match(result.context[0], /GSD features owned by this session/, "Capsule must state its session scope");
         assert.equal(result.context[1], "[GSD Current Request]\nCan you also check the error logs?",
           "Second item must preserve the last genuine user request");
 
@@ -675,7 +667,7 @@ describe("T3 Review Fixes detailed behavior", () => {
     writeActiveStateFixture(featDir, "symlink-feat");
     
     try {
-      const compactResult = await registeredEvents["session.compacting"]({}, { cwd: tempDir });
+      const compactResult = await registeredEvents["session.compacting"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
       assert.ok(compactResult.context);
       assert.equal(compactResult.context.length, 1);
       
@@ -711,14 +703,14 @@ describe("T3 Review Fixes detailed behavior", () => {
       gsdContextExtension(piMock);
 
       // 1. Compacting
-      const compactResult = await registeredEvents["session.compacting"]({}, { cwd: tempDir });
+      const compactResult = await registeredEvents["session.compacting"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
       const capsuleCompacting = compactResult.context[0];
 
       // 2. Modify filesystem (remove all candidates to cause divergence if rediscovered)
       rmSync(scratchDir, { recursive: true, force: true });
 
       // 3. Compacted
-      await registeredEvents["session_compact"]({}, { cwd: tempDir });
+      await registeredEvents["session_compact"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
 
       // Verify that session_compact sent the EXACT same capsule bytes computed during compacting,
       // proving no filesystem rediscovery divergence and exact byte identity.
@@ -756,7 +748,7 @@ describe("T3 Review Fixes detailed behavior", () => {
       gsdContextExtension(piMock);
 
       // Compacting
-      const compactResult = await registeredEvents["session.compacting"]({}, { cwd: tempDir });
+      const compactResult = await registeredEvents["session.compacting"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
       assert.ok(compactResult.context);
       assert.equal(compactResult.context.length, 1);
 
@@ -765,11 +757,11 @@ describe("T3 Review Fixes detailed behavior", () => {
       // Sorted alphabetically: feat-a, feat-b, feat-c, feat-d, feat-e, feat-f
       // Prefix is first 5: feat-a, feat-b, feat-c, feat-d, feat-e
       // Omitted: feat-f (1 more)
-      assert.match(capsule, /Active GSD features: feat-a, feat-b, feat-c, feat-d, feat-e \(and 1 more\)/);
+      assert.match(capsule, /GSD features owned by this session: feat-a, feat-b, feat-c, feat-d, feat-e \(and 1 more\)/);
       assert.match(capsule, /Some features are omitted from this list — stop and select exactly one active feature before resuming\./);
 
       // Compacted
-      await registeredEvents["session_compact"]({}, { cwd: tempDir });
+      await registeredEvents["session_compact"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
       assert.equal(sentMessages.length, 1);
       assert.equal(sentMessages[0].message, capsule);
     } finally {
@@ -826,7 +818,7 @@ describe("T3 Review Fixes detailed behavior", () => {
     const scratchDir = join(tempDir, ".scratch");
     mkdirSync(scratchDir);
     const target = join(tempDir, "state-target.toon");
-    writeFileSync(target, "schema:v0.0.1\n");
+    writeFileSync(target, "schema:v0.0.2\n");
 
     // Plan-less residue: a symlink state.toon and a directory state.toon are both left alone.
     const linkOnly = join(scratchDir, "residual-link");
@@ -887,14 +879,14 @@ describe("T3 Review Fixes detailed behavior", () => {
 
       gsdContextExtension(piMock);
 
-      const compactResult = await registeredEvents["session.compacting"]({}, { cwd: tempDir });
+      const compactResult = await registeredEvents["session.compacting"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
       assert.ok(compactResult.context);
       assert.equal(compactResult.context.length, 1);
 
       const capsule = compactResult.context[0];
       assert.ok(Buffer.byteLength(capsule, "utf8") < 2000, "Capsule must be under 2000 bytes even for five 255-byte slugs");
 
-      await registeredEvents["session_compact"]({}, { cwd: tempDir });
+      await registeredEvents["session_compact"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
       assert.equal(sentMessages.length, 1);
       assert.equal(sentMessages[0].message, capsule);
     } finally {
@@ -959,14 +951,14 @@ describe("T3 Review Fixes detailed behavior", () => {
       const realRootPath = realpathSync(ROOT);
 
       // Case 1: Over-cap ambiguity (6 features)
-      const compactResult = await registeredEvents["session.compacting"]({}, { cwd: tempDir });
+      const compactResult = await registeredEvents["session.compacting"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
       const hookCapsule = compactResult.context[0];
       
       // 1. Generic expected bytes equal both production hook paths
-      const expectedCapsuleOverCap = testIndependentRenderer(features, realRootPath);
+      const expectedCapsuleOverCap = `${testIndependentRenderer(features, realRootPath)}\nGSD_SESSION: ${TEST_OWNER}`;
       assert.equal(hookCapsule, expectedCapsuleOverCap, "Over-cap hook 1 (compacting) output must match independent renderer exactly");
 
-      await registeredEvents["session_compact"]({}, { cwd: tempDir });
+      await registeredEvents["session_compact"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
       assert.equal(sentMessages.length, 1);
       assert.equal(sentMessages[0].message, expectedCapsuleOverCap, "Over-cap hook 2 (compacted) output must match independent renderer exactly");
 
@@ -977,13 +969,13 @@ describe("T3 Review Fixes detailed behavior", () => {
       rmSync(join(scratchDir, "feat-e"), { recursive: true, force: true });
       rmSync(join(scratchDir, "feat-d"), { recursive: true, force: true });
 
-      const compactResult3 = await registeredEvents["session.compacting"]({}, { cwd: tempDir });
+      const compactResult3 = await registeredEvents["session.compacting"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
       const hookCapsule3 = compactResult3.context[0];
       
-      const expectedCapsuleNormal = testIndependentRenderer(["feat-a", "feat-b", "feat-c"], realRootPath);
+      const expectedCapsuleNormal = `${testIndependentRenderer(["feat-a", "feat-b", "feat-c"], realRootPath)}\nGSD_SESSION: ${TEST_OWNER}`;
       assert.equal(hookCapsule3, expectedCapsuleNormal, "Normal hook 1 (compacting) output must match independent renderer exactly");
 
-      await registeredEvents["session_compact"]({}, { cwd: tempDir });
+      await registeredEvents["session_compact"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
       assert.equal(sentMessages.length, 1);
       assert.equal(sentMessages[0].message, expectedCapsuleNormal, "Normal hook 2 (compacted) output must match independent renderer exactly");
 
@@ -1057,16 +1049,16 @@ describe("T3 Review Fixes detailed behavior", () => {
 
       gsdContextExtension(piMock);
 
-      const compactResult = await registeredEvents["session.compacting"]({}, { cwd: tempDir });
+      const compactResult = await registeredEvents["session.compacting"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
       assert.ok(compactResult.context, "Compacting context must be returned for 1001 candidates");
       assert.equal(compactResult.context.length, 1);
 
       const capsule = compactResult.context[0];
-      assert.match(capsule, /Active GSD features: feat-0001, feat-0002, feat-0003, feat-0004, feat-0005 \(and 996 more\)/);
+      assert.match(capsule, /GSD features owned by this session: feat-0001, feat-0002, feat-0003, feat-0004, feat-0005 \(and 996 more\)/);
       assert.match(capsule, /Some features are omitted from this list — stop and select exactly one active feature before resuming\./);
       assert.ok(Buffer.byteLength(capsule, "utf8") < 4000, "Capsule size must stay under 4000 bytes");
 
-      await registeredEvents["session_compact"]({}, { cwd: tempDir });
+      await registeredEvents["session_compact"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
       assert.equal(sentMessages.length, 1);
       assert.equal(sentMessages[0].message, capsule);
     } finally {
@@ -1112,8 +1104,7 @@ describe("T3 Review Fixes detailed behavior", () => {
 
     const expectedMasterPath = `${specialRoot}/skills/gsd/SKILL.md`;
     const handWrittenExpected = `[GSD Recovery Capsule]
-Active GSD features: feat-a
-The listed features are a workspace inventory only and do not indicate which feature the current session is working on.
+GSD features owned by this session: feat-a
 If resuming, follow the bootstrap routing in ${expectedMasterPath}: bare "continue" selects gsd-handoff; a prompt naming an active feature routes to that feature's owner skill. Stop immediately on malformed or ambiguous state. Otherwise, continue ordinary routing for the current request.
 Compaction MUST preserve and continue the current user request. Only resume an active feature when the preserved request or a bare continue explicitly selects it.`;
 
@@ -1122,54 +1113,6 @@ Compaction MUST preserve and continue the current user request. Only resume an a
     assert.ok(!capsule.includes("<GSD_ROOT>"), "<GSD_ROOT> placeholder must not be present");
   });
 
-  // 12. Independent generic discovery and byte formula verification:
-  test("proves byte budget formula breakdown and exact accounting", () => {
-    const realRootPath = realpathSync(ROOT);
-    const { template, normalInstruction, ambiguityInstruction } = getContractFromReference();
-    const fixedText = template
-      .replace("<features>", "")
-      .replace("<GSD_ROOT>/skills/gsd/SKILL.md", "")
-      .replace("<resume_instruction>", "");
-
-    const fixedTextBytes = Buffer.byteLength(fixedText, "utf8");
-    const normalInstructionBytes = Buffer.byteLength(normalInstruction, "utf8");
-    const ambiguityInstructionBytes = Buffer.byteLength(ambiguityInstruction, "utf8");
-
-    assert.equal(fixedTextBytes, 328, "Fixed static text must be exactly 328 UTF-8 bytes");
-    assert.equal(normalInstructionBytes, 279, "Normal instruction must be exactly 279 UTF-8 bytes");
-    assert.equal(ambiguityInstructionBytes, 384, "Bounded-Ambiguity instruction must be exactly 384 UTF-8 bytes");
-
-    const masterPath = `${realRootPath}/skills/gsd/SKILL.md`;
-    const masterPathBytes = Buffer.byteLength(masterPath, "utf8");
-
-    const MASTER_PATH_PLACEHOLDER_LEN = Buffer.byteLength("<masterPath>", "utf8");
-    const normalInstructionBase = normalInstructionBytes - MASTER_PATH_PLACEHOLDER_LEN;
-    const ambiguityInstructionBase = ambiguityInstructionBytes - MASTER_PATH_PLACEHOLDER_LEN;
-
-    // Worst case totals under maximum 1024-byte path limit (instruction bytes exclude <masterPath> placeholder):
-    const normalMaxTotal = 328 + 1024 + normalInstructionBase + 1283;
-    const ambiguityMaxTotal = 328 + 1024 + ambiguityInstructionBase + 1305;
-    assert.equal(normalMaxTotal, 2902, "Normal mode worst-case total under current maxima must be exactly 2902 bytes");
-    assert.equal(ambiguityMaxTotal, 3029, "Bounded-Ambiguity mode worst-case total under current maxima must be exactly 3029 bytes");
-
-    const maxSlugs5 = Array.from({ length: 5 }, (_, i) => "a".repeat(253) + "-" + i);
-    const capsule5 = createCapsule(maxSlugs5, realRootPath);
-    const actualBytes5 = Buffer.byteLength(capsule5, "utf8");
-
-    // Formula calculation for 5 max slugs: 328 (fixed) + masterPathBytes + normalInstructionBase (267) + 1283 (max 5 features)
-    const expectedFormulaMax5 = 328 + masterPathBytes + normalInstructionBase + 1283;
-    assert.equal(actualBytes5, expectedFormulaMax5, "Actual Normal capsule size must equal byte formula calculation exactly");
-    assert.ok(actualBytes5 <= 2902, "Normal mode total must not exceed 2902 bytes");
-    assert.ok(actualBytes5 <= 4000, "Normal capsule must be within the 4000-byte cap");
-
-    // Formula calculation for 6 max slugs (ambiguity mode with 1-digit omitted count: 5*255 + 4*2 + " (and 1 more)" [13 bytes] = 1296 bytes)
-    const maxSlugs6 = [...maxSlugs5, "a".repeat(253) + "-5"];
-    const capsule6 = createCapsule(maxSlugs6, realRootPath);
-    const actualBytes6 = Buffer.byteLength(capsule6, "utf8");
-    const expectedFormulaMax6 = 328 + masterPathBytes + ambiguityInstructionBase + 1296;
-    assert.equal(actualBytes6, expectedFormulaMax6, "Actual Bounded-Ambiguity capsule size must equal byte formula calculation exactly");
-    assert.ok(actualBytes6 <= 4000, "Bounded-Ambiguity capsule must be within the 4000-byte cap");
-  });
 });
 describe("automatic GSD bootstrap metadata and catalog contract", () => {
   const makeRoot = () => {
@@ -1394,8 +1337,8 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
     mkdirSync(scratch, { recursive: true });
     writeFileSync(join(scratch, "plan.md"), "plan");
     writeActiveStateFixture(scratch, "feature-a");
-    await events["session.compacting"]({}, { cwd: workspace });
-    await events.session_compact({}, { cwd: workspace });
+    await events["session.compacting"]({}, { cwd: workspace, sessionManager: TEST_SESSION });
+    await events.session_compact({}, { cwd: workspace, sessionManager: TEST_SESSION });
     assert.equal(sentMessages.length, 1);
     assert.deepEqual(sentMessages[0].options, { deliverAs: "nextTurn", triggerTurn: false });
 
@@ -1523,13 +1466,13 @@ test("state.toon lifecycle checkpoint contract", async () => {
     readStateFile,
     detectCandidates,
     ACTIVE_STATE_PHASES,
-    COMPLETED_STATE_PHASES,
   } = await import("../extensions/gsd-context.js");
 
   const PLAN_SHA = "9f442276796394adad4621299c7dc29d70e910975e8f065d5bff894686d4d386";
   const baseFields = {
-    schema: "v0.0.1",
+    schema: "v0.0.2",
     feature: "demo-feature",
+    owner: "none",
     phase: "executing",
     next_action: "start/continue task",
     plan_path: ".scratch/demo-feature/plan.md",
@@ -1538,8 +1481,6 @@ test("state.toon lifecycle checkpoint contract", async () => {
     wip_branch: "wip/demo-feature",
     last_green_task: "T1",
     last_green_commit: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    autosync: "none",
-    cleanup_preference: "none",
     checkpoint_revision: "1",
   };
 
@@ -1555,33 +1496,12 @@ test("state.toon lifecycle checkpoint contract", async () => {
   assert.equal(parsed.plan_sha256, PLAN_SHA);
   assert.deepEqual(validateState(parsed), parsed);
   assert.ok(ACTIVE_STATE_PHASES.includes("executing"));
-  assert.ok(COMPLETED_STATE_PHASES.includes("completed-retained"));
 
-  for (const phase of [
-    "draft",
-    "approved",
-    "executing",
-    "paused",
-    "verifying",
-    "repair",
-    "merged-cleanup-pending",
-    "completed-retained",
-  ]) {
-    const draft = phase === "draft";
-    const completed = phase === "completed-retained";
-    const state = {
-      ...baseFields,
-      phase,
-      next_action: completed ? "none" : phase === "merged-cleanup-pending" ? "cleanup scratch" : baseFields.next_action,
-      plan_path: draft ? "none" : baseFields.plan_path,
-      plan_sha256: draft ? "none" : baseFields.plan_sha256,
-      base_ref: draft ? "none" : baseFields.base_ref,
-      wip_branch: draft ? "none" : baseFields.wip_branch,
-      last_green_task: draft ? "none" : baseFields.last_green_task,
-      last_green_commit: draft ? "none" : baseFields.last_green_commit,
-      cleanup_preference: completed || phase === "merged-cleanup-pending" ? "retain" : "none",
-    };
-    assert.equal(validateState(parseState(serialize(state))).phase, phase);
+  for (const phase of ["approved", "executing", "paused", "verifying", "repair", "ready"]) {
+    assert.equal(validateState(parseState(serialize({ ...baseFields, phase }))).phase, phase);
+  }
+  for (const phase of ["draft", "merged-cleanup-pending", "completed-retained"]) {
+    assert.throws(() => validateState({ ...baseFields, phase }), /unsupported phase/);
   }
 
   // Removed model/review fields are rejected as unknown authority.
@@ -1591,7 +1511,7 @@ test("state.toon lifecycle checkpoint contract", async () => {
   );
 
   // Malformed schema / unknown keys / partial rows fail closed
-  assert.throws(() => parseState("schema:v0.0.1\nfeature:demo-feature\n"), /schema|missing required field/i);
+  assert.throws(() => parseState("schema:v0.0.2\nfeature:demo-feature\n"), /schema|missing required field/i);
   assert.throws(() => parseState(serialize({ ...baseFields, extra_key: "nope" })), /unknown|extra|key/i);
   assert.throws(() => parseState("schema:v1\nfeature:\n"), /unsupported schema: v1/i);
   assert.throws(() => parseState(serialize({ ...baseFields, phase: "task-active" })), /phase/i);
@@ -1699,7 +1619,7 @@ test("state.toon lifecycle checkpoint contract", async () => {
     rmSync(symDir, { recursive: true, force: true });
 
     // Partial / truncated body fails closed
-    writeFileSync(join(featureDir, "state.toon"), "schema:v0.0.1\nfeature:demo-feature\nphase:execut");
+    writeFileSync(join(featureDir, "state.toon"), "schema:v0.0.2\nfeature:demo-feature\nphase:execut");
     assert.throws(() => readStateFile(statePath), /malformed|incomplete|phase|required/i);
     // Restore a valid checkpoint after the partial-write probe.
     writeStateAtomic(featureDir, baseFields);
@@ -1716,20 +1636,6 @@ test("state.toon lifecycle checkpoint contract", async () => {
       wip_branch: "wip/active-one",
     });
 
-    const completedDir = join(scratch, "done-one");
-    mkdirSync(completedDir);
-    writeFileSync(join(completedDir, "plan.md"), "plan");
-    writeStateAtomic(completedDir, {
-      ...baseFields,
-      feature: "done-one",
-      plan_path: ".scratch/done-one/plan.md",
-      wip_branch: "wip/done-one",
-      phase: "completed-retained",
-      next_action: "none",
-      cleanup_preference: "retain",
-      checkpoint_revision: "2",
-    });
-
     const legacyDir = join(scratch, "legacy-one");
     mkdirSync(legacyDir);
     writeFileSync(join(legacyDir, "plan.md"), "plan");
@@ -1743,9 +1649,8 @@ test("state.toon lifecycle checkpoint contract", async () => {
       feature: "cleanup-one",
       plan_path: ".scratch/cleanup-one/plan.md",
       wip_branch: "wip/cleanup-one",
-      phase: "merged-cleanup-pending",
-      next_action: "cleanup scratch",
-      cleanup_preference: "delete",
+      phase: "ready",
+      next_action: "ask merge or pull request",
       checkpoint_revision: "3",
     });
 
@@ -1776,7 +1681,6 @@ test("state.toon lifecycle checkpoint contract", async () => {
 
     const { candidates } = detectCandidates(tempDir)
     assert.deepEqual(candidates, ["active-one", "cleanup-one", "demo-feature"]);
-    assert.ok(!candidates.includes("done-one"), "completed-retained must be inert for ordinary discovery");
     assert.ok(!candidates.includes("legacy-one"), "legacy handoff-only packets must not be active authority");
     assert.ok(candidates.includes("demo-feature"));
 
@@ -1882,8 +1786,9 @@ test("atomic state writes survive feature-directory swaps", () => {
 
 test("plan_path and wip_branch must match state.feature on read/validate", () => {
   const base = {
-    schema: "v0.0.1",
+    schema: "v0.0.2",
     feature: "demo-feature",
+    owner: "none",
     phase: "executing",
     next_action: "start/continue task",
     plan_path: ".scratch/demo-feature/plan.md",
@@ -1892,8 +1797,6 @@ test("plan_path and wip_branch must match state.feature on read/validate", () =>
     wip_branch: "wip/demo-feature",
     last_green_task: "none",
     last_green_commit: "none",
-    autosync: "none",
-    cleanup_preference: "none",
     checkpoint_revision: "1",
   };
 
@@ -1934,8 +1837,9 @@ test("plan_path and wip_branch must match state.feature on read/validate", () =>
 
 test("session-owner state schema omits every model and review binding", () => {
   const state = {
-    schema: "v0.0.1",
+    schema: "v0.0.2",
     feature: "demo-feature",
+    owner: "none",
     phase: "approved",
     next_action: "start/continue task",
     plan_path: ".scratch/demo-feature/plan.md",
@@ -1944,14 +1848,12 @@ test("session-owner state schema omits every model and review binding", () => {
     wip_branch: "wip/demo-feature",
     last_green_task: "none",
     last_green_commit: "none",
-    autosync: "none",
-    cleanup_preference: "none",
     checkpoint_revision: "1",
   };
 
   const serialized = serializeState(state);
-  assert.equal(validateState(state).schema, "v0.0.1");
-  assert.equal(parseState(serialized).schema, "v0.0.1");
+  assert.equal(validateState(state).schema, "v0.0.2");
+  assert.equal(parseState(serialized).schema, "v0.0.2");
   assert.doesNotMatch(serialized, /^(?:executor_model|reviewer_model|review_round|blocking_fingerprint|reviewed_commit|progress_status|ponytail_level):/m);
 });
 
@@ -1987,6 +1889,7 @@ test("candidate discovery is bounded and ignores experimental authority", () => 
     const legacy = {
       schema: "v2",
       feature: "legacy-active",
+      owner: "none",
       phase: "paused",
       next_action: "start/continue task",
       plan_path: ".scratch/legacy-active/plan.md",
@@ -2000,9 +1903,7 @@ test("candidate discovery is bounded and ignores experimental authority", () => 
       blocking_fingerprint: "none",
       reviewed_commit: "none",
       progress_status: "none",
-      autosync: "none",
       ponytail_level: "none",
-      cleanup_preference: "none",
       checkpoint_revision: "4",
     };
     const legacyBytes = Object.entries(legacy).map(([key, value]) => `${key}:${value}`).join("\n") + "\n";
@@ -2018,6 +1919,7 @@ test("candidate discovery is bounded and ignores experimental authority", () => 
     const oversizedState = {
       schema: "v3",
       feature: "oversized-state",
+      owner: "none",
       phase: "executing",
       next_action: "x".repeat(70 * 1024),
       plan_path: ".scratch/oversized-state/plan.md",
@@ -2026,9 +1928,7 @@ test("candidate discovery is bounded and ignores experimental authority", () => 
       wip_branch: "wip/oversized-state",
       last_green_task: "none",
       last_green_commit: "none",
-      autosync: "none",
       ponytail_level: "none",
-      cleanup_preference: "none",
       checkpoint_revision: "1",
     };
     writeFileSync(
@@ -2092,8 +1992,9 @@ test("readStateFile binds authority to its feature directory", () => {
     mkdirSync(featureDir, { recursive: true });
     writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
     const mismatchedState = {
-      schema: "v0.0.1",
+      schema: "v0.0.2",
       feature: "other-feature",
+      owner: "none",
       phase: "executing",
       next_action: "start/continue task",
       plan_path: ".scratch/other-feature/plan.md",
@@ -2102,8 +2003,6 @@ test("readStateFile binds authority to its feature directory", () => {
       wip_branch: "wip/other-feature",
       last_green_task: "none",
       last_green_commit: "none",
-      autosync: "none",
-      cleanup_preference: "none",
       checkpoint_revision: "1",
     };
     writeFileSync(
@@ -2116,7 +2015,7 @@ test("readStateFile binds authority to its feature directory", () => {
   }
 });
 
-test("schema v0.0.1 and hidden architecture catalog cutover", () => {
+test("schema v0.0.2 and hidden architecture catalog cutover", () => {
   const catalogNames = discoverSkillCatalog(ROOT).map(({ name }) => name);
   const installedNames = readdirSync(join(ROOT, "skills"));
   assert.ok(installedNames.includes("gsd-codebase-architecture"));
@@ -2125,14 +2024,15 @@ test("schema v0.0.1 and hidden architecture catalog cutover", () => {
   assert.ok(!catalogNames.includes("gsd-improve-codebase-architecture"));
   assert.ok(!catalogNames.includes("gsd-ponytail"));
 
-  const tmp = mkdtempSync(join(tmpdir(), "gsd-schema-v0-0-1-"));
+  const tmp = mkdtempSync(join(tmpdir(), "gsd-schema-v0-0-2-"));
   try {
     const featureDir = join(tmp, ".scratch", "demo");
     mkdirSync(featureDir, { recursive: true });
     const statePath = join(featureDir, "state.toon");
     const state = [
-      "schema:v0.0.1",
+      "schema:v0.0.2",
       "feature:demo",
+      "owner:none",
       "phase:executing",
       "next_action:start/continue task",
       "plan_path:.scratch/demo/plan.md",
@@ -2141,17 +2041,14 @@ test("schema v0.0.1 and hidden architecture catalog cutover", () => {
       "wip_branch:wip/demo",
       "last_green_task:none",
       "last_green_commit:none",
-      "autosync:off",
-      "cleanup_preference:retain",
       "checkpoint_revision:1",
       "",
     ].join("\n");
     writeFileSync(statePath, state);
 
     const parsed = readStateFile(statePath);
-    assert.equal(parsed.schema, "v0.0.1");
-    assert.equal(parsed.autosync, "off");
-    assert.equal(parsed.cleanup_preference, "retain");
+    assert.equal(parsed.schema, "v0.0.2");
+    assert.equal(parsed.owner, "none");
     assert.equal(readFileSync(statePath, "utf8"), state);
   } finally {
     rmSync(tmp, { recursive: true, force: true });
@@ -2167,8 +2064,9 @@ test("readStateFile rejects FIFO instead of blocking", () => {
 
   // Write a valid state file first so lstat sees a regular file.
   writeFileSync(statePath, [
-    "schema:v0.0.1",
+    "schema:v0.0.2",
     "feature:demo",
+    "owner:none",
     "phase:executing",
     "plan_path:.scratch/demo/plan.md",
     `plan_sha256:${FIXTURE_PLAN_SHA}`,
@@ -2176,8 +2074,6 @@ test("readStateFile rejects FIFO instead of blocking", () => {
     "wip_branch:wip/demo",
     "last_green_task:none",
     "last_green_commit:none",
-    "autosync:off",
-    "cleanup_preference:retain",
     "checkpoint_revision:7",
     "",
   ].join("\n"));
@@ -2220,8 +2116,9 @@ test("readStateFile rejects state.toon swap after feature dir pin", () => {
   const statePath = join(featureDir, "state.toon");
 
   writeFileSync(statePath, [
-    "schema:v0.0.1",
+    "schema:v0.0.2",
     "feature:demo",
+    "owner:none",
     "phase:executing",
     "plan_path:.scratch/demo/plan.md",
     `plan_sha256:${FIXTURE_PLAN_SHA}`,
@@ -2229,8 +2126,6 @@ test("readStateFile rejects state.toon swap after feature dir pin", () => {
     "wip_branch:wip/demo",
     "last_green_task:none",
     "last_green_commit:none",
-    "autosync:off",
-    "cleanup_preference:retain",
     "checkpoint_revision:7",
     "",
   ].join("\n"));

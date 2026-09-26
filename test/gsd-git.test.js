@@ -65,8 +65,9 @@ function makePacket({ feature = "git-demo", base = "main" } = {}) {
   writeFileSync(planPath, "# Plan\n");
   const plan_sha256 = createHash("sha256").update(readFileSync(planPath)).digest("hex");
   writeStateAtomic(featureDir, {
-    schema: "v0.0.1",
+    schema: "v0.0.2",
     feature,
+    owner: "none",
     phase: "verifying",
     next_action: "terminal gate",
     plan_path: `.scratch/${feature}/plan.md`,
@@ -75,8 +76,6 @@ function makePacket({ feature = "git-demo", base = "main" } = {}) {
     wip_branch: `wip/${feature}`,
     last_green_task: "T1",
     last_green_commit: git(["rev-parse", "HEAD"], root),
-    autosync: "none",
-    cleanup_preference: "none",
     checkpoint_revision: "1",
   });
   return { root, feature, relative: join(".scratch", feature) };
@@ -267,79 +266,18 @@ test("preflight blocks every way the recorded Git identity can stop holding", ()
   }
 });
 
-test("preflight verifies archive-and-delete materialized the exact approved plan", () => {
-  const { root, feature, relative } = makePacket({ feature: "archive-demo", base: "trunk" });
-  const featureDir = join(root, ".scratch", feature);
+test("preflight blocks a rewritten plan", () => {
+  const packet = makePacket({ feature: "rewritten-plan", base: "trunk" });
   try {
-    const planPath = join(featureDir, "plan.md");
-    const plan_sha256 = createHash("sha256").update(readFileSync(planPath)).digest("hex");
-    writeStateAtomic(featureDir, {
-      schema: "v0.0.1",
-      feature,
-      phase: "verifying",
-      next_action: "terminal gate",
-      plan_path: `.scratch/${feature}/plan.md`,
-      plan_sha256,
-      base_ref: "trunk",
-      wip_branch: `wip/${feature}`,
-      last_green_task: "T1",
-      last_green_commit: git(["rev-parse", "HEAD"], root),
-      autosync: "none",
-      cleanup_preference: "archive-and-delete",
-      checkpoint_revision: "1",
-    });
-
-    // No archive yet: the gate blocks instead of squashing an undocumented feature.
-    let result = cli(["preflight", "--feature-dir", relative], root);
+    const planPath = join(packet.root, packet.relative, "plan.md");
+    writeFileSync(planPath, readFileSync(planPath, "utf8") + "extra\n");
+    const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
     assert.equal(result.status, 1, result.stdout);
-    assert.match(result.stdout, /^code: archive-missing$/m);
-
-    // A rewritten archive plan is not the approved bytes and must not ride into the squash.
-    // The archive lands on the WIP branch first, so the reviewed tree is clean at the gate.
-    const archiveDir = join(root, "docs", "gsd", feature, "archive");
-    mkdirSync(archiveDir, { recursive: true });
-    writeFileSync(join(archiveDir, "plan.md"), "# Rewritten\n");
-    writeFileSync(join(archiveDir, "implementation.md"), "Feature outcome summary.\n");
-    git(["add", "-A"], root);
-    git(["commit", "-qm", "materialize archive"], root);
-    result = cli(["preflight", "--feature-dir", relative], root);
-    assert.equal(result.status, 1, result.stdout);
-    assert.match(result.stdout, /^code: archive-plan-mismatch$/m);
-
-    // The exact approved bytes pass, and the gate reports ready.
-    writeFileSync(join(archiveDir, "plan.md"), readFileSync(join(featureDir, "plan.md")));
-    git(["add", "-A"], root);
-    git(["commit", "-qm", "fix archive plan"], root);
-    result = cli(["preflight", "--feature-dir", relative], root);
-    assert.equal(result.status, 0, result.stdout);
-    assert.match(result.stdout, /^status: ready$/m);
+    assert.match(result.stdout, /^status: blocked$/m);
+    assert.match(result.stdout, /^code: plan-unbound$/m);
+    assert.doesNotMatch(result.stdout, /^status: ready$/m);
   } finally {
-    rmSync(root, { recursive: true, force: true });
-  }
-});
-
-test("preflight blocks a rewritten plan for every cleanup disposition", () => {
-  for (const cleanup_preference of ["none", "retain", "archive-and-delete"]) {
-    const packet = makePacket({ feature: `rewritten-${cleanup_preference}`, base: "trunk" });
-    try {
-      if (cleanup_preference !== "none") {
-        const statePath = join(packet.root, packet.relative, "state.toon");
-        const updated = readFileSync(statePath, "utf8").replace(
-          /^cleanup_preference:.*$/m,
-          `cleanup_preference:${cleanup_preference}`,
-        );
-        writeFileSync(statePath, updated);
-      }
-      const planPath = join(packet.root, packet.relative, "plan.md");
-      writeFileSync(planPath, readFileSync(planPath, "utf8") + "extra\n");
-      const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
-      assert.equal(result.status, 1, `${cleanup_preference} must block: ${result.stdout}`);
-      assert.match(result.stdout, /^status: blocked$/m);
-      assert.match(result.stdout, /^code: plan-unbound$/m);
-      assert.doesNotMatch(result.stdout, /^status: ready$/m);
-    } finally {
-      rmSync(packet.root, { recursive: true, force: true });
-    }
+    rmSync(packet.root, { recursive: true, force: true });
   }
 });
 
@@ -391,39 +329,6 @@ test("preflight blocks an oversized plan without allocating over-bound memory", 
     assert.doesNotMatch(result.stdout, /^status: ready$/m);
   } finally {
     rmSync(packet.root, { recursive: true, force: true });
-  }
-});
-
-test("preflight blocks matching scratch and archive plan rewrites", () => {
-  const { root, feature, relative } = makePacket({ feature: "rewrite-exploit", base: "trunk" });
-  const featureDir = join(root, ".scratch", feature);
-  try {
-    const statePath = join(featureDir, "state.toon");
-    const updated = readFileSync(statePath, "utf8").replace(
-      /^cleanup_preference:.*$/m,
-      "cleanup_preference:archive-and-delete",
-    );
-    writeFileSync(statePath, updated);
-
-    const archiveDir = join(root, "docs", "gsd", feature, "archive");
-    mkdirSync(archiveDir, { recursive: true });
-    writeFileSync(join(archiveDir, "implementation.md"), "Feature outcome summary.\n");
-
-    const rewrittenContent = "# Rewritten Plan Same Bytes\n";
-    writeFileSync(join(featureDir, "plan.md"), rewrittenContent);
-    writeFileSync(join(archiveDir, "plan.md"), rewrittenContent);
-
-    git(["add", "-A"], root);
-    git(["commit", "-qm", "matching rewrite"], root);
-
-    const result = cli(["preflight", "--feature-dir", relative], root);
-    assert.equal(result.status, 1, `matching rewrite must block: ${result.stdout}`);
-    assert.match(result.stdout, /^status: blocked$/m);
-    assert.match(result.stdout, /^code: plan-unbound$/m);
-    assert.doesNotMatch(result.stdout, /^code: archive-plan-mismatch$/m);
-    assert.doesNotMatch(result.stdout, /^status: ready$/m);
-  } finally {
-    rmSync(root, { recursive: true, force: true });
   }
 });
 

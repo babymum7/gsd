@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import gsdContextExtension from "../adapters/omp/gsd-context.js";
 import { createBootstrap, messageContainsBootstrap } from "../lib/gsd-bootstrap.mjs";
+import { sessionOwnerToken, withSessionOwner } from "../lib/gsd-session-context.mjs";
 import {
   readSettings,
   renderSubagentProfiles,
@@ -78,15 +79,16 @@ test("an injected profile block stays small and keeps the bootstrap shape", () =
 });
 
 test("claude and codex hooks append the user's profiles and stay byte-identical without settings", () => {
-  const bootstrap = createBootstrap(CORE_ROOT);
   for (const [dir, host] of [
     ["claude-code", "claude"],
     ["codex", "codex"],
   ]) {
+    const session = (value) => withSessionOwner(value, sessionOwnerToken(host, `settings-${dir}`));
+    const bootstrap = session(createBootstrap(CORE_ROOT));
     assert.equal(runHook(dir, homeWith(null)), bootstrap, `${dir} without settings`);
     assert.equal(
       runHook(dir, homeWith(SETTINGS)),
-      withSubagentProfiles(bootstrap, render(SETTINGS, host)),
+      session(withSubagentProfiles(createBootstrap(CORE_ROOT), render(SETTINGS, host))),
       `${dir} with settings`,
     );
     assert.equal(

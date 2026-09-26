@@ -17,7 +17,6 @@ import {
 } from '../../lib/gsd-bootstrap.mjs';
 import {
   ACTIVE_STATE_PHASES,
-  COMPLETED_STATE_PHASES,
   DEFAULT_PHASE_NEXT_ACTIONS,
   STATE_FIELD_ORDER,
   defaultNextActionForPhase,
@@ -30,6 +29,7 @@ import {
   writeStateAtomic,
 } from '../../lib/gsd-state.mjs';
 import { loadSubagentProfiles, withSubagentProfiles } from '../../lib/gsd-settings.mjs';
+import { sessionOwnerToken, withSessionOwner } from '../../lib/gsd-session-context.mjs';
 
 const EXTENSION_FILE = fileURLToPath(import.meta.url);
 const SYSTEM_POLICY_MARKER = 'gsd:system-policy:v1';
@@ -56,6 +56,17 @@ function gsdContextExtension(pi) {
   let bootstrapError = null;
   let injectBootstrap = false;
   let lastLoggedBootstrapError = null;
+  // The session owner token scopes which packets this session sees; it follows the
+  // session manager's id through switches, branches, and tree moves.
+  let owner = null;
+  const trackOwner = (ctx) => {
+    try {
+      const id = ctx?.sessionManager?.getSessionId?.();
+      if (id) owner = sessionOwnerToken('omp', id);
+    } catch {
+      // a context without a session manager keeps the last known owner
+    }
+  };
 
   const rebuildBootstrap = () => {
     try {
@@ -78,7 +89,8 @@ function gsdContextExtension(pi) {
   rebuildBootstrap();
 
   for (const eventName of ['session_start', 'session_switch', 'session_branch', 'session_tree']) {
-    pi.on(eventName, async () => {
+    pi.on(eventName, async (_event, ctx) => {
+      trackOwner(ctx);
       rebuildBootstrap();
       pendingCapsule = null;
       capsuleQueuedForNextTurn = false;
@@ -95,6 +107,7 @@ function gsdContextExtension(pi) {
     capsuleQueuedForNextTurn = false;
     injectBootstrap = false;
     lastLoggedBootstrapError = null;
+    owner = null;
   });
 
   pi.on('before_agent_start', async (event) => {
@@ -123,9 +136,10 @@ function gsdContextExtension(pi) {
     return { systemPrompt: [...systemPrompt, SYSTEM_POLICY] };
   });
 
-  pi.on('context', async (event) => {
+  pi.on('context', async (event, ctx) => {
     if (!injectBootstrap) return undefined;
-    const payload = bootstrap ?? bootstrapError;
+    trackOwner(ctx);
+    const payload = bootstrap ? withSessionOwner(bootstrap, owner) : bootstrapError;
     if (!payload) return undefined;
     const alreadyPresent = event.messages.some((message) =>
       bootstrap
@@ -145,10 +159,16 @@ function gsdContextExtension(pi) {
 
   pi.on('session.compacting', async (event, ctx) => {
     pendingCapsule = null;
+    trackOwner(ctx);
+    // Without an owner token no packet is this session's, so no capsule is sent.
+    if (!owner) return {};
     let features;
     let defects;
     try {
-      ({ candidates: features, defects } = detectCandidates(ctx?.cwd || process.cwd(), { faultTolerant: true }));
+      ({ candidates: features, defects } = detectCandidates(ctx?.cwd || process.cwd(), {
+        faultTolerant: true,
+        owner,
+      }));
     } catch (error) {
       // Structural failure (entry limit, directory identity) — cannot continue.
       const message = error instanceof Error ? error.message : String(error);
@@ -168,7 +188,7 @@ function gsdContextExtension(pi) {
     // throw-prone work succeeds so that a mid-throw leaves no stale capsule.
     let capsule;
     try {
-      capsule = createCapsule(features, GSD_ROOT);
+      capsule = `${createCapsule(features, GSD_ROOT)}\nGSD_SESSION: ${owner}`;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       pi.logger?.error?.(`[GSD] autocompact capsule creation failed: ${message}`);
@@ -207,7 +227,6 @@ function gsdContextExtension(pi) {
 export {
   ACTIVE_STATE_PHASES,
   CAPSULE_TEMPLATE,
-  COMPLETED_STATE_PHASES,
   DEFAULT_PHASE_NEXT_ACTIONS,
   STATE_FIELD_ORDER,
   createBootstrap,

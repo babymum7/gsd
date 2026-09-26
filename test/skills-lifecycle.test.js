@@ -106,7 +106,6 @@ test("AC-2: Bun is the sole runtime across engines, shebangs, and prose", () => 
     "tools/gsd-contract.mjs",
     "tools/gsd-domain.mjs",
     "tools/gsd-git.mjs",
-    "tools/gsd-milestone.mjs",
     "tools/gsd-record.mjs",
     "tools/gsd-state.mjs",
     "test/eval/activation-eval.mjs",

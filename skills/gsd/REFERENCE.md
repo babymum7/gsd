@@ -258,7 +258,7 @@ Actionable failures use TOON on stdout:
 ### Plan binding and auto-execution
 
 `gsd-to-plan` validates canonical structured `plan.md`, prints its task/AC/Domain Impact summary, calculates SHA-256, and binds it for execution without approval prompts or post-plan menus.
-- Binding records feature, exact plan path/hash, base/WIP identity, no completed task, canonical preferences, and checkpoint revision in atomic `schema:v0.0.1` `state.toon` with `phase=approved` (plan-bound automatically), reading back before loading `gsd-executing-plans`.
+- Binding records feature, exact plan path/hash, base/WIP identity, no completed task, canonical preferences, and checkpoint revision in atomic `schema:v0.0.2` `state.toon` with `phase=approved` (plan-bound automatically), reading back before loading `gsd-executing-plans`.
 - Fresh bindings after Spec escalation atomically supersede older bindings.
 - Semantic parse and binding checks run at binding, resume, terminal entry, and pre-squash; ordinary task selection and green checkpoints use retained validated slices.
 
@@ -314,7 +314,7 @@ Status transitions or deletions are part of the reviewed WIP diff, landing in th
 Exactly one current `.scratch/<feature>/state.toon` owns resume discovery. It is a fixed-schema UTF-8/LF scalar record with canonical field order:
 
 ```toon
-schema:v0.0.1
+schema:v0.0.2
 feature:<feature-slug>
 phase:draft|approved|executing|paused|verifying|repair|merged-cleanup-pending|completed-retained
 next_action:<opaque next action or none>
@@ -330,10 +330,10 @@ checkpoint_revision:<positive int>
 ```
 
 Phase-inapplicable values use canonical `none`.
-- `schema:v0.0.1` parsing rejects invalid UTF-8, carriage returns, blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, Ponytail preference state, and obsolete model or agent rows.
-- Every schema other than `schema:v0.0.1` is experimental history. Candidate discovery ignores such records without rewriting them; explicit reads and resume reject them fail closed and byte-identical.
+- `schema:v0.0.2` parsing rejects invalid UTF-8, carriage returns, blank lines, unknown keys, duplicates, reordered fields, empty values, legacy settings tables, Ponytail preference state, and obsolete model or agent rows.
+- Every schema other than `schema:v0.0.2` is experimental history. Candidate discovery ignores such records without rewriting them; explicit reads and resume reject them fail closed and byte-identical.
 - There is no migration path, compatibility parser, or upgrade command for experimental schemas. A user who needs old work continues it by creating a fresh pre-release packet from current sources.
-- Malformed or partial `schema:v0.0.1` records fail closed unchanged; partial terminal evidence is discarded and deterministic conformance reruns.
+- Malformed or partial `schema:v0.0.2` records fail closed unchanged; partial terminal evidence is discarded and deterministic conformance reruns.
 
 ### Atomic write
 
@@ -397,8 +397,7 @@ The Compaction Recovery Capsule is owned by GSD and is the canonical recovery in
 
 ```text
 [GSD Recovery Capsule]
-Active GSD features: <features>
-The listed features are a workspace inventory only and do not indicate which feature the current session is working on.
+GSD features owned by this session: <features>
 <resume_instruction>
 Compaction MUST preserve and continue the current user request. Only resume an active feature when the preserved request or a bare continue explicitly selects it.
 ```

@@ -7,6 +7,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createBootstrap, discoverSkillCatalog } from "../lib/gsd-bootstrap.mjs";
 import { buildPluginBundle } from "../adapters/plugin/gsd-plugin-packager.mjs";
+import { withSessionOwner } from "../lib/gsd-session-context.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // Byte identity holds against an empty GSD home: user sub-agent profiles in the real
@@ -89,7 +90,7 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
   assert.equal(hook.status, 0, hook.stderr);
   assert.equal(
     JSON.parse(hook.stdout).hookSpecificOutput.additionalContext,
-    createBootstrap(join(pluginRoot, "core")),
-    "the plugin hook must inject the bundled core's exact bytes",
+    withSessionOwner(createBootstrap(join(pluginRoot, "core")), "claude-plugin"),
+    "the plugin hook must inject the bundled core's exact bytes plus the session owner",
   );
 });

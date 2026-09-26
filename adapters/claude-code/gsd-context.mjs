@@ -23,7 +23,9 @@ import { loadSubagentProfiles, withSubagentProfiles } from '../../lib/gsd-settin
 import {
   createMarkerStore,
   renderRecoveryCapsule,
+  sessionOwnerToken,
   withCurrentRequest,
+  withSessionOwner,
 } from '../../lib/gsd-session-context.mjs';
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
@@ -51,9 +53,17 @@ function readInput() {
   }
 }
 
-// The core render plus the user's claude sub-agent profiles, when any are set.
-function renderBootstrap() {
-  return withSubagentProfiles(createBootstrap(GSD_ROOT), loadSubagentProfiles('claude', 'the Agent tool `model`'));
+// The core render plus the user's claude sub-agent profiles, when any are set, and the
+// session owner token that scopes which packets this session may see.
+function renderBootstrap(owner) {
+  return withSessionOwner(
+    withSubagentProfiles(createBootstrap(GSD_ROOT), loadSubagentProfiles('claude', 'the Agent tool `model`')),
+    owner,
+  );
+}
+
+function ownerOf(input) {
+  return sessionOwnerToken('claude', input.session_id);
 }
 
 function emit(eventName, text) {
@@ -75,13 +85,11 @@ function handleSessionStart(input) {
   const store = createMarkerStore(STATE_ROOT, input.session_id);
   const source = sourceOf(input);
   // After a compaction or a resume the host hands the session back; deliver the live
-  // capsule so the owner recovers state. A capsule staged by an older install is
-  // honoured once, then rendering from disk keeps the refresh current.
+  // capsule so the owner recovers the packets this session owns.
   const capsule =
     source === 'compact' || source === 'resume'
-      ? (store.read('capsule') ?? renderRecoveryCapsule(GSD_ROOT, cwdOf(input)))
+      ? renderRecoveryCapsule(GSD_ROOT, cwdOf(input), ownerOf(input))
       : null;
-  store.clear('capsule');
   if (capsule) {
     store.write('bootstrap-emitted');
     emit('SessionStart', withCurrentRequest(capsule, store.read('last-request')));
@@ -91,7 +99,7 @@ function handleSessionStart(input) {
   // emitting nothing keeps the refresh free; the next prompt injects it if it is absent.
   if (source === 'resume') return;
   store.write('bootstrap-emitted');
-  emit('SessionStart', renderBootstrap());
+  emit('SessionStart', renderBootstrap(ownerOf(input)));
 }
 
 function handleUserPromptSubmit(input) {
@@ -101,7 +109,7 @@ function handleUserPromptSubmit(input) {
   }
   if (store.read('bootstrap-emitted')) return;
   store.write('bootstrap-emitted');
-  emit('UserPromptSubmit', renderBootstrap());
+  emit('UserPromptSubmit', renderBootstrap(ownerOf(input)));
 }
 
 function main() {

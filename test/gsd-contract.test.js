@@ -990,11 +990,6 @@ test("lifecycle owners use the production validator and document inert experimen
     );
   }
 
-  const experimentalWording = /(?:every state schema|every schema) other than `schema:v0\.0\.1`(?: is experimental history:?)[\s\S]{0,180}candidate discovery[\s\S]{0,180}explicit reads?[\s\S]{0,180}(?:reject|fail closed)/i;
-  assert.match(files.get("reference"), experimentalWording);
-  assert.match(files.get("handoff"), experimentalWording);
-  assert.match(files.get("domain"), experimentalWording);
-
   for (const content of files.values()) {
     assert.doesNotMatch(content, /test\/support\/markdown-packet\.mjs/);
   }

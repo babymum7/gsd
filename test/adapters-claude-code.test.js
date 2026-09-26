@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createBootstrap, sanitizeBootstrapError } from "../lib/gsd-bootstrap.mjs";
-import { renderRecoveryCapsule, withCurrentRequest } from "../lib/gsd-session-context.mjs";
+import { renderRecoveryCapsule, withCurrentRequest, sessionOwnerToken, withSessionOwner } from "../lib/gsd-session-context.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // Byte identity holds against an empty GSD home: user sub-agent profiles in the real
@@ -17,6 +17,8 @@ const HOOK = join(ROOT, "adapters", "claude-code", "gsd-context.mjs");
 // be the core's own render for the same inputs. The hook resolves its root through
 // realpathSync, so the comparison root is normalized the same way.
 const CORE_ROOT = realpathSync(ROOT);
+const owner = (session) => sessionOwnerToken("claude", session);
+const bootstrapFor = (session) => withSessionOwner(createBootstrap(CORE_ROOT), owner(session));
 
 // Each spawn gets a private temp root so the adapter's session markers never leak
 // between cases; os.tmpdir() honors TMPDIR on the platforms this repo targets.
@@ -38,7 +40,7 @@ function parseContext(stdout, event) {
   return parsed.hookSpecificOutput.additionalContext;
 }
 
-function projectWithActiveFeature() {
+function projectWithActiveFeature(owner = "none") {
   const project = mkdtempSync(join(tmpdir(), "gsd-cc-project-"));
   const featureDir = join(project, ".scratch", "demo");
   mkdirSync(featureDir, { recursive: true });
@@ -46,8 +48,9 @@ function projectWithActiveFeature() {
   writeFileSync(
     join(featureDir, "state.toon"),
     [
-      "schema:v0.0.1",
+      "schema:v0.0.2",
       "feature:demo",
+      `owner:${owner}`,
       "phase:approved",
       "next_action:start task",
       "plan_path:.scratch/demo/plan.md",
@@ -56,8 +59,6 @@ function projectWithActiveFeature() {
       "wip_branch:wip/demo",
       "last_green_task:none",
       "last_green_commit:none",
-      "autosync:none",
-      "cleanup_preference:none",
       "checkpoint_revision:1",
       "",
     ].join("\n"),
@@ -75,7 +76,7 @@ test("SessionStart injects the shared bootstrap exactly once per session", () =>
   );
   assert.equal(
     first,
-    createBootstrap(CORE_ROOT),
+    bootstrapFor("s1"),
     "the hook injects the core's exact bootstrap bytes, never a rebuilt or decorated copy",
   );
 
@@ -99,14 +100,14 @@ test("a fresh start with active work still delivers the bootstrap, never a capsu
     run({ hook_event_name: "SessionStart", session_id: "s6", cwd: project }, project, stateRoot),
     "SessionStart",
   );
-  assert.equal(first, createBootstrap(CORE_ROOT), "a startup source carries the bootstrap bytes");
+  assert.equal(first, bootstrapFor("s6"), "a startup source carries the bootstrap bytes");
   assert.doesNotMatch(first, /\[GSD Recovery Capsule\]/, "a capsule is compaction or resume only");
 
   const defaulted = parseContext(
     run({ hook_event_name: "SessionStart", session_id: "s7", cwd: project }, project, stateRoot),
     "SessionStart",
   );
-  assert.equal(defaulted, createBootstrap(CORE_ROOT), "a missing source is a startup");
+  assert.equal(defaulted, bootstrapFor("s7"), "a missing source is a startup");
 });
 
 test("UserPromptSubmit injects the bootstrap once when no SessionStart ran", () => {
@@ -128,7 +129,7 @@ test("UserPromptSubmit injects the bootstrap once when no SessionStart ran", () 
   );
   assert.equal(
     first,
-    createBootstrap(CORE_ROOT),
+    bootstrapFor("s2"),
     "the fallback path injects the same core bytes as SessionStart",
   );
 
@@ -141,7 +142,7 @@ test("UserPromptSubmit injects the bootstrap once when no SessionStart ran", () 
 });
 
 test("a compact SessionStart delivers the capsule with the preserved request", () => {
-  const project = projectWithActiveFeature();
+  const project = projectWithActiveFeature(owner("s3"));
   const stateRoot = mkdtempSync(join(tmpdir(), "gsd-cc-state-"));
 
   parseContext(
@@ -168,13 +169,13 @@ test("a compact SessionStart delivers the capsule with the preserved request", (
   );
   assert.equal(
     after,
-    withCurrentRequest(renderRecoveryCapsule(CORE_ROOT, project), "continue"),
+    withCurrentRequest(renderRecoveryCapsule(CORE_ROOT, project, owner("s3")), "continue"),
     "the compact payload is the core capsule with the preserved request appended, byte for byte",
   );
 });
 
 test("a resume SessionStart refreshes an active capsule and stays silent otherwise", () => {
-  const project = projectWithActiveFeature();
+  const project = projectWithActiveFeature(owner("s4"));
   const stateRoot = mkdtempSync(join(tmpdir(), "gsd-cc-state-"));
 
   const resumed = parseContext(
@@ -187,9 +188,18 @@ test("a resume SessionStart refreshes an active capsule and stays silent otherwi
   );
   assert.equal(
     resumed,
-    renderRecoveryCapsule(CORE_ROOT, project),
+    renderRecoveryCapsule(CORE_ROOT, project, owner("s4")),
     "a resume with no staged request is the core capsule, byte for byte",
   );
+  assert.match(resumed, /\nGSD_SESSION: claude-s4$/, "the capsule repeats the owner token");
+
+  // Another session in the same work tree never sees a packet it does not own.
+  const other = run(
+    { hook_event_name: "SessionStart", session_id: "s9", cwd: project, source: "resume" },
+    project,
+    stateRoot,
+  );
+  assert.equal(other, "", "a packet owned by another session yields no capsule");
 
   const quietProject = mkdtempSync(join(tmpdir(), "gsd-cc-cwd-"));
   const quietState = mkdtempSync(join(tmpdir(), "gsd-cc-state-"));

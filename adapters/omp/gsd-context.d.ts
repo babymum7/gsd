@@ -1,19 +1,18 @@
 /** GSD state file schema version. */
-export type StateSchema = "v0.0.1";
+export type StateSchema = "v0.0.2";
 
-/** Active (non-terminal) lifecycle phases. */
-export type ActivePhase = "draft" | "approved" | "executing" | "paused" | "verifying" | "repair" | "merged-cleanup-pending";
-
-/** Terminal lifecycle phases. */
-export type CompletedPhase = "completed-retained";
+/** Lifecycle phases; a packet is deleted once its integration lands. */
+export type ActivePhase = "approved" | "executing" | "paused" | "verifying" | "repair" | "ready";
 
 /** Any valid state phase. */
-export type Phase = ActivePhase | CompletedPhase;
+export type Phase = ActivePhase;
 
 /** Canonical state.toon field order. */
 export interface State {
   schema: StateSchema;
   feature: string;
+  /** Session owner token (`GSD_SESSION`), or "none". */
+  owner: string;
   phase: Phase;
   next_action: string;
   plan_path: string;
@@ -22,8 +21,6 @@ export interface State {
   wip_branch: string;
   last_green_task: string;
   last_green_commit: string;
-  autosync: string;
-  cleanup_preference: string;
   checkpoint_revision: string;
 }
 
@@ -44,10 +41,7 @@ export interface SkillCatalogRow {
 /** Frozen array of active state phases. */
 export const ACTIVE_STATE_PHASES: readonly ActivePhase[];
 
-/** Frozen array of completed state phases. */
-export const COMPLETED_STATE_PHASES: readonly CompletedPhase[];
-
-/** Frozen canonical v0.0.1 field order for a state.toon packet. */
+/** Frozen canonical v0.0.2 field order for a state.toon packet. */
 export const STATE_FIELD_ORDER: readonly (keyof State)[];
 
 /** Frozen per-phase default `next_action` values for canonical state writes. */
@@ -73,7 +67,7 @@ export function createCapsule(features: string[], gsdRoot: string): string;
  * @param options - Optional flags. `faultTolerant: true` skips malformed packets and collects defects instead of throwing.
  * @returns Object with `candidates` (sorted active feature names) and `defects` (error messages for skipped malformed packets).
  */
-export function detectCandidates(cwd: string, options?: { faultTolerant?: boolean }): { candidates: string[]; defects: string[] };
+export function detectCandidates(cwd: string, options?: { faultTolerant?: boolean; owner?: string | null }): { candidates: string[]; defects: string[] };
 
 /**
  * Discover the visible skill catalog for a GSD root.

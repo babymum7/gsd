@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { createBootstrap, sanitizeBootstrapError } from "../lib/gsd-bootstrap.mjs";
-import { renderRecoveryCapsule } from "../lib/gsd-session-context.mjs";
+import { renderRecoveryCapsule, sessionOwnerToken, withSessionOwner } from "../lib/gsd-session-context.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // Byte identity holds against an empty GSD home: user sub-agent profiles in the real
@@ -16,6 +16,8 @@ const HOOK = join(ROOT, "adapters", "codex", "gsd-context.mjs");
 // Same contract as every adapter: the emitted payload is the core's own render for the same
 // inputs, byte for byte. The hook realpaths its own location, so the comparison root does too.
 const CORE_ROOT = realpathSync(ROOT);
+const owner = (session) => sessionOwnerToken("codex", session);
+const bootstrapFor = (session) => withSessionOwner(createBootstrap(CORE_ROOT), owner(session));
 
 function run(payload, cwd, stateRoot) {
   const result = spawnSync(process.execPath, [HOOK], {
@@ -35,7 +37,7 @@ function parseContext(stdout, event) {
   return parsed.hookSpecificOutput.additionalContext;
 }
 
-function projectWithActiveFeature() {
+function projectWithActiveFeature(owner = "none") {
   const project = mkdtempSync(join(tmpdir(), "gsd-codex-project-"));
   const featureDir = join(project, ".scratch", "demo");
   mkdirSync(featureDir, { recursive: true });
@@ -43,8 +45,9 @@ function projectWithActiveFeature() {
   writeFileSync(
     join(featureDir, "state.toon"),
     [
-      "schema:v0.0.1",
+      "schema:v0.0.2",
       "feature:demo",
+      `owner:${owner}`,
       "phase:approved",
       "next_action:start task",
       "plan_path:.scratch/demo/plan.md",
@@ -53,8 +56,6 @@ function projectWithActiveFeature() {
       "wip_branch:wip/demo",
       "last_green_task:none",
       "last_green_commit:none",
-      "autosync:none",
-      "cleanup_preference:none",
       "checkpoint_revision:1",
       "",
     ].join("\n"),
@@ -76,7 +77,7 @@ test("SessionStart injects the bootstrap once and ordinary prompts stay silent",
   );
   assert.equal(
     injected,
-    createBootstrap(CORE_ROOT),
+    bootstrapFor("c1"),
     "the hook injects the core's exact bootstrap bytes, never a rebuilt or decorated copy",
   );
 
@@ -99,7 +100,7 @@ test("a fresh start with active work still delivers the bootstrap, never a capsu
     run({ hook_event_name: "SessionStart", session_id: "c5", cwd: project }, project, stateRoot),
     "SessionStart",
   );
-  assert.equal(first, createBootstrap(CORE_ROOT), "a startup source carries the bootstrap bytes");
+  assert.equal(first, bootstrapFor("c5"), "a startup source carries the bootstrap bytes");
   assert.doesNotMatch(first, /\[GSD Recovery Capsule\]/, "a capsule is compaction or resume only");
 
   const explicit = parseContext(
@@ -110,7 +111,7 @@ test("a fresh start with active work still delivers the bootstrap, never a capsu
     ),
     "SessionStart",
   );
-  assert.equal(explicit, createBootstrap(CORE_ROOT), "an explicit startup source is the same");
+  assert.equal(explicit, bootstrapFor("c6"), "an explicit startup source is the same");
 });
 
 test("UserPromptSubmit injects the bootstrap once when SessionStart did not run", () => {
@@ -127,7 +128,7 @@ test("UserPromptSubmit injects the bootstrap once when SessionStart did not run"
   );
   assert.equal(
     first,
-    createBootstrap(CORE_ROOT),
+    bootstrapFor("c2"),
     "the fallback path injects the same core bytes as SessionStart",
   );
 
@@ -140,7 +141,7 @@ test("UserPromptSubmit injects the bootstrap once when SessionStart did not run"
 });
 
 test("a compact SessionStart delivers the recovery capsule instead of the bootstrap", () => {
-  const project = projectWithActiveFeature();
+  const project = projectWithActiveFeature(owner("c3"));
   const stateRoot = mkdtempSync(join(tmpdir(), "gsd-codex-state-"));
 
   const after = parseContext(
@@ -151,7 +152,7 @@ test("a compact SessionStart delivers the recovery capsule instead of the bootst
     ),
     "SessionStart",
   );
-  const coreCapsule = renderRecoveryCapsule(CORE_ROOT, project);
+  const coreCapsule = renderRecoveryCapsule(CORE_ROOT, project, owner("c3"));
   assert.equal(
     after,
     coreCapsule,
@@ -161,7 +162,7 @@ test("a compact SessionStart delivers the recovery capsule instead of the bootst
 });
 
 test("a resume SessionStart refreshes the recovery capsule when work is active", () => {
-  const project = projectWithActiveFeature();
+  const project = projectWithActiveFeature(owner("c4"));
   const stateRoot = mkdtempSync(join(tmpdir(), "gsd-codex-state-"));
 
   const resumed = parseContext(
@@ -174,9 +175,20 @@ test("a resume SessionStart refreshes the recovery capsule when work is active",
   );
   assert.equal(
     resumed,
-    renderRecoveryCapsule(CORE_ROOT, project),
+    renderRecoveryCapsule(CORE_ROOT, project, owner("c4")),
     "a resume renders the core capsule, byte for byte",
   );
+
+  // Another session in the same work tree gets the bootstrap, never this session's packet.
+  const other = parseContext(
+    run(
+      { hook_event_name: "SessionStart", session_id: "c9", cwd: project, source: "resume" },
+      project,
+      stateRoot,
+    ),
+    "SessionStart",
+  );
+  assert.equal(other, bootstrapFor("c9"), "a packet owned by another session yields no capsule");
 });
 
 // Contract rule 4, the Codex side of the same check as the Claude Code adapter: a

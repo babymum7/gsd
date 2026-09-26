@@ -390,35 +390,6 @@ function readBoundedFile(filePath, maxBytes, label) {
   }
 }
 
-// Archive-and-delete materializes non-authoritative history before the squash, but the
-// contract (skills/gsd/REFERENCE.md § Feature archive contract) was prose-only, so nothing
-// could tell a correct copy from a forgotten or rewritten one. The pre-squash gate verifies
-// the archive exists and the archived plan is the exact approved bytes before it lands.
-function verifyArchive(cwd, state, scratchPlan) {
-  if (state.cleanup_preference !== "archive-and-delete") return;
-  const archiveDir = join(cwd, "docs", "gsd", state.feature, "archive");
-  const archivePlanPath = join(archiveDir, "plan.md");
-  const implementationPath = join(archiveDir, "implementation.md");
-  let archivePlan;
-  try {
-    archivePlan = readBoundedFile(archivePlanPath, PLAN_FILE_MAX_BYTES, "archive plan");
-  } catch (error) {
-    blocked("archive-missing", `archive-and-delete requires ${archivePlanPath}: ${error.message}`);
-  }
-  if (!scratchPlan.equals(archivePlan)) {
-    blocked("archive-plan-mismatch", `${archivePlanPath} must be byte-for-byte the approved .scratch plan`);
-  }
-  let implementationBytes;
-  try {
-    implementationBytes = readBoundedFile(implementationPath, PLAN_FILE_MAX_BYTES, "archive implementation");
-  } catch (error) {
-    blocked("archive-missing", `archive-and-delete requires ${implementationPath}: ${error.message}`);
-  }
-  const implementation = implementationBytes.toString("utf8");
-  if (implementation.trim() === "") {
-    blocked("archive-implementation-empty", `${implementationPath} must summarize the feature outcome`);
-  }
-}
 function preflight(cwd, featureDir) {
   requireWorkTree(cwd);
   let state;
@@ -490,7 +461,6 @@ function preflight(cwd, featureDir) {
       `plan.md SHA-256 (${scratchHash}) does not match bound plan_sha256 (${state.plan_sha256})`,
     );
   }
-  verifyArchive(cwd, state, scratchBytes);
   // The trailing exit line is the report's own echo of the process exit code. A consumer
   // that reads the report through a pipe sees the last stage's exit status, so without this
   // line a blocked run can travel downstream looking successful; with it, the verdict is
