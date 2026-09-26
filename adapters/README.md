@@ -174,6 +174,7 @@ Adapters derive active candidates from the filesystem and never execute artifact
 2. Eligible children are real directories matching `^[a-z0-9]+(?:-[a-z0-9]+)*$`, at most 255 bytes.
 3. Each must hold regular files `plan.md` and a structurally valid `state.toon`; with a session owner, only packets whose `owner` matches count.
 4. Names are returned sorted in byte order.
+5. Fault-tolerant discovery also returns `malformed` (packets skipped as defects) and `retired` (owned packets on a retired schema). `composeRecoveryCapsule` appends them as `[GSD Packet Notes]` before `GSD_SESSION`, and emits the notes alone when no packet is resumable.
 
 #### Compaction Recovery Capsule
 

@@ -207,7 +207,7 @@ checkpoint_revision:<positive int>
 ```
 
 - Inapplicable values are `none`. Parsing rejects invalid UTF-8, carriage returns, blank lines, unknown, duplicate, reordered, or empty fields.
-- Other schemas are experimental history: discovery ignores them, explicit reads reject them unchanged, and there is no migration path.
+- Other schemas are retired: discovery never resumes them, and an explicit read rejects them unchanged with a `help:` line naming the rebind. There is no in-place migration.
 - Malformed records fail closed unchanged; partial terminal evidence is discarded and conformance reruns.
 
 ### Atomic write
@@ -251,7 +251,7 @@ Recovery restores from `state.toon` and Git, never from conversation. Harness co
 
 ### Candidate discovery
 
-Candidates are `.scratch/<feature>/` directories holding a regular `plan.md` and a structurally valid `state.toon` whose `owner` is the current session; artifact contents are never executed. The adapter-side algorithm and the Compaction Recovery Capsule live in `adapters/README.md` § Recovery contract.
+Candidates are `.scratch/<feature>/` directories holding a regular `plan.md` and a structurally valid `state.toon` whose `owner` is the current session; artifact contents are never executed. A recovery capsule's `[GSD Packet Notes]` names skipped packets: a malformed one is a stop, a retired-schema one needs a rebind before it resumes. The adapter-side algorithm and the Compaction Recovery Capsule live in `adapters/README.md` § Recovery contract.
 
 ## Post-plan pipeline contract
 

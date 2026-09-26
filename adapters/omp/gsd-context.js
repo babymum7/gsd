@@ -29,7 +29,7 @@ import {
   writeStateAtomic,
 } from '../../lib/gsd-state.mjs';
 import { loadSubagentProfiles, withSubagentProfiles } from '../../lib/gsd-settings.mjs';
-import { sessionOwnerToken, withSessionOwner } from '../../lib/gsd-session-context.mjs';
+import { composeRecoveryCapsule, sessionOwnerToken, withSessionOwner } from '../../lib/gsd-session-context.mjs';
 
 const EXTENSION_FILE = fileURLToPath(import.meta.url);
 const SYSTEM_POLICY_MARKER = 'gsd:system-policy:v1';
@@ -159,38 +159,29 @@ function gsdContextExtension(pi) {
     trackOwner(ctx);
     // Without an owner token no packet is this session's, so no capsule is sent.
     if (!owner) return {};
-    let features;
-    let defects;
+    let scan;
     try {
-      ({ candidates: features, defects } = detectCandidates(ctx?.cwd || process.cwd(), {
-        faultTolerant: true,
-        owner,
-      }));
+      scan = detectCandidates(ctx?.cwd || process.cwd(), { faultTolerant: true, owner });
     } catch (error) {
       // Structural failure (entry limit, directory identity) — cannot continue.
       const message = error instanceof Error ? error.message : String(error);
       pi.logger?.error?.(`[GSD] autocompact candidate scan failed: ${message}`);
-      features = [];
-      defects = [];
+      scan = null;
     }
-    if (defects && defects.length > 0) {
-      for (const d of defects) {
-        pi.logger?.warn?.(`[GSD] skipped malformed packet: ${d}`);
-      }
-    }
-    if (features.length === 0) {
-      return {};
+    for (const d of scan?.defects ?? []) {
+      pi.logger?.warn?.(`[GSD] skipped malformed packet: ${d}`);
     }
     // Build everything in locals; only assign pendingCapsule after all
     // throw-prone work succeeds so that a mid-throw leaves no stale capsule.
     let capsule;
     try {
-      capsule = `${createCapsule(features, GSD_ROOT)}\nGSD_SESSION: ${owner}`;
+      capsule = composeRecoveryCapsule(scan, GSD_ROOT, owner);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       pi.logger?.error?.(`[GSD] autocompact capsule creation failed: ${message}`);
       return {};
     }
+    if (!capsule) return {};
     const currentRequest = extractLastUserRequest(event?.messages);
     const context = [capsule];
     if (currentRequest) {

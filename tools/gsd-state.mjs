@@ -148,8 +148,20 @@ function failArtifact(error, command) {
     .trim()
     .slice(0, 500) || "state validation failed";
   const code = error?.contractFailure === "io-error" ? "io-error" : "invalid-artifact";
-  write_(["status: error", `code: ${code}`, `error: ${quote(message)}`, `help: ${quote(commandUsage(command))}`]);
+  write_(["status: error", `code: ${code}`, `error: ${quote(message)}`, `help: ${quote(remediation(message, command))}`]);
   process.exit(1);
+}
+
+// A retired schema is never migrated in place; the fix is a fresh binding that carries the
+// old record's values forward, so the help line names that rebind instead of the flag list.
+function remediation(message, command) {
+  const retired = /unsupported schema: (\S+)/.exec(message);
+  if (!retired) return commandUsage(command);
+  return (
+    `state schema ${retired[1]} is retired: revalidate plan.md, delete this state.toon, then rebind with ` +
+    `${INVOCATION} set --feature-dir .scratch/<feature> owner=<GSD_SESSION> phase=<phase> base_ref=<base_ref> ` +
+    "last_green_task=<task> last_green_commit=<commit>, copying those values from the old file"
+  );
 }
 
 function parseArguments(argv) {

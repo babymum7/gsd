@@ -512,7 +512,16 @@ describe("capsule extension production API contract", () => {
       assert.ok(mixedResult.context, "mixed scenario must return context array");
       const capsuleText = mixedResult.context[0];
       assert.match(capsuleText, /good-feature/, "valid feature must appear in capsule");
-      assert.doesNotMatch(capsuleText, /bad-feature/, "malformed feature must not appear in capsule");
+      assert.match(
+        capsuleText,
+        /^GSD features owned by this session: good-feature$/m,
+        "a malformed feature is never listed as resumable",
+      );
+      assert.match(
+        capsuleText,
+        /^Malformed GSD packets \(stop before resuming these and report the defect\): bad-feature$/m,
+        "a malformed feature is named as a stop, not dropped silently",
+      );
       rmSync(mixedDir, { recursive: true, force: true });
 
       // Test inert behavior (empty candidates)
