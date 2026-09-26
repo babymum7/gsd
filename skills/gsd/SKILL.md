@@ -40,4 +40,4 @@ Understand the whole behavior, then stop at the first rung that works: does it n
 
 ## Canon
 
-`GSD_ROOT/skills/gsd/REFERENCE.md` holds the contracts; a selected skill reads it by `§` section. `plan.md` owns intent and `state.toon` binds its bytes. A malformed packet stops only the work that depends on it, named; it never blocks unrelated work.
+`GSD_ROOT/skills/gsd/REFERENCE.md` holds the contracts; a selected skill reads it by `§` section. `plan.md` owns intent and `state.toon` binds its path and base. A malformed packet stops only the work that depends on it, named; it never blocks unrelated work.

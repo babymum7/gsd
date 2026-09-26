@@ -162,3 +162,43 @@ The plugin bundle is checked end to end too: `test/gsd-plugin-packager.test.js`
 builds the exact bundle layout and runs a bundled hook, requiring the core's
 bootstrap bytes back. A quoting, root-derivation, or manifest bug fails there
 instead of in a live session.
+
+## Recovery contract
+
+The core renders recovery text; adapters deliver it unchanged. Agent-facing lifecycle rules stay in `skills/gsd/REFERENCE.md`; this section is the implementer spec.
+
+### Candidate discovery
+
+Adapters derive active candidates from the filesystem and never execute artifact contents:
+1. A missing or non-directory `.scratch/` yields `[]`.
+2. Eligible children are real directories matching `^[a-z0-9]+(?:-[a-z0-9]+)*$`, at most 255 bytes.
+3. Each must hold regular files `plan.md` and a structurally valid `state.toon`; with a session owner, only packets whose `owner` matches count.
+4. Names are returned sorted in byte order.
+
+#### Compaction Recovery Capsule
+
+The Compaction Recovery Capsule is the canonical recovery interface. Its exact template is:
+
+```text
+[GSD Recovery Capsule]
+GSD features owned by this session: <features>
+<resume_instruction>
+Compaction MUST preserve and continue the current user request. Only resume an active feature when the preserved request or a bare continue explicitly selects it.
+```
+
+#### Current Request Preservation
+
+The compaction hook also returns the last genuine user request (excluding bootstrap text, capsules, and summaries), truncated to 500 bytes, as `[GSD Current Request]` followed by that text. Inventory never proves ownership; only a bare `continue` or a prompt naming an active feature resumes it.
+
+#### Generic Renderer Protocol
+
+The renderer validates its inputs and fails closed without partial output: unique safe-slug `features` (at least one), an absolute `gsdRoot` without control characters of at most 1024 bytes, and a `masterPath` of `<gsdRoot>/skills/gsd/SKILL.md` of at most 1024 bytes. It concatenates literally, sorts features in byte order, and lists up to 5; beyond that it lists the first 5 followed by ` (and <omittedCount> more)`.
+
+The `<resume_instruction>` is a single string for both modes. It delegates routing to the bootstrap:
+    `If resuming, follow the bootstrap routing in <masterPath>: bare "continue" selects gsd-executing-plans; a prompt naming an active feature routes to that feature's owner skill.`
+With more than 5 active features, an additional clause is appended:
+    ` Some features are omitted from this list — stop and select exactly one active feature before resuming.`
+Both modes end with:
+    ` Stop immediately on malformed or ambiguous state. Otherwise, continue ordinary routing for the current request.`
+
+A rendered capsule over 4000 bytes fails closed; nothing is truncated.

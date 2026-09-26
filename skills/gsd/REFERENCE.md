@@ -212,7 +212,7 @@ checkpoint_revision:<positive int>
 
 ### Atomic write
 
-Every write goes through `gsd-state.mjs set key=value…` (fallback `write-state --json-file`), which writes a temporary file, fsyncs, renames it over `state.toon`, and reads it back before reporting. Symlinked feature paths, a basename unequal to `feature`, or a `plan_path` other than `.scratch/<feature>/plan.md` fail closed.
+Every write goes through `gsd-state.mjs set key=value…` (fallback `write-state --json-file`), which writes atomically and reads back before reporting. A symlinked feature path, a basename unequal to `feature`, or a `plan_path` other than `.scratch/<feature>/plan.md` fails closed.
 
 ### Checkpoint cadence
 
@@ -251,39 +251,7 @@ Recovery restores from `state.toon` and Git, never from conversation. Harness co
 
 ### Candidate discovery
 
-Adapters derive active candidates from the filesystem and never execute artifact contents:
-1. A missing or non-directory `.scratch/` yields `[]`.
-2. Eligible children are real directories matching `^[a-z0-9]+(?:-[a-z0-9]+)*$`, at most 255 bytes.
-3. Each must hold regular files `plan.md` and a structurally valid `state.toon`; with a session owner, only packets whose `owner` matches count.
-4. Names are returned sorted in byte order.
-
-#### Compaction Recovery Capsule
-
-The Compaction Recovery Capsule is the canonical recovery interface. Its exact template is:
-
-```text
-[GSD Recovery Capsule]
-GSD features owned by this session: <features>
-<resume_instruction>
-Compaction MUST preserve and continue the current user request. Only resume an active feature when the preserved request or a bare continue explicitly selects it.
-```
-
-#### Current Request Preservation
-
-The compaction hook also returns the last genuine user request (excluding bootstrap text, capsules, and summaries), truncated to 500 bytes, as `[GSD Current Request]` followed by that text. Inventory never proves ownership; only a bare `continue` or a prompt naming an active feature resumes it.
-
-#### Generic Renderer Protocol
-
-The renderer validates its inputs and fails closed without partial output: unique safe-slug `features` (at least one), an absolute `gsdRoot` without control characters of at most 1024 bytes, and a `masterPath` of `<gsdRoot>/skills/gsd/SKILL.md` of at most 1024 bytes. It concatenates literally, sorts features in byte order, and lists up to 5; beyond that it lists the first 5 followed by ` (and <omittedCount> more)`.
-
-The `<resume_instruction>` is a single string for both modes. It delegates routing to the bootstrap:
-    `If resuming, follow the bootstrap routing in <masterPath>: bare "continue" selects gsd-executing-plans; a prompt naming an active feature routes to that feature's owner skill.`
-With more than 5 active features, an additional clause is appended:
-    ` Some features are omitted from this list — stop and select exactly one active feature before resuming.`
-Both modes end with:
-    ` Stop immediately on malformed or ambiguous state. Otherwise, continue ordinary routing for the current request.`
-
-A rendered capsule over 4000 bytes fails closed; nothing is truncated.
+Candidates are `.scratch/<feature>/` directories holding a regular `plan.md` and a structurally valid `state.toon` whose `owner` is the current session; artifact contents are never executed. The adapter-side algorithm and the Compaction Recovery Capsule live in `adapters/README.md` § Recovery contract.
 
 ## Post-plan pipeline contract
 

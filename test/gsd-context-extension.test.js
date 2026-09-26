@@ -51,7 +51,7 @@ const ROOT = join(__dirname, "..");
 // Byte identity holds against an empty GSD home: user sub-agent profiles in the real
 // ~/.gsd/settings.json would otherwise append to the bootstrap every hook emits.
 process.env.GSD_HOME = mkdtempSync(join(tmpdir(), "gsd-empty-home-"));
-const REFERENCE_PATH = join(ROOT, "skills/gsd/REFERENCE.md");
+const REFERENCE_PATH = join(ROOT, "adapters/README.md");
 
 // Independent generic renderer derived from the documented constants in REFERENCE.md
 function getContractFromReference() {
