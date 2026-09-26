@@ -46,6 +46,17 @@ Uninstall delegates only to each host's native plugin uninstall command. The CLI
 removes the generated bundle after no recorded agent still uses it and never
 inspects unrelated host files.
 
+### Sub-agent profiles
+
+`gsd config set <profile>.<host> <value>` records user choices in
+`<GSD home>/settings.json` (`GSD_HOME`, default `~/.gsd`); `gsd config get` and
+`gsd config list` read them back, and uninstall keeps the file. Profiles are `scout`
+(read-only exploration) and `worker` (dispatched implementation). The plugin ships no model names: an absent file, or a host with
+no values, leaves the bootstrap byte-identical and every spawn on the host default.
+Otherwise each adapter appends a `## Sub-agent profiles` block naming that host's
+values inside the bootstrap, and the skills pass them at spawn time. An invalid file
+never blocks the bootstrap; `gsd config list` reports it.
+
 ## Capability map
 
 Every adapter declares which host feature it uses for each GSD need. A need a host
@@ -61,6 +72,7 @@ cannot satisfy takes the named fallback; it is never faked.
 | Sub-agent implementation | One task per isolated sub-agent, serial fallback | Agent-tool subagents from `.claude/agents/*.md` | Spawned agent threads from `.codex/agents/*.toml`, collected by the main thread |
 | Isolated task workspaces | Per-task isolated workspaces with `merge: branch` | Subagent `isolation` when available, else serial in plan order | Per-agent `sandbox_mode`; a `Worktree` environment isolates a chat, while subagents share the parent environment, so a wave without a per-task workspace runs serially |
 | Independent review | One isolated read-only reviewer sub-agent task carrying the `gsd-verify` standalone-review brief | `gsd-reviewer` subagent (read-only) | `gsd-reviewer` subagent (`sandbox_mode = "read-only"`) |
+| Sub-agent profiles | Values name OMP agents, passed as the task tool `agent`; each agent's model role picks the model | Agent-tool model aliases (`sonnet`, `opus`, `haiku`, ...) passed as the Agent tool `model` | Model ids passed as `spawn_agent` `model` |
 
 A reconciled wave of two or more tasks runs one independent read-only review of the
 merged diff, as canon `REFERENCE.md` § Wave dispatch requires. The review is

@@ -3,6 +3,15 @@ import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import {
+  SETTINGS_PROFILES,
+  SETTINGS_VERSION,
+  parseSettingsKey,
+  readSettings,
+  resolveSettingsHome,
+  settingsPath,
+  writeSettings,
+} from '../../lib/gsd-settings.mjs';
 import { buildPluginBundle } from './gsd-plugin-packager.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -14,6 +23,15 @@ const HELP = `GSD host plugin CLI
 Usage:
   gsd install [--agent omp|claude|codex|all] [--home <path>] [--dry-run]
   gsd uninstall [--agent omp|claude|codex|all] [--home <path>] [--dry-run]
+  gsd config list [--home <path>]
+  gsd config get <profile>.<host> [--home <path>]
+  gsd config set <profile>.<host> <value> [--home <path>]
+
+Config keys:
+  profile  scout | worker
+  host     claude | codex | omp
+  value    an Agent tool model alias for claude (sonnet, opus, haiku, ...),
+           a model id for codex, an agent name for omp
 
 Options:
   --agent <name>  Agent to process (omit interactively)
@@ -212,7 +230,75 @@ function runUninstall(parsed, options) {
   };
 }
 
+function parseConfigArgs(argv) {
+  const positional = [];
+  let home = null;
+  let help = false;
+  for (let i = 1; i < argv.length; i += 1) {
+    const arg = argv[i];
+    if (arg === '--home') {
+      home = argv[i + 1] ?? null;
+      i += 1;
+      if (home === null) throw new Error('--home requires a path');
+    } else if (arg === '--help' || arg === '-h') {
+      help = true;
+    } else if (arg.startsWith('--')) {
+      throw new Error(`unknown argument: ${arg}`);
+    } else {
+      positional.push(arg);
+    }
+  }
+  const [action, key, value, ...extra] = positional;
+  const arity = { list: 0, get: 1, set: 2 };
+  if (help) return { help: true };
+  if (!Object.hasOwn(arity, action ?? '')) throw new Error(`config action must be one of: ${Object.keys(arity).join(', ')}`);
+  const given = [key, value].filter((item) => item !== undefined).length;
+  if (given !== arity[action] || extra.length > 0) {
+    throw new Error(`config ${action} expects ${arity[action]} argument(s)`);
+  }
+  if (action !== 'list') parseSettingsKey(key, AGENTS);
+  return { action, key, value, home, help: false };
+}
+
+function runConfig(argv) {
+  let parsed;
+  try {
+    parsed = parseConfigArgs(argv);
+  } catch (error) {
+    return { status: 2, stdout: '', stderr: `${error.message}\n` };
+  }
+  if (parsed.help) return { status: 0, stdout: HELP, stderr: '' };
+  try {
+    const home = parsed.home ? path.resolve(parsed.home) : resolveSettingsHome();
+    const settings = readSettings(home);
+    if (parsed.action === 'list') {
+      const lines = SETTINGS_PROFILES.flatMap((profile) =>
+        AGENTS.flatMap((host) => {
+          const value = settings?.profiles?.[profile]?.[host];
+          return value ? [`${profile}.${host}=${value}`] : [];
+        }),
+      );
+      const stdout = lines.length > 0 ? `${lines.join('\n')}\n` : `${settingsPath(home)}: no profiles set\n`;
+      return { status: 0, stdout, stderr: '' };
+    }
+    const { profile, host } = parseSettingsKey(parsed.key, AGENTS);
+    if (parsed.action === 'get') {
+      const value = settings?.profiles?.[profile]?.[host];
+      if (!value) return { status: 1, stdout: '', stderr: `${parsed.key} is not set\n` };
+      return { status: 0, stdout: `${value}\n`, stderr: '' };
+    }
+    const next = settings ?? { version: SETTINGS_VERSION, profiles: {} };
+    next.profiles ??= {};
+    next.profiles[profile] = { ...next.profiles[profile], [host]: parsed.value };
+    writeSettings(home, next);
+    return { status: 0, stdout: `${parsed.key}=${parsed.value}\n`, stderr: '' };
+  } catch (error) {
+    return { status: 1, stdout: '', stderr: `${error.message}\n` };
+  }
+}
+
 export function runCli(argv, options = {}) {
+  if (argv[0] === 'config') return runConfig(argv);
   let parsed;
   try {
     parsed = parseArgs(argv);

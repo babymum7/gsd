@@ -9,6 +9,9 @@ import { createBootstrap, discoverSkillCatalog } from "../lib/gsd-bootstrap.mjs"
 import { buildPluginBundle } from "../adapters/plugin/gsd-plugin-packager.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+// Byte identity holds against an empty GSD home: user sub-agent profiles in the real
+// ~/.gsd/settings.json would otherwise append to the bootstrap every hook emits.
+process.env.GSD_HOME = mkdtempSync(join(tmpdir(), "gsd-empty-home-"));
 
 function collectSymlinks(dir, found = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -33,6 +36,12 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
   assert.ok(existsSync(join(pluginRoot, "core", "skills", "gsd-ponytail", "SKILL.md")));
   assert.ok(existsSync(join(pluginRoot, "core", "tools", "gsd-contract.mjs")));
   assert.deepEqual(collectSymlinks(pluginRoot), []);
+  // Every core tool must load from the built bundle: tools import `../lib`, which shipped
+  // missing from `core/` and failed every validator call with "Cannot find module".
+  for (const tool of readdirSync(join(pluginRoot, "core", "tools"))) {
+    const run = spawnSync(process.execPath, [join(pluginRoot, "core", "tools", tool), "--help"], { encoding: "utf8" });
+    assert.doesNotMatch(run.stderr, /Cannot find module/, `${tool} loads from the bundle`);
+  }
 
   const claudeManifest = JSON.parse(
     readFileSync(join(pluginRoot, ".claude-plugin", "plugin.json"), "utf8"),

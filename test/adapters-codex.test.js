@@ -9,6 +9,9 @@ import { createBootstrap, sanitizeBootstrapError } from "../lib/gsd-bootstrap.mj
 import { renderRecoveryCapsule } from "../lib/gsd-session-context.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+// Byte identity holds against an empty GSD home: user sub-agent profiles in the real
+// ~/.gsd/settings.json would otherwise append to the bootstrap every hook emits.
+process.env.GSD_HOME = mkdtempSync(join(tmpdir(), "gsd-empty-home-"));
 const HOOK = join(ROOT, "adapters", "codex", "gsd-context.mjs");
 // Same contract as every adapter: the emitted payload is the core's own render for the same
 // inputs, byte for byte. The hook realpaths its own location, so the comparison root does too.

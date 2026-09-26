@@ -141,3 +141,96 @@ test("uninstall is plugin-only and leaves legacy-looking host files unchanged", 
   assert.equal(existsSync(join(home, "marketplace")), false);
   assert.equal(existsSync(join(home, "state.json")), false);
 });
+
+test("config set writes validated per-profile host values and get/list read them back", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-config-"));
+
+  assert.equal(runCli(["config", "list", "--home", home]).stdout, `${join(home, "settings.json")}: no profiles set\n`);
+  assert.equal(existsSync(join(home, "settings.json")), false, "list must not create settings");
+
+  for (const [key, value] of [
+    ["worker.claude", "sonnet"],
+    ["scout.codex", "a6/glm-5.3-flash"],
+    ["scout.omp", "scout"],
+  ]) {
+    const result = runCli(["config", "set", key, value, "--home", home]);
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, `${key}=${value}\n`);
+  }
+
+  const settings = JSON.parse(readFileSync(join(home, "settings.json"), "utf8"));
+  assert.deepEqual(settings, {
+    version: 1,
+    profiles: {
+      scout: { codex: "a6/glm-5.3-flash", omp: "scout" },
+      worker: { claude: "sonnet" },
+    },
+  });
+
+  const get = runCli(["config", "get", "scout.codex", "--home", home]);
+  assert.equal(get.status, 0, get.stderr);
+  assert.equal(get.stdout, "a6/glm-5.3-flash\n");
+  assert.equal(runCli(["config", "get", "worker.codex", "--home", home]).status, 1);
+
+  const list = runCli(["config", "list", "--home", home]);
+  assert.equal(list.status, 0, list.stderr);
+  assert.equal(
+    list.stdout,
+    "scout.omp=scout\nscout.codex=a6/glm-5.3-flash\nworker.claude=sonnet\n",
+  );
+});
+
+test("config resolves GSD_HOME when --home is absent", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-config-env-"));
+  const previous = process.env.GSD_HOME;
+  process.env.GSD_HOME = home;
+  try {
+    assert.equal(runCli(["config", "set", "worker.codex", "a6/grok-4.7"]).status, 0);
+  } finally {
+    if (previous === undefined) delete process.env.GSD_HOME;
+    else process.env.GSD_HOME = previous;
+  }
+  assert.equal(JSON.parse(readFileSync(join(home, "settings.json"), "utf8")).profiles.worker.codex, "a6/grok-4.7");
+});
+
+test("config rejects usage errors with status 2 and invalid values or files with status 1", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-config-bad-"));
+  for (const argv of [
+    ["config"],
+    ["config", "toString"],
+    ["config", "set", "scout.claude"],
+    ["config", "get", "planner.claude"],
+    ["config", "get", "scout.gemini"],
+    ["config", "list", "extra"],
+    ["config", "list", "--agent", "claude"],
+  ]) {
+    assert.equal(runCli([...argv, "--home", home]).status, 2, argv.join(" "));
+  }
+  for (const value of ["has space", "back`tick", 'quo"te']) {
+    const result = runCli(["config", "set", "scout.claude", value, "--home", home]);
+    assert.equal(result.status, 1, value);
+    assert.match(result.stderr, /scout\.claude: value must be/);
+  }
+  assert.equal(existsSync(join(home, "settings.json")), false);
+
+  writeFileSync(join(home, "settings.json"), JSON.stringify({ version: 1, profiles: { planner: {} } }));
+  const broken = runCli(["config", "list", "--home", home]);
+  assert.equal(broken.status, 1);
+  assert.match(broken.stderr, /unknown profile planner/);
+});
+
+test("uninstall keeps user settings", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-config-keep-"));
+  const logPath = join(home, "commands.log");
+  const binDir = fakeBinDir(logPath);
+  buildPluginBundle(ROOT, join(home, "marketplace"));
+  writeFileSync(join(home, "state.json"), JSON.stringify({ version: 1, agents: { codex: "plugin" } }));
+  assert.equal(runCli(["config", "set", "worker.codex", "a6/grok-4.7", "--home", home]).status, 0);
+
+  const result = runCli(["uninstall", "--agent", "codex", "--home", home], {
+    env: { ...process.env, PATH: `${binDir}:${process.env.PATH}` },
+  });
+  assert.equal(result.status, 0, result.stderr);
+  assert.equal(existsSync(join(home, "marketplace")), false);
+  assert.ok(existsSync(join(home, "settings.json")));
+});

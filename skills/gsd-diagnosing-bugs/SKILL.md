@@ -29,6 +29,8 @@ A discipline for hard bugs. Read `docs/domain/index.md` only if bug evidence sig
 ## Phase 1 — Build a feedback loop (THIS is the skill)
 Build a **tight** red-capable pass/fail signal for *this* bug before hypothesizing. Seam preference: failing test at right seam → curl/HTTP script → CLI+fixture snapshot → headless browser (if no cheaper seam) → replay/trace → throwaway harness → property/fuzz → bisection (`git bisect run`) → differential loop → HITL last resort.
 
+**Scout**: to locate an unfamiliar failure path (entry points, callers, config, recent commits) across many files, spawn one read-only scout sub-agent (the bootstrap's `scout` sub-agent profile when listed); one or two known reads stay inline. The scout only locates: the owner builds and runs the loop, draws every conclusion, and re-reads each location it relies on.
+
 **Tighten**: faster, sharper symptom assertion, deterministic (pin time/seed/FS/network). Non-deterministic → raise reproduction rate until debuggable.
 
 **Done when** naming ONE command (script/test/curl), run once, that is red-capable (drives bug path, asserts user's exact symptom), deterministic, fast, agent-runnable.

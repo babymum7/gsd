@@ -115,6 +115,7 @@ The owner reconciles each dispatched task or batch in strict plan order through 
 5. Integration proof: after merging every task branch of the wave into `wip/<feature>` in strict plan order, the owner re-runs every merged wave task's focused check on `wip/<feature>` after the last merge and before the `gsd-state.mjs set` checkpoint write; pre-merge branch checks are never sufficient. Only when all pass does the owner write `state.toon` through `gsd-state.mjs set` with `last_green_task` set to the wave's last task; `Tn+1` after the wave begins only from that committed green checkpoint.
 
 After task or batch reconciliation, every dispatched task or batch runs one independent read-only review of its merged diff: a reviewer sub-agent where the host can spawn one, otherwise the standalone review of `gsd-verify`. Review is advisory — deterministic gates remain the only terminal authority, and a finding blocks only by citing bound plan text or a red deterministic check. Terminal conformance then performs the separate final whole-diff review; it does not repeat task or batch review.
+When the bootstrap lists sub-agent profiles from user GSD settings, workers spawn with `worker`; otherwise the host default model applies.
 
 Failure routing: any failed layer is an integrity failure that returns to bounded inline owner repair under `gsd-executing-plans`, `gsd-handoff`, and `gsd-tdd`, and is never re-dispatched to a sub-agent. Terminal conformance proves the unchanged final commit, and plan-ordered diffs hold because the owner merges in plan order.
 

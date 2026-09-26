@@ -76,7 +76,9 @@ export function buildPluginBundle(root, marketplaceRoot) {
     .map((row) => row.name)
     .sort();
 
+  // Adapters resolve `../../lib` from the bundle root; core tools resolve `../lib` from `core/`.
   copyDirectory(path.join(sourceRoot, 'lib'), path.join(pluginRoot, 'lib'));
+  copyDirectory(path.join(sourceRoot, 'lib'), path.join(pluginRoot, 'core', 'lib'));
   copyDirectory(path.join(sourceRoot, 'skills'), path.join(pluginRoot, 'core', 'skills'));
   copyDirectory(path.join(sourceRoot, 'tools'), path.join(pluginRoot, 'core', 'tools'));
 

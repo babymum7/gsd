@@ -19,6 +19,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBootstrap, sanitizeBootstrapError } from '../../lib/gsd-bootstrap.mjs';
+import { loadSubagentProfiles, withSubagentProfiles } from '../../lib/gsd-settings.mjs';
 import {
   createMarkerStore,
   renderRecoveryCapsule,
@@ -48,6 +49,11 @@ function readInput() {
   } catch {
     return null;
   }
+}
+
+// The core render plus the user's claude sub-agent profiles, when any are set.
+function renderBootstrap() {
+  return withSubagentProfiles(createBootstrap(GSD_ROOT), loadSubagentProfiles('claude', 'the Agent tool `model`'));
 }
 
 function emit(eventName, text) {
@@ -85,7 +91,7 @@ function handleSessionStart(input) {
   // emitting nothing keeps the refresh free; the next prompt injects it if it is absent.
   if (source === 'resume') return;
   store.write('bootstrap-emitted');
-  emit('SessionStart', createBootstrap(GSD_ROOT));
+  emit('SessionStart', renderBootstrap());
 }
 
 function handleUserPromptSubmit(input) {
@@ -95,7 +101,7 @@ function handleUserPromptSubmit(input) {
   }
   if (store.read('bootstrap-emitted')) return;
   store.write('bootstrap-emitted');
-  emit('UserPromptSubmit', createBootstrap(GSD_ROOT));
+  emit('UserPromptSubmit', renderBootstrap());
 }
 
 function main() {

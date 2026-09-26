@@ -44,6 +44,19 @@ bun bin/gsd.mjs uninstall --agent claude
 
 Uninstall runs only the host's native plugin uninstall command and removes the local bundle when no selected agent still uses it. It does not inspect or modify files outside that plugin registration. Unrelated hooks, skills, agents, settings, and marketplaces stay untouched.
 
+### Sub-agent profiles
+
+GSD ships no model names. Choose which model (or OMP agent) each sub-agent profile uses per host; values land in `~/.gsd/settings.json` (or `$GSD_HOME/settings.json`) and survive uninstall:
+
+```bash
+bun bin/gsd.mjs config set scout.claude haiku                    # read-only exploration
+bun bin/gsd.mjs config set worker.codex a6/grok-4.7              # dispatched implementation
+bun bin/gsd.mjs config set worker.omp task                       # OMP values are agent names
+bun bin/gsd.mjs config list
+```
+
+Claude Code values are aliases its Agent tool accepts (`sonnet`, `opus`, `haiku`, ...); point an alias at a custom model with Claude Code's `ANTHROPIC_DEFAULT_<ALIAS>_MODEL` environment variables. Codex values are model ids; OMP values are agent names whose model roles pick the model. Unset profiles keep each host's default sub-agent model. New sessions pick up changes without reinstalling.
+
 ## Use ordinary prompts
 
 There is no special invocation syntax. Examples:
@@ -165,6 +178,7 @@ lib/
 ├── gsd-milestone.mjs                # milestone ledger grammar and deterministic completion
 ├── gsd-record.mjs                   # decision and design record grammar
 ├── gsd-session-context.mjs          # recovery capsule render, session marker store, current-request join
+├── gsd-settings.mjs                 # user sub-agent profiles in <GSD home>/settings.json
 ├── gsd-state.mjs                    # state.toon schema, validation, and candidate discovery
 └── gsd-bootstrap.mjs                # skill catalog, bootstrap renderer, recovery capsule, message utils
 tools/

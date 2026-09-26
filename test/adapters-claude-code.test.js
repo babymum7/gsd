@@ -9,6 +9,9 @@ import { createBootstrap, sanitizeBootstrapError } from "../lib/gsd-bootstrap.mj
 import { renderRecoveryCapsule, withCurrentRequest } from "../lib/gsd-session-context.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+// Byte identity holds against an empty GSD home: user sub-agent profiles in the real
+// ~/.gsd/settings.json would otherwise append to the bootstrap every hook emits.
+process.env.GSD_HOME = mkdtempSync(join(tmpdir(), "gsd-empty-home-"));
 const HOOK = join(ROOT, "adapters", "claude-code", "gsd-context.mjs");
 // The adapter contract is byte identity, not resemblance: every payload the hook emits must
 // be the core's own render for the same inputs. The hook resolves its root through

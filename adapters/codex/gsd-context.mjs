@@ -17,6 +17,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBootstrap, sanitizeBootstrapError } from '../../lib/gsd-bootstrap.mjs';
+import { loadSubagentProfiles, withSubagentProfiles } from '../../lib/gsd-settings.mjs';
 import {
   createMarkerStore,
   renderRecoveryCapsule,
@@ -47,6 +48,11 @@ function readInput() {
   }
 }
 
+// The core render plus the user's codex sub-agent profiles, when any are set.
+function renderBootstrap() {
+  return withSubagentProfiles(createBootstrap(GSD_ROOT), loadSubagentProfiles('codex', '`spawn_agent` `model`'));
+}
+
 function emit(eventName, text) {
   if (!text) return;
   process.stdout.write(
@@ -68,14 +74,14 @@ function handleSessionStart(input) {
       return;
     }
   }
-  emit('SessionStart', createBootstrap(GSD_ROOT));
+  emit('SessionStart', renderBootstrap());
 }
 
 function handleUserPromptSubmit(input) {
   const store = createMarkerStore(STATE_ROOT, input.session_id);
   if (store.read('bootstrap-emitted')) return;
   store.write('bootstrap-emitted');
-  emit('UserPromptSubmit', createBootstrap(GSD_ROOT));
+  emit('UserPromptSubmit', renderBootstrap());
 }
 
 function main() {

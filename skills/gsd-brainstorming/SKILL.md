@@ -32,6 +32,7 @@ Match exploration breadth to prompt: read named areas and dependencies first; wa
 ## Discovery and stress-test
 
 - **Discovery:** inspect bounded behavior and public seams; clarify questions; present 2–3 approaches with tradeoffs and a recommendation.
+- **Scout:** when discovery spans many files, unfamiliar areas, or external references, spawn one read-only scout sub-agent (the bootstrap's `scout` sub-agent profile when listed) with a bounded question returning paths, seams, and facts; do one or two known reads inline instead. Scout output is unverified: re-read every fact a decision rests on before presenting it.
 - **Stress-test:** challenge decisions for risks, edge cases, missing constraints, hidden assumptions, irreversible choices, and conflicting acceptance.
 - Recommend answers for all questions. Batch independent questions; ask dependent questions sequentially by branch.
 - Ask only when answers change behavior, scope, interfaces, destructive actions, or tradeoffs; otherwise state conservative defaults.

@@ -29,6 +29,7 @@ import {
   validateState,
   writeStateAtomic,
 } from '../../lib/gsd-state.mjs';
+import { loadSubagentProfiles, withSubagentProfiles } from '../../lib/gsd-settings.mjs';
 
 const EXTENSION_FILE = fileURLToPath(import.meta.url);
 const SYSTEM_POLICY_MARKER = 'gsd:system-policy:v1';
@@ -58,7 +59,7 @@ function gsdContextExtension(pi) {
 
   const rebuildBootstrap = () => {
     try {
-      bootstrap = createBootstrap(GSD_ROOT);
+      bootstrap = withSubagentProfiles(createBootstrap(GSD_ROOT), loadSubagentProfiles('omp', 'the task tool `agent`'));
       bootstrapError = null;
       lastLoggedBootstrapError = null;
     } catch (error) {
