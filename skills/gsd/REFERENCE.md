@@ -102,21 +102,20 @@ Task batches dispatch concurrently, each task into its own isolated workspace on
 Each sub-agent receives one complete validated task slice rebuilt from `plan.md`, never invented; MUST run Fast TDD RED→GREEN→refactor; update every affected domain shard in the same commit as semantic code; and commit only green task-owned changes in its isolated workspace on its own task branch cut from wave base.
 A sub-agent MUST NOT mutate `state.toon`, amend `plan.md`, merge, decide lifecycle, or run Deferred Slow E2E.
 
-The owner reconciles each dispatched task or batch in strict plan order through an ordered five-layer gate before checkpointing:
-1. Evidence rule: a sub-agent's report, summary, or self-assessment is inadmissible; only Git bytes and commands the owner runs itself count as evidence.
-2. Mechanical proof: run `bun "<GSD_ROOT>/tools/gsd-git.mjs" verify-task-branch --feature-dir .scratch/<feature> --task <Tn> --branch <task-branch> --wave-base <ref>`; only `status: ready` on exit 0 admits the branch; `status: blocked` with its `code:` (`branch-missing`, `base-not-ancestor`, `empty-diff`, `out-of-slice-path`, `scratch-mutated`, `plan-unbound`) is an integrity failure; exit 2 corrects invocation.
-3. RED re-proof: each new or changed test must fail on the wave base — the owner takes only the task's test paths onto the wave base, runs the focused check, requires a red result, and discards that probe; a test that passes without the implementation proves nothing.
-4. Weakened-guard scan: the owner rejects any diff that deletes, skips, or renames an existing test, or loosens lint, type, or CI configuration, unless the slice owns that exact path and intent.
-5. Integration proof: after merging every task branch of the wave into `wip/<feature>` in strict plan order, the owner re-runs every merged wave task's focused check on `wip/<feature>` after the last merge and before the `gsd-state.mjs set` checkpoint write; pre-merge branch checks are never sufficient. Only when all pass does the owner write `state.toon` through `gsd-state.mjs set` with `last_green_task` set to the wave's last task; `Tn+1` after the wave begins only from that committed green checkpoint.
+The owner reconciles each dispatched task or batch in strict plan order before checkpointing. A sub-agent's report, summary, or self-assessment is inadmissible; only Git bytes and commands the owner runs itself count as evidence.
+1. Mechanical proof: run `bun "<GSD_ROOT>/tools/gsd-git.mjs" verify-task-branch --feature-dir .scratch/<feature> --task <Tn> --branch <task-branch> --wave-base <ref>`; only `status: ready` on exit 0 admits the branch; `status: blocked` with its `code:` (`branch-missing`, `base-not-ancestor`, `empty-diff`, `out-of-slice-path`, `scratch-mutated`, `plan-unbound`) is an integrity failure; exit 2 corrects invocation.
+2. Integration proof: after merging every task branch of the wave into `wip/<feature>` in strict plan order, the owner re-runs every merged wave task's focused check on `wip/<feature>` before the `gsd-state.mjs set` checkpoint write; pre-merge branch checks are never sufficient. Only when all pass does the owner checkpoint with `last_green_task` set to the wave's last task; `Tn+1` after the wave begins only from that committed green checkpoint.
 
-There is no per-wave review and no reviewer sub-agent: the session owner reviews the whole diff once, in the `gsd-verify` terminal gate.
+The terminal `gsd-verify` review of the whole diff catches weakened tests or guards; there is no per-wave review.
+
+There is no reviewer sub-agent: the session owner reviews the whole diff once, in the `gsd-verify` terminal gate.
 When the bootstrap lists sub-agent profiles from user GSD settings, workers spawn with `worker`; otherwise the host default model applies.
 
 Failure routing: any failed layer is an integrity failure that returns to bounded inline owner repair under `gsd-executing-plans` and `gsd-tdd`, and is never re-dispatched to a sub-agent. Terminal conformance proves the unchanged final commit, and plan-ordered diffs hold because the owner merges in plan order.
 
 ### Packet grammar
 
-All fields use exact headings and labels, canonical order, UTF-8/LF, and no blank leading/trailing lines. Reject missing, duplicate, malformed, unknown, empty, vague, or reordered fields, and any line between the title and its first section. Never normalize, infer, or repair source values.
+Only `# Plan`, `## Feature`, `## Base`, `## Acceptance Criteria`, and `## Tasks` are required. Every other section below is optional and sections may appear in any order; write an optional section only when it carries information. A present section keeps its exact grammar. The validator rejects missing required, duplicate, unknown, malformed, empty, or vague sections, and any line between the title and its first section. UTF-8/LF only. Never normalize, infer, or repair source values.
 
 ```markdown
 # Plan
@@ -153,8 +152,6 @@ None.
 | Criterion | Seam | Path | Lower-seam reason |
 | --- | --- | --- | --- |
 | AC-1 | <public seam> | `<repository-relative path>` | none |
-## Publication
-null
 ## Tasks
 ### T1: <short task>
 - **Satisfies:** AC-1
@@ -175,23 +172,22 @@ Decisions is exact `None.` or sequential D blocks:
 An AC ID is a positive sequential integer.
 - Only `active` criteria execute; replacements receive a new ID while former criteria become `superseded`.
 - Every active criterion carries exactly one concrete `GIVEN/WHEN/THEN` Scenario; the validator rejects a missing, malformed, or placeholder scenario.
-- `Publication` stays `null` for ordinary plans. Create a milestone ledger only for large, portable, independently releasable work; feature archives remain optional cleanup history, never mandatory plan outputs.
 - Outcome, Action, and Expected must independently name concrete behavior, operation, and observable result.
 - `TBD`, `TODO`, `works correctly`, `run tests`, `valid`, `covered`, or `success` are invalid.
-- `Domain Impact` uses the exact five fields above.
+- A present `Domain Impact` uses the exact five fields above; an absent one makes no domain claim.
 - `none` requires no contexts or documentation; other classifications require sorted affected context slugs and documentation updates (`introduce-context` requires `bootstrap-feature-context`).
 - Broad bootstrap is an independent decision and is `not-offered` whenever the domain index exists.
-- Every active AC has exactly one matching Interfaces row.
+- A present Interfaces table pins each listed active AC at most once; a task spanning pinned ACs needs identical pins.
 - A lower seam requires a concrete reason that higher production boundaries are absent or cannot deterministically isolate the criterion.
 - Task IDs are positive sequential integers in heading order.
-- Every active AC appears exactly once across non-superseded task `Satisfies` fields.
+- Every active AC appears in at least one non-superseded task `Satisfies` field.
 - A `superseded` task may keep original references even when criteria are `superseded`; live tasks satisfy only `active` criteria.
 - Structured `Files` entries under `test/`, `tests/`, `__tests__/`, or `spec/` directories, or with `*.test.*` / `*.spec.*` filenames, count as observation-only for shard ownership.
 - Every task owns at least one exact repository-relative path and one focused command; `none` is valid only for truly non-observable mechanical work.
 
 Canonical task parsing accepts only structured task blocks. Structured `Files` entries require unique safe repository-relative paths, one `create|modify|delete` operation, and concise non-vague intent.
 
-`gsd-to-plan` single-writes and binds only plans containing canonical `Domain Impact`, and the parser accepts exactly that grammar. Plans missing `Domain Impact` or using single-line path-only task forms are rejected in every validation path whether or not a recorded SHA-256 binding matches.
+The parser rejects single-line path-only task forms in every validation path whether or not a recorded SHA-256 binding matches. Full validation blocks only at binding (and each rebind after an amendment) and at the terminal gate; drafts in between are not revalidated.
 
 ### Executable contract validator
 

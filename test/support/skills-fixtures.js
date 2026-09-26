@@ -109,8 +109,6 @@ export const canonicalPacket = () => ({
     "| Criterion | Seam | Path | Lower-seam reason |",
     "| --- | --- | --- | --- |",
     "| AC-1 | parser | `test/skills.test.js` | none |",
-    "## Publication",
-    "null",
     "## Tasks",
     "### T1: Parse plan",
     "- **Satisfies:** AC-1",
@@ -125,7 +123,6 @@ export const canonicalPacket = () => ({
 // Single source of truth for the canonical fixture's Files block. Tests replace
 // against these constants so a drifted literal fails loudly instead of no-oping.
 export const FILES_BLOCK = "- **Files:**\n  - `test/skills.test.js` — modify: exercise the canonical parser fixture";
-export const filesBlockWith = (...entries) => [FILES_BLOCK, ...entries].join("\n");
 export const T1_BLOCK = `### T1: Parse plan\n- **Satisfies:** AC-1\n${FILES_BLOCK}\n- **Test:** \`bun test test/skills.test.js\`\n- **Status:** pending`;
 export const INTERFACE_ROW = "| AC-1 | parser | `test/skills.test.js` | none |";
 export const replaceOnce = (source, needle, replacement) => {

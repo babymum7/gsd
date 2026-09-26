@@ -620,8 +620,6 @@ function makeTaskBranchPacket({ feature = "verify-demo", base = "main" } = {}) {
     "| --- | --- | --- | --- |",
     "| AC-1 | seam | `path` | none |",
     "| AC-2 | seam | `path` | none |",
-    "## Publication",
-    "null",
     "## Tasks",
     "### T1: First task",
     "- **Satisfies:** AC-1",

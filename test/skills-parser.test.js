@@ -1,7 +1,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
-  canonicalPacket, structuredPacket, FILES_BLOCK, filesBlockWith, T1_BLOCK, INTERFACE_ROW,
+  canonicalPacket, structuredPacket, FILES_BLOCK, T1_BLOCK, INTERFACE_ROW,
   replaceOnce, 
 } from "./support/skills-fixtures.js";
 import {
@@ -31,7 +31,31 @@ test("structured task file intents parse deterministically", () => {
   }
 });
 
-test("domain-impact packet grammar is mandatory in every validation path", () => {
+test("a plan needs only Feature, Base, Acceptance Criteria, and Tasks, in any order", () => {
+  const plan = canonicalPacket()["plan.md"];
+  const sections = new Map(plan.slice("# Plan\n".length).split(/^(?=## )/m).map((block) => [block.match(/^## (.+)$/m)[1], block]));
+  const minimal = ["Tasks", "Acceptance Criteria", "Base", "Feature"].map((heading) => sections.get(heading)).join("");
+  const parsed = parseMarkdownPacket({ "plan.md": `# Plan\n${minimal}` });
+  assert.equal(parsed.feature, "canonical-fixture");
+  assert.equal(parsed.domainImpact, null);
+  assert.deepEqual(parsed.decisions, []);
+  assert.equal(parsed.interfaces.size, 0);
+
+  const withoutTasks = ["Feature", "Base", "Acceptance Criteria"].map((heading) => sections.get(heading)).join("");
+  assert.throws(() => parseMarkdownPacket({ "plan.md": `# Plan\n${withoutTasks}` }), /missing Tasks section/);
+  assert.throws(() => parseMarkdownPacket({ "plan.md": `# Plan\n${minimal}## Notes\nFree prose.\n` }), /unknown section ## Notes/);
+  assert.throws(() => parseMarkdownPacket({ "plan.md": `# Plan\n${minimal}## Publication\nnull\n` }), /unknown section ## Publication/);
+});
+
+test("every active criterion needs at least one active task, and may have several", () => {
+  const plan = canonicalPacket()["plan.md"];
+  const twoTasks = replaceOnce(plan, T1_BLOCK, `${T1_BLOCK}\n${T1_BLOCK.replace("### T1:", "### T2:")}`);
+  assert.deepEqual(parseMarkdownPacket({ "plan.md": twoTasks }).tasks.map(({ id }) => id), ["T1", "T2"]);
+  const uncovered = replaceOnce(plan, T1_BLOCK, T1_BLOCK.replace("- **Status:** pending", "- **Status:** superseded"));
+  assert.throws(() => parseMarkdownPacket({ "plan.md": uncovered }), /AC-1 has no active task/);
+});
+
+test("domain-impact packet grammar is enforced whenever the section is present", () => {
   const canonical = canonicalPacket();
   const parsed = parseMarkdownPacket(canonical);
   assert.deepEqual(parsed.domainImpact, {
@@ -102,7 +126,9 @@ test("domain-impact packet grammar is mandatory in every validation path", () =>
   const legacyFiles = { "plan.md": legacyPlan };
   const legacyBinding = { "plan.md": sha256(legacyPlan) };
 
-  assert.throws(() => verifyApprovedSources(legacyFiles, legacyBinding), /Domain Impact|section/i);
+  // Domain Impact is optional: an absent section makes no domain claim.
+  assert.deepEqual(verifyApprovedSources(legacyFiles, legacyBinding), legacyBinding);
+  assert.equal(parseMarkdownPacket(legacyFiles).domainImpact, null);
   assert.throws(
     () => verifyApprovedSources({ "plan.md": `${legacyPlan}\n` }, legacyBinding),
     /hash mismatch/i,
@@ -121,7 +147,7 @@ test("domain-impact packet grammar is mandatory in every validation path", () =>
   );
 });
 
-test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
+test("canonical Markdown packet is concrete and hash-bound", () => {
   const files = canonicalPacket();
   const parsed = parseMarkdownPacket(files);
   assert.equal(parsed.feature, "canonical-fixture");
@@ -130,7 +156,6 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   assert.deepEqual(verifyApprovedSources(files, binding), binding);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("**State:** active", "**State:** draft") }), /invalid state/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.", "- **Expected:** Return the matching feature and acceptance criterion.\n- **Action:** Parse the approved Markdown plan.") }), /fields must be exactly ordered/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("**Satisfies:** AC-1", "**Satisfies:** AC-1, AC-1") }), /exactly once/);
   assert.throws(() => verifyApprovedSources({ ...files, "plan.md": files["plan.md"].replace("Parse plan", "Parse bound plan") }, binding), /hash mismatch/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("**Outcome:** A valid plan becomes an execution contract.", "**Outcome:** success") }), /outcome, action, and expected/);
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replaceAll("\n", "\r\n") }), /LF line endings/);
@@ -154,82 +179,6 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
 
   assert.throws(() => parseMarkdownPacket({ ...files, "extra.md": "# Extra" }), /files mapping must contain exactly plan.md/);
   
-  const publishedPlan = files["plan.md"]
-    .replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/milestones.md`")
-    .replace(FILES_BLOCK, filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger'));
-  assert.doesNotThrow(() => parseMarkdownPacket({ "plan.md": publishedPlan }));
-  
-  const invalidPubPlan = files["plan.md"]
-    .replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/" + ["milestones", ".toon"].join("") + "`")
-    .replace(FILES_BLOCK, filesBlockWith("  - `docs/gsd/canonical-fixture/" + ["milestones", ".toon"].join("") + "` — modify: reference a runtime ledger path"));
-  assert.throws(
-    () => parseMarkdownPacket({ "plan.md": invalidPubPlan }),
-    /Publication must be null or the canonical Markdown ledger path/,
-  );
-
-  // focused Publication cases: null+ledger, wrong feature, no owner, duplicate non-superseded owners, superseded-only owner, and valid exact owner
-  // 1. null+ledger
-  const nullPlusLedgerPlan = files["plan.md"]
-    .replace(FILES_BLOCK, filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger'));
-  assert.throws(
-    () => parseMarkdownPacket({ "plan.md": nullPlusLedgerPlan }),
-    /unowned or mismatched milestone ledger path/
-  );
-
-  // 2. wrong feature
-  const wrongFeaturePlan = files["plan.md"]
-    .replace("## Publication\nnull", "## Publication\n`docs/gsd/wrong-feature/milestones.md`")
-    .replace(FILES_BLOCK, filesBlockWith("  - `docs/gsd/wrong-feature/milestones.md` — modify: reference a mismatched ledger slug"));
-  assert.throws(
-    () => parseMarkdownPacket({ "plan.md": wrongFeaturePlan }),
-    /Publication must be null or the canonical Markdown ledger path/
-  );
-
-  // 3. no owner
-  const noOwnerPlan = files["plan.md"]
-    .replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/milestones.md`");
-  assert.throws(
-    () => parseMarkdownPacket({ "plan.md": noOwnerPlan }),
-    /non-null publication path must occur exactly once/
-  );
-
-  // 4. duplicate non-superseded owners
-  const duplicateOwnersPlan = files["plan.md"]
-    .replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/milestones.md`")
-    .replace(
-      "### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n- **Scenario:** GIVEN a canonical plan WHEN the parser reads it THEN it returns the matching feature and criterion.",
-      "### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n- **Scenario:** GIVEN a canonical plan WHEN the parser reads it THEN it returns the matching feature and criterion.\n### AC-2: Another\n- **State:** active\n- **Outcome:** outcome.\n- **Action:** act.\n- **Expected:** expect.\n- **Scenario:** GIVEN another criterion WHEN the parser reads it THEN it returns that criterion."
-    )
-    .replace(
-      "| AC-1 | parser | `test/skills.test.js` | none |",
-      "| AC-1 | parser | `test/skills.test.js` | none |\n| AC-2 | parser | `test/skills.test.js` | none |"
-    )
-    .replace(
-      T1_BLOCK,
-      `### T1: Parse plan\n- **Satisfies:** AC-1\n${filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger')}\n- **Test:** \`bun test test/skills.test.js\`\n- **Status:** pending\n### T2: Another task\n- **Satisfies:** AC-2\n${filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger')}\n- **Test:** \`bun test test/skills.test.js\`\n- **Status:** pending`
-    );
-  assert.throws(
-    () => parseMarkdownPacket({ "plan.md": duplicateOwnersPlan }),
-    /non-null publication path must occur exactly once/
-  );
-
-  // 5. superseded-only owner
-  const supersededOnlyOwnerPlan = files["plan.md"]
-    .replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/milestones.md`")
-    .replace(
-      T1_BLOCK,
-      `### T1: Parse plan\n- **Satisfies:** AC-1\n${filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger')}\n- **Test:** \`bun test test/skills.test.js\`\n- **Status:** superseded\n### T2: Another task\n- **Satisfies:** AC-1\n${FILES_BLOCK}\n- **Test:** \`bun test test/skills.test.js\`\n- **Status:** pending`
-    );
-  assert.throws(
-    () => parseMarkdownPacket({ "plan.md": supersededOnlyOwnerPlan }),
-    /non-null publication path must occur exactly once/
-  );
-
-  // 6. valid exact owner
-  const validExactOwnerPlan = files["plan.md"]
-    .replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/milestones.md`")
-    .replace(FILES_BLOCK, filesBlockWith('  - `docs/gsd/canonical-fixture/milestones.md` — modify: record the approved milestone ledger'));
-  assert.doesNotThrow(() => parseMarkdownPacket({ "plan.md": validExactOwnerPlan }));
   // Negative tests for Interfaces parser validations
   assert.throws(() => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("Criterion | Seam | Path | Lower-seam reason", "Criterion | Seam | Path | Lower Reason") }), /Interfaces header is invalid/);
   assert.throws(() => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("--- | --- | --- | ---", "--- | --- | --- | --") }), /Interfaces separator is invalid/);
@@ -543,15 +492,8 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   const leadingBlankInterfaces = files["plan.md"].replace("## Interfaces\n|", "## Interfaces\n\n|");
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": leadingBlankInterfaces }), /Interfaces section must not have leading blank/);
   // Interfaces trailing blank
-  const trailingBlankInterfaces = files["plan.md"].replace("none |\n## Publication", "none |\n\n## Publication");
+  const trailingBlankInterfaces = files["plan.md"].replace("none |\n## Tasks", "none |\n\n## Tasks");
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": trailingBlankInterfaces }), /Interfaces section must not have trailing blank/);
-
-  // Publication leading blank
-  const leadingBlankPub = files["plan.md"].replace("## Publication\nnull", "## Publication\n\nnull");
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": leadingBlankPub }), /Publication section must not have leading blank/);
-  // Publication trailing blank
-  const trailingBlankPub = files["plan.md"].replace("## Publication\nnull\n## Tasks", "## Publication\nnull\n\n## Tasks");
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": trailingBlankPub }), /Publication section must not have trailing blank/);
 
   // Vague backticked Test values
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- **Test:** `bun test test/skills.test.js`", "- **Test:** `todo`") }), /Test must not be vague/);
@@ -735,12 +677,6 @@ test("canonical Markdown packet is ordered, concrete, and hash-bound", () => {
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("## Scope\n-", "## Scope\n -") }), /Scope section must not have leading blank/);
   // Scope trailing space
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("- Validate plan", "- Validate plan ") }), /Scope section must not have trailing blank/);
-
-  // Publication leading space
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("## Publication\nnull", "## Publication\n null") }), /Publication section must not have leading blank/);
-  // Publication trailing space
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("## Publication\nnull", "## Publication\nnull ") }), /Publication section must not have trailing blank/);
-  assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("## Publication\nnull", "## Publication\n`docs/gsd/canonical-fixture/milestones.md` ") }), /Publication section must not have trailing blank/);
 
   // Interfaces row leading space
   assert.throws(() => parseMarkdownPacket({ ...files, "plan.md": files["plan.md"].replace("| AC-1 | parser | `test/skills.test.js` | none |", " | AC-1 | parser | `test/skills.test.js` | none |") }), /must start and end with/);

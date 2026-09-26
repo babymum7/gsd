@@ -65,8 +65,6 @@ Canonical contract: [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Wave dispatch.
 3. A sub-agent runs RED, GREEN, refactor, updates affected domain shards in the same commit, and commits only green task-owned changes on its own task branch cut from the wave base. It never touches `state.toon` or `plan.md`, merges, or runs slow/E2E suites.
 4. Reconcile each wave before checkpointing. A sub-agent's own report is not evidence; only Git bytes and commands the owner runs count.
    - Mechanical proof: `bun "<GSD_ROOT>/tools/gsd-git.mjs" verify-task-branch --feature-dir .scratch/<feature> --task <Tn> --branch <task-branch> --wave-base <ref>`. Only `status: ready` admits the branch; `status: blocked` names a `code:` and is an integrity failure.
-   - RED re-proof: each new or changed test must fail on the wave base when taken alone.
-   - Weakened-guard scan: reject a diff that deletes, skips, or renames a test, or loosens lint, type, or CI config, unless the slice owns that path and intent.
    - Integration proof: merge the wave's task branches into `wip/<feature>` in plan order, rerun every merged task's focused check, and only then checkpoint with `last_green_task` set to the wave's last task.
 5. Any failed layer returns to the owner for inline repair; never re-dispatch an integrity failure.
 

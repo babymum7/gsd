@@ -44,8 +44,6 @@ function canonicalPlanFixture(feature) {
     '| Criterion | Seam | Path | Lower-seam reason |',
     '| --- | --- | --- | --- |',
     '| AC-1 | readPlanFile | `lib/gsd-contract.mjs` | none |',
-    '## Publication',
-    'null',
     '## Tasks',
     '### T1: Probe task',
     '- **Satisfies:** AC-1',

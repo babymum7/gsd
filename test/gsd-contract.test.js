@@ -47,8 +47,6 @@ function canonicalPlan(feature = "valid-plan") {
     "| Criterion | Seam | Path | Lower-seam reason |",
     "| --- | --- | --- | --- |",
     "| AC-1 | production validator CLI | `tools/gsd-contract.mjs` | none |",
-    "## Publication",
-    "null",
     "## Tasks",
     "### T1: Validate canonical plan",
     "- **Satisfies:** AC-1",
@@ -433,7 +431,7 @@ test("legacy path-only task grammar is rejected bound and unbound", () => {
   }
 });
 
-test("a plan missing Domain Impact is rejected even when its hash matches", () => {
+test("a plan without Domain Impact validates bound to its hash", () => {
   const plan = canonicalPlan("no-impact").replace(/## Domain Impact\n(?:- .+\n){5}/, "");
   const { workspace, planPath } = makePlanWorkspace("no-impact", plan);
   try {
@@ -444,8 +442,8 @@ test("a plan missing Domain Impact is rejected even when its hash matches", () =
       { cwd: workspace, encoding: "utf8" },
     );
 
-    assert.equal(bound.status, 1);
-    assert.match(bound.stdout, /missing Domain Impact section/);
+    assert.equal(bound.status, 0, bound.stdout);
+    assert.match(bound.stdout, /^status: valid\n/);
     assert.equal(bound.stderr, "");
     assert.equal(readFileSync(planPath, "utf8"), plan);
   } finally {
@@ -954,8 +952,6 @@ function wavePlan(feature, tasks) {
     "| Criterion | Seam | Path | Lower-seam reason |",
     "| --- | --- | --- | --- |",
     interfaces,
-    "## Publication",
-    "null",
     "## Tasks",
     taskBlocks,
     "",
@@ -1662,7 +1658,6 @@ test("normalize-plan proposes and applies canonical top-level section reordering
     "Invariants",
     "Non-goals",
     "Interfaces",
-    "Publication",
     "Tasks",
   ];
 
@@ -1680,7 +1675,6 @@ test("normalize-plan proposes and applies canonical top-level section reordering
     "Summary",
     "Non-goals",
     "Interfaces",
-    "Publication",
   ];
 
   const shuffledPlan = ["# Plan", ...shuffledHeadings.map((h) => sections.get(h)), ""].join("\n");
@@ -1765,7 +1759,7 @@ test("normalize-plan proposes and applies canonical top-level section reordering
   }
 });
 
-test("normalize-plan fails closed and does not reorder when a canonical section is missing", () => {
+test("normalize-plan leaves a plan without an optional section untouched", () => {
   const feature = "missing-section-feature";
   const canonical = canonicalPlan(feature);
 
@@ -1794,13 +1788,12 @@ test("normalize-plan fails closed and does not reorder when a canonical section 
     assert.equal(writeRun.stdout, "");
     assert.equal(readFileSync(planPath, "utf8"), missingSectionPlan);
 
-    // validate-plan fails closed
+    // Invariants is optional, so the plan still validates
     const validateResult = spawnSync(process.execPath, [CLI, "validate-plan", "--path", relPath], {
       cwd: workspace,
       encoding: "utf8",
     });
-    assert.equal(validateResult.status, 1);
-    assert.match(validateResult.stdout, /sections must be exactly ordered/);
+    assert.equal(validateResult.status, 0, validateResult.stdout);
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }
@@ -1910,12 +1903,10 @@ test("normalize-plan preserves complex multi-task blocks byte-for-byte during re
     "Invariants",
     "Non-goals",
     "Interfaces",
-    "Publication",
     "Tasks",
   ];
   const reversedHeadings = [
     "Tasks",
-    "Publication",
     "Interfaces",
     "Non-goals",
     "Invariants",
@@ -1994,18 +1985,18 @@ test("location-bearing rejections report the exact 1-based line", () => {
   const swappedDomainImpact = "## Domain Impact\n- **Contexts:** none\n- **Classification:** none\n- **Documentation:** none\n- **Broad bootstrap:** not-offered\n- **Evidence:** This validation fixture changes no production term, invariant, workflow, outcome, relationship, policy, or context boundary.\n";
   const cases = [
     {
-      name: "section out of order",
+      name: "unknown section",
       command: "validate-plan",
-      content: canonicalPlan().replace("## Base\n`main`\n", ""),
-      expect: (content) => lineOf(content, "## Summary"),
-      message: /sections must be exactly ordered/,
+      content: canonicalPlan().replace("## Summary\n", "## Sumary\n"),
+      expect: (content) => lineOf(content, "## Sumary"),
+      message: /unknown section ## Sumary/,
     },
     {
       name: "duplicate section",
       command: "validate-plan",
       content: canonicalPlan().replace("## Base\n`main`\n", "## Base\n`main`\n## Summary\nDuplicate summary body.\n"),
       expect: (content) => lastLineOf(content, "## Summary"),
-      message: /sections must be exactly ordered/,
+      message: /duplicate Summary section/,
     },
     {
       name: "preamble after title",
@@ -2203,8 +2194,6 @@ test("init-plan creates parser-valid skeleton plan and verifies with validate-pl
       "| Criterion | Seam | Path | Lower-seam reason |",
       "| --- | --- | --- | --- |",
       "| AC-1 | <public seam> | `<repository-relative path>` | none |",
-      "## Publication",
-      "null",
       "## Tasks",
       "### T1: <short task>",
       "- **Satisfies:** AC-1",
