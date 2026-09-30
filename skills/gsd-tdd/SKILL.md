@@ -7,7 +7,7 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md, plan.md, state.toon]
 ---
 
 ## Dispatch contract
-Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
+Hidden internal reference, not a visible owner: `GSD_ROOT/skills/gsd/REFERENCE.md` names the owners that may cite it.
 - Role: helper
 - Intent: drive Fast TDD RED→GREEN→refactor at a public seam
 - Helper-when: must load when an observable task is selected or repaired inline or in a wave-dispatched sub-agent; unskippable while condition holds
@@ -45,7 +45,7 @@ Never batch tests before implementation. Use vertical tracer bullets: one focuse
 4. **Refactor** — **refactor after green**, rerunning Fast TDD Checks after each step. Never refactor while RED; required sequence is RED→GREEN→refactor.
 
 ## Optional context signal
-Context harvesting is optional, bounded to selected tasks, tests, implementation files, and read domain docs. Never scan repository-wide or create missing scaffolds. Load `gsd-domain-modeling` only for evidenced recurring terms or explicit decisions/rationales; generic vocabulary and code shape are no-ops.
+Context harvesting is optional, bounded to selected tasks, tests, implementation files, and read domain docs. Never scan repository-wide or create missing scaffolds. Read `GSD_ROOT/skills/gsd-domain-modeling/SKILL.md` only for evidenced recurring terms or explicit decisions/rationales; generic vocabulary and code shape are no-ops.
 
 Pre-binding material ambiguity uses domain modeling's one-question rule. Post-binding ambiguity in ACs, interfaces, or invariants returns to `gsd-executing-plans` for Spec escalation; otherwise continue without documentation questions.
 

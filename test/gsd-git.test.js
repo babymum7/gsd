@@ -12,7 +12,7 @@ import {
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { execFileSync, spawnSync } from "node:child_process";
+import { execFileSync, spawn, spawnSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { writeStateAtomic } from "../extensions/gsd-context.js";
 import { assertReadOnlyGit } from "../tools/gsd-git.mjs";
@@ -371,6 +371,81 @@ test("both commands refuse a directory that is not a Git work tree", () => {
   }
 });
 
+test("both commands name a missing directory as not-a-work-tree, not as a missing git", () => {
+  // `spawnSync` reports a nonexistent `cwd` as ENOENT on the `git` binary itself, so the gate
+  // blamed an absent Git for a path that simply was not there.
+  const missing = join(tmpdir(), "gsd-git-definitely-missing", "nested");
+  for (const args of [["derive-base"], ["preflight", "--feature-dir", ".scratch/x"]]) {
+    const result = cli([...args, "--cwd", missing], tmpdir());
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^code: not-a-work-tree$/m, result.stdout);
+    assert.doesNotMatch(result.stdout, /git-unavailable/);
+  }
+});
+
+test("a repository Git refuses over ownership is not reported as a missing work tree", () => {
+  // Git exits 128 with "detected dubious ownership" for a repository owned by another user.
+  // That is an environment refusal, and the fix (`safe.directory`) differs from a bad path.
+  const { root } = makePacket({ feature: "owner-demo" });
+  const fakeDir = mkdtempSync(join(tmpdir(), "gsd-git-fake-"));
+  writeFileSync(
+    join(fakeDir, "git"),
+    `#!/bin/sh\necho "fatal: detected dubious ownership in repository at '$PWD'" >&2\nexit 128\n`,
+    { mode: 0o755 },
+  );
+  try {
+    const result = cli(["derive-base"], root, { PATH: `${fakeDir}:${process.env.PATH}` });
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^code: git-query-failed$/m, result.stdout);
+    assert.match(result.stdout, /dubious ownership/);
+    assert.match(result.stdout, /safe\.directory/);
+  } finally {
+    rmSync(fakeDir, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("preflight reads a status listing larger than the default child-process buffer", () => {
+  // `spawnSync` caps captured output at 1 MiB and fails with ENOBUFS beyond it, which the
+  // gate reported as a missing git. A tree with thousands of untracked files is dirty, and
+  // the gate must say so.
+  const { root, relative } = makePacket({ feature: "buffer-demo" });
+  try {
+    const noise = join(root, "noise");
+    mkdirSync(noise);
+    for (let index = 0; index < 5000; index += 1) {
+      writeFileSync(join(noise, `${String(index).padStart(5, "0")}-${"a".repeat(230)}`), "");
+    }
+    const result = cli(["preflight", "--feature-dir", relative], root);
+    assert.equal(result.status, 1, result.stdout.slice(0, 500));
+    assert.match(result.stdout, /^code: dirty-worktree$/m, result.stdout.slice(0, 500));
+    assert.doesNotMatch(result.stdout, /git-unavailable/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("a reader that closes the pipe early does not crash the tool", async () => {
+  // The verdict is the exit code; an unguarded `process.stdout.write` turned a closed pipe
+  // into an uncaught EPIPE with a stack trace and exit 1, even for a ready result.
+  const { root } = makePacket({ feature: "epipe-demo" });
+  try {
+    const child = spawn(process.execPath, [CLI, "derive-base", "--cwd", root], {
+      stdio: ["ignore", "pipe", "pipe"],
+    });
+    child.stdout.destroy();
+    let stderr = "";
+    child.stderr.on("data", (chunk) => {
+      stderr += chunk;
+    });
+    const status = await new Promise((resolve) => child.on("close", resolve));
+    assert.equal(stderr, "");
+    assert.equal(status, 0);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 // The worktree check is the only claim in the record that cannot be re-derived from the other
 // checks, so a query that fails to answer must block: reporting ready would assert the base is
 // free to be checked out without ever having established it.
@@ -439,6 +514,7 @@ test("the read-only boundary rejects every mutating Git invocation", () => {
     ["symbolic-ref", "--delete", "HEAD"],
     ["symbolic-ref", "-m", "reason", "HEAD", "refs/heads/hijacked"],
     ["symbolic-ref", "--short", "HEAD"],
+    ["symbolic-ref", "--quiet", "--short", "HEAD"],
     ["worktree", "add", "/tmp/anywhere"],
     ["worktree", "remove", "/tmp/anywhere"],
     ["worktree", "list"],
@@ -466,6 +542,12 @@ test("the read-only boundary rejects every mutating Git invocation", () => {
     ["diff", "--name-only", "-m", "main...task-t2"],
     ["diff", "--name-only", "main..task-t2"],
     ["diff", "--name-only", "-o", "out", "main...task-t2"],
+    // A bare name can resolve to a same-named tag, and rename detection hides a source path.
+    ["diff", "--name-only", "main...task-t2"],
+    ["diff", "--name-only", "--no-renames", "-z", "main...task-t2"],
+    ["diff", "--name-only", "--no-renames", "-z", "main...refs/heads/-x"],
+    ["diff", "--name-only", "--no-renames", "-z", "main..refs/heads/task-t2"],
+    ["diff", "--name-only", "--no-renames", "-o", "out", "main...refs/heads/task-t2"],
   ];
   for (const args of rejected) {
     assert.throws(
@@ -479,13 +561,13 @@ test("the read-only boundary rejects every mutating Git invocation", () => {
   for (const args of [
     ["rev-parse", "--is-inside-work-tree"],
     ["rev-parse", "--show-toplevel"],
-    ["symbolic-ref", "--quiet", "--short", "HEAD"],
+    ["symbolic-ref", "--quiet", "HEAD"],
     ["--no-optional-locks", "status", "--porcelain=v1", "--untracked-files=all", "-z"],
     ["worktree", "list", "--porcelain"],
     ["show-ref", "--verify", "--quiet", "refs/heads/main"],
     ["show-ref", "--verify", "--quiet", "refs/heads/release/2026.1"],
     ["merge-base", "--is-ancestor", "main", "task-t2"],
-    ["diff", "--name-only", "main...task-t2"],
+    ["diff", "--name-only", "--no-renames", "-z", "main...refs/heads/task-t2"],
   ]) {
     assertReadOnlyGit(args);
   }
@@ -534,7 +616,7 @@ test("no Git call can reach a process except through the guard", () => {
   // And that one call must execute the argv the guard just checked, in that order.
   assert.match(
     source,
-    /assertReadOnlyGit\(args\);\n\s*const result = spawnSync\("git", args, \{ cwd, encoding: "utf8", shell: false \}\);/,
+    /assertReadOnlyGit\(args\);\n\s*const result = spawnSync\("git", args, \{\n\s*cwd,\n\s*encoding: "utf8",\n\s*shell: false,\n\s*env: gitEnv\(\),\n\s*maxBuffer: GIT_OUTPUT_LIMIT,\n\s*\}\);/,
     "the guarded argv must be exactly what reaches the process",
   );
 });
@@ -1034,5 +1116,183 @@ test("preflight proves every listed repository sits on its WIP branch", () => {
     assert.match(ready.stdout, new RegExp(`^repo: api base=develop wip=wip/${feature}$`, "m"));
   } finally {
     rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+test("a listed repository must be a repository root, not a directory inside another one", () => {
+  // `rev-parse --is-inside-work-tree` is true for any subdirectory, so a Repos row pointing at
+  // `src` was "proven" against the parent repository's branches and the gate reported ready.
+  const { parent, app, api, feature, relative } = makeCrossRepoPacket();
+  try {
+    git(["checkout", "-q", "-b", `wip/${feature}`], app);
+    const nested = minimalPlan(feature, "main", {
+      repos: ["| app | `.` | `main` |", "| api | `src` | `main` |"],
+      repo: "api",
+    });
+    writeFileSync(join(app, relative, "plan.md"), nested);
+    writeStateAtomic(join(app, relative), {
+      schema: "v0.0.3",
+      feature,
+      owner: "none",
+      phase: "verifying",
+      next_action: "terminal gate",
+      plan_path: `.scratch/${feature}/plan.md`,
+      base_ref: "main",
+      wip_branch: `wip/${feature}`,
+      last_green_task: "T1",
+      last_green_commit: git(["rev-parse", "HEAD"], api),
+      checkpoint_revision: "1",
+    });
+    const preflight = cli(["preflight", "--feature-dir", relative], app);
+    assert.equal(preflight.status, 1, preflight.stdout);
+    assert.match(preflight.stdout, /^code: not-a-repository-root$/m);
+    assert.match(preflight.stdout, /repo api/);
+
+    const verify = cli(
+      ["verify-task-branch", "--feature-dir", relative, "--task", "T1", "--branch", `wip/${feature}`, "--wave-base", "main"],
+      app,
+    );
+    assert.equal(verify.status, 1, verify.stdout);
+    assert.match(verify.stdout, /^code: not-a-repository-root$/m);
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+// The slice gate reads the branch's changed paths, so every way a change can hide from that
+// list is a way out of the slice: a rename reports only its destination, a C-quoted path never
+// equals the plan's spelling, and a tag named like the branch makes Git read the tag instead.
+function ownOnlyForT2(root, relative, path) {
+  const planPath = join(root, relative, "plan.md");
+  const plan = readFileSync(planPath, "utf8");
+  const entry = "  - `src/app.js` — modify: update src/app.js";
+  assert.ok(plan.includes(entry), "the fixture's T2 Files entry moved");
+  writeFileSync(planPath, plan.replace(entry, `  - \`${path}\` — create: new file`));
+}
+
+function verifyT2(root, relative, branch) {
+  return cli(
+    ["verify-task-branch", "--feature-dir", relative, "--task", "T2", "--branch", branch, "--wave-base", "main"],
+    root,
+  );
+}
+
+test("verify-task-branch blocks a rename that moves an unowned file into an owned path", () => {
+  const { root, relative } = makeTaskBranchPacket();
+  try {
+    ownOnlyForT2(root, relative, "src/moved.js");
+    writeFileSync(join(root, "other.txt"), "one\ntwo\nthree\nfour\nfive\n");
+    git(["add", "other.txt"], root);
+    git(["commit", "-qm", "unowned file"], root);
+    git(["checkout", "-q", "-b", "task-rename", "main"], root);
+    git(["mv", "other.txt", "src/moved.js"], root);
+    git(["commit", "-qm", "rename into slice"], root);
+    git(["checkout", "-q", "main"], root);
+
+    const result = verifyT2(root, relative, "task-rename");
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout, /^code: out-of-slice-path$/m);
+    assert.match(result.stdout, /other\.txt/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verify-task-branch diffs the branch, not a tag that shares its name", () => {
+  const { root, relative } = makeTaskBranchPacket();
+  try {
+    git(["checkout", "-q", "-b", "task-tagged", "main"], root);
+    writeFileSync(join(root, "src", "app.js"), "in slice\n");
+    git(["commit", "-qam", "in slice"], root);
+    git(["tag", "task-tagged"], root);
+    writeFileSync(join(root, "stray.txt"), "outside the slice\n");
+    git(["add", "stray.txt"], root);
+    git(["commit", "-qm", "stray"], root);
+    git(["checkout", "-q", "main"], root);
+
+    const result = verifyT2(root, relative, "task-tagged");
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout, /^code: out-of-slice-path$/m);
+    assert.match(result.stdout, /stray\.txt/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("verify-task-branch admits an owned path that Git would C-quote", () => {
+  const { root, relative } = makeTaskBranchPacket();
+  try {
+    ownOnlyForT2(root, relative, "src/café.js");
+    git(["checkout", "-q", "-b", "task-unicode", "main"], root);
+    writeFileSync(join(root, "src", "café.js"), "accented\n");
+    git(["add", "src"], root);
+    git(["commit", "-qm", "owned unicode path"], root);
+    git(["checkout", "-q", "main"], root);
+
+    const result = verifyT2(root, relative, "task-unicode");
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /^status: ready$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// `symbolic-ref --short` prints `heads/main` once a tag named `main` exists, which is a name
+// no branch has: derive-base would record a base that cannot receive the merge.
+test("derive-base and preflight read the branch name even when a tag shares it", () => {
+  const { root, relative } = makePacket({ feature: "tag-demo", base: "trunk" });
+  try {
+    git(["tag", "wip/tag-demo"], root);
+    const ready = cli(["preflight", "--feature-dir", relative], root);
+    assert.equal(ready.status, 0, ready.stdout + ready.stderr);
+
+    git(["checkout", "-q", "trunk"], root);
+    git(["tag", "trunk"], root);
+    const derived = cli(["derive-base"], root);
+    assert.equal(derived.status, 0, derived.stdout + derived.stderr);
+    assert.match(derived.stdout, /^base: trunk$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// Git reports a worktree-side rename with its origin as the next record, exactly as it does an
+// index-side one. The origin of `lib.scratch/x.js` read as a path starts `.scratch/` after the
+// status prefix is cut, so a tracked file deleted out of the reviewed tree counted as scratch.
+test("preflight counts the origin of a worktree-side rename as dirty", () => {
+  const { root, relative } = makePacket({ feature: "rename-demo" });
+  try {
+    writeFileSync(join(root, ".gitignore"), ".scratch/\n");
+    mkdirSync(join(root, "lib.scratch"), { recursive: true });
+    writeFileSync(join(root, "lib.scratch", "x.js"), "one\ntwo\nthree\nfour\nfive\n");
+    git(["add", ".gitignore", "lib.scratch"], root);
+    git(["commit", "-qm", "tracked file"], root);
+    assert.equal(cli(["preflight", "--feature-dir", relative], root).status, 0, "the tree starts clean");
+
+    git(["mv", "lib.scratch/x.js", `${relative}/x.js`], root);
+    git(["reset", "-q"], root);
+    git(["add", "-N", "-f", `${relative}/x.js`], root);
+    const result = cli(["preflight", "--feature-dir", relative], root);
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout, /^code: dirty-worktree$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// A hook that exports `GIT_DIR` would otherwise point every query at the hook's repository
+// whatever `--cwd` says, so the gate would prove the wrong repository.
+test("derive-base ignores an inherited GIT_DIR", () => {
+  const first = makePacket({ feature: "env-first", base: "trunk" });
+  const second = makePacket({ feature: "env-second", base: "release" });
+  try {
+    const result = cli(["derive-base", "--cwd", second.root], first.root, {
+      GIT_DIR: join(first.root, ".git"),
+    });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /^base: wip\/env-second$/m);
+  } finally {
+    rmSync(first.root, { recursive: true, force: true });
+    rmSync(second.root, { recursive: true, force: true });
   }
 });

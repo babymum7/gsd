@@ -7,7 +7,7 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md]
 ---
 
 ## Dispatch contract
-Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
+Hidden internal reference, not a visible owner: `GSD_ROOT/skills/gsd/REFERENCE.md` names the owners that may cite it.
 - Role: helper
 - Intent: maintain current production domain behavior for affected contexts
 - Helper-when: must load when Domain Impact is not `none` or explicit domain-model work is selected; cannot be skipped while that condition holds

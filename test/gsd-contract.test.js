@@ -1,11 +1,12 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import fs from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { analyzeWaves, initPlanFile, normalizePlanFile, readPlanFile } from "../lib/gsd-contract.mjs";
+import { analyzeWaves, generateUnifiedDiff, initPlanFile, normalizePlanFile, readPlanFile } from "../lib/gsd-contract.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(ROOT, "tools", "gsd-contract.mjs");
@@ -704,6 +705,9 @@ test("a base that is not a usable Git branch name is rejected", () => {
       assert.equal(result.status, 1, `base ${base} must be rejected: ${result.stdout}`);
       assert.match(result.stdout, /^code: invalid-artifact$/m);
       assert.match(result.stdout, /Base must be a Git branch name able to receive the merge/);
+      // The allowlist is narrower than Git's own rules (`release+1` is a legal branch), so the
+      // message must say which characters are accepted instead of implying a Git violation.
+      assert.match(result.stdout, /letters, digits, \\*"\.\\*", \\*"_\\*", \\*"-\\*" and \\*"\/\\*" only/);
     } finally {
       rmSync(workspace, { recursive: true, force: true });
     }
@@ -2192,7 +2196,7 @@ test("init-plan creates parser-valid skeleton plan and verifies with validate-pl
       "## Acceptance Criteria",
       "### AC-1: <title>",
       "- **State:** active",
-      "- **Scenario:** GIVEN a scaffolded plan WHEN the validator reads it THEN it reports the feature and exact source hash.",
+      "- **Scenario:** GIVEN a scaffolded plan WHEN the validator reads it THEN it reports the feature, base, and task count.",
       "## Decisions",
       "None.",
       "## Invariants",
@@ -2417,5 +2421,247 @@ test("initPlanFile in-process direct call creates plan and fails closed on secon
     );
   } finally {
     rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+function validateCanonical(feature, content) {
+  const { workspace, planPath } = makePlanWorkspace(feature, content);
+  try {
+    const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    return { status: result.status, stdout: result.stdout, stderr: result.stderr };
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+}
+
+const AC_BLOCK = (id, scenario) =>
+  [
+    `### ${id}: Criterion ${id}`,
+    "- **State:** active",
+    `- **Outcome:** Outcome of ${id} is observable.`,
+    `- **Action:** Run the check for ${id}.`,
+    `- **Expected:** The check for ${id} reports success.`,
+    `- **Scenario:** ${scenario}`,
+  ].join("\n");
+
+// Every AC of a multi-AC task must share one interface pin, and the rule compared each AC only
+// with the task's first one. When that first AC had no pin the comparison was skipped, so the
+// same pins were accepted or rejected depending on the order the task listed its criteria.
+test("multi-AC tasks reject conflicting pins whichever AC is listed first", () => {
+  const plan = (satisfies) =>
+    canonicalPlan("pin-order")
+      .replace(
+        "## Decisions",
+        [
+          AC_BLOCK("AC-2", "GIVEN a second pinned criterion WHEN the validator reads it THEN it reports the pin."),
+          AC_BLOCK("AC-3", "GIVEN a third pinned criterion WHEN the validator reads it THEN it reports the pin."),
+          "## Decisions",
+        ].join("\n"),
+      )
+      .replace(
+        "| AC-1 | production validator CLI | `tools/gsd-contract.mjs` | none |",
+        "| AC-2 | seam a | `tools/a.mjs` | none |\n| AC-3 | seam b | `tools/b.mjs` | none |",
+      )
+      .replace("- **Satisfies:** AC-1", `- **Satisfies:** ${satisfies}`);
+  for (const order of ["AC-1, AC-2, AC-3", "AC-2, AC-1, AC-3", "AC-2, AC-3, AC-1"]) {
+    const result = validateCanonical("pin-order", plan(order));
+    assert.equal(result.status, 1, `${order}: ${result.stdout}${result.stderr}`);
+    assert.match(result.stdout, /interface pins .* are not identical/, order);
+  }
+});
+
+test("a plan never names the WIP branch as the base of any repository", () => {
+  const plan = canonicalPlan("repo-wip")
+    .replace("## Summary", ["## Repos", "| Repo | Path | Base |", "| --- | --- | --- |", "| app | `.` | `main` |", "| api | `../api` | `wip/repo-wip` |", "## Summary"].join("\n"))
+    .replace("- **Satisfies:** AC-1", "- **Satisfies:** AC-1\n- **Repo:** api");
+  const result = validateCanonical("repo-wip", plan);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /never its own WIP branch|WIP branch/);
+});
+
+// A clause that is blank is in order but says nothing. It must be reported as such:
+// a field-order message would send the author reordering fields that are already in order.
+test("a Scenario with an empty clause is not concrete", () => {
+  const cases = [
+    ["GIVEN a user WHEN  THEN they see the page", /Scenario must be concrete/],
+    ["GIVEN  WHEN they click THEN they see the page", /Scenario must be concrete/],
+    ["GIVEN a user WHEN they click THEN ", /trailing blank or whitespace-only lines/],
+  ];
+  for (const [scenario, message] of cases) {
+    const plan = canonicalPlan("scenario-empty").replace(
+      /- \*\*Scenario:\*\* GIVEN a canonical plan.*\n/,
+      `- **Scenario:** ${scenario}\n`,
+    );
+    const result = validateCanonical("scenario-empty", plan);
+    assert.equal(result.status, 1, `${JSON.stringify(scenario)}: ${result.stdout}${result.stderr}`);
+    assert.match(result.stdout, message, JSON.stringify(scenario));
+    assert.doesNotMatch(result.stdout, /fields must be ordered/, JSON.stringify(scenario));
+  }
+});
+
+// `<[^>]+>` read the span between two comparison operators as a placeholder, so a Scenario that
+// states a real bound was rejected as "not concrete".
+test("a Scenario with comparison operators is not mistaken for a placeholder", () => {
+  const withScenario = (scenario) =>
+    canonicalPlan("scenario-operators").replace(
+      /- \*\*Scenario:\*\* GIVEN a canonical plan.*\n/,
+      `- **Scenario:** ${scenario}\n`,
+    );
+  const accepted = validateCanonical(
+    "scenario-operators",
+    withScenario("GIVEN a count < 5 and a limit > 2 WHEN the list renders THEN it shows the rows."),
+  );
+  assert.equal(accepted.status, 0, accepted.stdout + accepted.stderr);
+
+  const rejected = validateCanonical(
+    "scenario-operators",
+    withScenario("GIVEN <the precondition> WHEN the list renders THEN it shows the rows."),
+  );
+  assert.equal(rejected.status, 1, rejected.stdout + rejected.stderr);
+  assert.match(rejected.stdout, /Scenario must be concrete/);
+});
+
+// A heading the section parser cannot see was not rejected, it was absorbed into the section
+// above it, so a declared Domain Impact silently lost all domain enforcement. Every plan
+// section heading must be exactly `## <Name>`, and every way of missing that must fail.
+test("a section heading that is not exactly `## <Name>` is rejected, not absorbed", () => {
+  const cases = [
+    ["wrong level", (plan) => plan.replace("## Domain Impact\n", "### Domain Impact\n"), /must be exactly \\*"## Domain Impact/],
+    ["no space", (plan) => plan.replace("## Domain Impact\n", "##Domain Impact\n"), /must be exactly \\*"## Domain Impact/],
+    ["wrong case", (plan) => plan.replace("## Scope\n", "### scope\n"), /must be exactly \\*"## Scope/],
+    ["line separator", (plan) => plan.replace("## Domain Impact\n", "## Domain Impact\u2028\n"), /unknown section/],
+  ];
+  for (const [label, edit, message] of cases) {
+    const source = canonicalPlan("heading-drift");
+    const plan = edit(source);
+    assert.notEqual(plan, source, label);
+    const result = validateCanonical("heading-drift", plan);
+    assert.equal(result.status, 1, `${label}: ${result.stdout}${result.stderr}`);
+    assert.match(result.stdout, message, label);
+  }
+});
+
+test("a section heading at the very end of the file is an empty section, not a missing one", () => {
+  const plan = `${canonicalPlan("heading-eof").replace(/\n$/, "")}\n## Repos`;
+  const result = validateCanonical("heading-eof", plan);
+  assert.equal(result.status, 1, result.stdout + result.stderr);
+  assert.match(result.stdout, /Repos section must not be empty/);
+});
+
+test("normalize-plan --write keeps the file's permissions", () => {
+  const { workspace, planPath } = makePlanWorkspace("keep-mode", canonicalPlan("keep-mode").replace("## Summary", "## Summary "));
+  try {
+    chmodSync(planPath, 0o600);
+    const result = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", planPath, "--write"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.equal(statSync(planPath).mode & 0o777, 0o600);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+// A write can land fewer bytes than asked. The plan is renamed into place afterwards, so ignoring
+// the count replaced a good plan with a truncated one.
+test("normalizePlanFile completes a short write instead of committing a truncated plan", () => {
+  const { workspace, planPath } = makePlanWorkspace("short-write", canonicalPlan("short-write").replace("## Summary", "## Summary "));
+  const realWriteSync = fs.writeSync;
+  try {
+    let shortened = 0;
+    fs.writeSync = (fd, data, ...rest) => {
+      if (shortened === 0 && Buffer.isBuffer(data) && data.length - rest[0] > 10) {
+        shortened += 1;
+        return realWriteSync(fd, data, rest[0], 10, rest[2]);
+      }
+      return realWriteSync(fd, data, ...rest);
+    };
+    const result = normalizePlanFile(planPath, { cwd: workspace, write: true });
+    fs.writeSync = realWriteSync;
+    assert.equal(shortened, 1, "the write was interrupted once");
+    assert.equal(readFileSync(planPath, "utf8"), result.content);
+    assert.equal(validateCanonical("short-write", result.content).status, 0);
+  } finally {
+    fs.writeSync = realWriteSync;
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+// The alignment table grew with lines(original) x lines(fixed), so a plan near the 1 MiB read
+// limit needed gigabytes just to print its dry-run patch. Counting what is allocated proves the
+// bound without depending on the machine's memory or speed.
+test("generateUnifiedDiff keeps its alignment table small on large files", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-diff-"));
+  const RealUint32Array = globalThis.Uint32Array;
+  let cells = 0;
+  globalThis.Uint32Array = class extends RealUint32Array {
+    constructor(...args) {
+      super(...args);
+      cells += this.length;
+    }
+  };
+  try {
+    const lines = (prefix) => `${Array.from({ length: 12000 }, (_, index) => `${prefix} ${index}`).join("\n")}\n`;
+    const original = lines("line");
+    const oneLine = original.replace("line 6000\n", "line 6000 edited\n");
+    const everyLine = lines("changed");
+    for (const fixed of [oneLine, everyLine, everyLine.slice(0, -1)]) {
+      cells = 0;
+      const patch = generateUnifiedDiff("plan.md", original, fixed);
+      assert.ok(cells <= 4_000_000, `${cells} table cells allocated`);
+      writeFileSync(join(dir, "plan.md"), original);
+      writeFileSync(join(dir, "fix.patch"), patch);
+      const applied = spawnSync("git", ["apply", "fix.patch"], { cwd: dir, encoding: "utf8" });
+      assert.equal(applied.status, 0, applied.stderr);
+      assert.equal(readFileSync(join(dir, "plan.md"), "utf8"), fixed);
+    }
+    // One edited line in a 12000-line file is still reported as that one line.
+    const small = generateUnifiedDiff("plan.md", original, oneLine);
+    assert.equal(small.split("\n").filter((line) => line.startsWith("-") || line.startsWith("+")).length, 4);
+  } finally {
+    globalThis.Uint32Array = RealUint32Array;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// The dry-run patch is what a reviewer applies, so it must reproduce the written file byte for
+// byte. Every pair of small files is checked, because the failures live at the edges: a last
+// line without a newline is a different line from the same text with one, and an empty file has
+// no lines at all.
+test("generateUnifiedDiff output applies and reproduces the fixed content", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-diff-"));
+  try {
+    const contents = [""];
+    const build = (prefix, depth) => {
+      if (prefix.length > 0) {
+        contents.push(prefix.join("\n"), `${prefix.join("\n")}\n`);
+      }
+      if (depth === 0) return;
+      for (const line of ["a", "b"]) build([...prefix, line], depth - 1);
+    };
+    build([], 3);
+
+    const failures = [];
+    for (const original of contents) {
+      for (const fixed of contents) {
+        const patch = generateUnifiedDiff("plan.md", original, fixed);
+        if (original === fixed) {
+          assert.equal(patch, "");
+          continue;
+        }
+        writeFileSync(join(dir, "plan.md"), original);
+        writeFileSync(join(dir, "fix.patch"), patch);
+        const applied = spawnSync("git", ["apply", "fix.patch"], { cwd: dir, encoding: "utf8" });
+        const result = applied.status === 0 ? readFileSync(join(dir, "plan.md"), "utf8") : null;
+        if (result !== fixed) failures.push(JSON.stringify({ original, fixed }));
+      }
+    }
+    assert.deepEqual(failures.slice(0, 5), [], `${failures.length} of ${contents.length ** 2} pairs do not round-trip`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
 });

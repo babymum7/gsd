@@ -105,6 +105,11 @@ function readRecord(path, command) {
     failIo(`cannot read ${path}: ${error.message}`, command);
     return null;
   }
+  // A FIFO reports size 0 and `readFileSync` would block on it forever.
+  if (!stat.isFile()) {
+    failIo(`cannot read ${path}: expected a regular file`, command);
+    return null;
+  }
   if (stat.size > RECORD_FILE_MAX_BYTES) {
     failRecord(`${path}: file exceeds maximum size of ${RECORD_FILE_MAX_BYTES} bytes`, command);
     return null;

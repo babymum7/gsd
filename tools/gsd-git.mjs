@@ -6,7 +6,7 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
-import { realpathSync } from "node:fs";
+import { realpathSync, statSync } from "node:fs";
 import { isSafeBranchRef, validatePlanFile } from "../lib/gsd-contract.mjs";
 import { inspectStateFile } from "../lib/gsd-state.mjs";
 
@@ -15,17 +15,21 @@ const VALUE_FLAGS = new Set(["--feature-dir", "--cwd", "--task", "--branch", "--
 
 // A subcommand name is not a permission: `git symbolic-ref <name> <ref>` writes a ref and
 // `git symbolic-ref --delete <name>` removes one, so the boundary is the whole argv. These
-// five shapes are every query this tool makes; `show-ref` is the one with a variable
-// argument and is handled below. `status` runs under `--no-optional-locks` so that reading
+// five shapes are every query this tool makes; `show-ref`, `merge-base`, and `diff` carry
+// variable refs and are handled below. `symbolic-ref` runs without `--short`, which prints
+// `heads/main` once a tag is named `main`. `status` runs under `--no-optional-locks` so that reading
 // the tree cannot even refresh the index's stat cache.
 const READ_ONLY = new Set([
   "rev-parse --is-inside-work-tree",
   "rev-parse --show-toplevel",
-  "symbolic-ref --quiet --short HEAD",
+  "symbolic-ref --quiet HEAD",
   "--no-optional-locks status --porcelain=v1 --untracked-files=all -z",
   "worktree list --porcelain",
 ]);
 const BRANCH_REF_PREFIX = "refs/heads/";
+// The child-process runner fails with ENOBUFS once captured output passes its 1 MiB default, and
+// a tree with thousands of untracked files lists past that. The largest query is `status -z`.
+const GIT_OUTPUT_LIMIT = 64 * 1024 * 1024;
 
 export function assertReadOnlyGit(args) {
   const shape = args.join(" ");
@@ -51,17 +55,26 @@ export function assertReadOnlyGit(args) {
   ) {
     return;
   }
+  // `--no-renames` lists the deleted source of a rename beside its destination, and `-z`
+  // keeps every path byte-exact instead of C-quoting non-ASCII ones. The target is a full
+  // `refs/heads/` path so a tag with the branch's name can never be read in its place.
   if (
-    args.length === 3 &&
+    args.length === 5 &&
     args[0] === "diff" &&
-    args[1] === "--name-only"
+    args[1] === "--name-only" &&
+    args[2] === "--no-renames" &&
+    args[3] === "-z"
   ) {
-    const range = args[2];
+    const range = args[4];
     const tripleDot = range.indexOf("...");
     if (tripleDot > 0 && range.indexOf("...", tripleDot + 3) === -1) {
       const base = range.slice(0, tripleDot);
       const target = range.slice(tripleDot + 3);
-      if (isSafeBranchRef(base) && isSafeBranchRef(target)) {
+      if (
+        isSafeBranchRef(base) &&
+        target.startsWith(BRANCH_REF_PREFIX) &&
+        isSafeBranchRef(target.slice(BRANCH_REF_PREFIX.length))
+      ) {
         return;
       }
     }
@@ -175,21 +188,81 @@ function blocked(code, message) {
   process.exit(1);
 }
 
+// Variables that redirect Git to another repository or index. A hook that exports `GIT_DIR`
+// would otherwise make every query answer for the hook's repository whatever `--cwd` says.
+const REDIRECTING_GIT_ENV = ["GIT_DIR", "GIT_WORK_TREE", "GIT_INDEX_FILE", "GIT_COMMON_DIR", "GIT_PREFIX"];
+
+// `LC_ALL=C` keeps Git's diagnostics in English, because a refusal is recognised by its text.
+function gitEnv() {
+  const env = { ...process.env, LC_ALL: "C" };
+  for (const name of REDIRECTING_GIT_ENV) delete env[name];
+  return env;
+}
+
 function git(args, cwd) {
   // The read-only boundary is enforced here rather than by review, and a rejected shape is a
   // defect rather than repository drift: it throws instead of emitting a blocked record.
   assertReadOnlyGit(args);
-  const result = spawnSync("git", args, { cwd, encoding: "utf8", shell: false });
+  const result = spawnSync("git", args, {
+    cwd,
+    encoding: "utf8",
+    shell: false,
+    env: gitEnv(),
+    maxBuffer: GIT_OUTPUT_LIMIT,
+  });
+  if (result.error?.code === "ENOBUFS") {
+    blocked("git-query-failed", `git ${args[0]} printed more than ${GIT_OUTPUT_LIMIT} bytes, so the tree cannot be proven reviewed`);
+  }
   if (result.error) blocked("git-unavailable", `git cannot be executed: ${result.error.message}`);
   const stdout = result.stdout ?? "";
   // `raw` matters for `status --porcelain -z`, whose records begin with a significant space.
-  return { status: result.status, stdout: stdout.trim(), raw: stdout };
+  return { status: result.status, stdout: stdout.trim(), raw: stdout, stderr: result.stderr ?? "" };
 }
 
 function requireWorkTree(cwd) {
+  // A directory that does not exist makes the spawn fail on `git` itself, which would blame
+  // Git for a path that is simply absent.
+  let isDirectory = false;
+  try {
+    isDirectory = statSync(cwd).isDirectory();
+  } catch {
+    // Reported below as not being a work tree.
+  }
+  if (!isDirectory) blocked("not-a-work-tree", `${cwd} is not a directory, so it is not inside a Git work tree`);
   const probe = git(["rev-parse", "--is-inside-work-tree"], cwd);
+  // Git refuses a repository owned by another user. That is neither a missing work tree nor
+  // something this tool may override, and the remedy (`safe.directory`) is the user's to choose.
+  if (probe.status !== 0 && /dubious ownership/i.test(probe.stderr)) {
+    const reason = probe.stderr.split("\n", 1)[0].replace(/[\x00-\x1F\x7F]+/g, " ").trim().slice(0, 300);
+    blocked(
+      "git-query-failed",
+      `git refuses to read ${cwd}: ${reason}; if that owner is trusted, run \`git config --global --add safe.directory <path>\` yourself`,
+    );
+  }
   if (probe.status !== 0 || probe.stdout !== "true") {
     blocked("not-a-work-tree", `${cwd} is not inside a Git work tree`);
+  }
+}
+
+// `--is-inside-work-tree` is true for every subdirectory of a repository, so a listed repository
+// that is only a folder inside another one would be proven against the parent's branches.
+function requireRepositoryRoot(dir, name) {
+  requireWorkTree(dir);
+  const top = git(["rev-parse", "--show-toplevel"], dir);
+  if (top.status !== 0) {
+    blocked("git-query-failed", `git could not report the top level of repo ${name} at ${dir}`);
+  }
+  let real;
+  try {
+    real = realpathSync(dir);
+  } catch {
+    real = resolve(dir);
+  }
+  if (top.stdout !== real) {
+    blocked(
+      "not-a-repository-root",
+      `repo ${name} at ${dir} is inside the repository rooted at ${top.stdout} instead of being a repository root of its own`,
+    );
   }
 }
 
@@ -198,9 +271,19 @@ function requireWorkTree(cwd) {
 // address refs by full path so a leading dash can never read as an option.
 function requireBranchName(value, field) {
   if (!isSafeBranchRef(value)) {
-    blocked("unusable-branch-name", `${field} is not a Git branch name able to receive a merge: ${value}`);
+    blocked(
+      "unusable-branch-name",
+      `${field} is not a branch name this tool can pass to Git (letters, digits, ".", "_", "-" and "/" only, no leading dash or "..", no ".lock" suffix): ${value}`,
+    );
   }
   return value;
+}
+
+// The checked-out local branch, or null when HEAD is detached or names no local branch.
+function currentBranch(cwd) {
+  const head = git(["symbolic-ref", "--quiet", "HEAD"], cwd);
+  if (head.status !== 0 || !head.stdout.startsWith(BRANCH_REF_PREFIX)) return null;
+  return head.stdout.slice(BRANCH_REF_PREFIX.length);
 }
 
 function localBranchExists(branch, cwd) {
@@ -245,11 +328,11 @@ function dirtyNonScratchPaths(cwd) {
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
     const paths = [record.slice(3)];
-    // An index-side rename or copy reports its destination and carries its origin as the
-    // following record. Both are affected: `git mv src/app.js .scratch/<feature>/app.js`
+    // A rename or copy, index-side or worktree-side, reports its destination and carries its
+    // origin as the following record. Both are affected: `git mv src/app.js .scratch/<feature>/app.js`
     // names only a scratch destination while staging the removal of a reviewed file, so
     // reading the destination alone would clear a merge that deletes reviewed work.
-    if ((record[0] === "R" || record[0] === "C") && index + 1 < records.length) {
+    if (/^[RC]|^.[RC]/.test(record) && index + 1 < records.length) {
       index += 1;
       paths.push(records[index]);
     }
@@ -260,14 +343,14 @@ function dirtyNonScratchPaths(cwd) {
 
 function deriveBase(cwd) {
   requireWorkTree(cwd);
-  const head = git(["symbolic-ref", "--quiet", "--short", "HEAD"], cwd);
-  if (head.status !== 0 || head.stdout === "") {
+  const head = currentBranch(cwd);
+  if (head === null) {
     blocked(
       "detached-head",
       "HEAD is detached, so no branch can hold this packet's merge: check out or create the branch this work belongs on, then derive the base again",
     );
   }
-  return requireBranchName(head.stdout, "the checked-out branch");
+  return requireBranchName(head, "the checked-out branch");
 }
 
 function parseArguments(argv) {
@@ -346,17 +429,17 @@ function proveBranchIdentity(dir, base, wip, where) {
   // exact incident, where HEAD rested on the base while the WIP branch held the work, and
   // the merge landed wherever HEAD pointed. Identity of HEAD with the recorded WIP branch
   // is the proof that the merge target holds the reviewed work.
-  const head = git(["symbolic-ref", "--quiet", "--short", "HEAD"], dir);
-  if (head.status !== 0 || head.stdout === "") {
+  const head = currentBranch(dir);
+  if (head === null) {
     blocked(
       "detached-head",
       `HEAD${where} is detached, so no branch holds the work about to be merged: check out ${wip} before the gate`,
     );
   }
-  if (head.stdout !== wip) {
+  if (head !== wip) {
     blocked(
       "head-not-wip",
-      `HEAD${where} rests on ${head.stdout} while the packet's work is recorded on ${wip}: check out ${wip} before the gate so the merge receives the reviewed work`,
+      `HEAD${where} rests on ${head} while the packet's work is recorded on ${wip}: check out ${wip} before the gate so the merge receives the reviewed work`,
     );
   }
   const dirty = dirtyNonScratchPaths(dir);
@@ -367,7 +450,7 @@ function proveBranchIdentity(dir, base, wip, where) {
       `${dirty.length} non-scratch path(s)${where} are uncommitted, so the merge would carry unreviewed bytes: ${shown}${dirty.length > 3 ? ", …" : ""}`,
     );
   }
-  return head.stdout;
+  return head;
 }
 
 function preflight(cwd, featureDir) {
@@ -398,7 +481,7 @@ function preflight(cwd, featureDir) {
   const repoLines = [];
   for (const repo of repos.filter((entry) => entry.path !== ".")) {
     const dir = resolve(cwd, repo.path);
-    requireWorkTree(dir);
+    requireRepositoryRoot(dir, repo.name);
     proveBranchIdentity(dir, repo.base, wip, ` in repo ${repo.name}`);
     repoLines.push(`repo: ${repo.name} base=${repo.base} wip=${wip}`);
   }
@@ -437,7 +520,7 @@ function verifyTaskBranch(cwd, featureDir, taskId, branch, waveBase) {
   const repo = validated.parsed.repos.find((entry) => entry.name === task.repo);
   if (repo && repo.path !== ".") {
     cwd = resolve(cwd, repo.path);
-    requireWorkTree(cwd);
+    requireRepositoryRoot(cwd, repo.name);
   }
 
   if (!isSafeBranchRef(branch) || !localBranchExists(branch, cwd)) {
@@ -448,17 +531,20 @@ function verifyTaskBranch(cwd, featureDir, taskId, branch, waveBase) {
     blocked("base-not-ancestor", `wave base ${waveBase} is not a usable branch reference`);
   }
 
-  const ancestorCheck = git(["merge-base", "--is-ancestor", waveBase, branch], cwd);
+  // The branch is addressed by its full ref from here on: the existence check above proved
+  // `refs/heads/<branch>`, and a bare name resolves a same-named tag first.
+  const branchRef = `${BRANCH_REF_PREFIX}${branch}`;
+  const ancestorCheck = git(["merge-base", "--is-ancestor", waveBase, branchRef], cwd);
   if (ancestorCheck.status !== 0) {
     blocked("base-not-ancestor", `wave base ${waveBase} is not an ancestor of task branch ${branch}`);
   }
 
-  const diffResult = git(["diff", "--name-only", `${waveBase}...${branch}`], cwd);
+  const diffResult = git(["diff", "--name-only", "--no-renames", "-z", `${waveBase}...${branchRef}`], cwd);
   if (diffResult.status !== 0) {
     blocked("git-query-failed", `git diff failed for ${waveBase}...${branch}`);
   }
 
-  const changedPaths = diffResult.stdout.split("\n").map((p) => p.trim()).filter(Boolean);
+  const changedPaths = diffResult.raw.split("\0").filter(Boolean);
   if (changedPaths.length === 0) {
     blocked("empty-diff", `task branch ${branch} has no changes against wave base ${waveBase}`);
   }
@@ -496,6 +582,11 @@ function isMain() {
 }
 
 if (isMain()) {
+  // The verdict is the exit code. A reader that closes the pipe early has stopped caring about
+  // the text, and an unhandled EPIPE would replace a ready result with a stack trace.
+  process.stdout.on("error", (error) => {
+    if (error.code !== "EPIPE") throw error;
+  });
   const input = parseArguments(process.argv.slice(2));
   if (input.help) {
     emitHelp(input.command);

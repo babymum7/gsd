@@ -37,13 +37,13 @@ Canonical dispatch authority for the 5 visible GSD skills. Each skill file resta
 | Skill | Role | Intent | Prerequisites | Do-not-load | Transition | Helper-when |
 | --- | --- | --- | --- | --- | --- | --- |
 | `gsd-brainstorming` | owner | Resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract | Explicit design intent or load-bearing Spec-gap return | Read-only questions, pure mechanical edits, known single-spot quick fix | On convergence load `gsd-to-plan` | — |
-| `gsd-to-plan` | owner | Create or finalize canonical `plan.md` with bound Domain Impact after acceptance criteria converge | Converged acceptance contract from `gsd-brainstorming` or validated unfinalized plan | Design decisions still open; Nano edits | On `validate-plan` success use `gsd-state.mjs set` to write `state.toon` and load `gsd-executing-plans` | — |
+| `gsd-to-plan` | owner | Create or finalize canonical `plan.md` after acceptance criteria converge, with `Domain Impact` where the repository opts into domain docs | Converged acceptance contract from `gsd-brainstorming` or validated unfinalized plan | Design decisions still open; Nano edits | On `validate-plan` success use `gsd-state.mjs set` to write `state.toon` and load `gsd-executing-plans` | — |
 | `gsd-executing-plans` | owner | Own bound plan tasks and domain docs on `wip/<feature>`, and pause or resume that work | Valid bound `plan.md` and `state.toon`; a bare `continue` or pause/resume intent | Missing or malformed state used to invent work | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
 | `gsd-verify` | owner | Review a diff/PR or prove planned code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Invent completion without deterministic gates | Green terminal gate: `phase=ready`, ask merge or pull request | — |
 | `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | An unlocated or non-obvious cause needing evidence | A located failure: the prompt names the file/line or exact failure signature | Fix a confirmed non-architectural cause directly with a focused regression test, or an architectural cause to `gsd-brainstorming` | — |
 
 The quick-fix route belongs to the session owner, not a visible skill: a bounded change with converged acceptance is edited directly, proven by its focused test, and reported. It writes no packet, plan, `state.toon`, or commit and loads no `gsd-verify` gate; scope growth escalates to `gsd-brainstorming`.
-`gsd-codebase-architecture`, `gsd-domain-modeling`, and `gsd-tdd` are hidden internal references, not visible owners; `gsd-brainstorming`, `gsd-to-plan`, and `gsd-executing-plans` may cite them when their details are load-bearing.
+`gsd-codebase-architecture`, `gsd-domain-modeling`, and `gsd-tdd` are hidden internal references, not visible owners; `gsd-brainstorming`, `gsd-to-plan`, and `gsd-executing-plans` may cite them when their details are load-bearing. A hidden reference is a file, not a registered skill: read `GSD_ROOT/skills/<name>/SKILL.md`. Never call a Skill tool for it or look under the plugin's own `skills/` directory.
 
 ## Durable documentation contract
 
@@ -72,11 +72,11 @@ Only basenames under those directories that start with digits must match `NNNN-s
 
 The sole plan contract is canonical UTF-8/LF `.scratch/<feature>/plan.md`, created by `gsd-to-plan` and amended by its executing owner. It is the only authority for intent, acceptance, task order, seams, files, and focused checks.
 - Legacy `proposal.md`, `spec.md`, or `design.md` is rejected with a Spec escalation; stray `*.toon` contracts other than `state.toon` carry no authority.
-- `state.toon` reports progress and binds source bytes; it never authors, amends, or reinterprets Markdown. Numbered handoffs, attempt files, `result.toon`, and reload manifests are rejected legacy history.
+- `state.toon` reports progress and binds the plan path and base; it never authors, amends, or reinterprets Markdown. Numbered handoffs, attempt files, `result.toon`, and reload manifests are rejected legacy history.
 
 ### Fast TDD and task-loop constraints
 
-Every observable task loads `gsd-tdd` and uses a Fast TDD Check for RED before implementation, GREEN after implementation, and refactor after green.
+Every observable task reads `GSD_ROOT/skills/gsd-tdd/SKILL.md` and uses a Fast TDD Check for RED before implementation, GREEN after implementation, and refactor after green.
 - Browser, GUI, external network, long-lived server, large fixture, and material-cost checks never run in implementation loops.
 - Independent tasks may be authored by sub-agents under the Wave dispatch section of `gsd-executing-plans`; the owner repairs and reconciles inline.
 - Planning adds the smallest real fast public seam when none exists; observable behavior never uses `none`.
@@ -90,11 +90,12 @@ bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" normalize-plan --path .scratch/<feature>/plan.md [--write]
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" init-plan --path .scratch/<feature>/plan.md --base <branch>
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" merge-message --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
+bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/plan.md --expected-base <base_ref>
 ```
 
 - The same command validates a new, resumed, or amended plan; `plan.md` bytes are not pinned, so an edit is judged by grammar, not by a hash.
 - `normalize-plan` proposes or applies surface-only fixes (backticks on Feature/Base, trailing whitespace, final newline). `init-plan` writes a skeleton and refuses to overwrite. `merge-message` validates, then prints plain text (a merge subject, the Summary, and active criterion titles) for `git merge -F` and a pull request body.
-- Success prints scalar TOON (`status`, `kind`, `feature`, `base`, `tasks`). Failures print `code: io-error` or `code: invalid-artifact` with a `help:` fix (exit 1); usage errors exit 2.
+- Success prints scalar TOON (`status`, `kind`, `feature`, `base`, `tasks`). Failures print `code: io-error` or `code: invalid-artifact` (and `code: plan-exists` when `init-plan` finds a plan already there) with a `help:` fix (exit 1); usage errors exit 2.
 - Only `init-plan`, `normalize-plan --write`, and `gsd-state.mjs set` write anything.
 
 ### Plan binding and auto-execution
@@ -130,7 +131,7 @@ checkpoint_revision:<positive int>
 
 ### Atomic write
 
-Every write goes through `gsd-state.mjs set key=value…` (fallback `write-state --json-file`), which writes atomically and reads back before reporting. A symlinked feature path, a basename unequal to `feature`, or a `plan_path` other than `.scratch/<feature>/plan.md` fails closed.
+Every write goes through `gsd-state.mjs set key=value…` (fallback `write-state --json-file`), which writes atomically and reads back before reporting. A symlinked feature path, a basename unequal to `feature`, or a `plan_path` other than `.scratch/<feature>/plan.md` fails closed. Atomic means no torn file, not no lost update: `set` reads, merges, and replaces without a lock, so only the owner session writes a packet's `state.toon`, one `set` at a time.
 
 ### Checkpoint cadence
 
@@ -156,11 +157,11 @@ The owner rebuilds task and terminal slices from plan, state, and Git.
 
 Active helpers are derived, never stored:
 
-- `start/continue task`: `gsd-executing-plans` and `gsd-tdd`.
+- `start/continue task`: `gsd-executing-plans`, plus the `gsd-tdd` reference file.
 - `enter terminal verification/repair`: `gsd-verify`, resuming conformance or Deferred Slow E2E.
 - `ask merge or pull request`: `gsd-verify` asks the merge-or-PR question again.
 - `Spec-escalation`: report the blocker and ask the user how to proceed.
-- Conditional: `gsd-domain-modeling` completes affected-context documentation before checkpoint.
+- Conditional: reading `GSD_ROOT/skills/gsd-domain-modeling/SKILL.md` completes affected-context documentation before checkpoint.
 
 The master `gsd` skill is already present from bootstrap and is never reloaded.
 
@@ -198,7 +199,7 @@ At packet creation run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and reco
 Before merge run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`, unpiped or under `set -o pipefail`.
 - Exit 0 prints `status: ready`, the observed base, WIP branch, and HEAD (equal to `wip_branch`), one `repo:` line per other listed repository, and a trailing `exit=0` line.
 - Exit 1 prints `status: blocked`, a `code:`, and `exit=1`; it blocks as Spec escalation and never retargets the merge. Exit 2 corrects invocation.
-- Codes include `detached-head`, `head-not-wip`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `plan-invalid`, and Git-query failures; an unanswered query blocks.
+- Codes include `detached-head`, `head-not-wip`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `not-a-repository-root` (a listed repository that is only a folder inside another one), `plan-invalid`, and Git-query failures; an unanswered query blocks.
 - `dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, both sides of a rename included. Both commands are read-only.
 
 The merge or pull request targets exactly the recorded `base_ref`; never widen to repository defaults. Promoting base onward is separate user-owned work.

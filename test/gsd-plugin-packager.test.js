@@ -1,7 +1,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, readFileSync, readdirSync } from "node:fs";
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -94,4 +94,66 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
     withSessionOwner(createBootstrap(join(pluginRoot, "core")), "claude-plugin"),
     "the plugin hook must inject the bundled core's exact bytes plus the session owner",
   );
+});
+
+// Claude Code loads the plugin in place from the marketplace directory and omp links it, so a
+// rebuild that deletes the old bundle before proving the new one leaves both hosts with nothing
+// the moment any skill is invalid.
+test("a failed rebuild leaves the installed bundle and no temp directory behind", () => {
+  const work = mkdtempSync(join(tmpdir(), "gsd-rebuild-"));
+  try {
+    const marketplaceRoot = join(work, "marketplace");
+    buildPluginBundle(ROOT, marketplaceRoot);
+    const hook = join(marketplaceRoot, "gsd", "hooks", "claude.json");
+    const before = readFileSync(hook, "utf8");
+
+    const broken = join(work, "source");
+    for (const entry of ["lib", "skills", "tools", "adapters", "package.json"]) {
+      cpSync(join(ROOT, entry), join(broken, entry), { recursive: true });
+    }
+    writeFileSync(join(broken, "skills", "gsd-verify", "SKILL.md"), "no frontmatter\n");
+
+    assert.throws(() => buildPluginBundle(broken, marketplaceRoot));
+    assert.equal(readFileSync(hook, "utf8"), before, "the installed bundle survives");
+    assert.deepEqual(
+      readdirSync(work).filter((name) => name.includes("gsd-tmp")),
+      [],
+      "no half-built directory is leaked",
+    );
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
+});
+
+// Claude's Skill tool and Codex's plugin path load the copy under `skills/`, which ships only the
+// visible skills. A relative link that resolves in the repository can therefore dangle there: the
+// canon lives under `core/skills/gsd/`, so `../gsd/REFERENCE.md` pointed at a file the shipped
+// copy does not have. Links are checked in the built bundle, because that is what hosts read.
+test("every relative link in a shipped skill resolves inside the built bundle", () => {
+  const work = mkdtempSync(join(tmpdir(), "gsd-links-"));
+  try {
+    const { pluginRoot } = buildPluginBundle(ROOT, join(work, "marketplace"));
+    const skillsRoot = join(pluginRoot, "skills");
+    const markdownFiles = (dir) =>
+      readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+        const target = join(dir, entry.name);
+        if (entry.isDirectory()) return markdownFiles(target);
+        return entry.name.endsWith(".md") ? [target] : [];
+      });
+
+    const dangling = [];
+    let checked = 0;
+    for (const file of markdownFiles(skillsRoot)) {
+      for (const match of readFileSync(file, "utf8").matchAll(/\]\(([^)\s]+)\)/g)) {
+        const target = match[1].split("#")[0];
+        if (target === "" || /^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
+        checked += 1;
+        if (!existsSync(join(dirname(file), target))) dangling.push(`${file.slice(skillsRoot.length + 1)} -> ${match[1]}`);
+      }
+    }
+    assert.ok(checked > 0, "the shipped skills link to at least their own grammar file");
+    assert.deepEqual(dangling, []);
+  } finally {
+    rmSync(work, { recursive: true, force: true });
+  }
 });

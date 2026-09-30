@@ -62,6 +62,6 @@ Decisions is exact `None.` or sequential blocks of `### D-1: <title>`, `- **Deci
 - A present Interfaces table pins each listed active AC at most once; a task spanning pinned ACs needs identical pins. A lower seam needs a concrete reason.
 - Every active AC appears in at least one non-superseded task `Satisfies`; live tasks satisfy only `active` criteria.
 - `Repos` is only for a plan that touches more than one repository. It lists every repository once, including this one as path `.` with the plan's Base; a task's `Repo` names a row, its `Files` are relative to that repository, and a task without `Repo` belongs to this repository.
-- Every task owns at least one unique safe relative path with one `create|modify|delete` operation and a concise intent, plus one focused command; `none` is only for non-observable mechanical work. Paths under test directories or `*.test.*` / `*.spec.*` count as observation-only for shard ownership.
+- Every task owns at least one unique safe relative path with one `create|modify|delete` operation and a concise intent, plus one focused command; `none` is only for non-observable mechanical work. A task `Status` is `pending`, `in_progress`, `done`, or `superseded`; a `superseded` task never runs. Paths under test directories or `*.test.*` / `*.spec.*` count as observation-only for shard ownership.
 
 Full validation blocks only at binding, at resume (so each amendment revalidates), and at the terminal gate; drafts in between are not revalidated.

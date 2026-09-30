@@ -6,16 +6,16 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 ---
 
 ## Dispatch contract
-Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
+Canonical row: `GSD_ROOT/skills/gsd/REFERENCE.md` § Visible skill mandatory-use matrix.
 - Role: owner
 - Intent: diagnose non-obvious failures inline and produce root-cause evidence
 - Scope: diagnosis is performed inline in the top-level session and produces root-cause evidence only (never implements or commits a fix)
 - Do-not-load: a located failure whose prompt names the file/line or exact failure signature
-- Transition: fix a confirmed non-architectural cause directly with a focused regression test, or route an architectural cause to `gsd-brainstorming` before repair
+- Transition: the caller fixes a confirmed non-architectural cause with a focused regression test; an architectural cause routes to `gsd-brainstorming` before repair
 
 # Diagnosing Bugs
 
-> **Invocation guard** — catalog selection loads this skill. Diagnosis is performed inline in the top-level session to produce root-cause evidence only, returning evidence to its caller without implementing or committing a fix. Under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract, select an Invocation Mode below and validate only its Required artifacts; missing Optional artifacts never reroute invocation.
+> **Invocation guard** — catalog selection loads this skill. Diagnosis is performed inline in the top-level session to produce root-cause evidence only, returning evidence to its caller without implementing or committing a fix. Under `GSD_ROOT/skills/gsd/REFERENCE.md` § Artifact Contract, select an Invocation Mode below and validate only its Required artifacts; missing Optional artifacts never reroute invocation.
 
 ## Invocation modes
 
@@ -58,14 +58,14 @@ Isolate confirmed root cause and propose a regression test seam — only if a **
 - [ ] Proposed regression seam (or missing-seam architectural finding) is documented.
 - [ ] Root-cause evidence is returned to the caller for repair without implementing or committing code changes.
 
-In standalone diagnosis, hand confirmed root-cause evidence and the proposed regression seam to the caller; a confirmed non-architectural cause is fixed directly with a focused regression test, while an architectural cause routes to `gsd-brainstorming` before repair. In Execution-blocker mode, ask no post-mortem question: session owner returns immediately to `gsd-executing-plans` with root-cause evidence for inline repair, writing no repair-round/helper-preference field. Load-bearing AC/interface/invariant ambiguities require Spec escalation, not diagnosis guesses.
+In standalone diagnosis, hand confirmed root-cause evidence and the proposed regression seam to the caller; the caller fixes a confirmed non-architectural cause with a focused regression test, while an architectural cause routes to `gsd-brainstorming` before repair. In Execution-blocker mode, ask no post-mortem question: session owner returns immediately to `gsd-executing-plans` with root-cause evidence for inline repair, writing no repair-round/helper-preference field. Load-bearing AC/interface/invariant ambiguities require Spec escalation, not diagnosis guesses.
 
 ## Optional context signal
-Diagnosis harvest is optional and bounded to the minimized bug path. Reuse only prompt/trace, reproduction, hypotheses, and relevant code/docs; never widen into repository glossary/decision scans or create missing scaffolds. Trigger `gsd-domain-modeling` only if evidence reveals recurring project-specific terms or explicit decision/rationale signals. Generic error vocabulary, one-off identifiers, implementation details, and unreasoned code shapes are no-ops. Diagnosis never writes domain artifacts itself.
+Diagnosis harvest is optional and bounded to the minimized bug path. Reuse only prompt/trace, reproduction, hypotheses, and relevant code/docs; never widen into repository glossary/decision scans or create missing scaffolds. Read `GSD_ROOT/skills/gsd-domain-modeling/SKILL.md` only if evidence reveals recurring project-specific terms or explicit decision/rationale signals. Generic error vocabulary, one-off identifiers, implementation details, and unreasoned code shapes are no-ops. Diagnosis never writes domain artifacts itself.
 
 In standalone pre-binding work, domain modeling may ask its one focused question only for material meaning/ownership/trade-off ambiguity. In Execution-blocker diagnosis, binding has occurred: ask zero documentation questions; send load-bearing AC/interface/invariant ambiguities to `gsd-executing-plans`' Spec escalation, otherwise skip documentation writes and continue diagnosis.
 
-## Contextual disclosure (see [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates). Example:
+## Contextual disclosure (see `GSD_ROOT/skills/gsd/REFERENCE.md` § Contextual disclosure templates). Example:
 ```
 Next steps:
 - Resume the active execution or examine the architectural cause.

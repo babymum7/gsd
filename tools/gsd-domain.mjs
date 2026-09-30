@@ -129,7 +129,7 @@ function runValidate({ index, agents, command }) {
   let orphans;
   try {
     orphans = readdirSync(directory, { withFileTypes: true })
-      .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && entry.name !== "index.md")
+      .filter((entry) => entry.isFile() && entry.name.endsWith(".md") && entry.name !== path.basename(index))
       .map((entry) => entry.name)
       .filter((name) => !mapped.has(name))
       .sort();

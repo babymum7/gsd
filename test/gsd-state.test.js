@@ -779,3 +779,127 @@ test("CLI set rejects --feature-dir without value (exit 2)", () => {
   assert.equal(r.exitCode, 2);
   assert.match(r.stdout, /--feature-dir requires a value/);
 });
+
+// gsd-executing-plans § Pause and resume: pause keeps the interrupted `next_action`, because a
+// paused terminal-verification packet must resume into verification and a Spec-escalation must
+// still name its blocker. A derived default is only for phases that do not keep the action.
+test("CLI set phase=paused keeps the interrupted next_action", () => {
+  for (const interrupted of ["enter terminal verification/repair", "Spec-escalation"]) {
+    const { scratch } = tmpFeatureDir("test-feature");
+    assert.equal(cli(["set", "--feature-dir", scratch, "phase=approved", "base_ref=main"]).exitCode, 0);
+    const before = cli(["set", "--feature-dir", scratch, "phase=verifying", `next_action=${interrupted}`]);
+    assert.equal(before.exitCode, 0, before.stderr || before.stdout);
+
+    const paused = cli(["set", "--feature-dir", scratch, "phase=paused"]);
+    assert.equal(paused.exitCode, 0, paused.stderr || paused.stdout);
+    const state = JSON.parse(paused.stdout);
+    assert.equal(state.phase, "paused");
+    assert.equal(state.next_action, interrupted);
+
+    const resumed = JSON.parse(cli(["set", "--feature-dir", scratch, "phase=executing"]).stdout);
+    assert.equal(resumed.next_action, "start/continue task", "leaving pause derives the default again");
+  }
+});
+
+// `fs.writeSync` may write fewer bytes than asked when a quota or a full disk interrupts it, and
+// it throws on ENOSPC. The state file is renamed into place before it is read back, so an
+// ignored short write replaced the last valid state with a truncated one, and a throw left a
+// dot-temp file beside it.
+function withPatchedWriteSync(patch, body) {
+  const real = fs.writeSync;
+  fs.writeSync = patch(real);
+  try {
+    return body();
+  } finally {
+    fs.writeSync = real;
+  }
+}
+
+const leftoverTemps = (scratch) => fs.readdirSync(scratch).filter((name) => name.endsWith(".tmp"));
+
+test("writeStateAtomic completes a short write instead of committing a truncated state", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  let shortened = 0;
+  const written = withPatchedWriteSync(
+    (real) => (fd, data, ...rest) => {
+      if (shortened === 0 && typeof data === "string" && data.length > 10) {
+        shortened += 1;
+        return real(fd, data.slice(0, 10), 0, "utf8");
+      }
+      if (shortened === 0 && Buffer.isBuffer(data) && data.length - rest[0] > 10) {
+        shortened += 1;
+        return real(fd, data, rest[0], 10, rest[2]);
+      }
+      return real(fd, data, ...rest);
+    },
+    () => writeStateAtomic(scratch, VALID_STATE),
+  );
+  assert.equal(shortened, 1, "the write was interrupted once");
+  assert.equal(written.feature, "test-feature");
+  assert.deepEqual(readStateFile(join(scratch, "state.toon")), written);
+  assert.deepEqual(leftoverTemps(scratch), []);
+});
+
+test("writeStateAtomic keeps the previous state and leaves no temp file when the write fails", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  writeStateAtomic(scratch, VALID_STATE);
+  const before = readFileSync(join(scratch, "state.toon"), "utf8");
+
+  assert.throws(
+    () =>
+      withPatchedWriteSync(
+        () => () => {
+          throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" });
+        },
+        () => writeStateAtomic(scratch, { ...VALID_STATE, checkpoint_revision: "2" }),
+      ),
+    /ENOSPC/,
+  );
+  assert.equal(readFileSync(join(scratch, "state.toon"), "utf8"), before);
+  assert.deepEqual(leftoverTemps(scratch), []);
+});
+
+test("a write-side system failure is an io-error, not an invalid artifact", () => {
+  // `sanitizeStateError` rebuilt every write failure as a bare Error, so a full disk or a
+  // read-only directory reached the CLI labelled `invalid-artifact` and sent the caller to
+  // repair a state file that was never the problem.
+  const { scratch } = tmpFeatureDir("test-feature");
+  writeStateAtomic(scratch, VALID_STATE);
+  let failure;
+  try {
+    withPatchedWriteSync(
+      () => () => {
+        throw Object.assign(new Error("ENOSPC: no space left on device"), { code: "ENOSPC" });
+      },
+      () => writeStateAtomic(scratch, { ...VALID_STATE, checkpoint_revision: "2" }),
+    );
+  } catch (error) {
+    failure = error;
+  }
+  assert.equal(failure?.contractFailure, "io-error");
+
+  // A contract violation stays an artifact defect.
+  let invalid;
+  try {
+    writeStateAtomic(scratch, { ...VALID_STATE, phase: "not-a-phase" });
+  } catch (error) {
+    invalid = error;
+  }
+  assert.ok(invalid, "an invalid phase is rejected");
+  assert.equal(invalid.contractFailure, undefined);
+});
+
+test("CLI set reports io-error when the feature directory is read-only", () => {
+  if (process.platform === "win32" || process.getuid?.() === 0) return;
+  const { dir, scratch } = tmpFeatureDir("test-feature");
+  writeStateAtomic(scratch, VALID_STATE);
+  fs.chmodSync(scratch, 0o555);
+  try {
+    const r = cli(["set", "--feature-dir", scratch, "owner=claude-test", "phase=approved"]);
+    assert.equal(r.exitCode, 1, r.stdout + r.stderr);
+    assert.match(r.stdout, /code: io-error/);
+  } finally {
+    fs.chmodSync(scratch, 0o755);
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

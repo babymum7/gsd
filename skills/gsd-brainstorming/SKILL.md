@@ -6,7 +6,7 @@ consumes: []
 ---
 
 ## Dispatch contract
-Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
+Canonical row: `GSD_ROOT/skills/gsd/REFERENCE.md` § Visible skill mandatory-use matrix.
 - Role: owner
 - Intent: resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance contract
 - Do-not-load: read-only questions, pure mechanical edits, known single-spot quick fix
@@ -14,7 +14,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 
 # GSD Brainstorming
 
-> **Invocation guard** — pre-binding discovery and convergence only. Creates no plan, state, or TOON artifact; sole durable writes are a decision record for a settled tradeoff or an accepted pre-binding domain bootstrap. When acceptance or target is unclear, ask one recommended question before further inspection. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract after selecting an invocation mode. Read-only questions, Nano edits, known fixes, delegated tasks, and bound work do not enter.
+> **Invocation guard** — pre-binding discovery and convergence only. Creates no plan, state, or TOON artifact; sole durable writes are a decision record for a settled tradeoff or an accepted pre-binding domain bootstrap. When acceptance or target is unclear, ask one recommended question before further inspection. Apply `GSD_ROOT/skills/gsd/REFERENCE.md` § Artifact Contract after selecting an invocation mode. Read-only questions, Nano edits, known fixes, delegated tasks, and bound work do not enter.
 
 ## Invocation modes
 
@@ -23,7 +23,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 | New behavior discovery | non-trivial behavior intent | code/docs context | converged contract; settled-tradeoff `docs/decisions/NNNN-slug.md` | ask target question if missing |
 | Supplied design stress-test | supplied proposal or claims | implementation seams | sharpened contract; settled-tradeoff `docs/decisions/NNNN-slug.md` | ask for missing proposal |
 | Spec-gap revision | blocker and affected criterion/invariant | current plan | revised contract | preserve blocker and stop |
-| Selected architecture candidate | user-selected candidate | audit evidence | converged candidate contract | return to `gsd-brainstorming` for candidate selection |
+| Selected architecture candidate | user-selected candidate | audit evidence | converged candidate contract | ask the user to select a candidate |
 
 ## Scope discipline
 
@@ -53,7 +53,7 @@ Pin one existing public test seam per active criterion before convergence:
 
 ## Durable decision records
 
-When a load-bearing tradeoff settles, write one `docs/decisions/NNNN-slug.md` record using the header from [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Durable decision and design records. Records may precede implementation; the header requires `# NNNN — Title`, exactly one `- **Status:** Accepted|Rejected|Superseded by NNNN`, exactly one `- **Date:** YYYY-MM-DD`, and a non-empty `## Decision` section stating locked choices.
+When a load-bearing tradeoff settles, write one `docs/decisions/NNNN-slug.md` record using the header from `GSD_ROOT/skills/gsd/REFERENCE.md` § Durable decision and design records. Records may precede implementation; the header requires `# NNNN — Title`, exactly one `- **Status:** Accepted|Rejected|Superseded by NNNN`, exactly one `- **Date:** YYYY-MM-DD`, and a non-empty `## Decision` section stating locked choices.
 
 ## Conservative context harvest and Domain Impact
 
@@ -62,7 +62,7 @@ Domain docs are opt-in per repository: they apply only where `docs/domain/index.
 1. When no touched repository has `docs/domain/index.md`, omit `Domain Impact` and write no domain docs. Offer a domain bootstrap once only when the feature introduces lasting business terms; a decline ends the topic.
 2. When the index exists, classify as exactly `none`, `change-existing-context`, `introduce-context`, or `change-context-boundary`, with sorted context slugs, documentation action, broad-bootstrap disposition (`not-offered`), and evidence. `none` requires evidence that no production semantics, terms, invariants, workflows, outcomes, relationships, or policy change. Read only mapped shards for affected contexts; never offer a broad scan.
 3. Reuse only evidence needed for the selected design. Generic terms, identifiers, preferences, and code shape without production meaning are no-ops. Existing docs are navigation hints, not authority over code, schemas, contracts, or tests.
-4. Load `gsd-domain-modeling` as sole writer for non-`none` classifications or an accepted bootstrap. Before binding, material ambiguity asks one focused question and writes nothing. Otherwise it returns exact affected paths for the eventual owning code task and writes no future behavior.
+4. Read `GSD_ROOT/skills/gsd-domain-modeling/SKILL.md` and follow it as sole writer for non-`none` classifications or an accepted bootstrap. Before binding, material ambiguity asks one focused question and writes nothing. Otherwise it returns exact affected paths for the eventual owning code task and writes no future behavior.
 5. After binding, load-bearing ambiguity returns through the Spec-gap transition. Prose uncertainty never widens scope.
 
 ## Parts
@@ -78,6 +78,6 @@ Split by user-visible outcome, never by file, layer, or task count. Converge onl
 
 ## Convergence transition
 
-When requirements, tradeoffs, criteria, invariants, non-goals, and test seams converge, load `gsd-to-plan` in converged-creation or spec-gap-revision mode. Pass conversational contracts; write no Markdown. `gsd-to-plan` remains sole `plan.md` writer; after binding, execution starts automatically.
+When requirements, tradeoffs, criteria, invariants, non-goals, and test seams converge, load `gsd-to-plan` in `Initial converged creation` mode. A Spec-gap revision of a bound plan returns its revised contract to `gsd-executing-plans`, which amends `plan.md` in place under § Plan amendment and revalidates. Pass conversational contracts; write no Markdown. `gsd-to-plan` remains sole `plan.md` writer at creation and finalization; after binding, execution starts automatically.
 
 Before transitioning, summarize recommendations and expose only the next human decision; never present command menus or technical skill names as user choices.

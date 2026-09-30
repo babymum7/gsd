@@ -6,14 +6,16 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
-import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
+import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildPluginBundle } from "../adapters/plugin/gsd-plugin-packager.mjs";
-import { runCli } from "../adapters/plugin/gsd-cli.mjs";
+import { needsAgentPrompt, runCli } from "../adapters/plugin/gsd-cli.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -276,4 +278,224 @@ test("skills-only install refuses to overwrite a skill it does not manage", () =
   assert.equal(readFileSync(join(skillsDir, "gsd-verify", "SKILL.md"), "utf8"), "mine\n");
   assert.ok(!existsSync(join(skillsDir, "gsd")), "nothing is written after a refusal");
   assert.equal(runCli(["install", "--skills-dir", skillsDir, "--agent", "omp", "--home", home]).status, 2);
+});
+
+// A host stub whose exit behaviour a test picks per binary, so the install and uninstall
+// failure paths run instead of the always-successful fakes above.
+function scriptedBinDir(logPath, behaviour) {
+  const binDir = mkdtempSync(join(tmpdir(), "gsd-cli-script-"));
+  for (const name of ["claude", "codex", "omp"]) {
+    const script = join(binDir, name);
+    const action = behaviour[name] ?? "exit 0";
+    writeFileSync(
+      script,
+      `#!/bin/sh\nprintf '%s\\n' "${name} $*" >> ${JSON.stringify(logPath)}\n${action}\n`,
+    );
+    chmodSync(script, 0o755);
+  }
+  return binDir;
+}
+
+function withBin(binDir) {
+  return { env: { ...process.env, PATH: `${binDir}:${process.env.PATH}` } };
+}
+
+const readAgents = (home) => JSON.parse(readFileSync(join(home, "state.json"), "utf8")).agents;
+
+test("a partial install records the agents that did install, so uninstall still removes them", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-partial-"));
+  const logPath = join(home, "commands.log");
+  const binDir = scriptedBinDir(logPath, { claude: "exit 4" });
+  try {
+    const failed = runCli(["install", "--agent", "all", "--home", home], withBin(binDir));
+    assert.equal(failed.status, 4, failed.stderr);
+    assert.deepEqual(readAgents(home), { omp: "plugin" }, "omp linked before claude failed");
+
+    const removed = runCli(["uninstall", "--agent", "omp", "--home", home], withBin(binDir));
+    assert.equal(removed.status, 0, removed.stderr);
+    assert.match(readFileSync(logPath, "utf8"), /omp plugin uninstall gsd-core/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("a partial uninstall keeps only the agents still installed, so a retry can finish", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-retry-"));
+  const logPath = join(home, "commands.log");
+  const ok = scriptedBinDir(logPath, {});
+  const failing = scriptedBinDir(logPath, { claude: "exit 4" });
+  try {
+    assert.equal(runCli(["install", "--agent", "all", "--home", home], withBin(ok)).status, 0);
+    const failed = runCli(["uninstall", "--agent", "all", "--home", home], withBin(failing));
+    assert.equal(failed.status, 4, failed.stderr);
+    assert.deepEqual(readAgents(home), { claude: "plugin", codex: "plugin" });
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("a corrupt state file stops install before any host is touched and names the file", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-corrupt-"));
+  const logPath = join(home, "commands.log");
+  const binDir = scriptedBinDir(logPath, {});
+  try {
+    writeFileSync(join(home, "state.json"), '{ "version": 1, "agents": {');
+    const result = runCli(["install", "--agent", "claude", "--home", home], withBin(binDir));
+    assert.equal(result.status, 1);
+    assert.match(result.stderr, /state\.json/);
+    assert.equal(existsSync(logPath), false, "no host command ran");
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("a host command killed by a signal fails the install instead of exiting 0", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-signal-"));
+  const binDir = scriptedBinDir(join(home, "commands.log"), { claude: "kill -KILL $$" });
+  try {
+    const result = runCli(["install", "--agent", "claude", "--home", home], withBin(binDir));
+    assert.notEqual(result.status, 0);
+    assert.equal(typeof result.status, "number");
+    assert.match(result.stderr, /SIGKILL/);
+    assert.equal(existsSync(join(home, "state.json")), false);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("a flag never swallows the next flag as its value", () => {
+  for (const argv of [
+    ["install", "--skills-dir", "--dry-run"],
+    ["install", "--agent", "claude", "--home", "--dry-run"],
+    ["install", "--agent", "claude", "--dry-run", "--home"],
+    ["install", "--agent", "--dry-run"],
+    ["install", "--agent", "claude", "--home", ""],
+  ]) {
+    const result = runCli(argv);
+    assert.equal(result.status, 2, `${argv.join(" ")}: ${result.stdout}${result.stderr}`);
+    assert.match(result.stderr, /requires/);
+  }
+});
+
+// The agent prompt only runs on a terminal, and Bun's readline reacts to raw keystrokes, so the
+// behaviour under test exists only behind a pseudo-terminal. The driver types `keys` once the
+// prompt is shown and reports how the process ended; the test skips where it cannot run.
+const PTY_DRIVER = `
+import json, os, pty, select, signal, sys, time
+keys = json.loads(sys.argv[1]).encode()
+command = sys.argv[2:]
+pid, fd = pty.fork()
+if pid == 0:
+    os.execvp(command[0], command)
+out = b""
+sent = False
+deadline = time.time() + 15
+code = None
+while time.time() < deadline:
+    ready, _, _ = select.select([fd], [], [], 0.2)
+    if ready:
+        try:
+            data = os.read(fd, 4096)
+        except OSError:
+            data = b""
+        if data:
+            out += data
+            if not sent and b"> " in out:
+                os.write(fd, keys)
+                sent = True
+    done, status = os.waitpid(pid, os.WNOHANG)
+    if done:
+        code = os.waitstatus_to_exitcode(status)
+        break
+if code is None:
+    os.kill(pid, signal.SIGKILL)
+    os.waitpid(pid, 0)
+    code = "timeout"
+print(json.dumps({"code": code, "out": out.decode("utf-8", "replace")}))
+`;
+
+function typeAtAgentPrompt(keys, home) {
+  const probe = spawnSync("python3", ["-c", "import pty"], { encoding: "utf8" });
+  if (probe.error || probe.status !== 0 || process.platform === "win32") return null;
+  const result = spawnSync(
+    "python3",
+    ["-c", PTY_DRIVER, JSON.stringify(keys), process.execPath, join(ROOT, "bin", "gsd.mjs"), "install", "--dry-run", "--home", home],
+    { encoding: "utf8", timeout: 30000 },
+  );
+  assert.equal(result.status, 0, result.stderr);
+  const reported = JSON.parse(result.stdout);
+  // eslint-disable-next-line no-control-regex
+  return { ...reported, out: reported.out.replace(/\x1b\[[0-9;?]*[A-Za-z]/g, "") };
+}
+
+test("the agent prompt treats Ctrl-D as a cancel instead of crashing", () => {
+  // Bun rejects the pending question with `AbortError: Aborted with Ctrl+D`; nothing caught it,
+  // so ending the prompt printed a runtime stack trace.
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-home-"));
+  try {
+    const run = typeAtAgentPrompt("\u0004", home);
+    if (run === null) return;
+    assert.equal(run.code, 1, run.out);
+    assert.match(run.out, /agent selection cancelled/);
+    assert.doesNotMatch(run.out, /AbortError|Bun v\d|\bat .*\(/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("the agent prompt names an invalid answer instead of claiming the terminal is not interactive", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-home-"));
+  try {
+    const run = typeAtAgentPrompt("9\n", home);
+    if (run === null) return;
+    assert.equal(run.code, 2, run.out);
+    assert.match(run.out, /unknown selection "9"/);
+    assert.doesNotMatch(run.out, /not interactive/);
+
+    const control = typeAtAgentPrompt("3\n", home);
+    assert.equal(control.code, 0, control.out);
+    assert.match(control.out, /\[claude\]/);
+    assert.doesNotMatch(control.out, /\[codex\]/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("an empty GSD_HOME falls back to the default home like config does", () => {
+  const saved = process.env.GSD_HOME;
+  process.env.GSD_HOME = "";
+  let result;
+  try {
+    result = runCli(["install", "--agent", "claude", "--dry-run"]);
+  } finally {
+    if (saved === undefined) delete process.env.GSD_HOME;
+    else process.env.GSD_HOME = saved;
+  }
+  assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, new RegExp(`marketplace add ${join(homedir(), ".gsd", "marketplace")}`));
+});
+
+test("the agent menu is offered only when the run still needs an agent", () => {
+  assert.equal(needsAgentPrompt(["install"]), true);
+  assert.equal(needsAgentPrompt(["uninstall", "--dry-run"]), true);
+  assert.equal(needsAgentPrompt(["install", "--agent", "claude"]), false);
+  assert.equal(needsAgentPrompt(["install", "--skills-dir", "/tmp/skills"]), false);
+  assert.equal(needsAgentPrompt(["uninstall", "--skills-dir", "/tmp/skills"]), false);
+  assert.equal(needsAgentPrompt(["install", "--help"]), false);
+  assert.equal(needsAgentPrompt(["install", "-h"]), false);
+  assert.equal(needsAgentPrompt(["config", "list"]), false);
+});
+
+test("a skills directory under a path with $ patterns keeps the path verbatim", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-dollar-"));
+  const dollarHome = join(home, "h$$x");
+  const skillsDir = join(home, "skills");
+  try {
+    const result = runCli(["install", "--skills-dir", skillsDir, "--home", dollarHome]);
+    assert.equal(result.status, 0, result.stderr);
+    const executing = readFileSync(join(skillsDir, "gsd-executing-plans", "SKILL.md"), "utf8");
+    assert.ok(executing.includes(join(dollarHome, "marketplace", "gsd", "core")), "the core path is unchanged");
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
 });

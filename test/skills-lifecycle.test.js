@@ -388,9 +388,9 @@ test("the two-pass runner records expected and actual activation misses", () => 
   assert.deepEqual(report.failures["fake-model"], [
     {
       fixture: "result-malformed-with-active",
-      expected: { decision: "fail-closed", action: "stop", primarySkill: null },
+      expected: { decision: "ordinary-routing", action: "load", primarySkill: "gsd-executing-plans" },
       actual: { decision: "ordinary-routing", action: "direct", primarySkill: null },
-      detail: "want fail-closed:stop->null, got ordinary-routing:direct->null",
+      detail: "want ordinary-routing:load->gsd-executing-plans, got ordinary-routing:direct->null",
     },
   ]);
 });

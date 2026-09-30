@@ -185,6 +185,20 @@ test("validate CLI reports a complete model and rejects an orphan shard", () => 
   rmSync(dir, { recursive: true, force: true });
 });
 
+test("validate CLI accepts an index that is not named index.md", () => {
+  // The orphan scan skipped the literal name `index.md`, so any other `--index` file listed
+  // itself as a shard without an index row.
+  const dir = mkdtempSync(join(tmpdir(), "gsd-domain-"));
+  const docs = join(dir, "docs", "domain");
+  mkdirSync(docs, { recursive: true });
+  writeFileSync(join(docs, "model.md"), indexContent([["billing", "Invoicing and settlement."]]));
+  writeFileSync(join(docs, "billing.md"), shardContent("billing"));
+  const result = run(["validate", "--index", join(docs, "model.md")]);
+  assert.equal(result.status, 0, result.stdout);
+  assert.match(result.stdout, /status: valid/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
 test("validate CLI usage and help exit codes", () => {
   const usage = run([]);
   assert.equal(usage.status, 2);

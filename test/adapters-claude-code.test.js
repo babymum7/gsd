@@ -249,3 +249,17 @@ test("a broken core fails closed with the core's own diagnostic, never a host re
   );
   assert.doesNotMatch(context, /\bOMP\b|Claude|Codex/, "the shared core diagnostic names no host");
 });
+
+// The marker only spares later prompts a repeat of the bootstrap. Losing it costs tokens;
+// replacing the bootstrap with a filesystem error costs the whole workflow for that session.
+test("an unwritable state directory still delivers the bootstrap", () => {
+  const base = mkdtempSync(join(tmpdir(), "gsd-cc-blocked-"));
+  const stateRoot = join(base, "file");
+  writeFileSync(stateRoot, "a file where the temp directory should be");
+  const project = mkdtempSync(join(tmpdir(), "gsd-cc-project-"));
+  const context = parseContext(
+    run({ hook_event_name: "SessionStart", session_id: "s-blocked", cwd: project, source: "startup" }, project, stateRoot),
+    "SessionStart",
+  );
+  assert.equal(context, bootstrapFor("s-blocked"));
+});

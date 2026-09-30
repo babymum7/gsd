@@ -14,19 +14,17 @@ function writeJsonAtomic(target, value) {
   fs.renameSync(temp, target);
 }
 
-function replaceManagedDirectory(target) {
-  if (fs.existsSync(target)) {
-    if (fs.readdirSync(target).length === 0) {
-      fs.rmSync(target, { recursive: true, force: true });
-      fs.mkdirSync(path.dirname(target), { recursive: true });
-      return;
-    }
-    const markerPath = path.join(target, MARKETPLACE_MARKER);
-    if (!fs.existsSync(markerPath)) {
-      throw new Error(`${target}: exists and is not a GSD-managed plugin marketplace`);
-    }
-    fs.rmSync(target, { recursive: true, force: true });
+// Refuses a directory GSD does not own. Nothing is deleted here: hosts load the installed
+// bundle in place, so it stays until the replacement has been built and proven.
+function assertManagedDirectory(target) {
+  if (!fs.existsSync(target) || fs.readdirSync(target).length === 0) return;
+  if (!fs.existsSync(path.join(target, MARKETPLACE_MARKER))) {
+    throw new Error(`${target}: exists and is not a GSD-managed plugin marketplace`);
   }
+}
+
+function clearManagedDirectory(target) {
+  fs.rmSync(target, { recursive: true, force: true });
   fs.mkdirSync(path.dirname(target), { recursive: true });
 }
 
@@ -64,10 +62,19 @@ function codexHooks() {
 export function buildPluginBundle(root, marketplaceRoot) {
   const sourceRoot = fs.realpathSync(root);
   const targetRoot = path.resolve(marketplaceRoot);
-  replaceManagedDirectory(targetRoot);
+  assertManagedDirectory(targetRoot);
 
   const tempRoot = `${targetRoot}.gsd-tmp-${process.pid}`;
   fs.rmSync(tempRoot, { recursive: true, force: true });
+  try {
+    return buildIntoTemp(sourceRoot, targetRoot, tempRoot);
+  } catch (error) {
+    fs.rmSync(tempRoot, { recursive: true, force: true });
+    throw error;
+  }
+}
+
+function buildIntoTemp(sourceRoot, targetRoot, tempRoot) {
   const pluginRoot = path.join(tempRoot, PLUGIN_NAME);
   fs.mkdirSync(pluginRoot, { recursive: true });
 
@@ -146,6 +153,7 @@ export function buildPluginBundle(root, marketplaceRoot) {
   });
   fs.writeFileSync(path.join(tempRoot, MARKETPLACE_MARKER), 'gsd-plugin-marketplace:v1\n');
 
+  clearManagedDirectory(targetRoot);
   fs.renameSync(tempRoot, targetRoot);
   return { pluginRoot: path.join(targetRoot, PLUGIN_NAME), marketplaceRoot: targetRoot };
 }

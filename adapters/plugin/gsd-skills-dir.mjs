@@ -49,7 +49,7 @@ function copyResolved(source, target, coreRoot) {
     const to = path.join(target, entry.name);
     if (entry.isDirectory()) copyResolved(from, to, coreRoot);
     else if (entry.name.endsWith('.md')) {
-      fs.writeFileSync(to, fs.readFileSync(from, 'utf8').replaceAll('<GSD_ROOT>', coreRoot));
+      fs.writeFileSync(to, fs.readFileSync(from, 'utf8').replaceAll('<GSD_ROOT>', () => coreRoot));
     } else fs.copyFileSync(from, to);
   }
 }

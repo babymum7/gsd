@@ -36,13 +36,13 @@ Add `--dry-run` to print the exact host commands. The CLI builds one self-contai
 
 The bundle carries `lib/`, the canonical skills and tools under `core/`, only the five visible skills in the host-facing `skills/` directory, and host manifests. Hidden runtime skills stay internal. Claude Code and Codex hooks still require their normal trust review. Uninstall is the inverse CLI operation:
 
-Relocation of the checkout does not require reinstall because the installed plugin is a copied, self-contained bundle. Editing the checkout does not update the installed bundle; run `bun bin/gsd.mjs install` again to refresh it, then follow the selected host's normal reload and trust behavior.
-
 ```bash
 bun bin/gsd.mjs uninstall --agent claude
 ```
 
 Uninstall runs only the host's native plugin uninstall command and removes the local bundle when no selected agent still uses it. It does not inspect or modify files outside that plugin registration. Unrelated hooks, skills, agents, settings, and marketplaces stay untouched.
+
+Relocation of the checkout does not require reinstall because the installed plugin is a copied, self-contained bundle. Editing the checkout does not update the installed bundle; run `bun bin/gsd.mjs install` again to refresh it, then follow the selected host's normal reload and trust behavior.
 
 ### Skills-only install
 
@@ -88,28 +88,28 @@ If the checkout, hidden bootstrap, or visible catalog cannot be validated, the e
 
 ## What it costs
 
-GSD is built to stay out of the way most of the time. Each number below is held by a
-test, so it cannot drift quietly:
+GSD is built to stay out of the way most of the time. The figures below describe the
+current tree; the tests named in each bullet pin only the cap or budget it names.
 
-- One bootstrap per session. `skills/gsd/SKILL.md` caps at 450 words, and the rendered
-  bootstrap (the master body plus the sorted catalog) currently measures 513 words;
-  that is the `bootstrap_words` value in every committed eval report.
+- One bootstrap per session. `skills/gsd/SKILL.md` caps at 450 words
+  (`test/bootstrap-first-action.test.js`), and the rendered bootstrap (the master body
+  plus the sorted catalog) currently measures 513 words; that is the `bootstrap_words`
+  value in every committed eval report.
 - Nothing per turn. An ordinary prompt injects zero bytes: the adapters emit only at
   session boundaries and deduplicate against the payload already in the transcript. A
   prompt that needs nothing costs nothing.
-- The canon is on demand, and read by section. `skills/gsd/REFERENCE.md` caps at 6700
-  words and is never injected; a flow reads only the `§` sections it names, whole only
-  when no step names a required contract. No owner depends on most of it: the widest
-  named set is 8645 bytes of the 50330-byte file, about 1879 tokens against about 10966,
-  and a test caps any owner at 10000 bytes (decision 0020).
-- One visible skill body at a time. The five visible skills cap at 9850 words in total,
-  and the bootstrap carries their metadata, not their bodies.
+- The canon is on demand, and read by section. `skills/gsd/REFERENCE.md` is never
+  injected; a flow reads only the `§` sections it names, whole only when no step names a
+  required contract (decision 0020). No test caps its size.
+- One visible skill body at a time. The bootstrap carries the five visible skills'
+  metadata, not their bodies, and the summed description bytes stay under the budget in
+  `test/skills-frontmatter.test.js`.
 - Recovery is bounded and rare. A capsule is emitted only after a compaction and fails
   closed above 4000 bytes rather than truncating.
 
-The caps live in `test/skills-frontmatter.test.js` § AC-4 with the reason for each
-raise, and the per-turn silence is pinned per host in `test/adapters-claude-code.test.js`,
-`test/adapters-codex.test.js`, and `test/gsd-context-extension.test.js`.
+The capsule cap lives in `test/gsd-context-extension.test.js`, and the per-turn silence is
+pinned per host in `test/adapters-claude-code.test.js`, `test/adapters-codex.test.js`, and
+`test/gsd-context-extension.test.js`.
 
 ## Feature flow
 
@@ -125,7 +125,7 @@ flowchart LR
     V -.load-bearing plan gap.-> B
 ```
 
-1. **Discovery.** `gsd-brainstorming` explores only relevant code, exposes risks and missing decisions, and converges on the smallest sufficient contract. Every feature classifies `Domain Impact`. When `docs/domain/index.md` exists, only affected mapped contexts are read and no broad domain scan is offered. When it is absent, semantic work bootstraps the feature context and may independently offer a broad bootstrap.
+1. **Discovery.** `gsd-brainstorming` explores only relevant code, exposes risks and missing decisions, and converges on the smallest sufficient contract. `Domain Impact` is written only when a touched repository has `docs/domain/index.md` or the user accepted a domain bootstrap. When the index exists, only affected mapped contexts are read and no broad domain scan is offered. When it is absent, the feature omits `Domain Impact` and writes no domain docs; a bootstrap is offered once, and only when the feature introduces lasting business terms.
 2. **Planning.** `gsd-to-plan` writes `.scratch/<feature>/plan.md` with observable acceptance criteria, structured file operations and intents, focused checks; Domain Impact, interfaces, and the other sections are optional and appear only when they carry information. Domain paths belong to the same task as semantic code. The validated plan binds automatically — no approval prompt — and writes atomic `schema:v0.0.3` `.scratch/<feature>/state.toon` before ordered execution starts.
 3. **Execution.** The current top-level session owner uses `gsd-executing-plans` to select `T1..TN` in order, rebuild each complete validated task slice, verify each dispatch prompt against the slice before sending it, and execute each wave the contract validator proves file-, criterion-, and check-disjoint: a single-task wave executes inline, while a wave of two or more dispatches one task per sub-agent, each in its own isolated workspace, or serially in plan order when isolation is unavailable. Every observable task performs Fast TDD Checks (RED→GREEN→refactor; no browser/resource-heavy task loops) and updates affected domain docs to current production behavior in the same owning task. The owner reconciles each returned task in plan order through a two-step wave gate — the sub-agent's own report is inadmissible, `verify-task-branch` proves branch ancestry, slice scope, and untouched `.scratch/`, and every merged task's focused check re-runs on `wip/<feature>` — before it commits each green checkpoint, updates `state.toon`, and repairs any integrity failure or red task inline. GSD dispatches no lifecycle work outside validated waves and never overlaps lifecycle work.
 4. **Verification.** `gsd-verify` deterministically revalidates the plan against the recorded base, active-criterion/interface/task coverage, changed-path ownership, Domain Impact, code/domain drift, plan-ordered task diffs, explicit decisions/invariants/non-goals, and current-commit focused-check evidence. Only deterministic contract failures block.
@@ -162,7 +162,7 @@ The current top-level session is the sole lifecycle authority. It interprets the
 ## State and repository layout
 
 - `.scratch/` is ignored and machine-local by default.
-- `plan.md` remains the human-readable plan authority. The atomic `state.toon` snapshot binds its bytes and carries runtime progress; it does not replace design authority.
+- `plan.md` remains the human-readable plan authority. The atomic `state.toon` snapshot binds the plan path and base and carries runtime progress; it does not replace design authority.
 - Each feature executes on `wip/<feature>`; after the terminal gate the owner asks whether to merge it into the base branch or open a pull request.
 - A feature too large for one plan is split into parts in `.scratch/<feature>/parts.md`, a plain checklist; each part is delivered as its own feature `<feature>-pN`.
 - A plan touching several repositories lists them under `## Repos` (`| Repo | Path | Base |`) and tags each task with `- **Repo:**`; every repository gets its own `wip/<feature>`, `.scratch/` stays in the repository that holds the plan, and one merge-or-PR answer covers them all.
@@ -249,7 +249,7 @@ An exit code of 3 is never a routing verdict: it means the backend itself failed
 
 Activation measures a lower bound: only the injected bootstrap travels. `bun test/eval/eval-models.mjs` runs a two-pass variant that records its scope in a `scope` field. `GSD_EVAL_JOB_TIMEOUT` (milliseconds, default 120000) raises the per-call ceiling for slower models, which matters for slower models.
 
-The committed report scores one model, `google-antigravity/gemini-3.8-flash`, at fingerprint `5a7ce41aa040`: 30/32 (93.8%) first attempt and after correction, bootstrap only; three runs on the previous bytes, which differ by one bootstrap line, each scored 30/32. The two residual misses are fail-closed fixtures: `result-malformed-with-active`, routed to `gsd-executing-plans` instead of stopping, and `malformed-packet-direct-prompt`, answered directly. The `gsd-brainstorming` description used to say only "non-trivial new/changed product behavior"; three runs on those bytes scored 27, 28, and 27, with `arch-audit` and `architecture-this-repo` answered directly in every run. Naming module and public-interface design, architecture audits, and domain terms and bounded contexts in the description moved those prompts to `gsd-brainstorming` without pulling any quick-fix or read-only fixture along. Routing stays suggestive (decision 0027); the description names the work, it does not order a load.
+The committed report scores one model, `google-antigravity/gemini-3.8-flash`, at fingerprint `5a7ce41aa040`: 30/32 (93.8%) first attempt and after correction, bootstrap only; three runs on the previous bytes, which differ by one bootstrap line, each scored 30/32. The two residual misses are `result-malformed-with-active`, routed to `gsd-executing-plans`, and `malformed-packet-direct-prompt`, answered directly. Both fixtures expected `fail-closed`, which contradicted the bootstrap line that a malformed packet stops only the work that depends on it, so their expectations now match those answers. `result-malformed-dependent` (a prompt that does depend on the malformed packet, which must stop) was added after that run, so the committed report scores 32 of the 33 fixtures and still lists the two corrected fixtures as misses until the evaluator is re-run. The `gsd-brainstorming` description used to say only "non-trivial new/changed product behavior"; three runs on those bytes scored 27, 28, and 27, with `arch-audit` and `architecture-this-repo` answered directly in every run. Naming module and public-interface design, architecture audits, and domain terms and bounded contexts in the description moved those prompts to `gsd-brainstorming` without pulling any quick-fix or read-only fixture along. Routing stays suggestive (decision 0027); the description names the work, it does not order a load.
 
 Run-to-run spread is larger than any wording effect measured here, so the numbers above are one run each and the difference between them is not a route verdict. Earlier runs of nearby bytes scored 105, 108, 109, and 110 of 120 on the bootstrap-only scope, while the canon scope has scored 109, 118, and 119 across several sets of bytes. What keeps the residual misses bounded is that each reached skill requires bound `state.toon` and an invocation guard that admits only validated bound plan state, so a capsule resume that misroutes there stops instead of executing; `test/skills-lifecycle.test.js` locks that boundary. Read every number as a sample of a small labeled set rather than a constant.
 

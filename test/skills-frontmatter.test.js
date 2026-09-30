@@ -47,6 +47,7 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
     "Post-plan pipeline contract",
     "Runtime state contract",
     "Skill derivation from phase and next_action",
+    "Visible skill mandatory-use matrix",
   ];
   for (const heading of CITED) {
     assert.ok(headings.has(heading), `REFERENCE no longer defines the cited § ${heading}`);
@@ -134,3 +135,35 @@ test("all skill references resolve to installed skills", () => {
   assert.deepEqual(unresolved, []);
 });
 
+
+// A hidden skill is a file under `core/skills/`, not a registered skill: Claude Code answers a
+// Skill call for it with `Unknown skill`, and Codex agents guess `skills/<name>/SKILL.md` inside
+// the plugin, which ships only visible skills. An instruction to load, run, or trigger one by
+// bare name therefore sends the agent down a path that does not exist.
+test("instructions never load a hidden skill by bare name", () => {
+  const dirs = readdirSync(join(ROOT, "skills"), { withFileTypes: true }).filter((entry) => entry.isDirectory());
+  const hidden = dirs
+    .filter((entry) => /^hide: true$/m.test(read(`skills/${entry.name}/SKILL.md`)))
+    .map((entry) => entry.name);
+  assert.ok(hidden.length > 0, "the fixture finds the hidden helper skills");
+
+  const bareName = new RegExp(`\`(${hidden.join("|")})\``, "g");
+  const imperative = /\b(?:load|loads|loading|trigger|triggers|run|runs|invoke|invokes)\b[^.]*$/i;
+  const files = ["skills/gsd/REFERENCE.md"];
+  for (const entry of dirs) {
+    for (const file of readdirSync(join(ROOT, "skills", entry.name))) {
+      if (file.endsWith(".md")) files.push(`skills/${entry.name}/${file}`);
+    }
+  }
+  for (const file of files) {
+    for (const [number, line] of read(file).split("\n").entries()) {
+      for (const match of line.matchAll(bareName)) {
+        assert.doesNotMatch(
+          line.slice(0, match.index),
+          imperative,
+          `${file}:${number + 1} loads hidden skill ${match[1]} by bare name; read GSD_ROOT/skills/${match[1]}/SKILL.md instead`,
+        );
+      }
+    }
+  }
+});

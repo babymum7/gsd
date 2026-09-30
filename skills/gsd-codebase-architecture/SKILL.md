@@ -8,16 +8,16 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 
 ## Dispatch contract
 
-Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
+Hidden internal reference, not a visible owner: `GSD_ROOT/skills/gsd/REFERENCE.md` names the owners that may cite it.
 
-- Role: owner
+- Role: helper
 - Intent: design a named seam or audit/refactor architecture with domain-aligned deep boundaries
 - Do-not-load: unrelated broad exploration or feature behavior whose architecture has no unresolved seam
 - Transition: a selected candidate enters `gsd-brainstorming`; bound execution returns bounded evidence or Spec escalation to its session owner
 
 # Codebase Architecture
 
-> **Invocation guard** — automatic selection loads this skill for explicit interface/architecture intent or diagnosis-returned architectural evidence (an architectural cause arrives from diagnosis before any repair lands). Select one mode before validating only that row. Missing optional domain docs never invent authority or widen scope. This skill dispatches no design sub-agent: the session owner authors every candidate and seam inline.
+> **Invocation guard** — an owner reads this skill for explicit interface/architecture intent or diagnosis-returned architectural evidence (an architectural cause arrives from diagnosis before any repair lands). Select one mode before validating only that row. Missing optional domain docs never invent authority or widen scope. This skill dispatches no design sub-agent: the session owner authors every candidate and seam inline.
 
 ## Invocation modes
 

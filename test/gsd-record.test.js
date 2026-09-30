@@ -449,6 +449,25 @@ test("CLI validate reports invalid-record (exit 1) for file exceeding RECORD_FIL
   rmSync(dir, { recursive: true, force: true });
 });
 
+test("CLI validate rejects a FIFO without hanging", () => {
+  // `statSync` reports a FIFO as size 0, so the size guard passed and `readFileSync`
+  // blocked forever waiting for a writer.
+  if (process.platform === "win32") return;
+  const { dir, path } = tmpRecord("");
+  rmSync(path);
+  const made = spawnSync("mkfifo", [path]);
+  assert.equal(made.status, 0, String(made.stderr));
+  const result = spawnSync(process.execPath, [CLI, "validate", "--path", path, "--kind", "decisions"], {
+    encoding: "utf8",
+    timeout: 5000,
+  });
+  assert.equal(result.error, undefined, "validator must not block on a FIFO");
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stdout, /status: error/);
+  assert.match(result.stdout, /regular file/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
 test("CLI --help exits 0 and prints usage", () => {
   const result = run(["validate", "--help"]);
   assert.equal(result.status, 0);

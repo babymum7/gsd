@@ -46,6 +46,27 @@ Options:
   -h, --help      Show this help
 `;
 
+// The value after a flag. A missing value, an empty one, or another flag would otherwise be
+// swallowed silently: `--skills-dir --dry-run` wrote a real directory named `--dry-run`.
+function flagValue(argv, index, flag, noun) {
+  const value = argv[index + 1];
+  if (value === undefined || value === '' || value.startsWith('--')) {
+    throw new Error(`${flag} requires ${noun}`);
+  }
+  return value;
+}
+
+// True only while a run still lacks the agent it needs: `--skills-dir` and help never take one.
+export function needsAgentPrompt(argv) {
+  return (
+    (argv[0] === 'install' || argv[0] === 'uninstall') &&
+    !argv.includes('--agent') &&
+    !argv.includes('--skills-dir') &&
+    !argv.includes('--help') &&
+    !argv.includes('-h')
+  );
+}
+
 function parseArgs(argv) {
   const first = argv[0];
   const parsed = {
@@ -59,14 +80,13 @@ function parseArgs(argv) {
   for (let i = 1; i < argv.length; i += 1) {
     const arg = argv[i];
     if (arg === '--agent') {
-      parsed.agent = argv[i + 1] ?? null;
+      parsed.agent = flagValue(argv, i, arg, 'an agent name');
       i += 1;
     } else if (arg === '--skills-dir') {
-      parsed.skillsDir = argv[i + 1] ?? null;
+      parsed.skillsDir = flagValue(argv, i, arg, 'a path');
       i += 1;
-      if (parsed.skillsDir === null) throw new Error('--skills-dir requires a path');
     } else if (arg === '--home') {
-      parsed.home = argv[i + 1] ?? null;
+      parsed.home = flagValue(argv, i, arg, 'a path');
       i += 1;
     } else if (arg === '--dry-run') {
       parsed.dryRun = true;
@@ -137,6 +157,14 @@ function runCommand(command, options) {
       stdout: '',
     };
   }
+  // A killed host has no exit status, and a null status would leave this process exiting 0.
+  if (result.status === null) {
+    return {
+      status: 1,
+      stdout: result.stdout ?? '',
+      stderr: `${command.binary} ${command.args.join(' ')} was terminated by ${result.signal}\n`,
+    };
+  }
   if (result.status !== 0) {
     return {
       status: result.status,
@@ -150,7 +178,12 @@ function runCommand(command, options) {
 function readState(home) {
   const statePath = path.join(home, 'state.json');
   if (!fs.existsSync(statePath)) return { version: 1, agents: {} };
-  const state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  let state;
+  try {
+    state = JSON.parse(fs.readFileSync(statePath, 'utf8'));
+  } catch (error) {
+    throw new Error(`${statePath}: invalid GSD CLI state (${error.message})`);
+  }
   if (state?.version !== 1 || typeof state.agents !== 'object' || state.agents === null) {
     throw new Error(`${statePath}: invalid GSD CLI state`);
   }
@@ -179,7 +212,7 @@ function removeMarketplace(home) {
 }
 
 function resolveHome(parsed) {
-  return path.resolve(parsed.home ?? process.env.GSD_HOME ?? path.join(os.homedir(), '.gsd'));
+  return path.resolve(parsed.home || process.env.GSD_HOME || path.join(os.homedir(), '.gsd'));
 }
 
 // A skills directory is recorded beside the plugin agents because its skills point into the
@@ -230,17 +263,19 @@ function runInstall(parsed, options) {
     return { status: 0, stdout: `${lines.join('\n')}\n`, stderr: '' };
   }
 
+  // State is read before any host changes, and each agent is recorded the moment its commands
+  // succeed: a host that fails later must not leave an earlier one installed but unrecorded,
+  // where uninstall would skip it and delete the marketplace it still links to.
+  const state = readState(home);
   buildPluginBundle(ROOT, path.join(home, 'marketplace'));
-  for (const { commands } of plans) {
+  for (const { agent, commands } of plans) {
     for (const command of commands) {
       const result = runCommand(command, options);
       if (result.status !== 0) return result;
     }
+    state.agents[agent] = 'plugin';
+    writeState(home, state);
   }
-
-  const state = readState(home);
-  for (const agent of agents) state.agents[agent] = 'plugin';
-  writeState(home, state);
   return {
     status: 0,
     stdout: `${agents.map((agent) => `installed ${agent} (plugin)`).join('\n')}\n`,
@@ -264,15 +299,17 @@ function runUninstall(parsed, options) {
     return { status: 0, stdout: `${lines.join('\n')}\n`, stderr: '' };
   }
 
-  for (const { commands } of plans) {
+  // Each agent leaves the state once its own commands succeed, so a retry after a failure
+  // only repeats what is still installed. The marketplace goes with the last agent.
+  for (const { agent, commands } of plans) {
     for (const command of commands) {
       const result = runCommand(command, options);
       if (result.status !== 0) return result;
     }
+    delete state.agents[agent];
+    if (Object.keys(state.agents).length === 0) removeState(home);
+    else writeState(home, state);
   }
-  for (const agent of agents) delete state.agents[agent];
-  if (Object.keys(state.agents).length === 0) removeState(home);
-  else writeState(home, state);
   if (Object.keys(state.agents).length === 0) removeMarketplace(home);
   return {
     status: 0,

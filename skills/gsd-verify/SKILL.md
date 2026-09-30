@@ -6,7 +6,7 @@ consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AG
 ---
 
 ## Dispatch contract
-Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
+Canonical row: `GSD_ROOT/skills/gsd/REFERENCE.md` § Visible skill mandatory-use matrix.
 - Role: owner
 - Intent: review a diff/PR, or prove a planned feature conforms before asking to merge
 - Do-not-load: invent completion without deterministic gates; per-task terminal verification
@@ -51,4 +51,4 @@ The merge target is exactly the recorded `base_ref` (§ Base derivation and merg
 
 ## Contextual disclosure
 
-Use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates. The terminal gate reports progress or blockers only; diff review uses its report surface.
+Use `GSD_ROOT/skills/gsd/REFERENCE.md` § Contextual disclosure templates. The terminal gate reports progress or blockers only; diff review uses its report surface.

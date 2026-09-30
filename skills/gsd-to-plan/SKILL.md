@@ -6,15 +6,15 @@ consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AG
 ---
 
 ## Dispatch contract
-Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-skill-mandatory-use-matrix).
+Canonical row: `GSD_ROOT/skills/gsd/REFERENCE.md` § Visible skill mandatory-use matrix.
 - Role: owner
-- Intent: create or finalize the canonical `plan.md` with bound Domain Impact after acceptance criteria converge
+- Intent: create or finalize the canonical `plan.md` after acceptance criteria converge, with `Domain Impact` where the repository opts into domain docs
 - Do-not-load: open design decisions; Nano edits
 - Transition: on `validate-plan` success use `gsd-state.mjs set` to write `state.toon` atomically with the invocation this skill's binding step names, never the `write` tool, then load `gsd-executing-plans` without a prompt
 
 # To Plan
 
-> **Invocation guard** — load after `gsd-brainstorming` converges or when validated unfinalized plan state requires finalization. Select an Invocation Mode from explicit intent and entry context before validating only that row’s Required artifacts. Apply [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Artifact Contract.
+> **Invocation guard** — load after `gsd-brainstorming` converges or when validated unfinalized plan state requires finalization. Select an Invocation Mode from explicit intent and entry context before validating only that row’s Required artifacts. Apply `GSD_ROOT/skills/gsd/REFERENCE.md` § Artifact Contract.
 
 ## Invocation modes
 
@@ -26,7 +26,7 @@ Canonical row: [Visible skill mandatory-use matrix](../gsd/REFERENCE.md#visible-
 ## Intake
 
 In `Resume/finalize` mode, read canonical `.scratch/<feature>/plan.md`.
-- Parse and validate it under [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Canonical Markdown contract; legacy `proposal.md`, `spec.md`, or `design.md` is rejected.
+- Parse and validate it under `GSD_ROOT/skills/gsd/REFERENCE.md` § Canonical Markdown contract; legacy `proposal.md`, `spec.md`, or `design.md` is rejected.
 - Stale pre-binding `proposal.toon`, `spec.toon`, `design.toon`, and `plan.toon` cannot provide missing scope, ACs, task order, or recovery.
 - In `Initial converged creation` mode, optional draft state/context is consumed without reading an existing plan.
 
@@ -43,13 +43,13 @@ This skill is the sole writer at creation and finalization; after binding the ex
 
 When the work spans several repositories, add `## Repos` with every repository (this one as path `.`), run `derive-base` in each for its Base, and give each task outside this repository a `- **Repo:**` line; `Files` stay relative to that task's repository. A part of a larger feature (the Parts section of `gsd-brainstorming`) is planned as its own feature `<feature>-pN`.
 
-Read `plan.md` § Base from the work tree, never from convention: before `wip/<feature>` exists run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed branch, so a linked worktree records its own branch. Exit 1 with `code: detached-head` stops packet creation until the user checks out a branch, because a commit oid cannot receive a merge. Never read the base by hand with `git rev-parse --abbrev-ref HEAD`, which prints the literal `HEAD` when detached. See [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Base derivation and merge target.
+Read `plan.md` § Base from the work tree, never from convention: before `wip/<feature>` exists run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed branch, so a linked worktree records its own branch. Exit 1 with `code: detached-head` stops packet creation until the user checks out a branch, because a commit oid cannot receive a merge. Never read the base by hand with `git rev-parse --abbrev-ref HEAD`, which prints the literal `HEAD` when detached. See `GSD_ROOT/skills/gsd/REFERENCE.md` § Base derivation and merge target.
 
 Before binding, run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md`; drafts need no validation. Only exit 0 with `kind: plan`, the matching feature and base, and expected task count reaches execution. Exit 1 returns malformed authority to Spec escalation back to `gsd-brainstorming`; exit 2 corrects invocation.
 
 Tasks are sequential `T1`…`TN`; order encodes dependencies. Every active AC occurs in at least one task. A task spanning pinned ACs requires identical seam, test path, and lower-seam reason. For non-`none` Domain Impact, bind every exact affected `docs/domain/<scope>.md`, any required `docs/domain/index.md`, and canonical `AGENTS.md` upsert to the same owning task as semantic code; never create trailing documentation-only tasks. The validator rejects shard owners without semantic code changes.
 
-Durable decision and design records (`docs/decisions/NNNN-slug.md`, `docs/design/NNNN-slug.md`) bind to their producing tasks; record-only tasks changing no semantic code are allowed. See [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Durable decision and design records.
+Durable decision and design records (`docs/decisions/NNNN-slug.md`, `docs/design/NNNN-slug.md`) bind to their producing tasks; record-only tasks changing no semantic code are allowed. See `GSD_ROOT/skills/gsd/REFERENCE.md` § Durable decision and design records.
 
 Plan complete observable behavior, not layers.
 - Expand → Migrate → Contract requires caller/reference inventory and non-atomic migration.
@@ -58,7 +58,7 @@ Plan complete observable behavior, not layers.
 - Browser/GUI, external-network, long-lived, large-fixture, and material-cost checks are Deferred Slow E2E, not focused task checks.
 - Vague checks, unowned/duplicate ACs/paths, missing references, contradictory Domain Impact, or unresolved decisions return to Spec escalation back to `gsd-brainstorming`.
 ## Auto-execution handoff
-The parser accepts only structured task blocks carrying canonical `Domain Impact`. This planner single-writes exactly that grammar; path-only task forms, missing Domain Impact, or malformed fields return to Spec escalation back to `gsd-brainstorming` instead of receiving a binding.
+The parser accepts only structured task blocks. This planner single-writes exactly that grammar; path-only task forms or malformed fields return to Spec escalation back to `gsd-brainstorming` instead of receiving a binding. A plan without `Domain Impact` is valid and makes no domain claim.
 
 
 Planning is the last interactive step of discuss. Without approval prompts or menus: once `validate-plan` exits 0, atomically write canonical `schema:v0.0.3` `state.toon` with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> owner=<GSD_SESSION> phase=approved plan_path=.scratch/<feature>/plan.md base_ref=<base> wip_branch=wip/<feature>` (derived defaults fill `next_action=start/continue task` and `checkpoint_revision`).
@@ -66,4 +66,4 @@ Read it back and verify binding before execution. A fresh binding after Spec esc
 Then load `gsd-executing-plans` without another prompt.
 ## Contextual disclosure
 
-Use [../gsd/REFERENCE.md](../gsd/REFERENCE.md) § Contextual disclosure templates. Inline firing appends nothing.
+Use `GSD_ROOT/skills/gsd/REFERENCE.md` § Contextual disclosure templates. Inline firing appends nothing.

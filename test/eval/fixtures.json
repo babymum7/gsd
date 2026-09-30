@@ -195,6 +195,14 @@
     "id": "result-malformed-with-active",
     "state": ".scratch/oauth-login is a full packet with plan.md and malformed state.toon; .scratch/csv-export has a valid state.toon and bound plan",
     "prompt": "continue csv-export",
+    "decision": "ordinary-routing",
+    "expectedAction": "load",
+    "expectedPrimarySkill": "gsd-executing-plans"
+  },
+  {
+    "id": "result-malformed-dependent",
+    "state": ".scratch/oauth-login is a full packet with plan.md and malformed state.toon; .scratch/csv-export has a valid state.toon and bound plan",
+    "prompt": "continue oauth-login",
     "decision": "fail-closed",
     "expectedAction": "stop",
     "expectedPrimarySkill": null
@@ -211,8 +219,8 @@
     "id": "malformed-packet-direct-prompt",
     "state": ".scratch/oauth-login/plan.md exists and state.toon is malformed JSON; no active packet",
     "prompt": "fix typo in README.md",
-    "decision": "fail-closed",
-    "expectedAction": "stop",
+    "decision": "ordinary-routing",
+    "expectedAction": "direct",
     "expectedPrimarySkill": null
   },
   {

@@ -312,7 +312,9 @@ if (input.usageError) {
     if (!updateKeys.has("checkpoint_revision")) {
       state.checkpoint_revision = (BigInt(baseState.checkpoint_revision) + 1n).toString();
     }
-    if (!updateKeys.has("next_action") && updateKeys.has("phase")) {
+    // Pausing keeps the interrupted action so a resume continues it; every other phase change
+    // derives its default.
+    if (!updateKeys.has("next_action") && updateKeys.has("phase") && state.phase !== "paused") {
       const defaultNext = defaultNextActionForPhase(state.phase);
       if (defaultNext != null) {
         state.next_action = defaultNext;

@@ -6,6 +6,7 @@ import path from 'node:path';
 import {
   readBoundedRegularText,
   withPinnedDirectoryChain,
+  writeFully,
 } from '../lib/gsd-fs.mjs';
 
 function makeTmpDir(prefix = 'gsd-fs-test-') {
@@ -156,6 +157,43 @@ test('T1: withPinnedDirectoryChain restores cwd on callback throw and intermedia
   }
 });
 
+test('T1: withPinnedDirectoryChain keeps the callback outcome when the starting directory is gone', () => {
+  // The restore ran in a bare `finally`, so a starting directory removed during the callback
+  // made `chdir` throw ENOENT and replace a committed result (or the callback's own error)
+  // with an unrelated failure.
+  const base = makeTmpDir();
+  const originalCwd = process.cwd();
+  try {
+    const startDir = path.join(base, 'start');
+    const pinnedDir = path.join(base, 'pinned');
+    fs.mkdirSync(startDir);
+    fs.mkdirSync(pinnedDir);
+    const pinnedStat = fs.statSync(pinnedDir);
+    const hops = [{ name: pinnedDir, identity: { dev: pinnedStat.dev, ino: pinnedStat.ino } }];
+
+    process.chdir(startDir);
+    const result = withPinnedDirectoryChain(hops, () => {
+      fs.rmSync(startDir, { recursive: true });
+      return 'committed';
+    });
+    assert.equal(result, 'committed');
+
+    fs.mkdirSync(startDir);
+    process.chdir(startDir);
+    assert.throws(
+      () =>
+        withPinnedDirectoryChain(hops, () => {
+          fs.rmSync(startDir, { recursive: true });
+          throw new Error('boom-in-callback');
+        }),
+      /boom-in-callback/
+    );
+  } finally {
+    process.chdir(originalCwd);
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
 test('T1: withPinnedDirectoryChain rejects malformed arguments defensively', () => {
   const originalCwd = process.cwd();
   try {
@@ -207,6 +245,57 @@ test('T1: readBoundedRegularText expectedRoot containment regression', () => {
       },
       /symlink rejected|outside/
     );
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+// `fs.writeSync` returns how many bytes it wrote, and that can be fewer than asked. A caller that
+// ignores the count commits a truncated file.
+function withWriteSync(replacement, body) {
+  const real = fs.writeSync;
+  fs.writeSync = replacement(real);
+  try {
+    return body();
+  } finally {
+    fs.writeSync = real;
+  }
+}
+
+test('writeFully keeps writing until every byte, including multi-byte text, is on disk', () => {
+  const base = makeTmpDir();
+  try {
+    const target = path.join(base, 'out.txt');
+    const text = 'héllo — wörld ✓\n'.repeat(20);
+    const fd = fs.openSync(target, 'w');
+    let calls = 0;
+    try {
+      withWriteSync(
+        (real) => (handle, buffer, offset, length, position) => {
+          calls += 1;
+          return real(handle, buffer, offset, Math.min(length, 7), position);
+        },
+        () => writeFully(fd, text),
+      );
+    } finally {
+      fs.closeSync(fd);
+    }
+    assert.ok(calls > 1, 'the write was split');
+    assert.equal(fs.readFileSync(target, 'utf8'), text);
+  } finally {
+    fs.rmSync(base, { recursive: true, force: true });
+  }
+});
+
+test('writeFully fails when a write makes no progress instead of looping or truncating', () => {
+  const base = makeTmpDir();
+  try {
+    const fd = fs.openSync(path.join(base, 'out.txt'), 'w');
+    try {
+      assert.throws(() => withWriteSync(() => () => 0, () => writeFully(fd, 'never lands')), /wrote 0 of 11 bytes/);
+    } finally {
+      fs.closeSync(fd);
+    }
   } finally {
     fs.rmSync(base, { recursive: true, force: true });
   }
