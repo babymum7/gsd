@@ -43,8 +43,11 @@ test("install routes one selected agent through its native plugin command", () =
 
   assert.equal(result.status, 0, result.stderr);
   const commands = readFileSync(logPath, "utf8").trim().split("\n");
+  // Claude Code caches an installed plugin by version, and install keeps that copy while the
+  // version is unchanged, so the old install is removed first to force a fresh copy.
   assert.deepEqual(commands, [
     `claude plugin marketplace add ${join(home, "marketplace")} --scope user`,
+    "claude plugin uninstall gsd@gsd-local --scope user --keep-data",
     "claude plugin install gsd@gsd-local --scope user",
   ]);
   assert.ok(existsSync(join(home, "marketplace", "gsd", ".claude-plugin", "plugin.json")));
@@ -58,6 +61,7 @@ test("install dry-run plans commands without building or invoking a host", () =>
   const result = runCli(["install", "--agent", "all", "--home", home, "--dry-run"]);
 
   assert.equal(result.status, 0, result.stderr);
+  assert.match(result.stdout, /claude plugin uninstall gsd@gsd-local --scope user --keep-data/);
   assert.match(result.stdout, /claude plugin install gsd@gsd-local --scope user/);
   assert.match(result.stdout, /codex plugin add gsd@gsd-local/);
   assert.match(result.stdout, /omp plugin link/);
@@ -314,6 +318,35 @@ test("a partial install records the agents that did install, so uninstall still 
     const removed = runCli(["uninstall", "--agent", "omp", "--home", home], withBin(binDir));
     assert.equal(removed.status, 0, removed.stderr);
     assert.match(readFileSync(logPath, "utf8"), /omp plugin uninstall gsd-core/);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("a first Claude install survives having nothing to uninstall", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-first-"));
+  const logPath = join(home, "commands.log");
+  const binDir = scriptedBinDir(logPath, {
+    claude: `case "$*" in *uninstall*) echo 'not found in installed plugins' >&2; exit 1;; esac`,
+  });
+  try {
+    const result = runCli(["install", "--agent", "claude", "--home", home], withBin(binDir));
+    assert.equal(result.status, 0, result.stderr);
+    assert.match(readFileSync(logPath, "utf8"), /claude plugin install gsd@gsd-local --scope user/);
+    assert.deepEqual(readAgents(home), { claude: "plugin" });
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+test("a Claude install that cannot add the marketplace leaves the installed plugin alone", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-keep-"));
+  const logPath = join(home, "commands.log");
+  const binDir = scriptedBinDir(logPath, { claude: "exit 4" });
+  try {
+    const result = runCli(["install", "--agent", "claude", "--home", home], withBin(binDir));
+    assert.equal(result.status, 4, result.stderr);
+    assert.doesNotMatch(readFileSync(logPath, "utf8"), /uninstall/, "nothing was removed");
   } finally {
     rmSync(home, { recursive: true, force: true });
   }

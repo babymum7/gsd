@@ -117,6 +117,16 @@ function commandPlan(agent, home) {
         binary: 'claude',
         args: ['plugin', 'marketplace', 'add', marketplaceRoot, '--scope', 'user'],
       },
+      // Claude Code caches an installed plugin by version, and install and update both keep
+      // that copy while the version is unchanged, so a rebuilt bundle would never reach it.
+      // Removing the old install first forces a fresh copy. It comes after the marketplace
+      // add so a failure there leaves the working plugin alone, and it is optional because a
+      // first install has nothing to remove.
+      {
+        binary: 'claude',
+        args: ['plugin', 'uninstall', PLUGIN_SELECTOR, '--scope', 'user', '--keep-data'],
+        optional: true,
+      },
       { binary: 'claude', args: ['plugin', 'install', PLUGIN_SELECTOR, '--scope', 'user'] },
     ];
   }
@@ -271,7 +281,7 @@ function runInstall(parsed, options) {
   for (const { agent, commands } of plans) {
     for (const command of commands) {
       const result = runCommand(command, options);
-      if (result.status !== 0) return result;
+      if (result.status !== 0 && !command.optional) return result;
     }
     state.agents[agent] = 'plugin';
     writeState(home, state);
