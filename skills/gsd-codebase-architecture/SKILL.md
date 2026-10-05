@@ -1,33 +1,19 @@
 ---
 name: gsd-codebase-architecture
-description: "Use for a named module or interface design, a scoped architecture audit or refactor, or an architectural cause returned by diagnosis."
+description: "Use for a named module or interface design, or a scoped architecture audit or refactor."
 hide: true
 produces: []
 consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 ---
 
-## Dispatch contract
-
-Hidden internal reference, not a visible owner: `GSD_ROOT/skills/gsd/REFERENCE.md` names the owners that may cite it.
-
-- Role: helper
-- Intent: design a named seam or audit/refactor architecture with domain-aligned deep boundaries
-- Do-not-load: unrelated broad exploration or feature behavior whose architecture has no unresolved seam
-- Transition: a selected candidate enters `gsd-brainstorming`; bound execution returns bounded evidence or Spec escalation to its session owner
-
 # Codebase Architecture
 
-> **Invocation guard** — an owner reads this skill for explicit interface/architecture intent or diagnosis-returned architectural evidence (an architectural cause arrives from diagnosis before any repair lands). Select one mode before validating only that row. Missing optional domain docs never invent authority or widen scope. This skill dispatches no design sub-agent: the session owner authors every candidate and seam inline.
+Read by an owner for a named module, interface, or seam design, or a scoped architecture audit. The session owner authors every candidate and seam inline; nothing here is dispatched. A selected candidate goes to `gsd-brainstorming`; inside bound execution this returns bounded evidence or a Spec escalation.
 
-## Invocation modes
+- **Named seam design** reads the target and its direct callers and dependencies; with no target, ask one focused question instead of surveying the repository.
+- **Architecture audit** reads the requested areas and their direct dependencies, and walks the whole codebase only on explicit request; with no area, ask one scope question.
 
-| Mode | Required | Optional | Produced | Missing required |
-| --- | --- | --- | --- | --- |
-| Named seam design | named module, interface, seam, or bounded area | mapped domain context | recommendation | ask one focused target question; never survey the repository to invent a target |
-| Standalone architecture audit | user-requested area or explicit whole-codebase intent | mapped domain context | ranked deepening candidates | ask one focused scope question only when no area is supplied |
-| Post-diagnosis architecture | bounded root-cause evidence (an architectural cause arrives from diagnosis before any repair lands) | mapped domain context | candidate or execution blocker | return to diagnosis when the architectural cause is not evidenced |
-
-Named seam design reads target and direct callers/dependencies only. Scoped audits read requested areas and direct dependencies. Whole-codebase walks require explicit request. Stay in tracked production paths; skip nested repos, submodules, dependencies, build outputs, vendored code, and ignored files.
+Stay in tracked production paths; skip nested repos, submodules, dependencies, build outputs, vendored code, and ignored files.
 
 ## Vocabulary
 
@@ -50,20 +36,7 @@ A bounded context is a semantic and language boundary, not automatically a servi
 
 Default to a modular monolith. Recommend process/service boundaries only with evidenced independent ownership, deployment, scaling, security, or failure isolation.
 
-### Backend
-
-- Place business terms, invariants, policies, transitions, and calculations in their owning context.
-- Use application services for orchestration, command/query handling, and transaction boundaries.
-- Keep persistence entities and transport shapes behind mapping boundaries.
-- Use explicit contracts or anti-corruption adapters between contexts.
-- Emit domain events only for production facts with real consumers; never turn function calls into event infrastructure.
-
-### Frontend
-
-- Organize by user intent and domain capability, not only pages, components, hooks, and utilities.
-- Separate server state, local UI state, and interaction/application state.
-- Map API DTOs at boundaries; never share persistence entities as frontend models.
-- Preserve backend authority for authorization and invariants; frontend policy shapes UI/interaction without replacing server enforcement.
+Place business terms, invariants, policies, transitions, and calculations in their owning context; keep persistence entities and transport shapes behind mapping boundaries, with explicit contracts or anti-corruption adapters between contexts. Emit domain events only for production facts with real consumers. On the frontend, organize by user intent and capability, separate server, local UI, and interaction state, and keep authorization and invariants enforced by the backend.
 
 ### Framework independence
 
@@ -121,4 +94,4 @@ Inside bound execution, candidates are report-only. If the current acceptance co
 
 ## Domain context
 
-When `docs/domain/index.md` exists, read only mapped shards for the affected contexts and use their production terminology exactly. Do not suggest a broad domain scan. When the index is absent, absence is normal; feature transitions follow lifecycle feature-scoped bootstrap and optional broad-bootstrap decisions. Never invent domain docs or treat repository prose as production authority.
+When `docs/domain/index.md` exists, read only the shards mapped to affected contexts and use their terminology exactly; an absent index is normal. Never invent domain docs or treat repository prose as production authority.

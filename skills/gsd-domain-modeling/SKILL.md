@@ -6,17 +6,9 @@ produces: [docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md]
 consumes: [docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md]
 ---
 
-## Dispatch contract
-Hidden internal reference, not a visible owner: `GSD_ROOT/skills/gsd/REFERENCE.md` names the owners that may cite it.
-- Role: helper
-- Intent: maintain current production domain behavior for affected contexts
-- Helper-when: must load when Domain Impact is not `none` or explicit domain-model work is selected; cannot be skipped while that condition holds
-- Do-not-load: read-only or Nano work; uncertain or unrelated contexts
-- Transition: return exact changed domain and AGENTS paths to the session owner
-
 # Domain Modeling
 
-> **Invocation guard** — Active owner supplies bounded Domain Impact or explicit domain-model intent. Validate only selected mode row. Existing documentation is a navigation hint; production code, schemas, contracts, and tests are authoritative on conflict.
+Read when `Domain Impact` is not `none` or the user asks for domain-model work; skip it for read-only work and for contexts that are uncertain or unrelated. It returns the exact changed domain and `AGENTS.md` paths to the session owner. Existing documentation is a navigation hint; production code, schemas, contracts, and tests win on conflict.
 
 ## Invocation modes
 

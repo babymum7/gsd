@@ -857,10 +857,11 @@ test("lifecycle owners use the production validator and document inert experimen
   assert.match(files.get("reference"), absolutePlan);
   assert.match(files.get("reference"), /--expected-base/);
   assert.match(files.get("planner"), absolutePlan);
+  // `analyze-waves` runs the same validator with the same base binding before it schedules.
   for (const owner of ["execution", "verify"]) {
     assert.match(
       files.get(owner),
-      /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" validate-plan --path[\s\S]*--expected-base/,
+      /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" (?:validate-plan|analyze-waves) --path[\s\S]*--expected-base/,
       `${owner} must bind validation to the recorded base`,
     );
   }

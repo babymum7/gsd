@@ -4,48 +4,31 @@ Load only the `§` sections the flow needs. It defines the shared meaning of art
 
 ## Triage and depth ladder
 
-Triage runs before every route and classifies exactly one of `answer` (read-only or Nano), `clarify`, `research`, `quick`, or `plan` from the prompt and only the context it names, never a repository sweep. Direct work loads no skill, scans no state, and writes no scratch artifact or Git change.
-
-- `clarify` covers missing intent or scope too vague to act, a claimed cause, a supplied design, or a false premise, and asks exactly one question carrying a recommended default and each option's consequence; when nothing behavioral turns on the answer it states the conservative default and proceeds.
-- `research` gathers codebase, documentation, reference-repository, or concrete failure evidence before answering, never from memory; bounded read-only delegation stays allowed and carries no authority, so the owner re-verifies every fact.
-- A trigger plus an observed failure is sufficient scope to investigate, even without a file, line, stack trace, or known cause; a confirmed non-architectural cause is fixed directly when acceptance is clear, after the same `derive-base` check as a quick fix.
-- Every choice names one recommended option, its alternatives, and their costs.
-
-Depth follows ambiguity, blast radius, reversibility, and acceptance clarity, never file count:
-- `direct` — read-only answers and Nano edits: no scratch, branch, commit, or skill.
-- `quick` — one bounded change with acceptance converged from the prompt: a direct edit plus a focused test, with no packet, plan, or commit; in Git, only a `head-is-wip` from `derive-base` that does not name this session as recorded owner stops it.
-- `plan` — multi-task behavior whose acceptance must be written down: the canonical `plan.md`. A feature too large for one plan splits into parts under `gsd-brainstorming`, each its own plan.
+The bootstrap's Routing section picks the route from the prompt and only the context it names, never a repository sweep. Depth follows ambiguity, blast radius, reversibility, and acceptance clarity, never file count:
+- `direct` — read-only answers and one-line edits: no scratch, branch, commit, or skill.
+- `quick` — one bounded change with acceptance clear from the prompt, including a mechanical refactor, docs-only edit, or version bump: a direct edit proven by its focused test, or by the existing suite or build when behavior is unchanged. No packet, plan, or commit.
+- `plan` — behavior whose acceptance must be written down: the canonical `plan.md`. A feature too large for one plan splits into parts under `gsd-brainstorming`, each its own plan.
 - A deeper level is chosen only when the shallower one cannot express the work; depth may rise mid-flight under § Plan amendment and never silently falls to ship a subset.
 
 ## Artifact Contract
 
-`consumes:` and `produces:` frontmatter are catalog unions, not unconditional prerequisites. Each multi-mode skill declares a compact Invocation modes table:
-
-| Role | Meaning |
-| --- | --- |
-| Required | Must exist for the selected mode. Follow that row's recovery or blocker action when absent. |
-| Optional | Normal when absent; never reroutes a mode. |
-| Produced | May be created by the selected mode. |
-| Missing required | The documented recovery, reconstruction, or blocker path when a required artifact is absent. Never invent a file or contents. |
-
-Explicit intent and entry context choose the mode; artifact presence never does. Validate `phase` against fixed schema enums; preserve opaque `next_action` values on resume. A missing, malformed, or duplicate **required** artifact fails closed; optional state does not; an edited `plan.md` is an amendment under § Plan amendment.
+`consumes:` and `produces:` frontmatter are catalog unions, not prerequisites. Explicit intent and entry context choose a skill's mode; artifact presence never does. A missing, malformed, or duplicate artifact the mode requires fails closed and names the file; never invent a file or its contents. Optional context that is absent is normal. Validate `phase` against the schema enum and preserve opaque `next_action` values on resume.
 
 ## Visible skill mandatory-use matrix
 
-Canonical dispatch authority for the 5 visible GSD skills. Each skill file restates only its mode-specific guard and transition.
+Canonical dispatch authority for the 4 visible GSD skills; each skill file opens with its own trigger and handoff only.
 
-| Skill | Role | Intent | Prerequisites | Do-not-load | Transition | Helper-when |
-| --- | --- | --- | --- | --- | --- | --- |
-| `gsd-brainstorming` | owner | Resolve non-trivial new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract | Explicit design intent or load-bearing Spec-gap return | Read-only questions, pure mechanical edits, known single-spot quick fix | On convergence load `gsd-to-plan` | — |
-| `gsd-to-plan` | owner | Create or finalize canonical `plan.md` after acceptance criteria converge, with `Domain Impact` where the repository opts into domain docs | Converged acceptance contract from `gsd-brainstorming` or validated unfinalized plan | Design decisions still open; Nano edits | On `validate-plan` success use `gsd-state.mjs set` to write `state.toon` and load `gsd-executing-plans` | — |
-| `gsd-executing-plans` | owner | Own bound plan tasks and domain docs on `wip/<feature>`, and pause or resume that work | Valid bound `plan.md` and `state.toon`; a bare `continue` or pause/resume intent | Missing or malformed state used to invent work | After all tasks and Fast TDD Checks are green load `gsd-verify` | — |
-| `gsd-verify` | owner | Review a diff/PR or prove planned code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Invent completion without deterministic gates | Green terminal gate: `phase=ready`, ask merge or pull request | — |
-| `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | An unlocated or non-obvious cause needing evidence | A located failure: the prompt names the file/line or exact failure signature | Fix a confirmed non-architectural cause directly with a focused regression test, or an architectural cause to `gsd-brainstorming` | — |
+| Skill | Intent | Prerequisites | Do-not-load | Transition |
+| --- | --- | --- | --- | --- |
+| `gsd-brainstorming` | Resolve new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract, then plan it | Explicit design intent, an unbound draft plan to finalize, or a load-bearing Spec-gap return | Read-only questions, mechanical edits, a known single-spot fix | On convergence read `GSD_ROOT/skills/gsd-to-plan/SKILL.md`, which binds `state.toon` and hands off to `gsd-executing-plans` |
+| `gsd-executing-plans` | Own bound plan tasks and domain docs on `wip/<feature>`; pause, resume, close, or abandon that work | Valid bound `plan.md` and `state.toon`; a bare `continue`, pause/resume, cleanup, or abandon intent | Missing or malformed state used to invent work | After all tasks and Fast TDD Checks are green load `gsd-verify` |
+| `gsd-verify` | Review a diff/PR or prove planned code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Completion claimed without deterministic gates | Green terminal gate: `phase=ready`, ask merge or pull request |
+| `gsd-diagnosing-bugs` | Diagnose non-obvious failures inline and produce root-cause evidence | An unlocated or non-obvious cause needing evidence | A located failure: the prompt names the file/line or exact failure signature | The owner fixes a confirmed non-architectural cause with a focused regression test; an architectural cause goes to `gsd-brainstorming` |
 
-The quick-fix route belongs to the session owner, not a visible skill: a bounded change with converged acceptance is edited directly, proven by its focused test, and reported.
+The quick-fix route belongs to the session owner, not a visible skill: a bounded change with converged acceptance is edited directly, proven, and reported.
+In a Git work tree it runs `derive-base` before the first edit: a `head-is-wip` whose recorded owner is not your `GSD_SESSION` (or that names no packet) stops the edit until the user says where the fix belongs; your own WIP branch and any other result (a detached HEAD, a branch name it cannot record, no work tree) let the fix proceed. It writes no packet, plan, `state.toon`, or commit and loads no `gsd-verify` gate; scope growth escalates to `gsd-brainstorming`.
 
-In a Git work tree, a quick fix runs `derive-base` before the first edit: a `head-is-wip` whose recorded owner is not your `GSD_SESSION` (or that names no packet) stops the edit until the user says where the fix belongs; your own WIP branch and any other result (a detached HEAD, a branch name it cannot record, no work tree) let the fix proceed. It writes no packet, plan, `state.toon`, or commit and loads no `gsd-verify` gate; scope growth escalates to `gsd-brainstorming`.
-`gsd-codebase-architecture`, `gsd-domain-modeling`, and `gsd-tdd` are hidden internal references, not visible owners; `gsd-brainstorming`, `gsd-to-plan`, and `gsd-executing-plans` may cite them when their details are load-bearing. A hidden reference is a file, not a registered skill: read `GSD_ROOT/skills/<name>/SKILL.md`. Never call a Skill tool for it or look under the plugin's own `skills/` directory.
+`gsd-to-plan`, `gsd-codebase-architecture`, `gsd-domain-modeling`, and `gsd-tdd` are hidden internal references, not visible owners; any owner may read them when their details are load-bearing. A hidden reference is a file, not a registered skill: read `GSD_ROOT/skills/<name>/SKILL.md`. Never call a Skill tool for it or look under the plugin's own `skills/` directory.
 
 ## Durable documentation contract
 
@@ -215,24 +198,6 @@ The merge or pull request targets exactly the recorded `base_ref`; never widen t
 
 ## Feature cleanup
 
-After a merge lands, check out `base_ref`, delete `wip/<feature>` and the retired task branches with `git branch -d` (never `-D`), remove clean isolated workspaces, and remove `.scratch/<feature>/`. A pull request keeps the branch and scratch until the user says it merged. Unmerged branches or dirty workspaces stay unforced and surface for inspection.
+After a merge lands, check out `base_ref`, delete `wip/<feature>` and the retired task branches with `git branch -d` (never `-D`), remove clean isolated workspaces, and remove `.scratch/<feature>/`. A plan with `## Repos` does the same in every listed repository. A pull request keeps the branch and scratch until the user says it merged. Unmerged branches or dirty workspaces stay unforced and surface for inspection.
 
 For explicit abandon: confirm the feature name, inspect the worktree, check out `base_ref`, safely delete the WIP branch, and remove `.scratch/<feature>/`. Never force-delete unmerged work without explicit confirmation.
-
-## Contextual disclosure templates
-
-Planning has no post-plan menu: validated plans bind and execute automatically. Discuss surfaces the next human decision directly:
-
-```text
-Next steps:
-- <recommendation and the next decision to make>
-```
-
-Directly selected skills use natural-language actions:
-
-```text
-Next steps:
-- Continue the active work or save progress.
-```
-
-Inline helper loading appends nothing. Pipeline output reports factual progress or blockers only; a blocker never implies merge success.

@@ -143,15 +143,18 @@ test("every relative link in a shipped skill resolves inside the built bundle", 
 
     const dangling = [];
     let checked = 0;
-    for (const file of markdownFiles(skillsRoot)) {
-      for (const match of readFileSync(file, "utf8").matchAll(/\]\(([^)\s]+)\)/g)) {
-        const target = match[1].split("#")[0];
-        if (target === "" || /^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
-        checked += 1;
-        if (!existsSync(join(dirname(file), target))) dangling.push(`${file.slice(skillsRoot.length + 1)} -> ${match[1]}`);
+    // Hidden skills are read from `core/skills/`, so their links must hold there too.
+    for (const root of [skillsRoot, join(pluginRoot, "core", "skills")]) {
+      for (const file of markdownFiles(root)) {
+        for (const match of readFileSync(file, "utf8").matchAll(/\]\(([^)\s]+)\)/g)) {
+          const target = match[1].split("#")[0];
+          if (target === "" || /^[a-z][a-z0-9+.-]*:/i.test(target)) continue;
+          checked += 1;
+          if (!existsSync(join(dirname(file), target))) dangling.push(`${file.slice(pluginRoot.length + 1)} -> ${match[1]}`);
+        }
       }
     }
-    assert.ok(checked > 0, "the shipped skills link to at least their own grammar file");
+    assert.ok(checked > 0, "the bundled skills link to at least their own grammar file");
     assert.deepEqual(dangling, []);
   } finally {
     rmSync(work, { recursive: true, force: true });

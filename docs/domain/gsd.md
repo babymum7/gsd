@@ -46,7 +46,7 @@ Own request classification, feature convergence, plan binding and in-flight amen
 - Prompt intent outranks supplied state for selection: the active owner continues only for its named work or a bare `continue`; review routes to `gsd-verify`, unlocated causes to `gsd-diagnosing-bugs`, and interface/architecture/domain/new-feature/integration/unrelated-lifecycle work to `gsd-brainstorming`. Architecture requests naming `this codebase` or `this repo` do not require repository identification first. Unfinalized plans route to `gsd-to-plan`, and named execution to `gsd-executing-plans`.
 - Brainstorm behavior is measured separately from first-action routing: after the exact `gsd-brainstorming` read, a model must ask one recommended-default question when acceptance is unclear or present at least two approaches with tradeoffs and one recommendation, without starting implementation.
 - Evaluation evidence is fingerprint-bound and lossless enough to reproduce misses: each committed report names the measured bootstrap/canon/skill bytes, live fixture total, per-model scores, and every activation miss as both expected and actual decision/action/skill values; detail-less or malformed evidence fails the deterministic suite, and stale evidence warns.
-- The visible catalog carries five skills: `gsd-brainstorming`, `gsd-to-plan`, `gsd-executing-plans`, `gsd-verify`, and `gsd-diagnosing-bugs`. Pause and resume belong to `gsd-executing-plans`. `gsd-codebase-architecture`, `gsd-domain-modeling`, and `gsd-tdd` stay hidden internal references for deep architecture, domain, and TDD guidance.
+- The visible catalog carries four skills: `gsd-brainstorming`, `gsd-executing-plans`, `gsd-verify`, and `gsd-diagnosing-bugs`. Pause, resume, close, and abandon belong to `gsd-executing-plans`. `gsd-to-plan`, `gsd-codebase-architecture`, `gsd-domain-modeling`, and `gsd-tdd` stay hidden internal references that `gsd-brainstorming` and the other owners read by path for planning, architecture, domain, and TDD guidance.
 - Each supported host has a named sub-agent launch surface or fallback: OMP uses one task per isolated sub-agent with a serial fallback, Claude Code uses Agent-tool subagents, and Codex uses spawned agent threads collected by the main thread. The familiar brainstorm workload stays pinned by activation fixtures.
 - Sub-agent profiles are user settings, never plugin defaults: each host adapter appends only its own host's values as one `## Sub-agent profiles` block inside the injected bootstrap, and an absent file, a host without values, or an invalid file leaves the bootstrap byte-identical to the core render. Brainstorming discovery and diagnosis spawn a read-only `scout` only when exploration spans many files, unfamiliar areas, or external references, keeping one or two known reads inline; scout output is unverified and diagnosis conclusions stay with the owner. Dispatched tasks spawn with `worker` when it is set.
 - Full-plan acceptance is scenario-first: every active criterion carries one concrete `GIVEN/WHEN/THEN` Scenario, and the Contract Validator rejects a missing, malformed, or placeholder scenario; Outcome, Action, and Expected are optional detail. A plan requires only Feature, Base, Acceptance Criteria, and Tasks; every other section is optional and sections may appear in any order. A feature too large for one plan is split into Parts, each planned and delivered as its own feature.
@@ -130,7 +130,7 @@ A read-only diff review by the session owner along two independent axes: **Stand
 ### Deliver a bounded quick fix
 
 1. In a Git work tree the session owner first derives the base; a HEAD on a `wip/*` branch this session does not own stops the edit until the user says where the fix belongs.
-2. The session owner edits the bounded change directly and runs its focused test.
+2. The session owner edits the bounded change directly and runs its focused test, or the existing suite or build for a mechanical refactor, docs-only edit, or version bump that changes no behavior.
 3. It writes no packet, plan, `state.toon`, or commit; the user owns review and commit.
 
 ### Escalate a quick fix
@@ -145,7 +145,7 @@ A read-only diff review by the session owner along two independent axes: **Stand
    agents in its own state, and registers the bundle through the selected host's native
    plugin command. Claude Code marketplace registration and removal are user-scoped, so
    a same-named marketplace in another scope is never selected or removed.
-2. The bundle exposes only the five visible skills to host skill discovery. The hidden
+2. The bundle exposes only the four visible skills to host skill discovery. The hidden
    `gsd` master and hidden helper skills remain under the internal canonical core,
    while copied adapters resolve that core through the bundle marker.
 3. Uninstall delegates only to the host's native plugin uninstall command and deletes the
@@ -224,7 +224,7 @@ None.
 
 ### P-gsd-9: Keep quick fixes direct
 
-- **Policy:** A quick fix is a direct edit proven by a focused test, admitted by converged acceptance without prior diagnosis; in a Git work tree it first runs `derive-base`, and only a `head-is-wip` naming another owner, or no packet, stops it; it writes no packet, plan, `state.toon`, or commit and loads no verification gate. It still updates an affected domain shard in the same edit when one exists.
+- **Policy:** A quick fix is a direct edit proven by a focused test (or, when no behavior changes, the existing suite or build), admitted by converged acceptance without prior diagnosis; in a Git work tree it first runs `derive-base`, and only a `head-is-wip` naming another owner, or no packet, stops it; it writes no packet, plan, `state.toon`, or commit and loads no verification gate. It still updates an affected domain shard in the same edit when one exists.
 - **Reason:** A bounded change does not need lifecycle ceremony; the user reviews and commits it.
 
 ### P-gsd-10: Deliver a cross-repository feature as one plan

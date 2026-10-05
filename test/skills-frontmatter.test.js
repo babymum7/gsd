@@ -38,7 +38,6 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
     "Base derivation and merge target",
     "Candidate discovery",
     "Canonical Markdown contract",
-    "Contextual disclosure templates",
     "Durable decision and design records",
     "Fast TDD and task-loop constraints",
     "Feature cleanup",

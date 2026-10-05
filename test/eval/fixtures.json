@@ -149,7 +149,7 @@
     "prompt": "continue with the unfinalized OAuth login plan to finalize and bind it",
     "decision": "ordinary-routing",
     "expectedAction": "load",
-    "expectedPrimarySkill": "gsd-to-plan"
+    "expectedPrimarySkill": "gsd-brainstorming"
   },
   {
     "id": "interface-design",

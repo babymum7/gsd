@@ -24,8 +24,8 @@ A third-party provider outside repository and organizational control. Isolate it
 
 ## Seam discipline
 
-- One production adapter alone is a hypothetical seam. Add an interface only for another justified adapter or a real ownership/transport boundary.
-- Internal seams remain private. Never enlarge the external interface because a test wants internal control.
+The SKILL.md seam rules apply; when deepening, also:
+- Never enlarge the external interface because a test wants internal control.
 - Framework and persistence adapters should be idiomatic. Wrapping every API creates shallow modules rather than independence.
 - Map external, transport, persistence, and cross-context shapes at the boundary that owns the translation.
 

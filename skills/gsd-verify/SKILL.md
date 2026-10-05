@@ -1,27 +1,13 @@
 ---
 name: gsd-verify
-description: "Diff/PR review or planned terminal gate."
+description: "Use to review a diff, branch, or PR, or to run the planned terminal gate before merge."
 produces: [state.toon, plan.md]
 consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AGENTS.md]
 ---
 
-## Dispatch contract
-Canonical row: `GSD_ROOT/skills/gsd/REFERENCE.md` § Visible skill mandatory-use matrix.
-- Role: owner
-- Intent: review a diff/PR, or prove a planned feature conforms before asking to merge
-- Do-not-load: invent completion without deterministic gates; per-task terminal verification
-- Transition: a green terminal gate sets `phase=ready` and asks whether to merge or open a pull request
-
 # Verify
 
-> **Invocation guard** — automatic selection loads diff review; an active owner loads the terminal gate. The session owner does both itself; never spawn a reviewer sub-agent.
-
-## Invocation modes
-
-| Mode | Required | Optional | Produced | Missing required |
-|---|---|---|---|---|
-| Diff review | a diff, branch, or PR | plan or request context | — | Ask which diff to review |
-| Terminal gate | `plan.md`; bound `state.toon` | affected domain shards; `AGENTS.md` | `state.toon`; amended `plan.md` | Stop and name the missing or malformed file |
+Two modes, both done by the session owner itself (never a spawned reviewer): **diff review** of a supplied diff, branch, or PR (ask which one when none is named), and the **terminal gate** an active owner loads for a bound plan (a missing or malformed `plan.md` or `state.toon` stops and names the file). Completion is never claimed without the gate's deterministic checks.
 
 ## Diff review
 
@@ -44,11 +30,9 @@ When the user asks for comments on a PR, post the same findings as one PR review
 7. On green, run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>` unpiped. Only `status: ready` proceeds. `code: base-advanced` merges `base_ref` into `wip/<feature>` and repeats this gate from step 2; any other block stops as Spec escalation.
 8. Write `phase=ready` and `next_action=ask merge or pull request` with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> ...`, then ask one question: merge `wip/<feature>` into `base_ref`, or open a pull request from it. A cross-repo plan asks once for all repositories.
 
-The merge target is exactly the recorded `base_ref` (§ Base derivation and merge target); never widen to repository defaults.
+The merge target is exactly the recorded `base_ref` under § Base derivation and merge target.
 - Message: `bun "<GSD_ROOT>/tools/gsd-contract.mjs" merge-message --path .scratch/<feature>/plan.md --expected-base <state.base_ref> > .scratch/<feature>/merge-message.txt`. It carries the Summary and active criteria past the scratch deletion.
-- Merge: check out `base_ref`, run `git merge --no-ff -F <absolute path of merge-message.txt> wip/<feature>`, then delete `wip/<feature>` with `git branch -d`, the retired task branches, and `.scratch/<feature>/`. A cross-repo plan merges each listed repository against its row's Base first, with the same message file, and this repository last; delete branches and scratch only after every merge landed.
+- Merge: check out `base_ref` and run `git merge --no-ff -F <absolute path of merge-message.txt> wip/<feature>`; a cross-repo plan merges each listed repository against its row's Base first, with the same message file, and this repository last. Only after every merge landed, clean up under § Feature cleanup.
 - Pull request: push `wip/<feature>` (in every listed repository) and open the PR with the host's tooling, using the message after its first line as the body; keep the branch and scratch until the user says it merged.
 
-## Contextual disclosure
-
-Use `GSD_ROOT/skills/gsd/REFERENCE.md` § Contextual disclosure templates. The terminal gate reports progress or blockers only; diff review uses its report surface.
+The terminal gate reports progress or blockers only.

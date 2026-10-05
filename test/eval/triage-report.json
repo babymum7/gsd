@@ -1,7 +1,7 @@
 {
   "scope": "bootstrap only (triage axis)",
-  "bootstrap_sha256": "267c7fb3222665cd134a240059e87eb1c0e9fc3c1f7cff9327767ca8274218ed",
-  "bootstrap_words": 529,
+  "bootstrap_sha256": "380f0c55ff07b6ac5a1e4293bcf9d05ac7e4db1b9489c7344a51c857a997ebc8",
+  "bootstrap_words": 530,
   "canon_sha256": null,
   "canon_words": null,
   "pass": {
