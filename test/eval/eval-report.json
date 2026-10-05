@@ -1,58 +1,44 @@
 {
   "scope": "bootstrap only",
-  "bootstrap_sha256": "5a7ce41aa040742af6e1f32b06045266e147c103a005cca2d10221b874dee8e2",
-  "bootstrap_words": 513,
+  "bootstrap_sha256": "267c7fb3222665cd134a240059e87eb1c0e9fc3c1f7cff9327767ca8274218ed",
+  "bootstrap_words": 529,
   "canon_sha256": null,
   "canon_words": null,
   "pass1": {
     "google-antigravity/gemini-3.8-flash": {
-      "passed": 30,
-      "total": 32,
-      "accuracy": 93.8
+      "passed": 32,
+      "total": 33,
+      "accuracy": 97
     }
   },
   "pass2": {
     "google-antigravity/gemini-3.8-flash": {
-      "corrected": 0,
-      "stillFailing": 2,
-      "accuracy": 93.8
+      "corrected": 1,
+      "stillFailing": 0,
+      "accuracy": 100
     }
   },
   "summary": {
     "google-antigravity/gemini-3.8-flash": {
-      "firstAttempt": 93.8,
-      "corrected": 93.8
+      "firstAttempt": 97,
+      "corrected": 100
     }
   },
   "failures": {
     "google-antigravity/gemini-3.8-flash": [
       {
-        "fixture": "result-malformed-with-active",
-        "expected": {
-          "decision": "fail-closed",
-          "action": "stop",
-          "primarySkill": null
-        },
-        "actual": {
-          "decision": "ordinary-routing",
-          "action": "load",
-          "primarySkill": "gsd-executing-plans"
-        },
-        "detail": "want fail-closed:stop->null, got ordinary-routing:load->gsd-executing-plans"
-      },
-      {
         "fixture": "malformed-packet-direct-prompt",
         "expected": {
-          "decision": "fail-closed",
-          "action": "stop",
-          "primarySkill": null
-        },
-        "actual": {
           "decision": "ordinary-routing",
           "action": "direct",
           "primarySkill": null
         },
-        "detail": "want fail-closed:stop->null, got ordinary-routing:direct->null"
+        "actual": {
+          "decision": "fail-closed",
+          "action": "stop",
+          "primarySkill": null
+        },
+        "detail": "want ordinary-routing:direct->null, got fail-closed:stop->null"
       }
     ]
   }

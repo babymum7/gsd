@@ -1,23 +1,27 @@
 {
   "scope": "bootstrap only (skill compliance axis)",
-  "bootstrap_sha256": "5a7ce41aa040742af6e1f32b06045266e147c103a005cca2d10221b874dee8e2",
-  "bootstrap_words": 513,
+  "bootstrap_sha256": "267c7fb3222665cd134a240059e87eb1c0e9fc3c1f7cff9327767ca8274218ed",
+  "bootstrap_words": 529,
   "pass": {
     "google-antigravity/gemini-3.8-flash": {
       "passed": 20,
-      "total": 22,
-      "accuracy": 90.91
+      "total": 23,
+      "accuracy": 86.96
     }
   },
   "failures": {
     "google-antigravity/gemini-3.8-flash": [
       {
         "fixture": "review-diff",
-        "detail": "answered before reading the skill: ### Critical Security Issue: Token Decoded Without Verification\n\n**Severity:** Critical / Blocker\n\n```javascript\n+  if ("
+        "detail": "answered before reading the skill: ### Code Review\n\n#### 🚨 Critical Security Risk: Unverified Token (`jwt.decode`)\n* **Problem**: `jwt.decode` merely deco"
       },
       {
-        "fixture": "architecture-this-repo",
-        "detail": "skill not read in the first 3 actions: read ., read /home/trong/Documents/personal/gsd, read /home/trong/Documents/personal/gsd/README.md"
+        "fixture": "arch-audit",
+        "detail": "skill not read in the first 3 actions: read ., read /home/trong/Documents/personal/gsd, read /home/trong/Documents/personal/gsd/package.json"
+      },
+      {
+        "fixture": "domain-context-mapping",
+        "detail": "answered before reading the skill: # Bounded Context Boundary: Order Fulfillment vs. Inventory Management\n\n## 1. Context Overviews & Core Responsibilities\n"
       }
     ]
   }
