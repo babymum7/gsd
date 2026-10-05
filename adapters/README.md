@@ -138,6 +138,8 @@ An adapter must:
 1. Inject the exact bytes the core renders; never paraphrase or rebuild them.
 2. Deliver the bootstrap once per session and the capsule once after each
    compaction, using the host's own marker or a stash file keyed by session id.
+   Where compaction drops hook-injected context (Claude Code, Codex), the
+   bootstrap comes back with the capsule, before it.
 3. Keep per-turn token cost at zero for ordinary prompts: emit nothing when the
    bootstrap is already present and no capsule is pending.
 4. Fail closed with a visible diagnostic and leave the host's ordinary behavior

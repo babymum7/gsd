@@ -140,7 +140,9 @@ test("UserPromptSubmit injects the bootstrap once when no SessionStart ran", () 
   assert.equal(second, "", "the bootstrap is not injected twice");
 });
 
-test("a compact SessionStart delivers the capsule with the preserved request", () => {
+// Compaction drops hook-injected context along with the transcript, so the bootstrap that
+// carried routing and the skill catalog must come back with the capsule, not be replaced by it.
+test("a compact SessionStart delivers the bootstrap, then the capsule with the preserved request", () => {
   const project = projectWithActiveFeature(owner("s3"));
   const stateRoot = mkdtempSync(join(tmpdir(), "gsd-cc-state-"));
 
@@ -168,8 +170,8 @@ test("a compact SessionStart delivers the capsule with the preserved request", (
   );
   assert.equal(
     after,
-    withCurrentRequest(renderRecoveryCapsule(CORE_ROOT, project, owner("s3")), "continue"),
-    "the compact payload is the core capsule with the preserved request appended, byte for byte",
+    `${bootstrapFor("s3")}\n\n${withCurrentRequest(renderRecoveryCapsule(CORE_ROOT, project, owner("s3")), "continue")}`,
+    "the compact payload is the core bootstrap, then the capsule with the preserved request, byte for byte",
   );
 });
 

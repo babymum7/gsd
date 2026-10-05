@@ -111,10 +111,11 @@ test("derive-base reports the branch this work tree is on, including a linked wo
   const { root } = makePacket({ feature: "derive-demo", base: "release-2026" });
   const linked = `${root}-linked`;
   try {
+    git(["checkout", "-q", "release-2026"], root);
     const here = cli(["derive-base"], root);
     assert.equal(here.status, 0, here.stdout + here.stderr);
     assert.match(here.stdout, /^status: ok$/m);
-    assert.match(here.stdout, /^base: wip\/derive-demo$/m);
+    assert.match(here.stdout, /^base: release-2026$/m);
 
     // A linked worktree is checked out on its own branch, which is its own base: this is the
     // case a conventional `main` default gets wrong.
@@ -124,6 +125,43 @@ test("derive-base reports the branch this work tree is on, including a linked wo
     assert.match(there.stdout, /^base: worktree-onboarding$/m);
   } finally {
     rmSync(linked, { recursive: true, force: true });
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// One work tree has one HEAD. A second session that starts here while another feature is on
+// its WIP branch would cut its packet from that branch, or quick-fix straight into it, and
+// switching branches would drag the first session's files along, so the tool stops instead.
+test("derive-base blocks a HEAD on another feature's WIP branch and points at a worktree", () => {
+  const { root } = makePacket({ feature: "billing-export", base: "trunk" });
+  try {
+    const featureDir = join(root, ".scratch", "billing-export");
+    const state = readFileSync(join(featureDir, "state.toon"), "utf8").replace(/^owner:none$/m, "owner:claude-abc");
+    writeFileSync(join(featureDir, "state.toon"), state);
+    const result = cli(["derive-base", "--cwd", join(root, "src")], root);
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^status: blocked$/m);
+    assert.match(result.stdout, /^code: head-is-wip$/m);
+    assert.match(result.stdout, /wip\/billing-export/);
+    assert.match(result.stdout, /recorded owner claude-abc/);
+    assert.match(result.stdout, /git worktree add -b <branch> <dir> trunk/);
+    assert.doesNotMatch(result.stdout, /^base: /m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("derive-base blocks a WIP branch even when no packet describes it", () => {
+  const { root } = makePacket({ feature: "orphan-demo", base: "trunk" });
+  try {
+    rmSync(join(root, ".scratch"), { recursive: true, force: true });
+    const result = cli(["derive-base"], root);
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^code: head-is-wip$/m);
+    assert.match(result.stdout, /git worktree add -b <branch> <dir> <base>/);
+    assert.match(result.stdout, /no GSD packet describes it/);
+    assert.doesNotMatch(result.stdout, /recorded owner/);
+  } finally {
     rmSync(root, { recursive: true, force: true });
   }
 });
@@ -170,6 +208,18 @@ test("preflight passes when the recorded base and WIP branch both still hold", (
 // Canon requires the reviewed non-scratch tree to match the recorded binding before the
 // squash, and the requirement has teeth: the commit after `git merge --squash` commits the
 // whole index, so a staged path outside `.scratch/` lands in the squash unreviewed.
+// verify-task-branch already takes an absolute feature directory; preflight joined it onto cwd.
+test("preflight accepts an absolute feature directory", () => {
+  const { root, relative } = makePacket({ feature: "absolute-demo" });
+  try {
+    const result = cli(["preflight", "--feature-dir", join(root, relative)], root);
+    assert.equal(result.status, 0, result.stdout);
+    assert.match(result.stdout, /^status: ready$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("preflight blocks a dirty non-scratch tree and ignores scratch churn", () => {
   const dirtyCases = [
     {
@@ -430,6 +480,7 @@ test("a reader that closes the pipe early does not crash the tool", async () => 
   // into an uncaught EPIPE with a stack trace and exit 1, even for a ready result.
   const { root } = makePacket({ feature: "epipe-demo" });
   try {
+    git(["checkout", "-q", "main"], root);
     const child = spawn(process.execPath, [CLI, "derive-base", "--cwd", root], {
       stdio: ["ignore", "pipe", "pipe"],
     });
@@ -496,7 +547,8 @@ test("neither command mutates the repository", () => {
     utimesSync(join(root, "file.txt"), future, future);
     const indexBefore = indexDigest();
     assert.equal(cli(["preflight", "--feature-dir", relative], root).status, 0);
-    assert.equal(cli(["derive-base"], root).status, 0);
+    // HEAD rests on the WIP branch, so derive-base blocks; it still reads the tree and state.
+    assert.equal(cli(["derive-base"], root).status, 1);
     assert.equal(indexDigest(), indexBefore, "the index must be byte-identical");
     assert.equal(snapshot(), before, "the repository must be unchanged");
   } finally {
@@ -1286,11 +1338,13 @@ test("derive-base ignores an inherited GIT_DIR", () => {
   const first = makePacket({ feature: "env-first", base: "trunk" });
   const second = makePacket({ feature: "env-second", base: "release" });
   try {
+    git(["checkout", "-q", "trunk"], first.root);
+    git(["checkout", "-q", "release"], second.root);
     const result = cli(["derive-base", "--cwd", second.root], first.root, {
       GIT_DIR: join(first.root, ".git"),
     });
     assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.match(result.stdout, /^base: wip\/env-second$/m);
+    assert.match(result.stdout, /^base: release$/m);
   } finally {
     rmSync(first.root, { recursive: true, force: true });
     rmSync(second.root, { recursive: true, force: true });

@@ -85,14 +85,16 @@ function handleSessionStart(input) {
   const store = createMarkerStore(STATE_ROOT, input.session_id);
   const source = sourceOf(input);
   // After a compaction or a resume the host hands the session back; deliver the live
-  // capsule so the owner recovers the packets this session owns.
+  // capsule so the owner recovers the packets this session owns. A compaction also drops the
+  // bootstrap injected earlier, so it comes back first; a resume replays it with the transcript.
   const capsule =
     source === 'compact' || source === 'resume'
       ? renderRecoveryCapsule(GSD_ROOT, cwdOf(input), ownerOf(input))
       : null;
   if (capsule) {
     store.write('bootstrap-emitted');
-    emit('SessionStart', withCurrentRequest(capsule, store.read('last-request')));
+    const recovery = withCurrentRequest(capsule, store.read('last-request'));
+    emit('SessionStart', source === 'compact' ? `${renderBootstrap(ownerOf(input))}\n\n${recovery}` : recovery);
     return;
   }
   // A resume replays the bootstrap already injected in the resumed transcript, so

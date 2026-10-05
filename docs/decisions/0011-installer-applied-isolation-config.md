@@ -1,6 +1,6 @@
 # 0011 — Installer asks, then applies approved isolation settings
 
-- **Status:** Accepted
+- **Status:** Superseded by 0023
 - **Date:** 2026-09-14
 
 ## Decision
@@ -31,3 +31,9 @@ exactly one question — `Set them now via omp? [y/N]` — defaulting to No.
 4. **Bounded mutation:** Keys already matching the default are never rewritten,
    and no other config keys are read or written. The question is asked at most
    once per install run.
+
+## Amendment
+
+Amended 2026-10-05. Decision 0023 made installation plugin-only through the unified CLI, which asks no
+isolation question and changes no host config, so the prompt this record describes no longer
+exists.

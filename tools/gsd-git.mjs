@@ -7,7 +7,7 @@ import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { join, resolve } from "node:path";
 import { realpathSync, statSync } from "node:fs";
-import { isSafeBranchRef, validatePlanFile } from "../lib/gsd-contract.mjs";
+import { isSafeBranchRef, PLAN_FEATURE_RE, validatePlanFile } from "../lib/gsd-contract.mjs";
 import { inspectStateFile } from "../lib/gsd-state.mjs";
 
 const COMMANDS = new Set(["derive-base", "preflight", "verify-task-branch"]);
@@ -27,6 +27,7 @@ const READ_ONLY = new Set([
   "worktree list --porcelain",
 ]);
 const BRANCH_REF_PREFIX = "refs/heads/";
+const WIP_PREFIX = "wip/";
 // The child-process runner fails with ENOBUFS once captured output passes its 1 MiB default, and
 // a tree with thousands of untracked files lists past that. The largest query is `status -z`.
 const GIT_OUTPUT_LIMIT = 64 * 1024 * 1024;
@@ -105,7 +106,9 @@ function emitHelp(command) {
       "",
       "Print the branch a packet must record as its base: the branch checked out in this",
       "work tree, so a linked worktree derives its own branch. A detached HEAD is blocked",
-      "rather than reported as a commit oid, because a commit can receive no merge.",
+      "rather than reported as a commit oid, because a commit can receive no merge. A",
+      "HEAD on a wip/* branch is blocked too: that branch belongs to another feature, and",
+      "work for this one belongs in a separate worktree.",
       "",
       "Options:",
       "  --cwd <dir>    Work tree to inspect (default: current directory)",
@@ -350,7 +353,37 @@ function deriveBase(cwd) {
       "HEAD is detached, so no branch can hold this packet's merge: check out or create the branch this work belongs on, then derive the base again",
     );
   }
+  if (head.startsWith(WIP_PREFIX)) blockWipHead(cwd, head);
   return requireBranchName(head, "the checked-out branch");
+}
+
+// One work tree has one HEAD, shared by every session open in it. New work derived from
+// another feature's WIP branch would land inside that feature, and switching branches here
+// would move that session's files as well, so the remedy is a separate worktree. The packet,
+// when one is readable, names its owner and the base the worktree should start from.
+function blockWipHead(cwd, head) {
+  const feature = head.slice(WIP_PREFIX.length);
+  let packet = false;
+  let owner = "none";
+  let base = "<base>";
+  const top = git(["rev-parse", "--show-toplevel"], cwd);
+  if (top.status === 0 && PLAN_FEATURE_RE.test(feature)) {
+    try {
+      const state = inspectStateFile(join(top.stdout, ".scratch", feature, "state.toon"));
+      packet = true;
+      owner = state.owner;
+      if (state.base_ref !== "none" && isSafeBranchRef(state.base_ref)) base = state.base_ref;
+    } catch {
+      // No readable packet: the branch is still a WIP branch, only its owner is unknown.
+    }
+  }
+  const what = packet
+    ? `the WIP branch of GSD feature ${feature}${owner === "none" ? "" : ` (recorded owner ${owner})`}`
+    : "a WIP branch (no GSD packet describes it)";
+  blocked(
+    "head-is-wip",
+    `HEAD is on ${head}, ${what}: work started here would land inside that branch, and switching branches in this work tree would move the files of whoever works on it. Ask the user where this work belongs: its own worktree (\`git worktree add -b <branch> <dir> ${base}\`, then start the session there), or a non-WIP branch the user checks out to build on that work`,
+  );
 }
 
 function parseArguments(argv) {
@@ -457,7 +490,7 @@ function preflight(cwd, featureDir) {
   requireWorkTree(cwd);
   let state;
   try {
-    state = inspectStateFile(join(cwd, featureDir, "state.toon"));
+    state = inspectStateFile(resolve(cwd, featureDir, "state.toon"));
   } catch (error) {
     blocked("state-unusable", error.message);
   }

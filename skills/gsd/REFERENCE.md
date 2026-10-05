@@ -8,12 +8,12 @@ Triage runs before every route and classifies exactly one of `answer` (read-only
 
 - `clarify` covers missing intent or scope too vague to act, a claimed cause, a supplied design, or a false premise, and asks exactly one question carrying a recommended default and each option's consequence; when nothing behavioral turns on the answer it states the conservative default and proceeds.
 - `research` gathers codebase, documentation, reference-repository, or concrete failure evidence before answering, never from memory; bounded read-only delegation stays allowed and carries no authority, so the owner re-verifies every fact.
-- A trigger plus an observed failure is sufficient scope to investigate, even without a file, line, stack trace, or known cause; a confirmed non-architectural cause is fixed directly when acceptance is clear.
+- A trigger plus an observed failure is sufficient scope to investigate, even without a file, line, stack trace, or known cause; a confirmed non-architectural cause is fixed directly when acceptance is clear, after the same `derive-base` check as a quick fix.
 - Every choice names one recommended option, its alternatives, and their costs.
 
 Depth follows ambiguity, blast radius, reversibility, and acceptance clarity, never file count:
 - `direct` — read-only answers and Nano edits: no scratch, branch, commit, or skill.
-- `quick` — one bounded change with acceptance converged from the prompt: a direct edit plus a focused test, with no packet, plan, or commit.
+- `quick` — one bounded change with acceptance converged from the prompt: a direct edit plus a focused test, with no packet, plan, or commit; in Git, only a `head-is-wip` from `derive-base` that does not name this session as recorded owner stops it.
 - `plan` — multi-task behavior whose acceptance must be written down: the canonical `plan.md`. A feature too large for one plan splits into parts under `gsd-brainstorming`, each its own plan.
 - A deeper level is chosen only when the shallower one cannot express the work; depth may rise mid-flight under § Plan amendment and never silently falls to ship a subset.
 
@@ -42,7 +42,9 @@ Canonical dispatch authority for the 5 visible GSD skills. Each skill file resta
 | `gsd-verify` | owner | Review a diff/PR or prove planned code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Invent completion without deterministic gates | Green terminal gate: `phase=ready`, ask merge or pull request | — |
 | `gsd-diagnosing-bugs` | owner | Diagnose non-obvious failures inline and produce root-cause evidence | An unlocated or non-obvious cause needing evidence | A located failure: the prompt names the file/line or exact failure signature | Fix a confirmed non-architectural cause directly with a focused regression test, or an architectural cause to `gsd-brainstorming` | — |
 
-The quick-fix route belongs to the session owner, not a visible skill: a bounded change with converged acceptance is edited directly, proven by its focused test, and reported. It writes no packet, plan, `state.toon`, or commit and loads no `gsd-verify` gate; scope growth escalates to `gsd-brainstorming`.
+The quick-fix route belongs to the session owner, not a visible skill: a bounded change with converged acceptance is edited directly, proven by its focused test, and reported.
+
+In a Git work tree, a quick fix runs `derive-base` before the first edit: a `head-is-wip` whose recorded owner is not your `GSD_SESSION` (or that names no packet) stops the edit until the user says where the fix belongs; your own WIP branch, and any other result, (a detached HEAD, a branch name it cannot record, no work tree) lets the fix proceed. It writes no packet, plan, `state.toon`, or commit and loads no `gsd-verify` gate; scope growth escalates to `gsd-brainstorming`.
 `gsd-codebase-architecture`, `gsd-domain-modeling`, and `gsd-tdd` are hidden internal references, not visible owners; `gsd-brainstorming`, `gsd-to-plan`, and `gsd-executing-plans` may cite them when their details are load-bearing. A hidden reference is a file, not a registered skill: read `GSD_ROOT/skills/<name>/SKILL.md`. Never call a Skill tool for it or look under the plugin's own `skills/` directory.
 
 ## Durable documentation contract
@@ -94,7 +96,7 @@ bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/
 ```
 
 - The same command validates a new, resumed, or amended plan; `plan.md` bytes are not pinned, so an edit is judged by grammar, not by a hash.
-- `normalize-plan` proposes or applies surface-only fixes (backticks on Feature/Base, trailing whitespace, final newline). `init-plan` writes a skeleton and refuses to overwrite. `merge-message` validates, then prints plain text (a merge subject, the Summary, and active criterion titles) for `git merge -F` and a pull request body.
+- `normalize-plan` proposes or applies surface-only fixes (backticks on Feature/Base, trailing whitespace, blank lines next to headings or inside structured sections, section order, final newline). `init-plan` writes a skeleton and refuses to overwrite. `merge-message` validates, then prints plain text (a merge subject that names the base unless a cross-repo plan has several, the Summary, and active criterion titles) for `git merge -F` and a pull request body.
 - Success prints scalar TOON (`status`, `kind`, `feature`, `base`, `tasks`). Failures print `code: io-error` or `code: invalid-artifact` (and `code: plan-exists` when `init-plan` finds a plan already there) with a `help:` fix (exit 1); usage errors exit 2.
 - Only `init-plan`, `normalize-plan --write`, and `gsd-state.mjs set` write anything.
 
@@ -194,7 +196,7 @@ A plan with `## Repos` keeps `.scratch/<feature>/` and `state.toon` in this repo
 
 ### Base derivation and merge target
 
-At packet creation run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed `base:` branch in `plan.md` § Base and `state.toon` `base_ref`. A detached HEAD exits 1 with `code: detached-head` instead of recording a commit oid. Defaults, upstreams, and conventions count only when checked out; a linked worktree records its own branch.
+At packet creation run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed `base:` branch in `plan.md` § Base and `state.toon` `base_ref`. A detached HEAD exits 1 with `code: detached-head` instead of recording a commit oid. A HEAD on any `wip/*` branch exits 1 with `code: head-is-wip`: another feature holds this work tree, so ask the user and recommend a separate `git worktree` rather than switching branches under that session. Defaults, upstreams, and conventions count only when checked out; a linked worktree records its own branch.
 
 Before merge run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`, unpiped or under `set -o pipefail`.
 - Exit 0 prints `status: ready`, the observed base, WIP branch, and HEAD (equal to `wip_branch`), one `repo:` line per other listed repository, and a trailing `exit=0` line.

@@ -14,3 +14,8 @@ set of surface-only fixes as a reviewable diff (`--write` to mutate), and
 JSON input. The multi-AC identical-pin rule stays fully enforced: errors enumerate the
 conflicting pins per criterion so the agent can align them or split the task; nothing
 is loosened or auto-copied.
+
+## Amendment
+
+Amended 2026-10-05. `state.toon` is now schema `v0.0.3` (decisions 0024 and 0028), not v4. The
+two-format split and the CLI ergonomics stand; decision 0028 already replaced the hash-bound clause.

@@ -15,7 +15,7 @@ The host already loaded this; never reload it. `GSD_ROOT` is the GSD install roo
 Pick the lightest path that fits the prompt. Read only what the prompt names; do not scan the repository or `.scratch/` to decide.
 
 - **Answer directly**: questions, explanations, obvious errors, typos, one-line edits. No skill, scratch, or commit.
-- **Quick fix**: one bounded change with a known target (file, line, or exact failure). Edit it, run the focused test, report. No packet, plan, or commit. If the scope grows, switch to `gsd-brainstorming`.
+- **Quick fix**: one bounded change with a known target (file, line, or exact failure). In Git, first run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base`; only `head-is-wip` without your `GSD_SESSION` as owner stops you. Edit it, run the focused test, report. No packet, plan, or commit. If the scope grows, switch to `gsd-brainstorming`.
 - **Unknown cause**: a concrete symptom with no located cause goes to `gsd-diagnosing-bugs`.
 - **New or changed behavior**: features, interfaces, architecture, domain, integrations go to `gsd-brainstorming`, which hands off to `gsd-to-plan`, `gsd-executing-plans`, then `gsd-verify`.
 - **Review a diff or PR**: `gsd-verify`.

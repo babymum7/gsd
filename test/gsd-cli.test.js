@@ -367,6 +367,28 @@ test("a partial uninstall keeps only the agents still installed, so a retry can 
   }
 });
 
+// The plugin can already be gone: removed by hand through the host, or by an earlier uninstall
+// whose marketplace removal failed. A retry must still finish instead of stopping on it forever.
+test("uninstall finishes when the host no longer has the plugin", () => {
+  for (const agent of ["claude", "codex"]) {
+    const home = mkdtempSync(join(tmpdir(), "gsd-cli-gone-"));
+    const logPath = join(home, "commands.log");
+    const ok = scriptedBinDir(logPath, {});
+    const gone = scriptedBinDir(logPath, {
+      [agent]: `case "$*" in *"plugin uninstall"*|*"plugin remove"*) echo 'not installed' >&2; exit 1;; esac`,
+    });
+    try {
+      assert.equal(runCli(["install", "--agent", agent, "--home", home], withBin(ok)).status, 0);
+      const removed = runCli(["uninstall", "--agent", agent, "--home", home], withBin(gone));
+      assert.equal(removed.status, 0, `${agent}: ${removed.stderr}`);
+      assert.match(readFileSync(logPath, "utf8"), /marketplace remove gsd-local/, agent);
+      assert.equal(existsSync(join(home, "state.json")), false, `${agent}: nothing is left recorded`);
+    } finally {
+      rmSync(home, { recursive: true, force: true });
+    }
+  }
+});
+
 test("a corrupt state file stops install before any host is touched and names the file", () => {
   const home = mkdtempSync(join(tmpdir(), "gsd-cli-corrupt-"));
   const logPath = join(home, "commands.log");

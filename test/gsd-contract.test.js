@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { analyzeWaves, generateUnifiedDiff, initPlanFile, normalizePlanFile, readPlanFile } from "../lib/gsd-contract.mjs";
+import { analyzeWaves, generateUnifiedDiff, initPlanFile, normalizePlan, normalizePlanFile, readPlanFile, renderMergeMessage } from "../lib/gsd-contract.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(ROOT, "tools", "gsd-contract.mjs");
@@ -2664,4 +2664,83 @@ test("generateUnifiedDiff output applies and reproduces the fixed content", () =
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+// Each case below is a plan an agent writes naturally. Every rejection costs it a repair turn,
+// and a hint that names the wrong fix costs another, so these stay accepted or well-aimed.
+const withScenarioLine = (feature, scenario) =>
+  canonicalPlan(feature).replace(/- \*\*Scenario:\*\* GIVEN a canonical plan.*\n/, `- **Scenario:** ${scenario}\n`);
+
+test("a Scenario that mentions todo, TBD, or angle-bracket markup in real text is concrete", () => {
+  for (const scenario of [
+    "GIVEN a todo list with two items WHEN the user deletes one THEN one item remains.",
+    "GIVEN a file with a TODO comment WHEN the linter runs THEN it reports the line.",
+    "GIVEN the signup page WHEN it renders THEN it contains a <form> element.",
+    "GIVEN the <LoginForm> component WHEN the user submits THEN it posts the credentials.",
+    "GIVEN no arguments WHEN the CLI runs THEN it prints usage: gsd <file> and exits 2.",
+  ]) {
+    const result = validateCanonical("scenario-words", withScenarioLine("scenario-words", scenario));
+    assert.equal(result.status, 0, `${scenario}\n${result.stdout}${result.stderr}`);
+  }
+  for (const scenario of [
+    "GIVEN TBD WHEN the list renders THEN it shows the rows.",
+    "GIVEN a list WHEN <action> THEN it shows the rows.",
+    "GIVEN a list WHEN it renders THEN todo.",
+  ]) {
+    const result = validateCanonical("scenario-words", withScenarioLine("scenario-words", scenario));
+    assert.equal(result.status, 1, scenario);
+    assert.match(result.stdout, /Scenario must be concrete/, scenario);
+  }
+});
+
+test("a Scenario with lowercase keywords is reported as a Scenario problem, not field order", () => {
+  const result = validateCanonical("scenario-case", withScenarioLine("scenario-case", "Given a repo, when x runs, then y prints."));
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stdout, /GIVEN .* WHEN .* THEN/);
+  assert.doesNotMatch(result.stdout, /fields must be ordered/);
+});
+
+test("a malformed task heading is answered with the heading form the parser accepts", () => {
+  const result = validateCanonical("task-heading", canonicalPlan("task-heading").replace("### T1: Validate", "### T-1: Validate"));
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stdout, /### T1: /);
+  assert.doesNotMatch(result.stdout, /T-N/);
+});
+
+test("an Interfaces cell may mix prose and code spans", () => {
+  for (const seam of ["CLI `validate-plan`", "`parsePlan()` export", "`parse` via `cli`"]) {
+    const plan = canonicalPlan("mixed-cells").replace("| production validator CLI |", `| ${seam} |`);
+    const result = validateCanonical("mixed-cells", plan);
+    assert.equal(result.status, 0, `${seam}\n${result.stdout}${result.stderr}`);
+  }
+});
+
+test("a Files entry may separate path and operation with a hyphen or an en dash", () => {
+  for (const dash of ["-", "\u2013"]) {
+    const plan = canonicalPlan("files-dash").replace("`tools/gsd-contract.mjs` \u2014 create:", `\`tools/gsd-contract.mjs\` ${dash} create:`);
+    const result = validateCanonical("files-dash", plan);
+    assert.equal(result.status, 0, `${JSON.stringify(dash)}\n${result.stdout}${result.stderr}`);
+  }
+});
+
+test("normalize-plan removes the blank lines Markdown habit puts around headings and blocks", () => {
+  const spaced = canonicalPlan("spaced-plan")
+    .replace(/\n(#{1,3} )/g, "\n\n$1")
+    .replace(/\n(#{1,3} [^\n]*)\n/g, "\n$1\n\n");
+  assert.equal(validateCanonical("spaced-plan", spaced).status, 1, "the spaced plan is rejected as written");
+  const { content, fixes } = normalizePlan(spaced);
+  assert.ok(fixes.some((fix) => fix.type === "blank-line"), JSON.stringify(fixes));
+  assert.equal(content, canonicalPlan("spaced-plan"));
+});
+
+test("a cross-repo merge message does not name one repository's base for all of them", () => {
+  const parsed = {
+    feature: "f",
+    base: "main",
+    summary: "Ship f.",
+    repos: [{ name: "app", path: ".", base: "main" }, { name: "api", path: "../api", base: "develop" }],
+    criteria: [{ id: "AC-1", title: "Works", state: "active" }],
+  };
+  assert.equal(renderMergeMessage(parsed).split("\n")[0], "Merge wip/f");
+  assert.equal(renderMergeMessage({ ...parsed, repos: [] }).split("\n")[0], "Merge wip/f into main");
 });

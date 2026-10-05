@@ -99,3 +99,8 @@ isolated dispatch.
    integration point, reconciling task outputs while preserving the host
    environment intact; on stock hosts the same owner runs the identical slices
    serially.
+
+## Amendment
+
+Amended 2026-10-05. The serial fallback cited in point 3 is defined in the Wave dispatch section of
+`skills/gsd-executing-plans/SKILL.md`; it no longer lives in `REFERENCE.md`.

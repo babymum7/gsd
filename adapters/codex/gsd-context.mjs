@@ -79,8 +79,10 @@ function handleSessionStart(input) {
   store.write('bootstrap-emitted');
   if (input.source === 'compact' || input.source === 'resume') {
     const capsule = renderRecoveryCapsule(GSD_ROOT, cwdOf(input), ownerOf(input));
+    // A compaction drops the bootstrap injected earlier, so it comes back before the capsule;
+    // a resume replays it with the transcript.
     if (capsule) {
-      emit('SessionStart', capsule);
+      emit('SessionStart', input.source === 'compact' ? `${renderBootstrap(ownerOf(input))}\n\n${capsule}` : capsule);
       return;
     }
   }

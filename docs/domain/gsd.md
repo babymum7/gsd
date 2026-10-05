@@ -70,7 +70,7 @@ Own request classification, feature convergence, plan binding and in-flight amen
 - Before binding, affected domain paths may be reserved but domain prose never describes unshipped target behavior.
 - A broad domain bootstrap is never offered when `docs/domain/index.md` exists.
 - Terminal evidence applies only to the unchanged commit on which it ran.
-- The base a packet is cut from is observed, never conventional: it is the branch checked out in the work tree at packet creation, read by `tools/gsd-git.mjs derive-base` and recorded in both `plan.md` § Base and `state.toon` `base_ref`, so a linked worktree records its own branch. A detached HEAD fails closed instead of recording a commit oid, because the base must be a branch able to receive the merge. The terminal merge lands in exactly that recorded base, so the repository default branch is the merge target only when it is the recorded base, and promoting that base onward is separate user-owned work outside the packet lifecycle.
+- The base a packet is cut from is observed, never conventional: it is the branch checked out in the work tree at packet creation, read by `tools/gsd-git.mjs derive-base` and recorded in both `plan.md` § Base and `state.toon` `base_ref`, so a linked worktree records its own branch. A detached HEAD fails closed instead of recording a commit oid, because the base must be a branch able to receive the merge. A HEAD on any `wip/*` branch fails closed with `head-is-wip`, because one work tree has one HEAD and that branch already holds another feature's work; the remedy is a separate worktree, or a non-WIP branch the user chooses to build on. The terminal merge lands in exactly that recorded base, so the repository default branch is the merge target only when it is the recorded base, and promoting that base onward is separate user-owned work outside the packet lifecycle.
 - The two records of the base are kept identical by the validator rather than by prose: a bound call passes `--expected-base <base_ref>` and exits 1 when `plan.md` § Base names a different branch, so a packet can never proceed on a plan whose base differs from the recorded merge target. Both plan grammars and state validation reject a base equal to the packet's own `wip/<feature>`, and a recorded base must be a Git branch name able to receive a merge, because a Git command consumes it verbatim.
 - Both Git facts the base rule depends on are observed by a read-only tool rather than asserted in prose: `tools/gsd-git.mjs derive-base` prints the branch to record at creation, and `tools/gsd-git.mjs preflight` proves before the merge that HEAD rests on the recorded `wip_branch`, that `base_ref` and `wip_branch` still resolve to local branches, that the base is not checked out in another linked worktree, that every other repository in a cross-repo plan is a repository root of its own, that the scratch plan validates and names `base_ref` as its Base, and that nothing outside `.scratch/` is staged, modified, or untracked, because the commit recording a merge takes the whole index and would otherwise carry unreviewed bytes. Both paths of a staged rename count, since Git names only the destination first and a reviewed file moved into `.scratch/` would otherwise hide its own deletion. The preflight report ends in a trailing `exit=` line equal to its process exit code, because a consumer that reads the gate through a pipe sees the last stage's status, and a blocked run must stay observable in the bytes themselves; the session owner runs the gate unpiped or under `set -o pipefail` and requires exit 0 with `status: ready`. Before its first task commit, execution proves the WIP branch is checked out and `state.toon` is bound, so a skipped binding command cannot leave commits stranded on the base.
 - The Contract Validator is reached by an absolute path resolved from the injected bootstrap root, never a repository-relative form or an environment variable, because the lifecycle runs in workspaces that are not the GSD checkout. Packet resolution still comes from the caller's working directory, so the same validator validates a foreign workspace's packet.
@@ -109,6 +109,7 @@ By default, single-task waves execute inline by the session owner with `gsd-tdd`
 1. When one feature needs several separately discussed pieces, brainstorming writes `.scratch/<feature>/parts.md` as a checklist of user-visible outcomes in dependency order.
 2. Only the next unchecked part is converged, planned, executed, and verified as its own feature `<feature>-pN`.
 3. When that part merges or its pull request opens, it is ticked `[x]` and the user is asked whether to start the next part.
+4. After a pull request HEAD still rests on that part's WIP branch, so the next part starts from `base_ref`, or from a non-WIP branch the user cuts from the open part when it needs that code.
 
 ### Deliver a cross-repo feature
 
@@ -128,8 +129,9 @@ A read-only diff review by the session owner along two independent axes: **Stand
 
 ### Deliver a bounded quick fix
 
-1. The session owner edits the bounded change directly and runs its focused test.
-2. It writes no packet, plan, `state.toon`, or commit; the user owns review and commit.
+1. In a Git work tree the session owner first derives the base; a HEAD on a `wip/*` branch this session does not own stops the edit until the user says where the fix belongs.
+2. The session owner edits the bounded change directly and runs its focused test.
+3. It writes no packet, plan, `state.toon`, or commit; the user owns review and commit.
 
 ### Escalate a quick fix
 
@@ -192,7 +194,7 @@ None.
 
 ### P-gsd-3: Make the session owner the sole lifecycle authority
 
-- **Policy:** The current top-level session owns plan interpretation, repair, verification, E2E, Git, merge, and cleanup inline; batches same-shape independent tasks into one wave, may dispatch a single independent task when clearly beneficial, and otherwise executes inline with `gsd-tdd`. Dispatched tasks use separate isolated workspaces when the host enables task isolation, or serial dispatch in plan order when isolation is unavailable. The owner verifies each dispatch prompt, reconciles each returned task or batch through the two-step wave gate (the sub-agent's report is inadmissible; `verify-task-branch` mechanical proof, then post-merge integration proof on `wip/<feature>` before checkpointing), reserves the only whole-diff review for terminal conformance, and routes integrity failures to inline repair.
+- **Policy:** The current top-level session owns plan interpretation, repair, verification, E2E, Git, merge, and cleanup inline; batches same-shape independent tasks into one wave, and otherwise executes inline with `gsd-tdd`. Dispatched tasks use separate isolated workspaces when the host enables task isolation, or serial dispatch in plan order when isolation is unavailable. The owner verifies each dispatch prompt, reconciles each returned task or batch through the two-step wave gate (the sub-agent's report is inadmissible; `verify-task-branch` mechanical proof, then post-merge integration proof on `wip/<feature>` before checkpointing), reserves the only whole-diff review for terminal conformance, and routes integrity failures to inline repair.
 - **Reason:** Task authorship is not lifecycle authority: one reconciling owner avoids lossy handoff whether tasks are executed inline or authored by sub-agents, while canonical artifacts let a later session assume the role safely.
 
 ### P-gsd-4: Converge only through deterministic blockers
@@ -222,7 +224,7 @@ None.
 
 ### P-gsd-9: Keep quick fixes direct
 
-- **Policy:** A quick fix is a direct edit proven by a focused test, admitted by converged acceptance without prior diagnosis; it writes no packet, plan, `state.toon`, or commit and loads no verification gate. It still updates an affected domain shard in the same edit when one exists.
+- **Policy:** A quick fix is a direct edit proven by a focused test, admitted by converged acceptance without prior diagnosis; in a Git work tree it first runs `derive-base`, and only a `head-is-wip` naming another owner, or no packet, stops it; it writes no packet, plan, `state.toon`, or commit and loads no verification gate. It still updates an affected domain shard in the same edit when one exists.
 - **Reason:** A bounded change does not need lifecycle ceremony; the user reviews and commits it.
 
 ### P-gsd-10: Deliver a cross-repository feature as one plan
@@ -252,7 +254,7 @@ None.
 
 ### P-gsd-15: Observe the base branch instead of assuming a default
 
-- **Policy:** A packet's base is read from the work tree at creation and then owns the merge target: the recorded `base_ref` is the only branch a merge or pull request targets, the lifecycle never offers the repository default branch as an alternative, and onward promotion of that base is a separate user-owned request. A detached HEAD stops packet creation rather than recording a commit oid. Before asking to merge, a read-only preflight must report the base and WIP branch still resolving to local branches, the base free for checkout, the scratch plan validating against the recorded base, and HEAD resting on the recorded `wip_branch`, or the gate blocks instead of retargeting. Bound validation compares `plan.md` § Base against the recorded `base_ref`, and both records reject the packet's own branch as a base, so a packet can never merge into itself.
+- **Policy:** A packet's base is read from the work tree at creation and then owns the merge target: the recorded `base_ref` is the only branch a merge or pull request targets, the lifecycle never offers the repository default branch as an alternative, and onward promotion of that base is a separate user-owned request. A detached HEAD stops packet creation rather than recording a commit oid, and a HEAD on a `wip/*` branch stops it with `head-is-wip` rather than cutting new work from another feature. Before asking to merge, a read-only preflight must report the base and WIP branch still resolving to local branches, the base free for checkout, the scratch plan validating against the recorded base, and HEAD resting on the recorded `wip_branch`, or the gate blocks instead of retargeting. Bound validation compares `plan.md` § Base against the recorded `base_ref`, and both records reject the packet's own branch as a base, so a packet can never merge into itself.
 - **Reason:** Sessions run in linked worktrees and release branches whose checked-out branch is not the repository default, so a conventional base silently retargets finished work at the merge gate — the one point where the mistake is most expensive to undo. Two independent records of that decision drift unless something compares them, and the value is interpolated into Git commands, so its shape is a safety boundary. The Git facts the rule rests on are observed by a tool rather than asserted in prose, because a rule that only prose enforces cannot tell a session that followed it from one that assumed a default.
 
 ### P-gsd-16: Keep the harness a runtime, never an authority

@@ -139,7 +139,9 @@ test("UserPromptSubmit injects the bootstrap once when SessionStart did not run"
   assert.equal(second, "", "the bootstrap is not injected twice");
 });
 
-test("a compact SessionStart delivers the recovery capsule instead of the bootstrap", () => {
+// Compaction drops hook-injected context along with the transcript, so the bootstrap that
+// carried routing and the skill catalog must come back with the capsule, not be replaced by it.
+test("a compact SessionStart delivers the bootstrap followed by the recovery capsule", () => {
   const project = projectWithActiveFeature(owner("c3"));
   const stateRoot = mkdtempSync(join(tmpdir(), "gsd-codex-state-"));
 
@@ -154,10 +156,9 @@ test("a compact SessionStart delivers the recovery capsule instead of the bootst
   const coreCapsule = renderRecoveryCapsule(CORE_ROOT, project, owner("c3"));
   assert.equal(
     after,
-    coreCapsule,
-    "the compact payload is the core capsule, byte for byte, and never the bootstrap",
+    `${bootstrapFor("c3")}\n\n${coreCapsule}`,
+    "the compact payload is the core bootstrap then the core capsule, byte for byte",
   );
-  assert.doesNotMatch(after, /<GSD_BOOTSTRAP>/);
 });
 
 test("a resume SessionStart refreshes the recovery capsule when work is active", () => {

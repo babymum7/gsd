@@ -137,7 +137,7 @@ A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active 
 | You say | Primary behavior |
 |---|---|
 | “Fix this typo” | Direct Nano edit; no scratch, branch, commit, or GSD skill. |
-| “Fix this small behavioral bug” | Direct quick fix: edit plus a focused test; no packet, plan, commit, or verification gate. |
+| “Fix this small behavioral bug” | Direct quick fix: a `derive-base` branch check, then edit plus a focused test; no packet, plan, commit, or verification gate. |
 | “Review this diff” | Standalone read-only review; no merge mechanics. |
 | “Why does X crash?” | Feedback-loop-first diagnosis with `gsd-diagnosing-bugs`. |
 | “Design the public interface for X” | Architecture and domain discovery in `gsd-brainstorming`. |
@@ -158,6 +158,10 @@ Architecture and domain discovery in `gsd-brainstorming` align backend and front
 ## Session-owner authority
 
 The current top-level session is the sole lifecycle authority. It interprets the bound plan, verifies each dispatch prompt against the slice before sending, executes a single-task wave inline, dispatches each validated wave of two or more tasks (concurrent tasks in separate isolated workspaces, serially in plan order when isolation is unavailable), inspects and merges what comes back, runs checks, commits, checkpoints, repairs inline, verifies conformance, runs Deferred Slow E2E, merges, and cleans up. Sub-agents author task code but hold no authority: nothing they produce counts until the owner reconciles it. A later top-level session assumes the same role only after canonical rehydration from `state.toon`, bound `plan.md`, and Git. No persistent model identity or custom agent configuration participates in authority.
+
+### Several agents in one repository
+
+One work tree has one checked-out branch, so a second agent (say Codex while Claude runs a feature) would edit inside the first feature's `wip/<feature>` branch. Give each agent its own worktree instead: `git worktree add -b <branch> ../<repo>-<branch> <base>`, then start the agent there. Each worktree keeps its own HEAD and `.scratch/`, and its packet records `<branch>` as base, which you then merge or open a pull request from. `derive-base` refuses a `wip/*` HEAD with `code: head-is-wip`, and the quick-fix route checks it before the first edit, so an agent on someone else's WIP branch stops and asks instead of mixing the two features; a session on its own WIP branch carries on.
 
 ## State and repository layout
 

@@ -11,7 +11,7 @@ Canonical row: `GSD_ROOT/skills/gsd/REFERENCE.md` § Visible skill mandatory-use
 - Intent: diagnose non-obvious failures inline and produce root-cause evidence
 - Scope: diagnosis is performed inline in the top-level session and produces root-cause evidence only (never implements or commits a fix)
 - Do-not-load: a located failure whose prompt names the file/line or exact failure signature
-- Transition: the caller fixes a confirmed non-architectural cause with a focused regression test; an architectural cause routes to `gsd-brainstorming` before repair
+- Transition: the caller fixes a confirmed non-architectural cause with a focused regression test, after the quick-fix `derive-base` check; an architectural cause routes to `gsd-brainstorming` before repair
 
 # Diagnosing Bugs
 

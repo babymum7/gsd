@@ -41,3 +41,8 @@ harness coupling stays confined to the adapter surfaces. Concretely:
    round so this record stays scoped to locking the boundary. The hardened
    guard pins this sentence verbatim (asserted present, then excised from the
    scan), so the de-drift round must update that pin in the same change.
+
+## Amendment
+
+Amended 2026-10-05. The Current Request Preservation section named in point 4 lives in
+`adapters/README.md` § Recovery contract, not in `skills/gsd/REFERENCE.md`.

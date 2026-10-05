@@ -74,7 +74,7 @@ When one feature needs several pieces that each need their own discussion, write
 - [ ] P2: <user-visible outcome>
 ```
 
-Split by user-visible outcome, never by file, layer, or task count. Converge only the next unchecked part, and plan it as its own feature `<feature>-pN` through the full cycle. When that part merges or its pull request opens, tick it `[x]` and ask whether to start the next part. The checklist has no validator and no lifecycle authority; `state.toon` of the current part stays the resume source.
+Split by user-visible outcome, never by file, layer, or task count. Converge only the next unchecked part, and plan it as its own feature `<feature>-pN` through the full cycle. When that part merges or its pull request opens, tick it `[x]` and ask whether to start the next part. After a pull request HEAD stays on its WIP branch, so before planning the next part check out `base_ref`, or have the user cut a non-WIP branch from the open part when the next one needs its code. The checklist has no validator and no lifecycle authority; `state.toon` of the current part stays the resume source.
 
 ## Convergence transition
 

@@ -136,13 +136,19 @@ function commandPlan(agent, home) {
   ];
 }
 
+// Removing the plugin is optional: it may already be gone, removed by hand or by an earlier
+// uninstall whose marketplace removal failed, and stopping there would make every retry fail.
 function uninstallCommandPlan(agent) {
   if (agent === 'omp') {
     return [{ binary: 'omp', args: ['plugin', 'uninstall', 'gsd-core'] }];
   }
   if (agent === 'claude') {
     return [
-      { binary: 'claude', args: ['plugin', 'uninstall', PLUGIN_SELECTOR, '--scope', 'user'] },
+      {
+        binary: 'claude',
+        args: ['plugin', 'uninstall', PLUGIN_SELECTOR, '--scope', 'user'],
+        optional: true,
+      },
       {
         binary: 'claude',
         args: ['plugin', 'marketplace', 'remove', 'gsd-local', '--scope', 'user'],
@@ -150,7 +156,7 @@ function uninstallCommandPlan(agent) {
     ];
   }
   return [
-    { binary: 'codex', args: ['plugin', 'remove', PLUGIN_SELECTOR] },
+    { binary: 'codex', args: ['plugin', 'remove', PLUGIN_SELECTOR], optional: true },
     { binary: 'codex', args: ['plugin', 'marketplace', 'remove', 'gsd-local'] },
   ];
 }
@@ -314,7 +320,7 @@ function runUninstall(parsed, options) {
   for (const { agent, commands } of plans) {
     for (const command of commands) {
       const result = runCommand(command, options);
-      if (result.status !== 0) return result;
+      if (result.status !== 0 && !command.optional) return result;
     }
     delete state.agents[agent];
     if (Object.keys(state.agents).length === 0) removeState(home);

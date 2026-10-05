@@ -19,3 +19,10 @@ into `base_ref`:
    work is never force-deleted.
 4. Performing retirement before squash preserves the ancestor proof against
    `wip/<feature>`, which squash-merging to base would otherwise sever.
+
+## Amendment
+
+Amended 2026-10-05. The terminal merge is `git merge --no-ff` (`gsd-verify`), not a squash, and
+task branches are retired with `git branch -d` after the merge lands
+(`skills/gsd/REFERENCE.md` § Feature cleanup). Retirement after a non-squash merge keeps the
+ancestor proof, so the reason for retiring before a squash no longer applies.

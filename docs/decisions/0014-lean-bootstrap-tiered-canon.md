@@ -20,3 +20,9 @@ another valid feature — so the move removed duplication without dropping a row
 
 The result: a direct answer is classified from the lean bootstrap alone, while lifecycle
 work pays one on-demand reference read for the matrix and the policies it actually uses.
+
+## Amendment
+
+Amended 2026-10-05. The tiered canon stands, but two tiers moved out of `REFERENCE.md`: the plan
+grammar is `skills/gsd-to-plan/PLAN-GRAMMAR.md`, and the wave dispatch gate is the Wave dispatch
+section of `skills/gsd-executing-plans/SKILL.md`. Each is read by the skill that owns it.
