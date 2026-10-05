@@ -35,18 +35,18 @@ When the user asks for comments on a PR, post the same findings as one PR review
 
 ## Terminal gate
 
-1. Run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`. Exit 0 continues. A malformed plan or base mismatch stops as Spec escalation. Exit 2 corrects invocation.
+1. Set `phase=verifying`, then run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`. Exit 0 continues. A malformed plan or base mismatch stops as Spec escalation. Exit 2 corrects invocation.
 2. Review the whole diff of `wip/<feature>` against `base_ref` yourself (in a plan with `## Repos`, each repository's `wip/<feature>` against its row's Base), in plan order: every active acceptance criterion is covered by a completed task, every changed path is owned by a task, and the diff honors the plan's decisions, invariants, and non-goals.
 3. Check `Domain Impact`: `none` needs concrete evidence that no domain meaning changed; otherwise the affected shards must describe current production behavior. Skip this in any repository without `docs/domain/index.md`.
 4. Validate each owned decision or design record with `bun "<GSD_ROOT>/tools/gsd-record.mjs" validate --path <record> --kind decisions|design`.
 5. Run the focused checks, whole-branch builds, and the feature-affected slow/E2E suite on the unchanged commit. Start any server as a supervised named process with an observed readiness condition, and tear it down afterwards.
 6. Only a red check, an uncovered criterion, an unowned path, domain drift, or a contradiction of bound plan text blocks. Taste and style never block. A blocker sets `phase=repair`; repair plan-owned source, rerun the affected checks, and repeat this gate from step 2.
-7. On green, run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>` unpiped. Only `status: ready` proceeds; `status: blocked` stops as Spec escalation.
+7. On green, run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>` unpiped. Only `status: ready` proceeds. `code: base-advanced` merges `base_ref` into `wip/<feature>` and repeats this gate from step 2; any other block stops as Spec escalation.
 8. Write `phase=ready` and `next_action=ask merge or pull request` with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> ...`, then ask one question: merge `wip/<feature>` into `base_ref`, or open a pull request from it. A cross-repo plan asks once for all repositories.
 
 The merge target is exactly the recorded `base_ref` (§ Base derivation and merge target); never widen to repository defaults.
 - Message: `bun "<GSD_ROOT>/tools/gsd-contract.mjs" merge-message --path .scratch/<feature>/plan.md --expected-base <state.base_ref> > .scratch/<feature>/merge-message.txt`. It carries the Summary and active criteria past the scratch deletion.
-- Merge: check out `base_ref`, run `git merge --no-ff -F <absolute path of merge-message.txt> wip/<feature>`, then delete `wip/<feature>` with `git branch -d`, the retired task branches, and `.scratch/<feature>/`. A cross-repo plan repeats the merge in each listed repository against its row's Base, with the same message file.
+- Merge: check out `base_ref`, run `git merge --no-ff -F <absolute path of merge-message.txt> wip/<feature>`, then delete `wip/<feature>` with `git branch -d`, the retired task branches, and `.scratch/<feature>/`. A cross-repo plan merges each listed repository against its row's Base first, with the same message file, and this repository last; delete branches and scratch only after every merge landed.
 - Pull request: push `wip/<feature>` (in every listed repository) and open the PR with the host's tooling, using the message after its first line as the body; keep the branch and scratch until the user says it merged.
 
 ## Contextual disclosure

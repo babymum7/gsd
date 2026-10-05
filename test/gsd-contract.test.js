@@ -2188,7 +2188,9 @@ test("criteria field failures point at the offending row", () => {
   }
 });
 
-test("init-plan creates parser-valid skeleton plan and verifies with validate-plan (AC-1)", () => {
+// The skeleton is structurally a plan, but every slot it leaves is a `<slot>` the gate rejects,
+// so an unfilled or half-filled scaffold can never be bound and executed.
+test("init-plan creates a skeleton plan that validate-plan rejects until its slots are filled (AC-1)", () => {
   const workspace = mkdtempSync(join(tmpdir(), "gsd-init-plan-ac1-"));
   try {
     const expectedTemplate = [
@@ -2212,7 +2214,7 @@ test("init-plan creates parser-valid skeleton plan and verifies with validate-pl
       "## Acceptance Criteria",
       "### AC-1: <title>",
       "- **State:** active",
-      "- **Scenario:** GIVEN a scaffolded plan WHEN the validator reads it THEN it reports the feature, base, and task count.",
+      "- **Scenario:** GIVEN <precondition> WHEN <operation> THEN <observable result>.",
       "## Decisions",
       "None.",
       "## Invariants",
@@ -2227,8 +2229,8 @@ test("init-plan creates parser-valid skeleton plan and verifies with validate-pl
       "### T1: <short task>",
       "- **Satisfies:** AC-1",
       "- **Files:**",
-      "  - `placeholder/path` \u2014 create: placeholder intent text",
-      "- **Test:** `bun test placeholder.test.js`",
+      "  - `<repository-relative path>` \u2014 create: <intent>",
+      "- **Test:** `<focused test command>`",
       "- **Status:** pending",
       "",
     ].join("\n");
@@ -2249,13 +2251,36 @@ test("init-plan creates parser-valid skeleton plan and verifies with validate-pl
       [CLI, "validate-plan", "--path", ".scratch/scaffold-demo/plan.md", "--expected-base", "main"],
       { cwd: workspace, encoding: "utf8" }
     );
-    assert.equal(validateResult.status, 0, validateResult.stderr || validateResult.stdout);
-    assert.ok(validateResult.stdout.includes("status: valid"), `expected status: valid in ${validateResult.stdout}`);
-    assert.ok(validateResult.stdout.includes("feature: scaffold-demo"), `expected feature: scaffold-demo in ${validateResult.stdout}`);
-    assert.ok(validateResult.stdout.includes("tasks: 1"), `expected tasks: 1 in ${validateResult.stdout}`);
+    assert.equal(validateResult.status, 1, validateResult.stdout);
+    assert.match(validateResult.stdout, /line 7 still holds the scaffold slot <one concrete outcome>/);
 
-    const writtenBytes = readFileSync(join(workspace, ".scratch", "scaffold-demo", "plan.md"), "utf8");
+    const planFile = join(workspace, ".scratch", "scaffold-demo", "plan.md");
+    const writtenBytes = readFileSync(planFile, "utf8");
     assert.equal(writtenBytes, expectedTemplate, "written plan.md must match expected skeleton template");
+
+    // One slot left behind is enough to stop the gate, and the report names its line.
+    const filled = writtenBytes
+      .replace("<one concrete outcome>", "Exports reach the archive.")
+      .replace("<bounded context>", "Billing export.")
+      .replace("<concrete code/schema/contract evidence>", "src/export.js writes no archive today.")
+      .replace("- <included behavior>", "- Archive export.")
+      .replace("<title>", "Export archives")
+      .replace("GIVEN <precondition> WHEN <operation> THEN <observable result>.", "GIVEN an invoice WHEN it is exported THEN the archive holds it.")
+      .replace("<explicit exclusion>", "No new formats.")
+      .replace("<public seam>", "export()")
+      .replace("`<repository-relative path>` |", "`src/export.js` |")
+      .replace("<short task>", "Export archive")
+      .replace("`<repository-relative path>` \u2014 create: <intent>", "`src/export.js` \u2014 create: archive export")
+      .replace("`<focused test command>`", "`bun test export.test.js`");
+    writeFileSync(planFile, filled);
+    const leftover = spawnSync(process.execPath, [CLI, "validate-plan", "--path", ".scratch/scaffold-demo/plan.md", "--expected-base", "main"], { cwd: workspace, encoding: "utf8" });
+    assert.equal(leftover.status, 1, leftover.stdout);
+    assert.match(leftover.stdout, /scaffold slot <must remain true>/);
+    // A real angle-bracket name inside a code span is content, not a slot.
+    writeFileSync(planFile, filled.replace("<must remain true>", "Existing exports keep their format.").replace("| export() |", "| `<ExportButton>` |"));
+    const valid = spawnSync(process.execPath, [CLI, "validate-plan", "--path", ".scratch/scaffold-demo/plan.md", "--expected-base", "main"], { cwd: workspace, encoding: "utf8" });
+    assert.equal(valid.status, 0, valid.stdout);
+    assert.match(valid.stdout, /^tasks: 1$/m);
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }

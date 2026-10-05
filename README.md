@@ -163,6 +163,8 @@ The current top-level session is the sole lifecycle authority. It interprets the
 
 One work tree has one checked-out branch, so a second agent (say Codex while Claude runs a feature) would edit inside the first feature's `wip/<feature>` branch. Give each agent its own worktree instead: `git worktree add -b <branch> ../<repo>-<branch> <base>`, then start the agent there. Each worktree keeps its own HEAD and `.scratch/`, and its packet records `<branch>` as base, which you then merge or open a pull request from. `derive-base` refuses a `wip/*` HEAD with `code: head-is-wip`, and the quick-fix route checks it before the first edit, so an agent on someone else's WIP branch stops and asks instead of mixing the two features; a session on its own WIP branch carries on.
 
+The same holds for every repository a cross-repo plan lists: if another feature's branch is checked out there, give that repository a worktree too and list its path under `## Repos`. Within a shared work tree, agents create a WIP branch only from a clean tree, stage their own paths by name, and never stash, clean, or reset paths their task does not own. A packet has one owner: `gsd-state.mjs set` refuses an `owner=` that differs from the recorded one unless the user handed the packet over and the session passes `--takeover`. Before a merge, `preflight` blocks with `base-advanced` when another feature already merged into the base, so the combination is re-verified before it lands.
+
 ## State and repository layout
 
 - `.scratch/` is ignored and machine-local by default.

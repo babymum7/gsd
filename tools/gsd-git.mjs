@@ -28,6 +28,8 @@ const READ_ONLY = new Set([
 ]);
 const BRANCH_REF_PREFIX = "refs/heads/";
 const WIP_PREFIX = "wip/";
+// The owner every skills-only session records (adapters/plugin/gsd-skills-dir.mjs).
+const SKILLS_ONLY_SESSION = "skills-only";
 // The child-process runner fails with ENOBUFS once captured output passes its 1 MiB default, and
 // a tree with thousands of untracked files lists past that. The largest query is `status -z`.
 const GIT_OUTPUT_LIMIT = 64 * 1024 * 1024;
@@ -380,9 +382,17 @@ function blockWipHead(cwd, head) {
   const what = packet
     ? `the WIP branch of GSD feature ${feature}${owner === "none" ? "" : ` (recorded owner ${owner})`}`
     : "a WIP branch (no GSD packet describes it)";
+  // The tool cannot see the session token (hosts inject it into the agent's context, not the
+  // environment), so the message states the owner rule instead of contradicting it. The
+  // skills-only owner is shared by every session on that install and proves nothing.
+  const own = !packet || owner === "none"
+    ? ""
+    : owner === SKILLS_ONLY_SESSION
+      ? ` The owner ${owner} is shared by every skills-only session, so it does not prove this branch is yours.`
+      : ` If ${owner} is your GSD_SESSION, this is your own feature: a quick fix on it may proceed here, but a new packet still needs a non-WIP base.`;
   blocked(
     "head-is-wip",
-    `HEAD is on ${head}, ${what}: work started here would land inside that branch, and switching branches in this work tree would move the files of whoever works on it. Ask the user where this work belongs: its own worktree (\`git worktree add -b <branch> <dir> ${base}\`, then start the session there), or a non-WIP branch the user checks out to build on that work`,
+    `HEAD is on ${head}, ${what}: work started here would land inside that branch, and switching branches in this work tree would move the files of whoever works on it.${own} Otherwise ask the user where this work belongs: its own worktree (\`git worktree add -b <branch> <dir> ${base}\`, then start the session there), or a non-WIP branch the user checks out to build on that work`,
   );
 }
 
@@ -472,7 +482,17 @@ function proveBranchIdentity(dir, base, wip, where) {
   if (head !== wip) {
     blocked(
       "head-not-wip",
-      `HEAD${where} rests on ${head} while the packet's work is recorded on ${wip}: check out ${wip} before the gate so the merge receives the reviewed work`,
+      head.startsWith(WIP_PREFIX)
+        ? `HEAD${where} rests on ${head}, another feature's WIP branch, while this packet's work is recorded on ${wip}: checking out ${wip} here would move that feature's files, so ask the user to free this work tree or give this repository a worktree on ${wip}`
+        : `HEAD${where} rests on ${head} while the packet's work is recorded on ${wip}: check out ${wip} before the gate so the merge receives the reviewed work`,
+    );
+  }
+  // A base that moved since the branch was cut means the merge would produce a combination
+  // nobody tested, and any conflict would be resolved outside the gate.
+  if (git(["merge-base", "--is-ancestor", base, wip], dir).status !== 0) {
+    blocked(
+      "base-advanced",
+      `base_ref ${base}${where} has commits that ${wip} does not contain, so the merged result was never verified: merge ${base} into ${wip}, then rerun the terminal gate`,
     );
   }
   const dirty = dirtyNonScratchPaths(dir);
@@ -515,6 +535,16 @@ function preflight(cwd, featureDir) {
   for (const repo of repos.filter((entry) => entry.path !== ".")) {
     const dir = resolve(cwd, repo.path);
     requireRepositoryRoot(dir, repo.name);
+    // Listed repositories merge before the home one, so a run interrupted between merges
+    // finds some already merged: HEAD back on the base and the WIP branch inside it.
+    if (
+      currentBranch(dir) === repo.base &&
+      localBranchExists(wip, dir) &&
+      git(["merge-base", "--is-ancestor", wip, repo.base], dir).status === 0
+    ) {
+      repoLines.push(`repo: ${repo.name} base=${repo.base} wip=${wip} merged`);
+      continue;
+    }
     proveBranchIdentity(dir, repo.base, wip, ` in repo ${repo.name}`);
     repoLines.push(`repo: ${repo.name} base=${repo.base} wip=${wip}`);
   }

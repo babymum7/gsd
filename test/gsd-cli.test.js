@@ -257,6 +257,8 @@ test("skills-only install writes resolved visible skills and a router, and unins
 
   const executing = readFileSync(join(skillsDir, "gsd-executing-plans", "SKILL.md"), "utf8");
   assert.doesNotMatch(executing, /<GSD_ROOT>/);
+  assert.doesNotMatch(executing, /\bGSD_ROOT\//, "prose pointers resolve too: no hook defines GSD_ROOT here");
+  assert.ok(executing.includes(`${coreRoot}/skills/gsd/REFERENCE.md`));
   assert.ok(executing.includes(`bun "${coreRoot}/tools/gsd-state.mjs"`));
   assert.ok(existsSync(join(coreRoot, "tools", "gsd-state.mjs")));
   assert.ok(!existsSync(join(skillsDir, "gsd-tdd")), "hidden helper skills stay in core");

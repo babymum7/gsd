@@ -134,6 +134,7 @@ checkpoint_revision:<positive int>
 ### Atomic write
 
 Every write goes through `gsd-state.mjs set key=value…` (fallback `write-state --json-file`), which writes atomically and reads back before reporting. A symlinked feature path, a basename unequal to `feature`, or a `plan_path` other than `.scratch/<feature>/plan.md` fails closed. Atomic means no torn file, not no lost update: `set` reads, merges, and replaces without a lock, so only the owner session writes a packet's `state.toon`, one `set` at a time.
+An `owner=` that differs from a recorded owner fails with `code: owner-mismatch` unless `--takeover` is passed, which is only for a packet the user named.
 
 ### Checkpoint cadence
 
@@ -186,12 +187,18 @@ After binding, tasks run in order with Fast TDD and green checkpoints; waves dis
 
 Branch-backed writes require a Git work tree. `plan.md` records base before `wip/<feature>` is created, and base is never `wip/<feature>`. `.scratch/` is machine-local and git-ignored, and review diffs exclude it. Nano and read-only work are git-free.
 
+One work tree can hold other sessions' uncommitted edits, so Git commands stay scoped to what the current task owns:
+- Create `wip/<feature>` with `git switch -c wip/<feature> <base_ref>` only while nothing outside `.scratch/` is dirty; dirty paths travel with the switch into this feature. Never `-B`, `branch -f`, or `--ignore-other-worktrees`: they repoint or share a branch another worktree holds.
+- Stage the task's own paths by name (`git add -- <path>…`), never `git add -A` or `git commit -a`.
+- Never `git stash`, `git clean`, `git reset --hard`, `git checkout -- <path>`, or `git restore` paths the task does not own, and never delete `.git/index.lock`; list what is in the way and ask the user.
+
 ### Cross-repo plans
 
 A plan with `## Repos` keeps `.scratch/<feature>/` and `state.toon` in this repository only.
 - Each listed repository gets its own `wip/<feature>` branch cut from its row's Base; a task's branch is cut in its own repository, and `last_green_commit` is the checkpointed commit there.
+- A listed repository has one HEAD of its own: if another feature's `wip/*` is checked out there, ask the user for a worktree of it (`git -C <repo> worktree add -b <branch> <dir> <Base>`) and list that worktree's path in `## Repos`, rather than switching that repository's branch. Its sub-agent tasks run serially unless each gets its own worktree of that repository.
 - `analyze-waves` treats the same path in two repositories as disjoint. `verify-task-branch` reads the task's repository from the plan; `preflight` proves every listed repository.
-- The single merge-or-pull-request question covers every repository, each targeting its own row's Base.
+- The single merge-or-pull-request question covers every repository, each targeting its own row's Base. Listed repositories merge first and this one last; branches and scratch are deleted only after every merge landed, and `preflight` reports an already merged repository as `merged`, so an interrupted run resumes.
 - Domain docs are written only in repositories that have `docs/domain/index.md`.
 
 ### Base derivation and merge target
@@ -200,8 +207,8 @@ At packet creation run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and reco
 
 Before merge run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`, unpiped or under `set -o pipefail`.
 - Exit 0 prints `status: ready`, the observed base, WIP branch, and HEAD (equal to `wip_branch`), one `repo:` line per other listed repository, and a trailing `exit=0` line.
-- Exit 1 prints `status: blocked`, a `code:`, and `exit=1`; it blocks as Spec escalation and never retargets the merge. Exit 2 corrects invocation.
-- Codes include `detached-head`, `head-not-wip`, `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `not-a-repository-root` (a listed repository that is only a folder inside another one), `plan-invalid`, and Git-query failures; an unanswered query blocks.
+- Exit 1 prints `status: blocked`, a `code:`, and `exit=1`; it blocks as Spec escalation and never retargets the merge, except `base-advanced`, which merges `base_ref` into `wip/<feature>` and repeats the terminal gate. Exit 2 corrects invocation.
+- Codes include `detached-head`, `head-not-wip`, `base-advanced` (the base gained commits the WIP branch lacks), `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `not-a-repository-root` (a listed repository that is only a folder inside another one), `plan-invalid`, and Git-query failures; an unanswered query blocks.
 - `dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, both sides of a rename included. Both commands are read-only.
 
 The merge or pull request targets exactly the recorded `base_ref`; never widen to repository defaults. Promoting base onward is separate user-owned work.

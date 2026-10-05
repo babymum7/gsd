@@ -63,7 +63,7 @@ The parser accepts only structured task blocks. This planner single-writes exact
 
 
 Planning is the last interactive step of discuss. Without approval prompts or menus: once `validate-plan` exits 0, atomically write canonical `schema:v0.0.3` `state.toon` with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> owner=<GSD_SESSION> phase=approved plan_path=.scratch/<feature>/plan.md base_ref=<base> wip_branch=wip/<feature>` (derived defaults fill `next_action=start/continue task` and `checkpoint_revision`).
-Read it back and verify binding before execution. A fresh binding after Spec escalation supersedes older binding state by atomic overwrite without numbered handoff history. Never leave partial state bytes.
+Read it back and verify binding before execution. A fresh binding after Spec escalation supersedes older binding state by atomic overwrite without numbered handoff history; over a packet another session owns, which the user named, add `--takeover`. Never leave partial state bytes.
 Then load `gsd-executing-plans` without another prompt.
 ## Contextual disclosure
 

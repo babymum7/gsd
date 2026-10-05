@@ -151,6 +151,49 @@ test("derive-base blocks a HEAD on another feature's WIP branch and points at a 
   }
 });
 
+// The tool cannot see the session token, so its message carries the owner rule: the owner's
+// own quick fix proceeds, while the skills-only owner, shared by every session, proves nothing.
+test("derive-base states when a WIP branch may still be the reader's own", () => {
+  const { root } = makePacket({ feature: "billing-export", base: "trunk" });
+  try {
+    const statePath = join(root, ".scratch", "billing-export", "state.toon");
+    const original = readFileSync(statePath, "utf8");
+    writeFileSync(statePath, original.replace(/^owner:none$/m, "owner:claude-abc"));
+    const owned = cli(["derive-base"], root);
+    assert.match(owned.stdout, /If claude-abc is your GSD_SESSION, this is your own feature: a quick fix on it may proceed/);
+    writeFileSync(statePath, original.replace(/^owner:none$/m, "owner:skills-only"));
+    const shared = cli(["derive-base"], root);
+    assert.match(shared.stdout, /shared by every skills-only session/);
+    assert.doesNotMatch(shared.stdout, /may proceed/);
+    writeFileSync(statePath, original);
+    assert.doesNotMatch(cli(["derive-base"], root).stdout, /may proceed|skills-only/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// Another feature merged into the base after this branch was cut: merging now would ship a
+// combination nobody ran.
+test("preflight blocks a base that advanced past the WIP branch", () => {
+  const { root, feature, relative } = makePacket({ feature: "stale-demo" });
+  try {
+    git(["checkout", "-q", "main"], root);
+    writeFileSync(join(root, "other.txt"), "other feature\n");
+    git(["add", "other.txt"], root);
+    git(["commit", "-qm", "other feature"], root);
+    git(["checkout", "-q", `wip/${feature}`], root);
+    const stale = cli(["preflight", "--feature-dir", relative], root);
+    assert.equal(stale.status, 1, stale.stdout);
+    assert.match(stale.stdout, /^code: base-advanced$/m);
+    assert.match(stale.stdout, /merge main into wip\/stale-demo/);
+    git(["merge", "-q", "--no-edit", "main"], root);
+    const ready = cli(["preflight", "--feature-dir", relative], root);
+    assert.equal(ready.status, 0, ready.stdout);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("derive-base blocks a WIP branch even when no packet describes it", () => {
   const { root } = makePacket({ feature: "orphan-demo", base: "trunk" });
   try {
@@ -1178,6 +1221,70 @@ test("preflight proves every listed repository sits on its WIP branch", () => {
     const ready = cli(["preflight", "--feature-dir", relative], app);
     assert.equal(ready.status, 0, ready.stdout + ready.stderr);
     assert.match(ready.stdout, new RegExp(`^repo: api base=develop wip=wip/${feature}$`, "m"));
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+// The listed repositories merge first; a run interrupted before the home merge must be able
+// to pass the gate again instead of stopping on the repositories it already merged.
+test("preflight counts a listed repository that already merged its WIP branch", () => {
+  const { parent, app, api, feature, relative } = makeCrossRepoPacket();
+  try {
+    git(["checkout", "-q", "-b", `wip/${feature}`], app);
+    writeStateAtomic(join(app, relative), {
+      schema: "v0.0.3",
+      feature,
+      owner: "none",
+      phase: "ready",
+      next_action: "ask merge or pull request",
+      plan_path: `.scratch/${feature}/plan.md`,
+      base_ref: "main",
+      wip_branch: `wip/${feature}`,
+      last_green_task: "T1",
+      last_green_commit: git(["rev-parse", "HEAD"], app),
+      checkpoint_revision: "1",
+    });
+    git(["checkout", "-q", "-b", `wip/${feature}`], api);
+    writeFileSync(join(api, "src", "app.js"), "api work\n");
+    git(["commit", "-qam", "api work"], api);
+    git(["checkout", "-q", "develop"], api);
+    git(["merge", "-q", "--no-ff", "--no-edit", `wip/${feature}`], api);
+    const ready = cli(["preflight", "--feature-dir", relative], app);
+    assert.equal(ready.status, 0, ready.stdout + ready.stderr);
+    assert.match(ready.stdout, new RegExp(`^repo: api base=develop wip=wip/${feature} merged$`, "m"));
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+// Checking out this packet's branch in a repository where another feature's WIP branch sits
+// would move that feature's files; the advice must not tell the agent to do it.
+test("preflight does not advise checking out over another feature's WIP branch", () => {
+  const { parent, app, api, feature, relative } = makeCrossRepoPacket();
+  try {
+    git(["checkout", "-q", "-b", `wip/${feature}`], app);
+    writeStateAtomic(join(app, relative), {
+      schema: "v0.0.3",
+      feature,
+      owner: "none",
+      phase: "verifying",
+      next_action: "terminal gate",
+      plan_path: `.scratch/${feature}/plan.md`,
+      base_ref: "main",
+      wip_branch: `wip/${feature}`,
+      last_green_task: "T1",
+      last_green_commit: git(["rev-parse", "HEAD"], app),
+      checkpoint_revision: "1",
+    });
+    git(["branch", `wip/${feature}`], api);
+    git(["checkout", "-q", "-b", "wip/other"], api);
+    const result = cli(["preflight", "--feature-dir", relative], app);
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^code: head-not-wip$/m);
+    assert.match(result.stdout, /another feature's WIP branch/);
+    assert.match(result.stdout, /ask the user/);
+    assert.doesNotMatch(result.stdout, /check out wip\/cross-demo before the gate/);
   } finally {
     rmSync(parent, { recursive: true, force: true });
   }

@@ -27,13 +27,13 @@ function commandUsage(command) {
     return `${INVOCATION} read-state --path .scratch/<feature>/state.toon`;
   }
   if (command === "write-state") {
-    return `${INVOCATION} write-state --feature-dir .scratch/<feature> --json-file .scratch/<feature>/.state-input.json`;
+    return `${INVOCATION} write-state --feature-dir .scratch/<feature> [--takeover] --json-file .scratch/<feature>/.state-input.json`;
   }
   if (command === "validate-state") {
     return `${INVOCATION} validate-state --path .scratch/<feature>/state.toon`;
   }
   if (command === "set") {
-    return `${INVOCATION} set --feature-dir .scratch/<feature> [key=value...]`;
+    return `${INVOCATION} set --feature-dir .scratch/<feature> [--takeover] [key=value...]`;
   }
   return `${INVOCATION} <read-state|write-state|validate-state|set> [options]`;
 }
@@ -103,6 +103,7 @@ function emitHelp(command) {
       "",
       "Options:",
       "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
+      "  --takeover             Allow owner= to replace another session's recorded owner",
       "",
       "Fields:",
       ...STATE_FIELD_ORDER.map((f) => `  ${f}`),
@@ -142,6 +143,19 @@ function failUsage(message, command = null) {
   process.exit(2);
 }
 
+// A packet has one writer. Without this check a session that still believes it owns a packet
+// silently takes it back from the session the user handed it to, and both keep executing.
+function refuseOwnerChange(feature, recorded, requested, command, takeover) {
+  if (recorded === "none" || requested === recorded || takeover) return;
+  write_([
+    "status: error",
+    "code: owner-mismatch",
+    `error: ${quote(`packet ${feature} is owned by ${recorded}, not ${requested}`)}`,
+    `help: ${quote(`leave it alone unless the user named this packet; then rerun this ${command} with --takeover`)}`,
+  ]);
+  process.exit(1);
+}
+
 function failArtifact(error, command) {
   const message = String(error?.message ?? error)
     .replace(/[\x00-\x1F\x7F]+/g, " ")
@@ -165,7 +179,7 @@ function remediation(message, command) {
 }
 
 function parseArguments(argv) {
-  const result = { command: null, help: false, path: null, featureDir: null, json: null, jsonFile: null, pairs: [] };
+  const result = { command: null, help: false, path: null, featureDir: null, json: null, jsonFile: null, takeover: false, pairs: [] };
 
   let i = 0;
   if (i < argv.length && (argv[i] === "--help" || argv[i] === "-h")) {
@@ -199,6 +213,11 @@ function parseArguments(argv) {
       else if (arg === "--feature-dir") result.featureDir = value;
       else if (arg === "--json") result.json = value;
       else result.jsonFile = value;
+      i++;
+      continue;
+    }
+    if (arg === "--takeover" && (result.command === "set" || result.command === "write-state")) {
+      result.takeover = true;
       i++;
       continue;
     }
@@ -267,6 +286,18 @@ if (input.usageError) {
     const origin = input.jsonFile ? `${input.jsonFile}: ` : "";
     failUsage(`invalid JSON: ${origin}${error.message}`, "write-state");
   }
+  // The fallback writer obeys the same one-owner rule as `set`. An unreadable existing record
+  // is left to writeStateAtomic, which a retired-schema rebind relies on.
+  const existingPath = path.join(path.resolve(input.featureDir), "state.toon");
+  if (existsSync(existingPath) && typeof state?.owner === "string") {
+    let recorded = null;
+    try {
+      recorded = inspectStateFile(existingPath).owner;
+    } catch {
+      recorded = null;
+    }
+    if (recorded !== null) refuseOwnerChange(path.basename(path.resolve(input.featureDir)), recorded, state.owner, "write-state", input.takeover);
+  }
   try {
     const result = writeStateAtomic(input.featureDir, state);
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
@@ -302,6 +333,9 @@ if (input.usageError) {
       checkpoint_revision: "1",
     };
   }
+
+  const ownerPair = input.pairs.find((p) => p.key === "owner");
+  if (exists && ownerPair) refuseOwnerChange(featureMetaName, baseState.owner, ownerPair.value, "set", input.takeover);
 
   const state = { ...baseState };
   for (const { key, value } of input.pairs) {

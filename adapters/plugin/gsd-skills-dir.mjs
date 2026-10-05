@@ -49,7 +49,9 @@ function copyResolved(source, target, coreRoot) {
     const to = path.join(target, entry.name);
     if (entry.isDirectory()) copyResolved(from, to, coreRoot);
     else if (entry.name.endsWith('.md')) {
-      fs.writeFileSync(to, fs.readFileSync(from, 'utf8').replaceAll('<GSD_ROOT>', () => coreRoot));
+      // Both spellings name the core: the `<GSD_ROOT>` slot in commands and the bare
+      // `GSD_ROOT/skills/...` pointers in prose, which no hook defines here.
+      fs.writeFileSync(to, fs.readFileSync(from, 'utf8').replace(/<GSD_ROOT>|\bGSD_ROOT(?=\/)/g, () => coreRoot));
     } else fs.copyFileSync(from, to);
   }
 }

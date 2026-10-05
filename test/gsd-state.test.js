@@ -738,9 +738,35 @@ test("CLI set records the session owner and rejects a malformed owner token", ()
   assert.equal(parsed.plan_path, ".scratch/test-feature/plan.md");
   assert.equal(parsed.wip_branch, "wip/test-feature");
 
-  const bad = cli(["set", "--feature-dir", scratch, "owner=has space"]);
+  const bad = cli(["set", "--feature-dir", scratch, "--takeover", "owner=has space"]);
   assert.equal(bad.exitCode, 1);
   assert.match(bad.stdout, /invalid owner/);
+});
+
+// Session A handed the packet to session B; A's next checkpoint must not silently take it back.
+test("CLI set refuses to replace another session's owner without --takeover", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  assert.equal(cli(["set", "--feature-dir", scratch, "base_ref=main", "owner=claude-a"]).exitCode, 0);
+  const same = cli(["set", "--feature-dir", scratch, "owner=claude-a", "next_action=custom"]);
+  assert.equal(same.exitCode, 0, same.stdout);
+  const steal = cli(["set", "--feature-dir", scratch, "owner=codex-b"]);
+  assert.equal(steal.exitCode, 1);
+  assert.match(steal.stdout, /code: owner-mismatch/);
+  assert.match(steal.stdout, /owned by claude-a, not codex-b/);
+  assert.match(steal.stdout, /--takeover/);
+  const taken = cli(["set", "--feature-dir", scratch, "--takeover", "owner=codex-b"]);
+  assert.equal(taken.exitCode, 0, taken.stdout);
+  assert.equal(JSON.parse(taken.stdout).owner, "codex-b");
+  assert.match(cli(["set", "--feature-dir", scratch, "owner=claude-a"]).stdout, /owner-mismatch/);
+
+  // The fallback writer is no way around the rule.
+  const current = JSON.parse(cli(["read-state", "--path", join(scratch, "state.toon")]).stdout);
+  const viaJson = cli(["write-state", "--feature-dir", scratch, "--json", JSON.stringify({ ...current, owner: "claude-a" })]);
+  assert.equal(viaJson.exitCode, 1);
+  assert.match(viaJson.stdout, /code: owner-mismatch/);
+  assert.match(viaJson.stdout, /rerun this write-state with --takeover/);
+  const viaJsonTaken = cli(["write-state", "--feature-dir", scratch, "--takeover", "--json", JSON.stringify({ ...current, owner: "claude-a" })]);
+  assert.equal(viaJsonTaken.exitCode, 0, viaJsonTaken.stdout);
 });
 
 test("detectCandidates with an owner lists only that session's packets", () => {
