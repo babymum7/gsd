@@ -118,7 +118,9 @@ Own invoice lifecycle, settlement rules, and payment outcomes.
 - **Reason:** Reopening settlement would contradict the recorded funds outcome.
 ```
 
-Headings appear exactly in the shown order. Terms are sorted lexicographically. Actors and invariants are concrete bullets. Workflows describe current triggers, state transitions, and outcomes. Commands and events name actor and observable outcome. Relationships define semantic ownership between contexts. Policies are sequential `P-<scope>-N` blocks with `Policy` then `Reason`, capturing enduring business rules rather than technical decisions. Non-applicable sections contain exactly `None.`; each shard must describe current production behavior.
+Headings appear exactly in the shown order. Terms are sorted lexicographically. Actors and invariants are concrete bullets. Workflows describe current triggers, state transitions, and outcomes. Commands and events name actor and observable outcome. Relationships define semantic ownership between contexts.
+
+Policies are `P-<scope>-N` blocks with `Policy` then `Reason`, capturing enduring business rules rather than technical decisions; numbers are unique but may skip, because a retired policy keeps its number for references. Non-applicable sections contain exactly `None.`; each shard must describe current production behavior.
 
 ## Tracked-document lifecycle
 

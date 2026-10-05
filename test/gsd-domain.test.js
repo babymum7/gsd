@@ -117,9 +117,32 @@ test("parseDomainScope rejects unsorted terms", () => {
   assert.throws(() => parseDomainScope(content, "billing"), /lexicographically sorted/);
 });
 
-test("parseDomainScope rejects a policy numbering gap", () => {
-  const content = shardContent("billing", { policies: [["1", "A policy"], ["3", "A skipped policy"]] });
-  assert.throws(() => parseDomainScope(content, "billing"), /sequential/);
+// A retired policy leaves a gap on purpose: its number is cited from records and code, so
+// renumbering the survivors would break those references.
+test("parseDomainScope accepts policy numbers that start late and skip retired ones", () => {
+  const content = shardContent("billing", { policies: [["4", "A policy"], ["5", "Another"], ["12", "After a gap"], ["15", "Last"]] });
+  const shard = parseDomainScope(content, "billing");
+  assert.deepEqual(shard.policies.map((policy) => policy.num), [4, 5, 12, 15]);
+});
+
+// SKILL.md: "Non-applicable sections contain exactly `None.`". A context with no enduring
+// business rule, or no term of its own, is ordinary, not a defect.
+test("parseDomainScope accepts None. for Domain policies and Terms", () => {
+  const base = shardContent("billing");
+  const noPolicies = base.replace(/## Domain policies\n\n[\s\S]*$/, "## Domain policies\n\nNone.\n");
+  assert.deepEqual(parseDomainScope(noPolicies, "billing").policies, []);
+  const noTerms = base.replace(/\| Term \| Definition \| Avoid \|\n\| --- \| --- \| --- \|\n\| Settlement[^\n]*\n/, "None.\n");
+  assert.deepEqual(parseDomainScope(noTerms, "billing").terms, []);
+});
+
+test("an unsorted Terms table names the order it expects", () => {
+  const content = shardContent("billing", { terms: [["Account", "A.", "x"], ["API key", "B.", "y"]] });
+  assert.throws(() => parseDomainScope(content, "billing"), /expected order: "API key", "Account"/);
+});
+
+test("parseDomainScope rejects a policy number declared twice", () => {
+  const content = shardContent("billing", { policies: [["1", "A policy"], ["2", "Another"], ["2", "A repeat"]] });
+  assert.throws(() => parseDomainScope(content, "billing"), /P-billing-2.*more than once/);
 });
 
 test("parseDomainScope rejects a scope/slug mismatch", () => {
