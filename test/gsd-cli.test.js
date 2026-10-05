@@ -389,6 +389,32 @@ test("uninstall finishes when the host no longer has the plugin", () => {
   }
 });
 
+// The reinstall removes the old plugin before installing the new one, so a failed install leaves
+// the host without it while the state still records the marketplace. Both ways out must work.
+test("a Claude reinstall that fails after removing the old plugin can be retried or uninstalled", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-reinstall-"));
+  const logPath = join(home, "commands.log");
+  const ok = scriptedBinDir(logPath, {});
+  const failing = scriptedBinDir(logPath, {
+    claude: `case "$*" in *"plugin install"*) exit 3;; esac`,
+  });
+  const gone = scriptedBinDir(logPath, {
+    claude: `case "$*" in *"plugin uninstall"*) echo 'not installed' >&2; exit 1;; esac`,
+  });
+  try {
+    assert.equal(runCli(["install", "--agent", "claude", "--home", home], withBin(ok)).status, 0);
+    assert.equal(runCli(["install", "--agent", "claude", "--home", home], withBin(failing)).status, 3);
+    assert.equal(runCli(["install", "--agent", "claude", "--home", home], withBin(gone)).status, 0, "a retry installs again");
+    assert.deepEqual(readAgents(home), { claude: "plugin" });
+    assert.equal(runCli(["install", "--agent", "claude", "--home", home], withBin(failing)).status, 3);
+    const removed = runCli(["uninstall", "--agent", "claude", "--home", home], withBin(gone));
+    assert.equal(removed.status, 0, removed.stderr);
+    assert.equal(existsSync(join(home, "state.json")), false);
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
 test("a corrupt state file stops install before any host is touched and names the file", () => {
   const home = mkdtempSync(join(tmpdir(), "gsd-cli-corrupt-"));
   const logPath = join(home, "commands.log");

@@ -166,6 +166,18 @@ test("derive-base blocks a WIP branch even when no packet describes it", () => {
   }
 });
 
+test("derive-base reports a branch whose name carries #, + or @", () => {
+  const { root } = makePacket({ feature: "symbol-demo", base: "main" });
+  try {
+    git(["checkout", "-q", "-b", "fix/#123"], root);
+    const result = cli(["derive-base"], root);
+    assert.equal(result.status, 0, result.stdout);
+    assert.match(result.stdout, /^base: fix\/#123$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 // The whole point of deriving instead of assuming: an oid can hold no squash, so there is
 // nothing to record and packet creation stops rather than falling back to a default.
 test("derive-base blocks a detached HEAD instead of reporting a commit oid", () => {

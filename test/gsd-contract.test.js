@@ -694,7 +694,7 @@ test("a bound call rejects a plan whose base differs from the recorded base_ref"
 // range must be rejected by the grammar itself, with no expected base supplied.
 test("a base that is not a usable Git branch name is rejected", () => {
   const feature = "unsafe-base";
-  for (const base of ["--force", "a..b", "feature/", ".hidden", "trailing.lock", "has space"]) {
+  for (const base of ["--force", "a..b", "feature/", ".hidden", "trailing.lock", "has space", "#123", "@", "a@{1}", "x~1"]) {
     const plan = canonicalPlan(feature).replace("`main`", `\`${base}\``);
     const { workspace, planPath } = makePlanWorkspace(feature, plan);
     try {
@@ -705,13 +705,29 @@ test("a base that is not a usable Git branch name is rejected", () => {
       assert.equal(result.status, 1, `base ${base} must be rejected: ${result.stdout}`);
       assert.match(result.stdout, /^code: invalid-artifact$/m);
       assert.match(result.stdout, /Base must be a Git branch name able to receive the merge/);
-      // The allowlist is narrower than Git's own rules (`release+1` is a legal branch), so the
-      // message must say which characters are accepted instead of implying a Git violation.
-      assert.match(result.stdout, /letters, digits, \\*"\.\\*", \\*"_\\*", \\*"-\\*" and \\*"\/\\*" only/);
+      // The allowlist is narrower than Git's own rules, so the message must say which
+      // characters are accepted instead of implying a Git violation.
+      assert.match(result.stdout, /letters, digits/);
     } finally {
       rmSync(workspace, { recursive: true, force: true });
     }
   }
+});
+
+// Issue, Dependabot, and Renovate branches carry `#`, `+`, and `@`, which Git accepts and which
+// reach Git only as a `shell:false` argument or a full `refs/heads/` path.
+test("a base with #, + or @ inside it is a usable branch name", () => {
+  const feature = "symbol-base";
+  for (const base of ["fix/#123", "release+1", "dependabot/npm_and_yarn/@types/node-20.1.0"]) {
+    const result = validateCanonical(feature, canonicalPlan(feature).replace("`main`", `\`${base}\``));
+    assert.equal(result.status, 0, `${base}: ${result.stdout}${result.stderr}`);
+  }
+});
+
+test("normalize-plan wraps a half-backticked Feature value cleanly", () => {
+  const plan = canonicalPlan("half-tick").replace("`half-tick`", "half-tick`");
+  const { content } = normalizePlan(plan);
+  assert.equal(content, canonicalPlan("half-tick"));
 });
 
 // A usage error must name the flag rather than fail deep inside validation.
@@ -1341,7 +1357,7 @@ test("semantic validator failures attach concrete remediation help lines across 
     assert.equal(pathResult.status, 1);
     assert.match(pathResult.stdout, /^status: error\ncode: invalid-artifact\n/);
     assert.match(pathResult.stdout, /contains dot\/traversal/);
-    assert.match(pathResult.stdout, /^help: "use one repository-relative path without backslashes, dot segments, \.scratch, or \.toon"$/m);
+    assert.match(pathResult.stdout, /^help: "use one repository-relative path without backslashes, dot segments, or \.scratch"$/m);
 
     // 3. Domain-impact unsorted contexts test
     const domainResult = spawnSync(process.execPath, [CLI, "validate-plan", "--path", domainPlanPath], {

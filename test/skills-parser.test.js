@@ -246,10 +246,9 @@ test("canonical Markdown packet is concrete", () => {
     () => parseMarkdownPacket({ "plan.md": replaceOnce(files["plan.md"], FILES_BLOCK, "- **Files:**\n  - `.scratch/path.js` — modify: exercise the path validator") }),
     /contains \.scratch/
   );
-  // 6. runtime TOON path
-  assert.throws(
-    () => parseMarkdownPacket({ "plan.md": replaceOnce(files["plan.md"], FILES_BLOCK, "- **Files:**\n  - `some/handoff-1.toon` — modify: exercise the path validator") }),
-    /contains runtime TOON path/
+  // 6. A tracked .toon file is an ordinary repository file; runtime state stays out through .scratch
+  assert.doesNotThrow(
+    () => parseMarkdownPacket({ "plan.md": replaceOnce(files["plan.md"], FILES_BLOCK, "- **Files:**\n  - `test/fixtures/data.toon` — modify: exercise the path validator") }),
   );
 
   // Interface Path validator tests
@@ -278,10 +277,9 @@ test("canonical Markdown packet is concrete", () => {
     () => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("| AC-1 | parser | `test/skills.test.js` | none |", "| AC-1 | parser | `.scratch/path.js` | none |") }),
     /contains \.scratch/
   );
-  // 6. runtime TOON path
-  assert.throws(
-    () => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("| AC-1 | parser | `test/skills.test.js` | none |", "| AC-1 | parser | `some/handoff-1.toon` | none |") }),
-    /contains runtime TOON path/
+  // 6. A tracked .toon file may be pinned like any other path
+  assert.doesNotThrow(
+    () => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("| AC-1 | parser | `test/skills.test.js` | none |", "| AC-1 | parser | `test/fixtures/data.toon` | none |") }),
   );
   
   // Negative tests for Tasks Test command backticked format

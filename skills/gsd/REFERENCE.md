@@ -44,7 +44,7 @@ Canonical dispatch authority for the 5 visible GSD skills. Each skill file resta
 
 The quick-fix route belongs to the session owner, not a visible skill: a bounded change with converged acceptance is edited directly, proven by its focused test, and reported.
 
-In a Git work tree, a quick fix runs `derive-base` before the first edit: a `head-is-wip` whose recorded owner is not your `GSD_SESSION` (or that names no packet) stops the edit until the user says where the fix belongs; your own WIP branch, and any other result, (a detached HEAD, a branch name it cannot record, no work tree) lets the fix proceed. It writes no packet, plan, `state.toon`, or commit and loads no `gsd-verify` gate; scope growth escalates to `gsd-brainstorming`.
+In a Git work tree, a quick fix runs `derive-base` before the first edit: a `head-is-wip` whose recorded owner is not your `GSD_SESSION` (or that names no packet) stops the edit until the user says where the fix belongs; your own WIP branch and any other result (a detached HEAD, a branch name it cannot record, no work tree) let the fix proceed. It writes no packet, plan, `state.toon`, or commit and loads no `gsd-verify` gate; scope growth escalates to `gsd-brainstorming`.
 `gsd-codebase-architecture`, `gsd-domain-modeling`, and `gsd-tdd` are hidden internal references, not visible owners; `gsd-brainstorming`, `gsd-to-plan`, and `gsd-executing-plans` may cite them when their details are load-bearing. A hidden reference is a file, not a registered skill: read `GSD_ROOT/skills/<name>/SKILL.md`. Never call a Skill tool for it or look under the plugin's own `skills/` directory.
 
 ## Durable documentation contract
