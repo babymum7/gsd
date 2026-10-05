@@ -17,7 +17,7 @@ Write `state.toon` only with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature
 
 - **Resume:** with no feature named, list owned candidates under § Candidate discovery; one resumes, several ask which. A packet another session owns resumes only when the user names it, writing your own `owner` with `set --takeover`.
 - **Validate** at entry and resume with `bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`: it validates and prints `waves:`. Exit 1 is Spec escalation (a base mismatch always stops, since the merge target never changes); exit 2 corrects invocation. Then follow the skill `next_action` names under § Skill derivation from phase and next_action.
-- **Pause:** at a user request or context pressure, set `phase=paused` and keep the interrupted `next_action`. A hard blocker writes `next_action=Spec-escalation`.
+- **Pause:** at a user request or context pressure, set `phase=paused`; the interrupted `next_action` is kept. A hard blocker writes `next_action=Spec-escalation`. Resuming a paused packet sets the phase its kept `next_action` implies: `executing` for a task, `verifying` for terminal verification, `ready` for the merge-or-pull-request question.
 - **Amend:** when work shows the plan is wrong or the user changes a requirement, amend `plan.md` under § Plan amendment, revalidate, and continue the same task. New product scope exits to `gsd-brainstorming`.
 
 ## Per-task loop
@@ -29,7 +29,7 @@ Track `T1..TN` in the harness todo list as display only; `state.toon` is the res
 3. Follow `GSD_ROOT/skills/gsd-tdd/SKILL.md`: RED, GREEN, refactor, with Fast TDD Checks only.
 4. A non-`none` `Domain Impact` task updates its named shards in the same commit.
 5. A red check repairs inline. When its cause cannot be located, follow `GSD_ROOT/skills/gsd-diagnosing-bugs/SKILL.md` inline without asking questions; missing access or an ambiguous criterion is Spec escalation.
-6. Before the first commit, prove `state.toon` is bound and `wip/<feature>` is checked out; if it does not exist, create it and set `phase=executing`. Commit only green task-owned paths, then set `last_green_task`, `last_green_commit`, and `next_action=start/continue task`. `Tn+1` starts only from a committed green `Tn`.
+6. Before the first commit, prove `state.toon` is bound and `wip/<feature>` is checked out; if it does not exist, create it and set `phase=executing`; in a listed repository also run `git -C <repo> config branch.wip/<feature>.gsdBase <Base>`. Commit only green task-owned paths, then set `last_green_task`, `last_green_commit`, and `next_action=start/continue task`. `Tn+1` starts only from a committed green `Tn`.
 
 Record settled UI/UX decisions as `docs/design/NNNN-slug.md` under § Durable decision and design records. When every task is green, set `next_action=enter terminal verification/repair` and load `gsd-verify`. Report progress and blockers only.
 

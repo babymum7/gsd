@@ -3,14 +3,36 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { read, ROOT } from "./support/skills-fixtures.js";
-import { chmodSync, existsSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createBootstrap, discoverSkillCatalog } from "../lib/gsd-bootstrap.mjs";
 import {
-  describeEvalBackendError, selectEvalBackend,
+  createEvalAgentEnv, describeEvalBackendError, selectEvalBackend,
   evalSurfaceFingerprint,
 } from "./eval/activation-eval-contract.mjs";
+
+// `--tools read` let an eval session reach the user's MCP servers through `write xd://mcp__…`,
+// so eval sessions run on a linked copy of the agent directory with no MCP server.
+test("eval sessions keep the user's auth and models but no MCP server", () => {
+  const source = mkdtempSync(join(tmpdir(), "gsd-agent-src-"));
+  writeFileSync(join(source, "agent.db"), "auth");
+  mkdirSync(join(source, "sessions"));
+  writeFileSync(join(source, "mcp.json"), '{ "mcpServers": { "gitea": { "command": "gitea-mcp" } } }\n');
+  const env = createEvalAgentEnv({ PI_CODING_AGENT_DIR: source, KEEP: "1" });
+  try {
+    assert.equal(env.KEEP, "1");
+    assert.notEqual(env.PI_CODING_AGENT_DIR, source);
+    assert.equal(readlinkSync(join(env.PI_CODING_AGENT_DIR, "agent.db")), join(source, "agent.db"));
+    assert.ok(lstatSync(join(env.PI_CODING_AGENT_DIR, "sessions")).isSymbolicLink());
+    assert.ok(!lstatSync(join(env.PI_CODING_AGENT_DIR, "mcp.json")).isSymbolicLink());
+    assert.deepEqual(JSON.parse(readFileSync(join(env.PI_CODING_AGENT_DIR, "mcp.json"), "utf8")), { mcpServers: {} });
+    assert.match(readFileSync(join(source, "mcp.json"), "utf8"), /gitea/, "the user's own config is untouched");
+  } finally {
+    rmSync(env.PI_CODING_AGENT_DIR, { recursive: true, force: true });
+    rmSync(source, { recursive: true, force: true });
+  }
+});
 
 test("AC-11: the repository manifest publishes the deterministic contract suite", () => {
   const manifest = JSON.parse(read("package.json"));

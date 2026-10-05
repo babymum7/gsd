@@ -6,22 +6,40 @@
   "canon_words": null,
   "pass1": {
     "google-antigravity/gemini-3.8-flash": {
-      "passed": 33,
+      "passed": 32,
       "total": 33,
-      "accuracy": 100
+      "accuracy": 97
     }
   },
   "pass2": {
     "google-antigravity/gemini-3.8-flash": {
       "corrected": 0,
-      "stillFailing": 0,
-      "accuracy": 100
+      "stillFailing": 1,
+      "accuracy": 97
     }
   },
   "summary": {
     "google-antigravity/gemini-3.8-flash": {
-      "firstAttempt": 100,
-      "corrected": 100
+      "firstAttempt": 97,
+      "corrected": 97
     }
+  },
+  "failures": {
+    "google-antigravity/gemini-3.8-flash": [
+      {
+        "fixture": "malformed-packet-direct-prompt",
+        "expected": {
+          "decision": "ordinary-routing",
+          "action": "direct",
+          "primarySkill": null
+        },
+        "actual": {
+          "decision": "fail-closed",
+          "action": "stop",
+          "primarySkill": null
+        },
+        "detail": "want ordinary-routing:direct->null, got fail-closed:stop->null"
+      }
+    ]
   }
 }

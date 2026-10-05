@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { sanitizeBootstrapError } from "../lib/gsd-bootstrap.mjs";
+import { withSessionOwner } from "../lib/gsd-session-context.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -1246,7 +1247,8 @@ test("automatic GSD bootstrap lifecycle is cached and idempotent", async () => {
   // byte identity, so the primary host is pinned to the core's own render too.
   assert.equal(
     registrationContext.messages[0].content,
-    createBootstrap(realpathSync(ROOT)),
+    // This context carries no session id, so the core's render ends with the mint instruction.
+    withSessionOwner(createBootstrap(realpathSync(ROOT)), null),
     "the OMP context message carries the core's exact bootstrap bytes",
   );
   const baseSystemPrompt = ["base system prompt"];

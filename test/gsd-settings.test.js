@@ -116,7 +116,8 @@ test("the OMP context message carries the user's OMP agent profiles", async () =
     });
     assert.equal(
       context.messages[0].content,
-      withSubagentProfiles(createBootstrap(CORE_ROOT), render(SETTINGS, "omp")),
+      // No session id reached this extension, so the bootstrap asks the session to mint one.
+      withSessionOwner(withSubagentProfiles(createBootstrap(CORE_ROOT), render(SETTINGS, "omp")), null),
     );
   } finally {
     if (previous === undefined) delete process.env.GSD_HOME;

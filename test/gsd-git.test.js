@@ -655,6 +655,13 @@ test("the read-only boundary rejects every mutating Git invocation", () => {
     ["diff", "--name-only", "--no-renames", "-z", "main...refs/heads/-x"],
     ["diff", "--name-only", "--no-renames", "-z", "main..refs/heads/task-t2"],
     ["diff", "--name-only", "--no-renames", "-o", "out", "main...refs/heads/task-t2"],
+    // Only reading one branch's base pin is a query; any write, other key, or extra flag is not.
+    ["config", "branch.wip/x.gsdbase", "main"],
+    ["config", "--unset", "branch.wip/x.gsdbase"],
+    ["config", "--get", "user.email"],
+    ["config", "--get", "branch.-x.gsdbase"],
+    ["config", "--get", "branch.wip/x.gsdbase", "main"],
+    ["config", "--global", "--get", "branch.wip/x.gsdbase"],
   ];
   for (const args of rejected) {
     assert.throws(
@@ -675,6 +682,7 @@ test("the read-only boundary rejects every mutating Git invocation", () => {
     ["show-ref", "--verify", "--quiet", "refs/heads/release/2026.1"],
     ["merge-base", "--is-ancestor", "main", "task-t2"],
     ["diff", "--name-only", "--no-renames", "-z", "main...refs/heads/task-t2"],
+    ["config", "--get", "branch.wip/x.gsdbase"],
   ]) {
     assertReadOnlyGit(args);
   }
@@ -1220,7 +1228,7 @@ test("preflight proves every listed repository sits on its WIP branch", () => {
     git(["checkout", "-q", "-b", `wip/${feature}`], api);
     const ready = cli(["preflight", "--feature-dir", relative], app);
     assert.equal(ready.status, 0, ready.stdout + ready.stderr);
-    assert.match(ready.stdout, new RegExp(`^repo: api base=develop wip=wip/${feature}$`, "m"));
+    assert.match(ready.stdout, new RegExp(`^repo: api base=develop wip=wip/${feature} unpinned$`, "m"));
   } finally {
     rmSync(parent, { recursive: true, force: true });
   }
@@ -1252,7 +1260,49 @@ test("preflight counts a listed repository that already merged its WIP branch", 
     git(["merge", "-q", "--no-ff", "--no-edit", `wip/${feature}`], api);
     const ready = cli(["preflight", "--feature-dir", relative], app);
     assert.equal(ready.status, 0, ready.stdout + ready.stderr);
-    assert.match(ready.stdout, new RegExp(`^repo: api base=develop wip=wip/${feature} merged$`, "m"));
+    assert.match(ready.stdout, new RegExp(`^repo: api base=develop wip=wip/${feature} merged unpinned$`, "m"));
+  } finally {
+    rmSync(parent, { recursive: true, force: true });
+  }
+});
+
+// plan.md stays editable, so an amended Repos row could move a listed repository's merge
+// target; the base recorded on its WIP branch at creation catches that.
+test("preflight blocks a listed repository whose plan base differs from its WIP branch's pin", () => {
+  const { parent, app, api, feature, relative, plan } = makeCrossRepoPacket();
+  try {
+    git(["checkout", "-q", "-b", `wip/${feature}`], app);
+    writeStateAtomic(join(app, relative), {
+      schema: "v0.0.3",
+      feature,
+      owner: "none",
+      phase: "verifying",
+      next_action: "terminal gate",
+      plan_path: `.scratch/${feature}/plan.md`,
+      base_ref: "main",
+      wip_branch: `wip/${feature}`,
+      last_green_task: "T1",
+      last_green_commit: git(["rev-parse", "HEAD"], app),
+      checkpoint_revision: "1",
+    });
+    git(["branch", "release"], api);
+    git(["checkout", "-q", "-b", `wip/${feature}`, "develop"], api);
+    git(["config", `branch.wip/${feature}.gsdBase`, "develop"], api);
+    const ready = cli(["preflight", "--feature-dir", relative], app);
+    assert.equal(ready.status, 0, ready.stdout + ready.stderr);
+    assert.match(ready.stdout, new RegExp(`^repo: api base=develop wip=wip/${feature}$`, "m"));
+
+    writeFileSync(join(app, relative, "plan.md"), plan.replace("| api | `../api` | `develop` |", "| api | `../api` | `release` |"));
+    const moved = cli(["preflight", "--feature-dir", relative], app);
+    assert.equal(moved.status, 1, moved.stdout);
+    assert.match(moved.stdout, /^code: base-changed$/m);
+    assert.match(moved.stdout, /restore that Repos row to develop/);
+    assert.match(moved.stdout, new RegExp(`git -C \\.\\./api config branch\\.wip/${feature}\\.gsdBase release`));
+
+    // Deleting the branch drops its pin, so a later feature of the same name starts clean.
+    git(["checkout", "-q", "develop"], api);
+    git(["branch", "-D", `wip/${feature}`], api);
+    assert.equal(spawnSync("git", ["config", "--get", `branch.wip/${feature}.gsdbase`], { cwd: api }).status, 1);
   } finally {
     rmSync(parent, { recursive: true, force: true });
   }

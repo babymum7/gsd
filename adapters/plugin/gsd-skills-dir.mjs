@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { discoverSkillCatalog } from '../../lib/gsd-bootstrap.mjs';
+import { unsetSessionLine } from '../../lib/gsd-session-context.mjs';
 
 // A skills-only install serves harnesses GSD ships no adapter for: they discover skill
 // directories but run no session hook, so nothing injects the bootstrap, `GSD_ROOT`, or
@@ -8,8 +9,6 @@ import { discoverSkillCatalog } from '../../lib/gsd-bootstrap.mjs';
 // `gsd` router skill stands in for the bootstrap.
 const SKILL_MARKER = '.gsd-skill';
 const ROUTER_NAME = 'gsd';
-// Every skills-only session shares this owner: there is no host session id to scope packets.
-export const SKILLS_ONLY_SESSION = 'skills-only';
 const ROUTER_DESCRIPTION =
   'Load first for GSD work: new or changed behavior, design, a bug with unknown cause, diff review, or continuing a .scratch packet.';
 const HOST_LOADED_SENTENCE = 'The host already loaded this; never reload it. ';
@@ -35,7 +34,8 @@ function renderRouter(coreRoot) {
     '',
     'No host adapter runs here, so this skill stands in for the session bootstrap: read it once per session.',
     `GSD_ROOT: ${JSON.stringify(coreRoot)}`,
-    `GSD_SESSION: ${SKILLS_ONLY_SESSION}`,
+    // No host session id exists here, so each session mints its own owner token.
+    unsetSessionLine(coreRoot),
     'Sibling skills sit beside this directory as `<name>/SKILL.md`. No recovery capsule follows compaction: `continue` resumes through `gsd-executing-plans`.',
     '',
     body.replace(HOST_LOADED_SENTENCE, ''),

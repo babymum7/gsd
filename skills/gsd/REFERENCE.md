@@ -116,8 +116,9 @@ checkpoint_revision:<positive int>
 
 ### Atomic write
 
-Every write goes through `gsd-state.mjs set key=value…` (fallback `write-state --json-file`), which writes atomically and reads back before reporting. A symlinked feature path, a basename unequal to `feature`, or a `plan_path` other than `.scratch/<feature>/plan.md` fails closed. Atomic means no torn file, not no lost update: `set` reads, merges, and replaces without a lock, so only the owner session writes a packet's `state.toon`, one `set` at a time.
-An `owner=` that differs from a recorded owner fails with `code: owner-mismatch` unless `--takeover` is passed, which is only for a packet the user named.
+Every write goes through `gsd-state.mjs set key=value…` (fallback `write-state --json-file`), which writes atomically and reads back before reporting. A symlinked feature path, a basename unequal to `feature`, or a `plan_path` other than `.scratch/<feature>/plan.md` fails closed. Both hold `.scratch/<feature>/.state.lock` across read, merge, and replace, so a concurrent write waits, or after two seconds fails `code: state-busy` to be rerun, instead of losing an update; a lock whose writer died is cleared.
+On a packet with a recorded owner, `set` without `owner=` fails `code: owner-required`, and an `owner=` that differs fails `code: owner-mismatch` naming the last checkpoint's age, unless `--takeover` is passed, which is only for a packet the user named; tell the user that owner and age when taking over.
+With no `GSD_SESSION` in context, or `GSD_SESSION: unset`, run `bun "<GSD_ROOT>/tools/gsd-state.mjs" session` once before the first `.scratch` write and use its `session:` token as `GSD_SESSION` for the rest of the session.
 
 ### Checkpoint cadence
 
@@ -137,7 +138,7 @@ The owner rebuilds task and terminal slices from plan, state, and Git.
 - Bookkeeping amendments are self-service: recording touched files, fixing paths or intents, splitting or reordering pending tasks, or sharpening wording that leaves acceptance intact.
 - A user-stated requirement change mid-execution is an amendment: amend, revalidate, and continue.
 - An amendment keeps the plan grammar in [../gsd-to-plan/PLAN-GRAMMAR.md](../gsd-to-plan/PLAN-GRAMMAR.md); `validate-plan` is the authority.
-- Material amendments ask one question first: changing an active criterion, weakening invariants or non-goals, changing `Domain Impact`, replacing interface pins, or rewriting completed tasks.
+- Material amendments ask one question first: changing an active criterion, weakening invariants or non-goals, changing `Domain Impact`, replacing interface pins, changing a `## Repos` base, or rewriting completed tasks.
 
 ### Skill derivation from phase and next_action
 
@@ -178,7 +179,7 @@ One work tree can hold other sessions' uncommitted edits, so Git commands stay s
 ### Cross-repo plans
 
 A plan with `## Repos` keeps `.scratch/<feature>/` and `state.toon` in this repository only.
-- Each listed repository gets its own `wip/<feature>` branch cut from its row's Base; a task's branch is cut in its own repository, and `last_green_commit` is the checkpointed commit there.
+- Each listed repository gets its own `wip/<feature>` branch cut from its row's Base, pinned at creation with `git -C <repo> config branch.wip/<feature>.gsdBase <Base>`; `preflight` blocks `base-changed` when the row no longer matches and marks a branch with no pin `unpinned`. A task's branch is cut in its own repository, and `last_green_commit` is the checkpointed commit there.
 - A listed repository has one HEAD of its own: if another feature's `wip/*` is checked out there, ask the user for a worktree of it (`git -C <repo> worktree add -b <branch> <dir> <Base>`) and list that worktree's path in `## Repos`, rather than switching that repository's branch. Its sub-agent tasks run serially unless each gets its own worktree of that repository.
 - `analyze-waves` treats the same path in two repositories as disjoint. `verify-task-branch` reads the task's repository from the plan; `preflight` proves every listed repository.
 - The single merge-or-pull-request question covers every repository, each targeting its own row's Base. Listed repositories merge first and this one last; branches and scratch are deleted only after every merge landed, and `preflight` reports an already merged repository as `merged`, so an interrupted run resumes.
@@ -191,7 +192,7 @@ At packet creation run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and reco
 Before merge run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`, unpiped or under `set -o pipefail`.
 - Exit 0 prints `status: ready`, the observed base, WIP branch, and HEAD (equal to `wip_branch`), one `repo:` line per other listed repository, and a trailing `exit=0` line.
 - Exit 1 prints `status: blocked`, a `code:`, and `exit=1`; it blocks as Spec escalation and never retargets the merge, except `base-advanced`, which merges `base_ref` into `wip/<feature>` and repeats the terminal gate. Exit 2 corrects invocation.
-- Codes include `detached-head`, `head-not-wip`, `base-advanced` (the base gained commits the WIP branch lacks), `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `not-a-repository-root` (a listed repository that is only a folder inside another one), `plan-invalid`, and Git-query failures; an unanswered query blocks.
+- Codes include `detached-head`, `head-not-wip`, `base-advanced` (the base gained commits the WIP branch lacks), `base-changed` (a listed repository's Repos row differs from its WIP branch's pin), `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `not-a-repository-root` (a listed repository that is only a folder inside another one), `plan-invalid`, and Git-query failures; an unanswered query blocks.
 - `dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, both sides of a rename included. Both commands are read-only.
 
 The merge or pull request targets exactly the recorded `base_ref`; never widen to repository defaults. Promoting base onward is separate user-owned work.

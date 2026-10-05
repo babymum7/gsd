@@ -15,8 +15,8 @@ const VALUE_FLAGS = new Set(["--feature-dir", "--cwd", "--task", "--branch", "--
 
 // A subcommand name is not a permission: `git symbolic-ref <name> <ref>` writes a ref and
 // `git symbolic-ref --delete <name>` removes one, so the boundary is the whole argv. These
-// five shapes are every query this tool makes; `show-ref`, `merge-base`, and `diff` carry
-// variable refs and are handled below. `symbolic-ref` runs without `--short`, which prints
+// five shapes are every query this tool makes; `show-ref`, `merge-base`, `config --get`, and
+// `diff` carry variable refs and are handled below. `symbolic-ref` runs without `--short`, which prints
 // `heads/main` once a tag is named `main`. `status` runs under `--no-optional-locks` so that reading
 // the tree cannot even refresh the index's stat cache.
 const READ_ONLY = new Set([
@@ -28,7 +28,8 @@ const READ_ONLY = new Set([
 ]);
 const BRANCH_REF_PREFIX = "refs/heads/";
 const WIP_PREFIX = "wip/";
-// The owner every skills-only session records (adapters/plugin/gsd-skills-dir.mjs).
+// The owner every skills-only session recorded before each one minted its own token
+// (`gsd-state.mjs session`); packets bound then still carry it.
 const SKILLS_ONLY_SESSION = "skills-only";
 // The child-process runner fails with ENOBUFS once captured output passes its 1 MiB default, and
 // a tree with thousands of untracked files lists past that. The largest query is `status -z`.
@@ -57,6 +58,11 @@ export function assertReadOnlyGit(args) {
     isSafeBranchRef(args[3])
   ) {
     return;
+  }
+  // `config --get` with no other flag only reads, and the key is fixed to one branch's base pin.
+  if (args.length === 3 && args[0] === "config" && args[1] === "--get") {
+    const pinned = args[2].match(/^branch\.(.+)\.gsdbase$/);
+    if (pinned && isSafeBranchRef(pinned[1])) return;
   }
   // `--no-renames` lists the deleted source of a rename beside its destination, and `-z`
   // keeps every path byte-exact instead of C-quoting non-ASCII ones. The target is a full
@@ -506,6 +512,15 @@ function proveBranchIdentity(dir, base, wip, where) {
   return head;
 }
 
+// A listed repository's base lives only in plan.md, which stays editable, so its WIP branch
+// records the base it was cut from (`git config branch.<wip>.gsdBase <base>`) and an amended
+// Repos row cannot silently move that repository's merge target. Git drops the key with the
+// branch. A branch cut before pins existed has none, which is reported, not blocked.
+function readBasePin(dir, wip) {
+  const pin = git(["config", "--get", `branch.${wip}.gsdbase`], dir);
+  return pin.status === 0 && pin.stdout ? pin.stdout : null;
+}
+
 function preflight(cwd, featureDir) {
   requireWorkTree(cwd);
   let state;
@@ -535,6 +550,14 @@ function preflight(cwd, featureDir) {
   for (const repo of repos.filter((entry) => entry.path !== ".")) {
     const dir = resolve(cwd, repo.path);
     requireRepositoryRoot(dir, repo.name);
+    const pin = readBasePin(dir, wip);
+    if (pin !== null && pin !== repo.base) {
+      blocked(
+        "base-changed",
+        `plan lists ${repo.base} as the base of repo ${repo.name}, but ${wip} there was cut from ${pin} (branch.${wip}.gsdBase): restore that Repos row to ${pin}; if the user moved this repository's merge target, run \`git -C ${repo.path} config branch.${wip}.gsdBase ${repo.base}\` and rerun the terminal gate`,
+      );
+    }
+    const unpinned = pin === null ? " unpinned" : "";
     // Listed repositories merge before the home one, so a run interrupted between merges
     // finds some already merged: HEAD back on the base and the WIP branch inside it.
     if (
@@ -542,11 +565,11 @@ function preflight(cwd, featureDir) {
       localBranchExists(wip, dir) &&
       git(["merge-base", "--is-ancestor", wip, repo.base], dir).status === 0
     ) {
-      repoLines.push(`repo: ${repo.name} base=${repo.base} wip=${wip} merged`);
+      repoLines.push(`repo: ${repo.name} base=${repo.base} wip=${wip} merged${unpinned}`);
       continue;
     }
     proveBranchIdentity(dir, repo.base, wip, ` in repo ${repo.name}`);
-    repoLines.push(`repo: ${repo.name} base=${repo.base} wip=${wip}`);
+    repoLines.push(`repo: ${repo.name} base=${repo.base} wip=${wip}${unpinned}`);
   }
   // The trailing exit line is the report's own echo of the process exit code. A consumer
   // that reads the report through a pipe sees the last stage's exit status, so without this

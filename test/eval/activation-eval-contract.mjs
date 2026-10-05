@@ -1,4 +1,7 @@
 import { createHash } from "node:crypto";
+import { mkdtempSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { homedir, tmpdir } from "node:os";
+import { join } from "node:path";
 
 export const ACTIVATING_DECISIONS = new Set(["ordinary-routing"]);
 export const STOPPING_DECISIONS = new Set(["fail-closed"]);
@@ -9,6 +12,35 @@ const ALLOWED_DECISIONS = new Set([
 const ALLOWED_ACTIONS = new Set(["load", "direct", "stop"]);
 const HTTP_DEFAULT_MODEL = "gpt-4o-mini";
 const OMP_DEFAULT_MODELS = ["gpt-5.6-luna"];
+
+// One fresh empty directory per evaluator run. The shared temp root as cwd let a model read
+// other sessions' scratch files by relative path. It is not a sandbox: absolute paths still resolve.
+export function createEvalCwd() {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-eval-"));
+  process.on("exit", () => rmSync(dir, { recursive: true, force: true }));
+  return dir;
+}
+
+// `--tools read` does not stop OMP from running a `write` to an `xd://mcp__…` URI: it reaches
+// the user's MCP servers, write tools included, under the evaluator's auto-approval. The eval
+// sessions therefore run on a copy of the agent directory, linked entry by entry so auth and
+// models still resolve, with no MCP server configured. Removal unlinks the links only.
+export function createEvalAgentEnv(env = process.env) {
+  const source = env.PI_CODING_AGENT_DIR || join(homedir(), ".omp", "agent");
+  const dir = mkdtempSync(join(tmpdir(), "gsd-eval-agent-"));
+  process.on("exit", () => rmSync(dir, { recursive: true, force: true }));
+  let entries = [];
+  try {
+    entries = readdirSync(source);
+  } catch {
+    // No agent directory: OMP starts from defaults, which configure no MCP server either.
+  }
+  for (const name of entries) {
+    if (name !== "mcp.json") symlinkSync(join(source, name), join(dir, name));
+  }
+  writeFileSync(join(dir, "mcp.json"), '{ "mcpServers": {} }\n');
+  return { ...env, PI_CODING_AGENT_DIR: dir };
+}
 
 // A report is evidence only if it says which bytes produced its numbers. The rendered bootstrap
 // embeds absolute repository paths, so the repository root is normalized to one placeholder

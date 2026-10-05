@@ -251,7 +251,8 @@ test("skills-only install writes resolved visible skills and a router, and unins
   assert.match(router, /^name: gsd$/m);
   assert.doesNotMatch(router, /^hide: true$/m);
   assert.ok(router.includes(`GSD_ROOT: ${JSON.stringify(coreRoot)}`));
-  assert.match(router, /^GSD_SESSION: skills-only$/m);
+  assert.match(router, /^GSD_SESSION: unset\. /m, "each skills-only session mints its own owner");
+  assert.ok(router.includes(`bun "${coreRoot}/tools/gsd-state.mjs" session`));
   assert.doesNotMatch(router, /The host already loaded this/);
   assert.ok(existsSync(join(skillsDir, "gsd", "REFERENCE.md")), "relative ../gsd/REFERENCE.md links resolve");
 

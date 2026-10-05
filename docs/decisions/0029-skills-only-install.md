@@ -10,3 +10,7 @@
 ## Rationale
 
 Without a session hook nothing injects the bootstrap, the root path, or a session id, so each skill must carry its own resolved path and the router must be discoverable like any other skill. A per-session owner would need a host session id the harness does not expose; a shared fixed owner keeps resume working at the cost of parallel-session scoping, which the README states. Adding an adapter remains the way to get the full lifecycle.
+
+## Amendment
+
+Amended 2026-10-05. Decision 0030 replaces the shared `skills-only` owner: each skills-only session now mints its own owner token, and a token lost to compaction makes the earlier packet resume only when the user names it.

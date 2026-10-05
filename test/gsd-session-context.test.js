@@ -12,6 +12,7 @@ import {
   renderRecoveryCapsule,
   sessionOwnerToken,
   withCurrentRequest,
+  withSessionOwner,
 } from "../lib/gsd-session-context.mjs";
 
 const CLI = join(import.meta.dir, "..", "tools", "gsd-state.mjs");
@@ -184,6 +185,18 @@ function validState(feature, owner) {
 // A feature directory holding more entries than a packet may is one bad packet. It used to
 // abort the whole scan, and the recovery capsule swallowed the abort, so another session's
 // bulky directory erased this session's recovery.
+// A hook that received no session id used to inject no GSD_SESSION at all, so every such
+// session wrote the same literal owner and each could resume the others' packets.
+test("a bootstrap with no session id tells the session to mint its own token", () => {
+  const bootstrap = "<GSD_BOOTSTRAP>\nbody\n</GSD_BOOTSTRAP>";
+  assert.match(withSessionOwner(bootstrap, "claude-1"), /\nGSD_SESSION: claude-1\n<\/GSD_BOOTSTRAP>$/);
+  const unset = withSessionOwner(bootstrap, null);
+  assert.match(unset, /\nGSD_SESSION: unset\. /);
+  assert.ok(unset.includes('`bun "<GSD_ROOT>/tools/gsd-state.mjs" session`'));
+  assert.ok(unset.endsWith("</GSD_BOOTSTRAP>"));
+  assert.equal(withSessionOwner("not a bootstrap", null), "not a bootstrap");
+});
+
 test("an oversized feature directory is named as a stop without hiding other packets", () => {
   const root = workspace({});
   try {

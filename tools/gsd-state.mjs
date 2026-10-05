@@ -1,17 +1,19 @@
 #!/usr/bin/env bun
-import { existsSync, readFileSync } from "node:fs";
+import { randomUUID } from "node:crypto";
+import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   ACTIVE_STATE_PHASES,
   STATE_FIELD_ORDER,
+  acquireStateLock,
   defaultNextActionForPhase,
   inspectStateFile,
   readStateFile,
   writeStateAtomic,
 } from "../lib/gsd-state.mjs";
 
-const COMMANDS = new Set(["read-state", "write-state", "validate-state", "set"]);
+const COMMANDS = new Set(["read-state", "write-state", "validate-state", "set", "session"]);
 const VALUE_FLAGS = new Set(["--path", "--feature-dir", "--json", "--json-file"]);
 const STATE_FIELD_SET = new Set(STATE_FIELD_ORDER);
 
@@ -35,7 +37,10 @@ function commandUsage(command) {
   if (command === "set") {
     return `${INVOCATION} set --feature-dir .scratch/<feature> [--takeover] [key=value...]`;
   }
-  return `${INVOCATION} <read-state|write-state|validate-state|set> [options]`;
+  if (command === "session") {
+    return `${INVOCATION} session`;
+  }
+  return `${INVOCATION} <read-state|write-state|validate-state|set|session> [options]`;
 }
 
 function emitHelp(command) {
@@ -122,6 +127,17 @@ function emitHelp(command) {
     ]);
     return;
   }
+  if (command === "session") {
+    write_([
+      "Usage: " + usage,
+      "",
+      "Print a new unique session token for a session that no host hook named.",
+      "Use the printed token as GSD_SESSION, and so as owner=, for the rest of the session.",
+      "",
+      "Exit codes: 0 = success, 2 = usage error",
+    ]);
+    return;
+  }
   write_([
     "Usage: " + INVOCATION + " <command> [options]",
     "",
@@ -130,6 +146,7 @@ function emitHelp(command) {
     "  write-state      Write state.toon atomically with validation",
     "  validate-state   Validate a state.toon file without writing",
     "  set              Set state fields atomically with validation and defaults",
+    "  session          Print a new session token when no host hook supplied GSD_SESSION",
     "Use --help (or -h) <command> for command-specific help.",
   ]);
 }
@@ -143,15 +160,42 @@ function failUsage(message, command = null) {
   process.exit(2);
 }
 
+// No tool can see whether another session is alive, but the age of its last checkpoint tells
+// a crashed or abandoned packet from one whose owner wrote a minute ago.
+function checkpointAge(statePath) {
+  let minutes;
+  try {
+    minutes = Math.max(0, Math.floor((Date.now() - statSync(statePath).mtimeMs) / 60000));
+  } catch {
+    return "unknown";
+  }
+  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 48 * 60) return `${Math.floor(minutes / 60)}h ${minutes % 60}m ago`;
+  return `${Math.floor(minutes / 1440)}d ago`;
+}
+
 // A packet has one writer. Without this check a session that still believes it owns a packet
 // silently takes it back from the session the user handed it to, and both keep executing.
-function refuseOwnerChange(feature, recorded, requested, command, takeover) {
+function refuseOwnerChange(feature, recorded, requested, command, takeover, statePath) {
   if (recorded === "none" || requested === recorded || takeover) return;
   write_([
     "status: error",
     "code: owner-mismatch",
-    `error: ${quote(`packet ${feature} is owned by ${recorded}, not ${requested}`)}`,
-    `help: ${quote(`leave it alone unless the user named this packet; then rerun this ${command} with --takeover`)}`,
+    `error: ${quote(`packet ${feature} is owned by ${recorded}, not ${requested}; its last checkpoint was ${checkpointAge(statePath)}`)}`,
+    `help: ${quote(`leave it alone unless the user named this packet; then rerun this ${command} with --takeover, telling the user the owner and checkpoint age, since a recent checkpoint means that session may still be running`)}`,
+  ]);
+  process.exit(1);
+}
+
+// A write that names no owner would skip the check above, so a session the packet was taken
+// from could still overwrite the new owner's checkpoint.
+function requireOwner(feature, recorded) {
+  if (recorded === "none") return;
+  write_([
+    "status: error",
+    "code: owner-required",
+    `error: ${quote(`packet ${feature} is owned by ${recorded}, and this set names no owner`)}`,
+    `help: ${quote(`rerun this set with owner=<GSD_SESSION> added; if ${recorded} is not your GSD_SESSION, leave the packet alone unless the user named it`)}`,
   ]);
   process.exit(1);
 }
@@ -161,7 +205,9 @@ function failArtifact(error, command) {
     .replace(/[\x00-\x1F\x7F]+/g, " ")
     .trim()
     .slice(0, 500) || "state validation failed";
-  const code = error?.contractFailure === "io-error" ? "io-error" : "invalid-artifact";
+  const code = error?.contractFailure === "io-error" || error?.contractFailure === "state-busy"
+    ? error.contractFailure
+    : "invalid-artifact";
   write_(["status: error", `code: ${code}`, `error: ${quote(message)}`, `help: ${quote(remediation(message, command))}`]);
   process.exit(1);
 }
@@ -169,6 +215,9 @@ function failArtifact(error, command) {
 // A retired schema is never migrated in place; the fix is a fresh binding that carries the
 // old record's values forward, so the help line names that rebind instead of the flag list.
 function remediation(message, command) {
+  if (message.includes(".state.lock held")) {
+    return `rerun this ${command} once the other write finishes; a lock whose writer died is cleared automatically`;
+  }
   const retired = /unsupported schema: (\S+)/.exec(message);
   if (!retired) return commandUsage(command);
   return (
@@ -275,6 +324,8 @@ if (input.usageError) {
   } catch (error) {
     failArtifact(error, "validate-state");
   }
+} else if (input.command === "session") {
+  write_(["status: ok", `session: local-${randomUUID()}`]);
 } else if (input.command === "write-state") {
   if (!input.featureDir) failUsage("--feature-dir is required", "write-state");
   if (!input.json && !input.jsonFile) failUsage("--json or --json-file is required", "write-state");
@@ -288,6 +339,11 @@ if (input.usageError) {
   }
   // The fallback writer obeys the same one-owner rule as `set`. An unreadable existing record
   // is left to writeStateAtomic, which a retired-schema rebind relies on.
+  try {
+    acquireStateLock(input.featureDir);
+  } catch (error) {
+    failArtifact(error, "write-state");
+  }
   const existingPath = path.join(path.resolve(input.featureDir), "state.toon");
   if (existsSync(existingPath) && typeof state?.owner === "string") {
     let recorded = null;
@@ -296,7 +352,7 @@ if (input.usageError) {
     } catch {
       recorded = null;
     }
-    if (recorded !== null) refuseOwnerChange(path.basename(path.resolve(input.featureDir)), recorded, state.owner, "write-state", input.takeover);
+    if (recorded !== null) refuseOwnerChange(path.basename(path.resolve(input.featureDir)), recorded, state.owner, "write-state", input.takeover, existingPath);
   }
   try {
     const result = writeStateAtomic(input.featureDir, state);
@@ -310,6 +366,11 @@ if (input.usageError) {
   const statePath = path.join(path.resolve(input.featureDir), "state.toon");
   const updateKeys = new Set(input.pairs.map((p) => p.key));
 
+  try {
+    acquireStateLock(input.featureDir);
+  } catch (error) {
+    failArtifact(error, "set");
+  }
   let baseState;
   const exists = existsSync(statePath);
   if (exists) {
@@ -335,7 +396,8 @@ if (input.usageError) {
   }
 
   const ownerPair = input.pairs.find((p) => p.key === "owner");
-  if (exists && ownerPair) refuseOwnerChange(featureMetaName, baseState.owner, ownerPair.value, "set", input.takeover);
+  if (exists && ownerPair) refuseOwnerChange(featureMetaName, baseState.owner, ownerPair.value, "set", input.takeover, statePath);
+  if (exists && !ownerPair) requireOwner(featureMetaName, baseState.owner);
 
   const state = { ...baseState };
   for (const { key, value } of input.pairs) {
@@ -346,9 +408,10 @@ if (input.usageError) {
     if (!updateKeys.has("checkpoint_revision")) {
       state.checkpoint_revision = (BigInt(baseState.checkpoint_revision) + 1n).toString();
     }
-    // Pausing keeps the interrupted action so a resume continues it; every other phase change
+    // Pausing keeps the interrupted action, and resuming from a pause keeps it again, so a
+    // pause taken during verification resumes into verification; every other phase change
     // derives its default.
-    if (!updateKeys.has("next_action") && updateKeys.has("phase") && state.phase !== "paused") {
+    if (!updateKeys.has("next_action") && updateKeys.has("phase") && state.phase !== "paused" && baseState.phase !== "paused") {
       const defaultNext = defaultNextActionForPhase(state.phase);
       if (defaultNext != null) {
         state.next_action = defaultNext;

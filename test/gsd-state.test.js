@@ -769,6 +769,61 @@ test("CLI set refuses to replace another session's owner without --takeover", ()
   assert.equal(viaJsonTaken.exitCode, 0, viaJsonTaken.stdout);
 });
 
+// A write naming no owner would skip the owner check, so a session the packet was taken from
+// could still overwrite the new owner's checkpoint.
+test("CLI set on an owned packet requires owner=, and a refusal names the checkpoint age", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  assert.equal(cli(["set", "--feature-dir", scratch, "base_ref=main", "owner=claude-a"]).exitCode, 0);
+  const anonymous = cli(["set", "--feature-dir", scratch, "last_green_task=T1"]);
+  assert.equal(anonymous.exitCode, 1);
+  assert.match(anonymous.stdout, /code: owner-required/);
+  assert.match(anonymous.stdout, /owned by claude-a/);
+  assert.match(anonymous.stdout, /owner=<GSD_SESSION>/);
+
+  const old = new Date(Date.now() - 3 * 60 * 60 * 1000);
+  fs.utimesSync(join(scratch, "state.toon"), old, old);
+  const steal = cli(["set", "--feature-dir", scratch, "owner=codex-b"]);
+  assert.match(steal.stdout, /last checkpoint was 3h 0m ago/);
+
+  const { scratch: unowned } = tmpFeatureDir("test-feature");
+  assert.equal(cli(["set", "--feature-dir", unowned, "base_ref=main"]).exitCode, 0);
+  assert.equal(cli(["set", "--feature-dir", unowned, "phase=executing"]).exitCode, 0, "an unowned packet needs no owner=");
+});
+
+test("CLI session prints a fresh owner token each time", () => {
+  const first = cli(["session"]);
+  assert.equal(first.exitCode, 0, first.stdout);
+  const token = /^session: (local-[0-9a-f-]{36})$/m.exec(first.stdout)?.[1];
+  assert.ok(token, first.stdout);
+  assert.notEqual(/^session: (.*)$/m.exec(cli(["session"]).stdout)[1], token);
+  const { scratch } = tmpFeatureDir("test-feature");
+  assert.equal(cli(["set", "--feature-dir", scratch, "base_ref=main", `owner=${token}`]).exitCode, 0);
+});
+
+// Two writers interleaving read-merge-write would lose one update without an error.
+test("CLI set waits on a live writer's lock and clears a dead writer's lock", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  assert.equal(cli(["set", "--feature-dir", scratch, "base_ref=main"]).exitCode, 0);
+  const lock = join(scratch, ".state.lock");
+
+  writeFileSync(lock, `${process.pid}\n`);
+  const busy = cli(["set", "--feature-dir", scratch, "phase=executing"]);
+  assert.equal(busy.exitCode, 1);
+  assert.match(busy.stdout, /code: state-busy/);
+  assert.equal(readFileSync(lock, "utf8"), `${process.pid}\n`, "a live writer keeps its lock");
+
+  const dead = execFileSync(process.execPath, ["-e", "console.log(process.pid)"], { encoding: "utf8" }).trim();
+  writeFileSync(lock, `${dead}\n`);
+  const cleared = cli(["set", "--feature-dir", scratch, "phase=executing"]);
+  assert.equal(cleared.exitCode, 0, cleared.stdout);
+  assert.equal(existsSync(lock), false, "the writer releases its own lock");
+
+  // A refusal exits inside the locked region and must still release.
+  assert.equal(cli(["set", "--feature-dir", scratch, "owner=claude-a"]).exitCode, 0);
+  assert.equal(cli(["set", "--feature-dir", scratch, "owner=codex-b"]).exitCode, 1);
+  assert.equal(existsSync(lock), false);
+});
+
 test("detectCandidates with an owner lists only that session's packets", () => {
   const root = mkdtempSync(join(tmpdir(), "gsd-owner-"));
   for (const [feature, owner] of [["mine-a", "omp-s1"], ["theirs", "omp-s2"], ["unowned", "none"], ["mine-b", "omp-s1"]]) {
@@ -822,8 +877,12 @@ test("CLI set phase=paused keeps the interrupted next_action", () => {
     assert.equal(state.phase, "paused");
     assert.equal(state.next_action, interrupted);
 
-    const resumed = JSON.parse(cli(["set", "--feature-dir", scratch, "phase=executing"]).stdout);
-    assert.equal(resumed.next_action, "start/continue task", "leaving pause derives the default again");
+    const resumed = JSON.parse(cli(["set", "--feature-dir", scratch, "phase=verifying"]).stdout);
+    assert.equal(resumed.phase, "verifying");
+    assert.equal(resumed.next_action, interrupted, "resuming continues the interrupted action");
+
+    const moved = JSON.parse(cli(["set", "--feature-dir", scratch, "phase=executing"]).stdout);
+    assert.equal(moved.next_action, "start/continue task", "a phase change outside a pause derives the default");
   }
 });
 

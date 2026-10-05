@@ -4,29 +4,10 @@
   "bootstrap_words": 530,
   "pass": {
     "google-antigravity/gemini-3.8-flash": {
-      "passed": 19,
+      "passed": 23,
       "total": 23,
-      "accuracy": 82.61
+      "accuracy": 100
     }
   },
-  "failures": {
-    "google-antigravity/gemini-3.8-flash": [
-      {
-        "fixture": "review-diff",
-        "detail": "answered before reading the skill: Here is a review of the diff:\n\n### Critical Security Risk: Missing Cryptographic Signature Verification\n- **Issue**: Usi"
-      },
-      {
-        "fixture": "architecture-this-repo",
-        "detail": "skill not read in the first 3 actions: read ., read /home/trong/Documents/personal/gsd, read /home/trong/Documents/personal/gsd/README.md"
-      },
-      {
-        "fixture": "domain-glossary",
-        "detail": "skill not read in the first 3 actions: read docs/domain/billing.md, read docs/domain/index.md, read claude-1000/-home-trong-Documents-personal-ai-router/d8984e1f-851e-46e3-aca9-a1babb15a6e5/scratchpad/base-domain/docs/domain/index.md"
-      },
-      {
-        "fixture": "domain-context-mapping",
-        "detail": "answered before reading the skill: # Bounded Context Specification: Order Fulfillment vs. Inventory Management\n\n## 1. Context Overviews & Core Responsibili"
-      }
-    ]
-  }
+  "failures": {}
 }

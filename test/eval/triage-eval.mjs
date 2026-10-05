@@ -19,7 +19,6 @@
 import { spawn } from "node:child_process";
 import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
-import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import {
   describeEvalBackendError,
@@ -28,8 +27,13 @@ import {
   selectEvalBackend,
   triageResponseMatchesFixture,
   validateTriageFixtureSet,
+  createEvalAgentEnv,
+  createEvalCwd,
 } from "./activation-eval-contract.mjs";
 import { createBootstrap } from "../../extensions/gsd-context.js";
+
+const evalCwd = createEvalCwd();
+const evalEnv = createEvalAgentEnv();
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..", "..");
@@ -139,7 +143,7 @@ function askOmp(model, fixture) {
       "--mode", "text",
       "--model", model,
       "--system-prompt", system,
-      "--cwd", tmpdir(),
+      "--cwd", evalCwd,
       "--thinking", "off",
       "--no-extensions",
       "--no-skills",
@@ -149,7 +153,7 @@ function askOmp(model, fixture) {
       "--no-session",
       "--no-title",
       askUser(fixture),
-    ], { stdio: ["ignore", "pipe", "pipe"] });
+    ], { stdio: ["ignore", "pipe", "pipe"], env: evalEnv });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");

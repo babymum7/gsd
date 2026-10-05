@@ -7,11 +7,13 @@ import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
 import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
-import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
-import { describeEvalBackendError, evalSurfaceFingerprint, selectEvalBackend } from "./activation-eval-contract.mjs";
+import { describeEvalBackendError, evalSurfaceFingerprint, selectEvalBackend, createEvalAgentEnv, createEvalCwd } from "./activation-eval-contract.mjs";
 import { parseBrainstormComplianceEvents } from "./brainstorm-compliance-eval-contract.mjs";
 import { createBootstrap, discoverSkillCatalog } from "../../extensions/gsd-context.js";
+
+const evalCwd = createEvalCwd();
+const evalEnv = createEvalAgentEnv();
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..", "..");
@@ -99,7 +101,7 @@ function askOmp(model, fixture) {
       "--mode", "json",
       "--model", model,
       "--system-prompt", system,
-      "--cwd", tmpdir(),
+      "--cwd", evalCwd,
       "--thinking", "off",
       "--no-extensions",
       "--no-skills",
@@ -111,7 +113,7 @@ function askOmp(model, fixture) {
       "--auto-approve",
       "--max-time", String(timeoutSeconds),
       askUser(fixture),
-    ], { stdio: ["ignore", "pipe", "pipe"] });
+    ], { stdio: ["ignore", "pipe", "pipe"], env: evalEnv });
     let stdout = "";
     let stderr = "";
     child.stdout.setEncoding("utf8");
@@ -120,7 +122,9 @@ function askOmp(model, fixture) {
     child.stderr.on("data", (chunk) => { stderr += chunk; });
     child.on("error", reject);
     child.on("close", (code) => {
-      if (code !== 0) {
+      // A fixture that ran out of time exits non-zero after a complete agent run; that is the
+      // model's miss to score, not an unavailable backend that should abort every fixture.
+      if (code !== 0 && !stdout.includes('"type":"agent_end"')) {
         reject(new Error(`omp exit ${code}: ${stderr.trim() || stdout.trim()}`));
         return;
       }

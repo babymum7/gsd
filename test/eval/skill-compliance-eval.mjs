@@ -14,16 +14,20 @@
 import { spawn } from "node:child_process";
 import { readFileSync, statSync, writeFileSync } from "node:fs";
 import { delimiter, dirname, join } from "node:path";
-import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import {
   describeEvalBackendError,
   evalSurfaceFingerprint,
   selectEvalBackend,
   validateFixtureSet,
+  createEvalAgentEnv,
+  createEvalCwd,
 } from "./activation-eval-contract.mjs";
 import { parseSkillComplianceEvents } from "./skill-compliance-eval-contract.mjs";
 import { createBootstrap, discoverSkillCatalog } from "../../extensions/gsd-context.js";
+
+const evalCwd = createEvalCwd();
+const evalEnv = createEvalAgentEnv();
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = join(here, "..", "..");
@@ -106,7 +110,7 @@ function askOmp(model, fixture, expectedPath) {
       "--mode", "json",
       "--model", model,
       "--system-prompt", system,
-      "--cwd", tmpdir(),
+      "--cwd", evalCwd,
       "--thinking", "off",
       "--no-extensions",
       "--no-skills",
@@ -118,7 +122,7 @@ function askOmp(model, fixture, expectedPath) {
       "--auto-approve",
       "--max-time", String(timeoutSeconds),
       askUser(fixture),
-    ], { stdio: ["ignore", "pipe", "pipe"] });
+    ], { stdio: ["ignore", "pipe", "pipe"], env: evalEnv });
     let completeOutput = "";
     let buffer = "";
     let stderr = "";
@@ -171,7 +175,9 @@ function askOmp(model, fixture, expectedPath) {
     child.on("close", (code) => {
       if (settled) return;
       settled = true;
-      if (code !== 0) {
+      // A fixture that ran out of time exits non-zero after a complete agent run; that is the
+      // model's miss to score, not an unavailable backend that should abort every fixture.
+      if (code !== 0 && !completeOutput.includes('"type":"agent_end"')) {
         reject(new Error(`omp exit ${code}: ${stderr.trim() || completeOutput.trim()}`));
         return;
       }
