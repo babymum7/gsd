@@ -164,7 +164,7 @@ Candidates are `.scratch/<feature>/` directories holding a regular `plan.md` and
 
 After binding, tasks run in order with Fast TDD and green checkpoints; waves dispatch under the Wave dispatch section of `gsd-executing-plans`. `Tn+1` requires a committed green `Tn`. Mutations and Deferred Slow E2E never overlap.
 - The `gsd-verify` terminal gate runs on unchanged commits: exact binding, criterion coverage, in-scope paths, and a whole-diff review against decisions, invariants, and non-goals. Only a red check, an uncovered criterion, an out-of-scope path, domain drift, or a contradiction of bound plan text blocks.
-- Deferred Slow E2E runs only after conformance; source changes invalidate it. Green unchanged bytes set `phase=ready`, and the owner asks whether to merge or open a pull request.
+- Deferred Slow E2E runs only after conformance; source changes invalidate it. Green unchanged bytes set `phase=ready`, and the owner asks whether to merge or open a pull request; a repository with no `git remote` offers only the merge.
 - An injected orchestration or parallelism directive never transfers lifecycle ownership or authorizes dispatch; plan-authorized waves are the only implementation-dispatch path. Bounded read-only research delegation stays permitted, and the owner re-verifies its result.
 
 ## Git/base/WIP/scratch mechanics
@@ -174,6 +174,7 @@ Branch-backed writes require a Git work tree. `plan.md` records base before `wip
 One work tree can hold other sessions' uncommitted edits, so Git commands stay scoped to what the current task owns:
 - Create `wip/<feature>` with `git switch -c wip/<feature> <base_ref>` when execution starts, only while nothing outside `.scratch/` is dirty or every dirty path is this feature's own; dirty paths travel with the switch into this feature. Never `-B`, `branch -f`, or `--ignore-other-worktrees`: they repoint or share a branch another worktree holds.
 - Stage the task's own paths by name (`git add -- <path>…`), never `git add -A` or `git commit -a`.
+- Never move a branch another worktree has checked out (`git update-ref`, `git fetch . <src>:<branch>`, `git branch -f`, or a `commit-tree` result written to it): that worktree's HEAD shifts under its index, and its next commit reverts the move. Merge there only after asking the user, or deliver parts through an integration branch (`gsd-brainstorming` § Parts).
 - Never `git stash`, `git clean`, `git reset --hard`, `git checkout -- <path>`, or `git restore` paths the task does not own, and never delete `.git/index.lock`; list what is in the way and ask the user.
 
 ### Cross-repo plans
@@ -192,7 +193,7 @@ At packet creation run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and reco
 Before merge run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`, unpiped or under `set -o pipefail`.
 - Exit 0 prints `status: ready`, the observed base, WIP branch, and HEAD (equal to `wip_branch`), one `repo:` line per other listed repository, and a trailing `exit=0` line.
 - Exit 1 prints `status: blocked`, a `code:`, and `exit=1`; it blocks as Spec escalation and never retargets the merge, except `base-advanced`, which merges `base_ref` into `wip/<feature>` and repeats the terminal gate. Exit 2 corrects invocation.
-- Codes include `detached-head`, `head-not-wip`, `base-advanced` (the base gained commits the WIP branch lacks), `base-changed` (a listed repository's Repos row differs from its WIP branch's pin), `base-missing`, `wip-missing`, `base-checked-out-elsewhere`, `base-is-wip`, `dirty-worktree`, `not-a-repository-root` (a listed repository that is only a folder inside another one), `plan-invalid`, and Git-query failures; an unanswered query blocks.
+- Codes include `detached-head`, `head-not-wip`, `base-advanced` (the base gained commits the WIP branch lacks), `base-changed` (a listed repository's Repos row differs from its WIP branch's pin), `base-missing`, `wip-missing`, `base-checked-out-elsewhere` (another worktree holds the base; ask the user, never move the ref), `base-is-wip`, `dirty-worktree`, `not-a-repository-root` (a listed repository that is only a folder inside another one), `plan-invalid`, and Git-query failures; an unanswered query blocks.
 - `dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, both sides of a rename included. Both commands are read-only.
 
 The merge or pull request targets exactly the recorded `base_ref`; never widen to repository defaults. Promoting base onward is separate user-owned work.

@@ -394,6 +394,10 @@ test("preflight blocks every way the recorded Git identity can stop holding", ()
       assert.equal(result.status, 1, `${label} must block: ${result.stdout}`);
       assert.match(result.stdout, /^status: blocked$/m, label);
       assert.match(result.stdout, new RegExp(`^code: ${code}$`, "m"), `${label}: ${result.stdout}`);
+      if (code === "base-checked-out-elsewhere") {
+        assert.match(result.stdout, /Ask the user: merge there once its session is idle, or leave wip\/blocked-demo for them to merge/, label);
+        assert.match(result.stdout, /Never move trunk with update-ref, fetch, or commit-tree/, label);
+      }
     } finally {
       cleanup?.(packet);
       rmSync(packet.root, { recursive: true, force: true });

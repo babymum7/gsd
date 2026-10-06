@@ -480,7 +480,9 @@ function proveBranchIdentity(dir, base, wip, where) {
   if (elsewhere !== null) {
     blocked(
       "base-checked-out-elsewhere",
-      `base_ref ${base}${where} is checked out in the linked worktree ${elsewhere}, which cannot receive this merge`,
+      // Moving the ref without a checkout would shift that worktree's HEAD under its index,
+      // and its next commit would revert this merge, so the message rules that route out.
+      `base_ref ${base}${where} is checked out in the linked worktree ${elsewhere}, which cannot receive this merge. Ask the user: merge there once its session is idle, or leave ${wip} for them to merge; a feature in parts avoids this with an integration branch (gsd-brainstorming § Parts). Never move ${base} with update-ref, fetch, or commit-tree: that worktree's HEAD would shift under its index and its next commit would revert the merge`,
     );
   }
   // A detached HEAD at the gate is not a cosmetic detail: commits made there sit on no

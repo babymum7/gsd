@@ -100,7 +100,7 @@ By default, single-task waves execute inline by the session owner with `gsd-tdd`
 1. Classify intent, discover and converge acceptance behavior plus Domain Impact. When acceptance or target is unclear, ask one recommended question before further inspection. During discovery, distinguish questions sharp enough for acceptance-impact form from parked uncertainty too coarse to phrase as a criterion; prioritize batching by which items unblock the most downstream criteria. Reserve affected documentation paths without publishing future semantics, and write one durable decision record when a load-bearing tradeoff settles.
 2. Validate the canonical plan through the Contract Validator, then bind its path and base in `schema:v0.0.3` state.
 3. Execute ordered tasks with Fast TDD and green checkpoints, writing one durable design record when a UI/UX decision settles.
-4. The session owner reviews the whole diff, proves terminal conformance including every owned decision and design record, runs Deferred Slow E2E, then asks whether to merge into base or open a pull request.
+4. The session owner reviews the whole diff, proves terminal conformance including every owned decision and design record, runs Deferred Slow E2E, then asks whether to merge into base or open a pull request; a repository with no remote is asked only to confirm the merge.
 5. The merge commit, or the pull request body, carries the plan's Summary and active acceptance-criterion titles, printed by the Contract Validator's `merge-message` command, because the feature scratch that held the plan is deleted after the merge.
 6. After the merge lands, delete the WIP branch, retired task branches, isolated workspaces, and feature scratch; a pull request keeps them until the user says it merged.
 
@@ -110,6 +110,7 @@ By default, single-task waves execute inline by the session owner with `gsd-tdd`
 2. Only the next unchecked part is converged, planned, executed, and verified as its own feature `<feature>-pN`.
 3. When that part merges or its pull request opens, it is ticked `[x]` and the user is asked whether to start the next part.
 4. After a pull request HEAD still rests on that part's WIP branch, so the next part starts from `base_ref`, or from a non-WIP branch the user cuts from the open part when it needs that code.
+5. When the base is checked out in another worktree, or the parts should land together, every part is planned from a non-WIP integration branch `<feature>` cut from the base, so each part merges without waiting for the base; the checklist names that branch and ends with merging it into the base, which is user-owned promotion done only in the worktree holding the base once its session is idle. No step moves a branch another worktree has checked out, because that worktree's HEAD would shift under its index and its next commit would revert the move.
 
 ### Deliver a cross-repo feature
 

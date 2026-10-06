@@ -45,11 +45,15 @@ Domain docs apply only where `docs/domain/index.md` exists.
 When one feature needs several pieces that each need their own discussion, write `.scratch/<feature>/parts.md` as a plain checklist, one line per part in dependency order:
 
 ```markdown
+Integration: `<feature>` from `<base>`
 - [ ] P1: <user-visible outcome>
 - [ ] P2: <user-visible outcome>
+- [ ] Merge `<feature>` into `<base>`
 ```
 
 Split by user-visible outcome, never by file, layer, or task count. Converge only the next unchecked part and plan it as its own feature `<feature>-pN`. When that part merges or its pull request opens, tick it `[x]` and ask whether to start the next. After a pull request HEAD stays on its WIP branch, so before planning the next part check out `base_ref`, or have the user cut a non-WIP branch from the open part when the next one needs its code. The checklist has no validator or lifecycle authority.
+- **Integration branch:** when the base is checked out in another worktree (another session works there), or the parts should land on the base together, cut a non-WIP branch `<feature>` from the base before P1, in its own worktree when this one is busy (`git worktree add -b <feature> <dir> <base>`), and plan every part from there. `derive-base` then records `<feature>` as each part's Base, so a part merges without waiting for the base. Without one, omit the `Integration:` line and the closing line, and parts merge straight into the base.
+- **Closing merge:** the last line merges the integration branch into its base, which is user-owned promotion. When every part is ticked, ask the user; merge only in the worktree holding the base once its session is idle, or leave it to the user. Before starting each part, merge the base into the integration branch if the base moved.
 
 ## Convergence transition
 
