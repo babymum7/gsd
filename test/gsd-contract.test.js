@@ -6,7 +6,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { analyzeWaves, generateUnifiedDiff, initPlanFile, normalizePlan, normalizePlanFile, readPlanFile, renderMergeMessage } from "../lib/gsd-contract.mjs";
+import { analyzeWaves, generateUnifiedDiff, initPlanFile, normalizePlan, normalizePlanFile, readPlanFile, renderMergeMessage, validatePlanFile } from "../lib/gsd-contract.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(ROOT, "tools", "gsd-contract.mjs");
@@ -1287,11 +1287,8 @@ test("semantic validator failures attach actionable remediation help lines", () 
       cwd: pinWs,
       encoding: "utf8",
     });
-    assert.equal(pinResult.status, 1);
-    assert.match(pinResult.stdout, /^status: error\ncode: invalid-artifact\n/);
-    assert.match(pinResult.stdout, /Task T1 satisfies multiple ACs but their interface pins/);
-    assert.match(pinResult.stdout, /AC-1 and AC-2 conflict/);
-    assert.match(pinResult.stdout, /^help: ".*make the interface rows identical or split the task into two tasks.*"$/m);
+    // A task may pin each of its criteria at its own seam (decision 0031).
+    assert.equal(pinResult.status, 0, pinResult.stdout);
 
     const orderResult = spawnSync(process.execPath, [CLI, "validate-plan", "--path", orderPlanPath], {
       cwd: orderWs,
@@ -2147,6 +2144,18 @@ test("value-level rejections report their exact 1-based line", () => {
   }
 });
 
+test("complete and completed task statuses read as done", () => {
+  for (const written of ["complete", "completed"]) {
+    const { workspace, planPath } = makePlanWorkspace("valid-plan", canonicalPlan().replace("- **Status:** pending", `- **Status:** ${written}`));
+    try {
+      const { parsed } = validatePlanFile(planPath, { cwd: workspace });
+      assert.equal(parsed.tasks[0].status, "done", written);
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
 test("criteria field failures point at the offending row", () => {
   const lineOf = (content, needle) => content.split("\n").findIndex((line) => line.includes(needle)) + 1;
   const cases = [
@@ -2489,10 +2498,9 @@ const AC_BLOCK = (id, scenario) =>
     `- **Scenario:** ${scenario}`,
   ].join("\n");
 
-// Every AC of a multi-AC task must share one interface pin, and the rule compared each AC only
-// with the task's first one. When that first AC had no pin the comparison was skipped, so the
-// same pins were accepted or rejected depending on the order the task listed its criteria.
-test("multi-AC tasks reject conflicting pins whichever AC is listed first", () => {
+// A multi-AC task may pin each criterion at its own seam (decision 0031): forcing one shared
+// pin made agents widen or move pins until they matched, which made the plan less accurate.
+test("multi-AC tasks accept distinct pins whichever AC is listed first", () => {
   const plan = (satisfies) =>
     canonicalPlan("pin-order")
       .replace(
@@ -2510,8 +2518,7 @@ test("multi-AC tasks reject conflicting pins whichever AC is listed first", () =
       .replace("- **Satisfies:** AC-1", `- **Satisfies:** ${satisfies}`);
   for (const order of ["AC-1, AC-2, AC-3", "AC-2, AC-1, AC-3", "AC-2, AC-3, AC-1"]) {
     const result = validateCanonical("pin-order", plan(order));
-    assert.equal(result.status, 1, `${order}: ${result.stdout}${result.stderr}`);
-    assert.match(result.stdout, /interface pins .* are not identical/, order);
+    assert.equal(result.status, 0, `${order}: ${result.stdout}${result.stderr}`);
   }
 });
 
@@ -2785,4 +2792,45 @@ test("a cross-repo merge message does not name one repository's base for all of 
   };
   assert.equal(renderMergeMessage(parsed).split("\n")[0], "Merge wip/f");
   assert.equal(renderMergeMessage({ ...parsed, repos: [] }).split("\n")[0], "Merge wip/f into main");
+});
+
+// One run names every defect it can see, so an agent fixes them in one edit instead of
+// paying a rerun per defect; a task that fails to parse never reads as a coverage gap.
+test("validate-plan lists every independent defect in one run", () => {
+  const content = canonicalPlan("many-defects")
+    .replace("## Feature\n`many-defects`", "## Feature\n`other-name`")
+    .replace("| AC-1 | production validator CLI", "| AC-9 | production validator CLI")
+    .replace("- **Status:** pending", "- **Status:** finished");
+  const { workspace, planPath } = makePlanWorkspace("many-defects", content);
+  try {
+    const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath, "--expected-base", "develop"], { cwd: workspace, encoding: "utf8" });
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^error: "Markdown contract: invalid interface pin AC-9"$/m);
+    assert.match(result.stdout, /^help: "remove the Interfaces row for AC-9, which names no criterion in Acceptance Criteria"$/m);
+    assert.match(result.stdout, /^error_2: "Markdown contract: T1 has invalid status"$/m);
+    assert.match(result.stdout, /^line_2: \d+$/m);
+    assert.match(result.stdout, /^error_3: "Markdown contract: plan feature other-name does not match directory many-defects"$/m);
+    assert.match(result.stdout, /^error_4: "Markdown contract: plan base main does not match recorded base_ref develop"$/m);
+    assert.match(result.stdout, /^errors: 4$/m);
+    assert.doesNotMatch(result.stdout, /has no active task/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("bare Feature and Base slugs and space-separated Satisfies are accepted", () => {
+  const content = canonicalPlan("bare-slugs")
+    .replace("## Feature\n`bare-slugs`", "## Feature\nbare-slugs")
+    .replace("## Base\n`main`", "## Base\nmain")
+    .replace("## Decisions", `${AC_BLOCK("AC-2", "GIVEN a second criterion WHEN the validator reads it THEN it reports both criteria.")}\n## Decisions`)
+    .replace("- **Satisfies:** AC-1", "- **Satisfies:** AC-1 AC-2");
+  const { workspace, planPath } = makePlanWorkspace("bare-slugs", content);
+  try {
+    const { parsed } = validatePlanFile(planPath, { cwd: workspace });
+    assert.equal(parsed.feature, "bare-slugs");
+    assert.equal(parsed.base, "main");
+    assert.deepEqual(parsed.tasks[0].satisfies, ["AC-1", "AC-2"]);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
 });

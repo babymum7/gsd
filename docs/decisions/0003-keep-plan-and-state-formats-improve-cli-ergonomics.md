@@ -19,3 +19,5 @@ is loosened or auto-copied.
 
 Amended 2026-10-05. `state.toon` is now schema `v0.0.3` (decisions 0024 and 0028), not v4. The
 two-format split and the CLI ergonomics stand; decision 0028 already replaced the hash-bound clause.
+
+Amended 2026-10-06. Decision 0031 drops the identical-pin rule: a multi-AC task may pin each criterion at its own seam, and the validator now lists every defect of a run instead of the first only.

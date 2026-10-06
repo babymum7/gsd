@@ -88,6 +88,10 @@ function buildIntoTemp(sourceRoot, targetRoot, tempRoot) {
   copyDirectory(path.join(sourceRoot, 'lib'), path.join(pluginRoot, 'core', 'lib'));
   copyDirectory(path.join(sourceRoot, 'skills'), path.join(pluginRoot, 'core', 'skills'));
   copyDirectory(path.join(sourceRoot, 'tools'), path.join(pluginRoot, 'core', 'tools'));
+  // Agents that lose the bootstrap's GSD_ROOT after a compaction were seen calling
+  // `<plugin>/tools/gsd-*.mjs`, one level above the core. The tools resolve `../lib`, which the
+  // bundle root already carries, so the same tools there make that guess work instead of fail.
+  copyDirectory(path.join(sourceRoot, 'tools'), path.join(pluginRoot, 'tools'));
 
   for (const name of visibleSkills) {
     copyDirectory(path.join(sourceRoot, 'skills', name), path.join(pluginRoot, 'skills', name));

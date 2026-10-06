@@ -1228,6 +1228,7 @@ test("preflight proves every listed repository sits on its WIP branch", () => {
     assert.equal(missing.status, 1, missing.stdout);
     assert.match(missing.stdout, /^code: wip-missing$/m);
     assert.match(missing.stdout, /in repo api/);
+    assert.match(missing.stdout, /execution never created it\. If no task committed yet, run `git switch -c wip\/cross-demo develop` in that repository/);
 
     git(["checkout", "-q", "-b", `wip/${feature}`], api);
     const ready = cli(["preflight", "--feature-dir", relative], app);

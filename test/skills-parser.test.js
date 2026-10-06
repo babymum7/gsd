@@ -184,7 +184,7 @@ test("canonical Markdown packet is concrete", () => {
   assert.throws(() => parseMarkdownPacket({ "plan.md": featureExtraLinePlan }), /Feature must be/);
 
   const unbacktickedBasePlan = files["plan.md"].replace("## Base\n`main`", "## Base\nmain");
-  assert.throws(() => parseMarkdownPacket({ "plan.md": unbacktickedBasePlan }), /Base must be/);
+  assert.equal(parseMarkdownPacket({ "plan.md": unbacktickedBasePlan }).base, "main", "backticks on Base are optional");
 
   const proseScopePlan = files["plan.md"].replace("## Scope\n- Validate plan", "## Scope\nValidate plan");
   assert.throws(() => parseMarkdownPacket({ "plan.md": proseScopePlan }), /Scope line 1 must be a bullet point/);
@@ -198,7 +198,7 @@ test("canonical Markdown packet is concrete", () => {
   assert.throws(() => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("| AC-1 | parser | `test/skills.test.js` | none |", "| AC-1 | parser | `test/skills.test.js` | none | extra |") }), /must have exactly 4 columns/);
   assert.throws(() => parseMarkdownPacket({ "plan.md": files["plan.md"].replace("| --- | --- | --- | --- |", "| --- | --- | --- | --- |\n") }), /stray prose or empty line/);
 
-  // Negative tests for multi-AC identical triples
+  // A multi-AC task may carry distinct pins (decision 0031).
   const multiAcDiffPins = files["plan.md"]
     .replace(
       "### AC-1: Plan parses\n- **State:** active\n- **Outcome:** A valid plan becomes an execution contract.\n- **Action:** Parse the approved Markdown plan.\n- **Expected:** Return the matching feature and acceptance criterion.\n- **Scenario:** GIVEN a canonical plan WHEN the parser reads it THEN it returns the matching feature and criterion.",
@@ -212,10 +212,7 @@ test("canonical Markdown packet is concrete", () => {
       "- **Satisfies:** AC-1",
       "- **Satisfies:** AC-1, AC-2"
     );
-  assert.throws(
-    () => parseMarkdownPacket({ "plan.md": multiAcDiffPins }),
-    /Task T1 satisfies multiple ACs but their interface pins/
-  );
+  assert.doesNotThrow(() => parseMarkdownPacket({ "plan.md": multiAcDiffPins }), "each criterion of a multi-AC task keeps its own pin");
 
   // Interfaces Path still uses the comma-separated backticked list validator.
   assert.throws(() => parseMarkdownPacket({ "plan.md": replaceOnce(files["plan.md"], INTERFACE_ROW, "| AC-1 | parser | `test/skills.test.js`, unbackticked | none |") }), /must be comma-separated/);

@@ -64,6 +64,9 @@ function failUsage(message, command = null) {
   process.exitCode = 2;
 }
 
+const MAX_LISTED_ERRORS = 10;
+const clean = (value) => String(value ?? "").replace(/[\x00-\x1F\x7F]+/g, " ").trim();
+
 function failArtifact(error, command) {
   const message = String(error?.message ?? error)
     .replace(/[\x00-\x1F\x7F]+/g, " ")
@@ -98,6 +101,15 @@ function failArtifact(error, command) {
   ];
   if (Number.isInteger(error?.contractLine) && error.contractLine > 0) rows.push(`line: ${error.contractLine}`);
   rows.push(`help: ${quote(remediation)}`);
+  // Every further defect the run saw, numbered from 2, so one edit can fix them all.
+  const more = Array.isArray(error?.additionalErrors) ? error.additionalErrors : [];
+  more.slice(0, MAX_LISTED_ERRORS - 1).forEach((extra, index) => {
+    const n = index + 2;
+    rows.push(`error_${n}: ${quote(clean(extra?.message).slice(0, 500))}`);
+    if (Number.isInteger(extra?.contractLine) && extra.contractLine > 0) rows.push(`line_${n}: ${extra.contractLine}`);
+    if (extra?.hint) rows.push(`help_${n}: ${quote(clean(extra.hint))}`);
+  });
+  if (more.length > 0) rows.push(`errors: ${more.length + 1}`);
   write(rows);
   process.exitCode = 1;
 }

@@ -56,12 +56,14 @@ None.
 
 Decisions is exact `None.` or sequential blocks of `### D-1: <title>`, `- **Decision:** <value>`, `- **Rationale:** <value>`.
 
+- `## Feature` equals the `.scratch/<feature>` directory name. Backticks on Feature and Base are canonical but optional.
+- A task that serves several criteria lists them comma-separated: `- **Satisfies:** AC-1, AC-2`.
 - AC and task IDs are positive sequential integers in heading order. Only `active` criteria execute; a replacement gets a new ID and the former becomes `superseded`.
 - Every active criterion carries one concrete `GIVEN/WHEN/THEN` Scenario, and the optional Outcome, Action, and Expected, when present, appear in that order and stay concrete. A whole value or clause of `TBD`, `TODO`, `<placeholder>`, `works correctly`, `run tests`, `valid`, `covered`, or `success` is invalid; the same words inside real text (a todo list, a `<form>` element) are fine.
 - A present `Domain Impact` uses the exact five fields; an absent one makes no domain claim. `none` requires no contexts or documentation; `introduce-context` requires `bootstrap-feature-context`; Broad bootstrap is `not-offered` whenever the domain index exists.
-- A present Interfaces table pins each listed active AC at most once; a task spanning pinned ACs needs identical pins. A lower seam needs a concrete reason.
+- A present Interfaces table pins each listed active AC at most once, and a task spanning several pinned ACs may pin each at its own seam. A lower seam needs a concrete reason.
 - Every active AC appears in at least one non-superseded task `Satisfies`; live tasks satisfy only `active` criteria.
 - `Repos` is only for a plan that touches more than one repository. It lists every repository once, including this one as path `.` with the plan's Base; a task's `Repo` names a row, its `Files` are relative to that repository, and a task without `Repo` belongs to this repository.
-- Every task owns at least one unique safe relative path with one `create|modify|delete` operation and a concise intent, plus one focused command; `none` is only for non-observable mechanical work. A task `Status` is `pending`, `in_progress`, `done`, or `superseded`; a `superseded` task never runs. Paths under test directories or `*.test.*` / `*.spec.*` count as observation-only for shard ownership.
+- Every task owns at least one unique safe relative path with one `create|modify|delete` operation and a concise intent, plus one focused command; `none` is only for non-observable mechanical work. A task `Status` is `pending`, `in_progress`, `done`, or `superseded` (`complete` and `completed` read as `done`); a `superseded` task never runs. Only `superseded` changes behavior: progress lives in `state.toon`, so finishing a task needs no `Status` edit. Paths under test directories or `*.test.*` / `*.spec.*` count as observation-only for shard ownership.
 
 Full validation blocks only at binding, at resume (so each amendment revalidates), and at the terminal gate; drafts in between are not revalidated.

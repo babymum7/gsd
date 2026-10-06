@@ -43,6 +43,12 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
     const run = spawnSync(process.execPath, [join(pluginRoot, "core", "tools", tool), "--help"], { encoding: "utf8" });
     assert.doesNotMatch(run.stderr, /Cannot find module/, `${tool} loads from the bundle`);
   }
+  // The same tools at the bundle root answer an agent that drops `core/` from the path.
+  for (const tool of readdirSync(join(pluginRoot, "core", "tools"))) {
+    const run = spawnSync(process.execPath, [join(pluginRoot, "tools", tool), "--help"], { encoding: "utf8" });
+    assert.doesNotMatch(run.stderr, /Cannot find module/, `${tool} loads from the bundle root`);
+    assert.notEqual(run.stdout, "", `${tool} at the bundle root prints its help`);
+  }
 
   const claudeManifest = JSON.parse(
     readFileSync(join(pluginRoot, ".claude-plugin", "plugin.json"), "utf8"),

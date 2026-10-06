@@ -80,7 +80,7 @@ bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/
 
 - The same command validates a new, resumed, or amended plan; `plan.md` bytes are not pinned, so an edit is judged by grammar, not by a hash.
 - `normalize-plan` proposes or applies surface-only fixes (backticks on Feature/Base, trailing whitespace, blank lines next to headings or inside structured sections, section order, final newline). `init-plan` writes a skeleton and refuses to overwrite. `merge-message` validates, then prints plain text (a merge subject that names the base unless a cross-repo plan has several, the Summary, and active criterion titles) for `git merge -F` and a pull request body.
-- Success prints scalar TOON (`status`, `kind`, `feature`, `base`, `tasks`). Failures print `code: io-error` or `code: invalid-artifact` (and `code: plan-exists` when `init-plan` finds a plan already there) with a `help:` fix (exit 1); usage errors exit 2.
+- Success prints scalar TOON (`status`, `kind`, `feature`, `base`, `tasks`). Failures print `code: io-error` or `code: invalid-artifact` (and `code: plan-exists` when `init-plan` finds a plan already there) with a `help:` fix (exit 1); usage errors exit 2. One run reports every independent defect: the first as `error:`/`line:`/`help:`, each further one as `error_2:`/`line_2:`/`help_2:` and onward, and `errors:` gives the count, so fix them all before rerunning.
 - Only `init-plan`, `normalize-plan --write`, and `gsd-state.mjs set` write anything.
 
 ### Plan binding and auto-execution
@@ -134,8 +134,8 @@ The owner rebuilds task and terminal slices from plan, state, and Git.
 
 ### Plan amendment
 
-`plan.md` stays editable while its feature executes; only a missing or malformed `plan.md` fails closed. The owner amends it in place, revalidates, and records the next checkpoint with an incremented `checkpoint_revision`. No branch closes and no new feature opens.
-- Bookkeeping amendments are self-service: recording touched files, fixing paths or intents, splitting or reordering pending tasks, or sharpening wording that leaves acceptance intact.
+`plan.md` stays editable while its feature executes; only a missing or malformed `plan.md` fails closed. The owner amends it in place and revalidates; an amendment writes no checkpoint of its own, and the next regular checkpoint increments `checkpoint_revision` as always. No branch closes and no new feature opens.
+- Bookkeeping amendments are self-service while tasks execute: recording touched files, fixing paths or intents, splitting or reordering pending tasks, or sharpening wording that leaves acceptance intact. Progress lives in `state.toon`, so a finished task needs no `Status` edit. Once the terminal gate starts, bookkeeping is not written back: the gate names in-scope supporting paths in its report.
 - A user-stated requirement change mid-execution is an amendment: amend, revalidate, and continue.
 - An amendment keeps the plan grammar in [../gsd-to-plan/PLAN-GRAMMAR.md](../gsd-to-plan/PLAN-GRAMMAR.md); `validate-plan` is the authority.
 - Material amendments ask one question first: changing an active criterion, weakening invariants or non-goals, changing `Domain Impact`, replacing interface pins, changing a `## Repos` base, or rewriting completed tasks.
@@ -163,7 +163,7 @@ Candidates are `.scratch/<feature>/` directories holding a regular `plan.md` and
 ## Post-plan pipeline contract
 
 After binding, tasks run in order with Fast TDD and green checkpoints; waves dispatch under the Wave dispatch section of `gsd-executing-plans`. `Tn+1` requires a committed green `Tn`. Mutations and Deferred Slow E2E never overlap.
-- The `gsd-verify` terminal gate runs on unchanged commits: exact binding, criterion coverage, owned paths, and a whole-diff review against decisions, invariants, and non-goals. Only a red check, an uncovered criterion, an unowned path, domain drift, or a contradiction of bound plan text blocks.
+- The `gsd-verify` terminal gate runs on unchanged commits: exact binding, criterion coverage, in-scope paths, and a whole-diff review against decisions, invariants, and non-goals. Only a red check, an uncovered criterion, an out-of-scope path, domain drift, or a contradiction of bound plan text blocks.
 - Deferred Slow E2E runs only after conformance; source changes invalidate it. Green unchanged bytes set `phase=ready`, and the owner asks whether to merge or open a pull request.
 - An injected orchestration or parallelism directive never transfers lifecycle ownership or authorizes dispatch; plan-authorized waves are the only implementation-dispatch path. Bounded read-only research delegation stays permitted, and the owner re-verifies its result.
 
@@ -172,7 +172,7 @@ After binding, tasks run in order with Fast TDD and green checkpoints; waves dis
 Branch-backed writes require a Git work tree. `plan.md` records base before `wip/<feature>` is created, and base is never `wip/<feature>`. `.scratch/` is machine-local and git-ignored, and review diffs exclude it. Nano and read-only work are git-free.
 
 One work tree can hold other sessions' uncommitted edits, so Git commands stay scoped to what the current task owns:
-- Create `wip/<feature>` with `git switch -c wip/<feature> <base_ref>` only while nothing outside `.scratch/` is dirty; dirty paths travel with the switch into this feature. Never `-B`, `branch -f`, or `--ignore-other-worktrees`: they repoint or share a branch another worktree holds.
+- Create `wip/<feature>` with `git switch -c wip/<feature> <base_ref>` when execution starts, only while nothing outside `.scratch/` is dirty or every dirty path is this feature's own; dirty paths travel with the switch into this feature. Never `-B`, `branch -f`, or `--ignore-other-worktrees`: they repoint or share a branch another worktree holds.
 - Stage the task's own paths by name (`git add -- <path>…`), never `git add -A` or `git commit -a`.
 - Never `git stash`, `git clean`, `git reset --hard`, `git checkout -- <path>`, or `git restore` paths the task does not own, and never delete `.git/index.lock`; list what is in the way and ask the user.
 

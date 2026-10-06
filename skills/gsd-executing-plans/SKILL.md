@@ -24,12 +24,14 @@ Write `state.toon` only with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature
 
 Track `T1..TN` in the harness todo list as display only; `state.toon` is the resume authority. Work under § Git/base/WIP/scratch mechanics; a plan with `## Repos` has one `wip/<feature>` per listed repository and each task commits in its own.
 
+Before the first task, prove `state.toon` is bound and `wip/<feature>` is checked out. If it does not exist, create it now with `git switch -c wip/<feature> <base_ref>` (in each listed repository from its row's Base, also running `git -C <repo> config branch.wip/<feature>.gsdBase <Base>`) and set `phase=executing`, so the branch exists even when no task ends up committing.
+
 1. Take the next task in heading order and build its slice: file operations and intents, verbatim active criteria, decisions, `Domain Impact`, and focused checks.
 2. A single-task wave is authored inline; a wave of independent tasks dispatches under Wave dispatch below.
 3. Follow `GSD_ROOT/skills/gsd-tdd/SKILL.md`: RED, GREEN, refactor, with Fast TDD Checks only.
 4. A non-`none` `Domain Impact` task updates its named shards in the same commit.
 5. A red check repairs inline. When its cause cannot be located, follow `GSD_ROOT/skills/gsd-diagnosing-bugs/SKILL.md` inline without asking questions; missing access or an ambiguous criterion is Spec escalation.
-6. Before the first commit, prove `state.toon` is bound and `wip/<feature>` is checked out; if it does not exist, create it and set `phase=executing`; in a listed repository also run `git -C <repo> config branch.wip/<feature>.gsdBase <Base>`. Commit only green task-owned paths, then set `last_green_task`, `last_green_commit`, and `next_action=start/continue task`. `Tn+1` starts only from a committed green `Tn`.
+6. Commit only green task-owned paths on `wip/<feature>`, then set `last_green_task`, `last_green_commit`, and `next_action=start/continue task`. `Tn+1` starts only from a committed green `Tn`.
 
 Record settled UI/UX decisions as `docs/design/NNNN-slug.md` under § Durable decision and design records. When every task is green, set `next_action=enter terminal verification/repair` and load `gsd-verify`. Report progress and blockers only.
 

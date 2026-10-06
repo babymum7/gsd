@@ -469,7 +469,12 @@ function proveBranchIdentity(dir, base, wip, where) {
     blocked("base-missing", `base_ref ${base}${where} no longer resolves to a local branch, so the merge has no target`);
   }
   if (!localBranchExists(wip, dir)) {
-    blocked("wip-missing", `wip_branch ${wip}${where} no longer resolves to a local branch`);
+    // The branch was deleted, or execution never cut it because no task committed; the
+    // second is the common case, and its repair is one command, so the message names it.
+    blocked(
+      "wip-missing",
+      `wip_branch ${wip}${where} is not a local branch: it was deleted, or execution never created it. If no task committed yet, run \`git switch -c ${wip} ${base}\`${where ? " in that repository" : ""} (uncommitted feature paths travel with the switch), commit the feature's paths there, and rerun; otherwise ask the user where the work went`,
+    );
   }
   const elsewhere = checkedOutElsewhere(base, dir);
   if (elsewhere !== null) {
