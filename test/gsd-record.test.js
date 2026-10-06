@@ -428,6 +428,27 @@ test("CLI validate reports usage error (exit 2) for missing flags or invalid kin
   assert.match(res5.stdout, /code: usage/);
 });
 
+// A README or a theme file gathering several records is not a numbered record, and reporting
+// it invalid sent agents rewriting a repository's own prose.
+test("CLI validate skips a file whose name does not start with digits", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-record-"));
+  try {
+    for (const name of ["README.md", "adaptation-rules.md"]) {
+      const path = join(dir, name);
+      writeFileSync(path, "# Architecture Decision Records\n\nprose\n");
+      const result = run(["validate", "--path", path, "--kind", "decisions"]);
+      assert.equal(result.status, 0, result.stdout);
+      assert.match(result.stdout, /^status: skipped$/m);
+      assert.match(result.stdout, new RegExp(`${name.replace(".", "\\.")} does not start with digits`));
+    }
+    const numbered = join(dir, "0002-broken.md");
+    writeFileSync(numbered, "# Not a record\n");
+    assert.equal(run(["validate", "--path", numbered, "--kind", "decisions"]).status, 1, "a numbered file is still checked");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("CLI validate reports io-error (exit 1) for unreadable path", () => {
   const result = run(["validate", "--path", "/nonexistent/directory/0001-record.md", "--kind", "decisions"]);
   assert.equal(result.status, 1);

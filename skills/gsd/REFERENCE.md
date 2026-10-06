@@ -48,8 +48,8 @@ Domain docs apply only in repositories with `docs/domain/index.md` or after the 
 ### Durable decision and design records
 
 Decision records capture load-bearing tradeoffs settled during convergence; design records capture UI/UX decisions settled during execution. Both carry `# NNNN — Title`, exactly one `- **Status:** Accepted|Rejected|Superseded by NNNN`, exactly one `- **Date:** YYYY-MM-DD`, and a non-empty `## Decision` section; measurement sections stay optional.
-`bun "<GSD_ROOT>/tools/gsd-record.mjs" validate --path <record> --kind decisions|design` proves the header: exit 0 is `status: valid`, exit 1 is `code: invalid-record` or `io-error`, exit 2 is usage.
-Only basenames under those directories that start with digits must match `NNNN-slug.md`. The terminal gate validates every owned record before merge. `AGENTS.md` gains one `## Decisions` and one `## Design` section, upserted without duplication.
+`bun "<GSD_ROOT>/tools/gsd-record.mjs" validate --path <record> --kind decisions|design` proves the header: exit 0 is `status: valid`, or `status: skipped` for a basename that does not start with digits (a README or a theme file gathering several records); exit 1 is `code: invalid-record` or `io-error`; exit 2 is usage.
+Only basenames under those directories that start with digits must match `NNNN-slug.md`. The terminal gate validates only the records the feature added (`git diff --name-only --diff-filter=A <base_ref> -- docs/decisions docs/design`); an older record edited or renamed in passing keeps its shape. `AGENTS.md` gains one `## Decisions` and one `## Design` section, upserted without duplication.
 
 ## Canonical Markdown contract
 

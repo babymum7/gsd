@@ -336,6 +336,8 @@ function dirtyNonScratchPaths(cwd) {
   }
   const records = report.raw.split("\0").filter((record) => record !== "");
   const dirty = new Set();
+  // The index column tells work that only lacks a commit from edits nobody staged.
+  const staged = new Set();
   for (let index = 0; index < records.length; index += 1) {
     const record = records[index];
     const paths = [record.slice(3)];
@@ -347,9 +349,13 @@ function dirtyNonScratchPaths(cwd) {
       index += 1;
       paths.push(records[index]);
     }
-    for (const path of paths) if (!path.startsWith(".scratch/")) dirty.add(path);
+    for (const path of paths) {
+      if (path.startsWith(".scratch/")) continue;
+      dirty.add(path);
+      if (record[0] !== " " && record[0] !== "?") staged.add(path);
+    }
   }
-  return [...dirty];
+  return { paths: [...dirty], staged: staged.size };
 }
 
 function deriveBase(cwd) {
@@ -501,12 +507,12 @@ function proveBranchIdentity(dir, base, wip, where) {
       `base_ref ${base}${where} has commits that ${wip} does not contain, so the merged result was never verified: merge ${base} into ${wip}, then rerun the terminal gate`,
     );
   }
-  const dirty = dirtyNonScratchPaths(dir);
+  const { paths: dirty, staged } = dirtyNonScratchPaths(dir);
   if (dirty.length > 0) {
     const shown = dirty.slice(0, 3).join(", ");
     blocked(
       "dirty-worktree",
-      `${dirty.length} non-scratch path(s)${where} are uncommitted, so the merge would carry unreviewed bytes: ${shown}${dirty.length > 3 ? ", …" : ""}`,
+      `${dirty.length} non-scratch path(s)${where} are uncommitted (${staged} staged), so the merge would carry unreviewed bytes: ${shown}${dirty.length > 3 ? ", …" : ""}. Commit the paths this feature owns on ${wip} (\`git add -- <path>…\`, then \`git commit\`), ask the user about any it does not own, and rerun the gate`,
     );
   }
   return head;

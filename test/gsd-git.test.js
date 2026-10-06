@@ -319,6 +319,10 @@ test("preflight blocks a dirty non-scratch tree and ignores scratch churn", () =
       assert.match(result.stdout, /^code: dirty-worktree$/m, label);
       // Every affected path outside scratch is counted exactly once and named.
       assert.match(result.stdout, new RegExp(`${paths.length} non-scratch path\\(s\\)`), label);
+      assert.match(result.stdout, /\(\d+ staged\), so the merge/, label);
+      if (label === "staged change") assert.match(result.stdout, /\(1 staged\)/);
+      if (label === "new untracked file") assert.match(result.stdout, /\(0 staged\)/);
+      assert.match(result.stdout, /Commit the paths this feature owns on wip\/dirty-demo/, label);
       for (const path of paths) {
         assert.match(result.stdout, new RegExp(path.replace(/\./g, "\\.")), label);
       }

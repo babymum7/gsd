@@ -3,6 +3,7 @@
 // Parses canonical UTF-8/LF records and verifies mandatory header grammar:
 // # NNNN — Title, Status, Date, and non-empty Decision section.
 import { readFileSync, statSync } from "node:fs";
+import { basename } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   RECORD_FILE_MAX_BYTES,
@@ -38,7 +39,8 @@ function emitHelp(command) {
     "",
     "Commands:",
     "  validate  Parse and validate a durable decision or design record; exit 0 reports",
-    "            status: valid, exit 1 reports an invalid record or io error.",
+    "            status: valid, or status: skipped for a file whose name does not start",
+    "            with digits; exit 1 reports an invalid record or io error.",
     "",
     "Flags:",
     "  --path    Path to the record markdown file.",
@@ -129,6 +131,13 @@ if (input.usageError) {
   failUsage(input.usageError, input.command);
 } else if (input.help) {
   emitHelp(input.command);
+} else if (input.command === "validate" && !/^\d/.test(basename(input.path))) {
+  // Only numbered files are records. A README or a file gathering several records under one
+  // theme is the repository's own prose, and an error here sent agents rewriting it.
+  write([
+    "status: skipped",
+    `reason: ${quote(`${basename(input.path)} does not start with digits, so it is not a numbered record`)}`,
+  ]);
 } else if (input.command === "validate") {
   const content = readRecord(input.path, input.command);
   if (content !== null) {
