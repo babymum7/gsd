@@ -573,7 +573,7 @@ test("DEFAULT_PHASE_NEXT_ACTIONS defines required canonical defaults", () => {
   assert.equal(DEFAULT_PHASE_NEXT_ACTIONS.paused, "start/continue task");
   assert.equal(DEFAULT_PHASE_NEXT_ACTIONS.verifying, "enter terminal verification/repair");
   assert.equal(DEFAULT_PHASE_NEXT_ACTIONS.repair, "enter terminal verification/repair");
-  assert.equal(DEFAULT_PHASE_NEXT_ACTIONS.ready, "ask merge or pull request");
+  assert.equal(DEFAULT_PHASE_NEXT_ACTIONS.ready, "deliver merge or pull request");
   assert.equal(defaultNextActionForPhase("approved"), "start/continue task");
   assert.equal(defaultNextActionForPhase("unknown-phase"), null);
 });
@@ -629,14 +629,14 @@ test("CLI set creates new approved packet with default next_action and matches w
   assert.equal(rSet2.exitCode, 0, `set advance failed: ${rSet2.stderr || rSet2.stdout}`);
   const parsedSet2 = JSON.parse(rSet2.stdout);
   assert.equal(parsedSet2.phase, "ready");
-  assert.equal(parsedSet2.next_action, "ask merge or pull request");
+  assert.equal(parsedSet2.next_action, "deliver merge or pull request");
   assert.equal(parsedSet2.checkpoint_revision, "2");
 
   // Equivalent write-state for ready
   const expectedState2 = {
     ...expectedState1,
     phase: "ready",
-    next_action: "ask merge or pull request",
+    next_action: "deliver merge or pull request",
     checkpoint_revision: "2",
   };
   const rWrite2 = cli([
