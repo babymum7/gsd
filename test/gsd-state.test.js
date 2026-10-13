@@ -728,6 +728,47 @@ test("CLI set updates checkpoint fields without phase change and preserves exist
   assert.equal(parsed.next_action, "custom action", "next_action should be preserved when phase is unchanged");
 });
 
+// A repository whose HEAD is one commit, holding .scratch/<feature>, for ref resolution.
+function tmpGitFeatureDir(feature = "test-feature") {
+  const { dir, scratch } = tmpFeatureDir(feature);
+  const git = (...args) => execFileSync("git", ["-C", dir, ...args], { encoding: "utf8" }).trim();
+  git("init", "-q");
+  git("-c", "user.name=t", "-c", "user.email=t@example.com", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "c");
+  return { dir, scratch, head: git("rev-parse", "HEAD"), short: git("rev-parse", "--short", "HEAD") };
+}
+
+test("CLI set resolves last_green_commit=HEAD to the full SHA", () => {
+  const { scratch, head } = tmpGitFeatureDir();
+  assert.equal(cli(["set", "--feature-dir", scratch, "base_ref=main"]).exitCode, 0);
+  const r = cli(["set", "--feature-dir", scratch, "last_green_task=T1", "last_green_commit=HEAD"]);
+  assert.equal(r.exitCode, 0, r.stdout);
+  assert.match(head, /^[a-f0-9]{40}$/);
+  assert.equal(JSON.parse(r.stdout).last_green_commit, head);
+  assert.match(readFileSync(join(scratch, "state.toon"), "utf8"), new RegExp(`last_green_commit:\\s*${head}`));
+});
+
+test("CLI set resolves a short SHA to the full SHA", () => {
+  const { scratch, head, short } = tmpGitFeatureDir();
+  assert.equal(cli(["set", "--feature-dir", scratch, "base_ref=main"]).exitCode, 0);
+  assert.ok(short.length < 40);
+  const r = cli(["set", "--feature-dir", scratch, "last_green_task=T1", `last_green_commit=${short}`]);
+  assert.equal(r.exitCode, 0, r.stdout);
+  assert.equal(JSON.parse(r.stdout).last_green_commit, head);
+});
+
+test("CLI set rejects an unresolvable last_green_commit and leaves state unchanged", () => {
+  const { scratch } = tmpGitFeatureDir();
+  assert.equal(cli(["set", "--feature-dir", scratch, "base_ref=main"]).exitCode, 0);
+  const before = readFileSync(join(scratch, "state.toon"), "utf8");
+  for (const value of ["nope123", "-h", "--all", "HEAD~99"]) {
+    const r = cli(["set", "--feature-dir", scratch, "last_green_task=T1", `last_green_commit=${value}`]);
+    assert.equal(r.exitCode, 1, `${value}: ${r.stdout}`);
+    assert.match(r.stdout, /code: invalid-artifact/);
+    assert.match(r.stdout, /git rev-parse HEAD/);
+    assert.equal(readFileSync(join(scratch, "state.toon"), "utf8"), before);
+  }
+});
+
 test("CLI set records the session owner and rejects a malformed owner token", () => {
   const { scratch } = tmpFeatureDir("test-feature");
   const r = cli(["set", "--feature-dir", scratch, "base_ref=main", "owner=claude-3f2a:9"]);
