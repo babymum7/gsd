@@ -23,6 +23,7 @@ Read-only. Detect the stack from its manifests (`package.json`, `go.mod`, `Cargo
 - **Organization:** files mixing concerns, layers reaching past each other, circular imports, and folders that will not scale as features grow; on the frontend, components that fetch, transform, and render at once.
 - **Tests:** redundant tests (the same behavior asserted twice), tests pinned to implementation details instead of public behavior, slow tests in the fast suite, and refactor targets with no test at their public seam.
 - **Leftovers:** the Inventory section of `GSD_ROOT/skills/gsd-cleanup/SKILL.md`.
+- **Outdated dependencies:** list them as one finding and recommend `gsd-upgrade`; this run never upgrades.
 
 For module boundaries and deepening candidates, read `GSD_ROOT/skills/gsd-codebase-architecture/SKILL.md`.
 

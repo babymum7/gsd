@@ -32,7 +32,7 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
     .sort();
   assert.deepEqual(visible, ["gsd-brainstorming", "gsd-diagnosing-bugs", "gsd-executing-plans", "gsd-verify"]);
   // Explicit-only skills ship to host skill discovery but never enter the injected catalog.
-  const explicitOnly = ["gsd-cleanup", "gsd-refactor"];
+  const explicitOnly = ["gsd-cleanup", "gsd-refactor", "gsd-upgrade"];
   assert.deepEqual(readdirSync(join(pluginRoot, "skills")).sort(), [...visible, ...explicitOnly].sort());
   for (const name of explicitOnly) {
     const skill = readFileSync(join(pluginRoot, "skills", name, "SKILL.md"), "utf8");
@@ -191,4 +191,20 @@ test("the shipped cleanup skill searches every spelling of a name, data files in
   const skill = readFileSync(join(pluginRoot, "skills", "gsd-cleanup", "SKILL.md"), "utf8");
   assert.match(skill, /Search every spelling a caller may use/, "dead-code search covers every naming style");
   assert.match(skill, /data files and test fixtures included/, "dead-code search covers data files");
+});
+
+test("the shipped upgrade skill takes releases at least 14 days old, engines included, one part per major, new APIs after the bump", () => {
+  const { pluginRoot } = buildPluginBundle(ROOT, mkdtempSync(join(tmpdir(), "gsd-plugin-marketplace-")));
+  const skill = readFileSync(join(pluginRoot, "skills", "gsd-upgrade", "SKILL.md"), "utf8");
+  assert.match(skill, /published at least 14 days ago/, "the age floor guards against hijacked releases");
+  assert.match(skill, /Engines and toolchains/, "engines and toolchains are measured");
+  assert.match(skill, /Each major upgrade and each engine or toolchain change is its own part/, "risky upgrades are isolated");
+  assert.match(skill, /adopts the new APIs/, "code moves to the new APIs after the bump");
+});
+
+test("the bootstrap routes an explicit upgrade request and refactor recommends the upgrade skill", () => {
+  assert.match(readFileSync(join(ROOT, "skills", "gsd", "SKILL.md"), "utf8"), /upgrade the repository\*\*:.*gsd-upgrade/);
+  const { pluginRoot } = buildPluginBundle(ROOT, mkdtempSync(join(tmpdir(), "gsd-plugin-marketplace-")));
+  const refactor = readFileSync(join(pluginRoot, "skills", "gsd-refactor", "SKILL.md"), "utf8");
+  assert.match(refactor, /recommend `gsd-upgrade`/, "refactor leaves upgrades to gsd-upgrade");
 });
