@@ -185,3 +185,10 @@ test("the shipped refactor skill writes rules for agent readers in every languag
   assert.match(skill, /every language in the repository/, "rules hold across languages");
   assert.match(skill, /integration branch that merges into the base once/, "parts reach the base as one commit");
 });
+
+test("the shipped cleanup skill searches every spelling of a name, data files included, before calling code dead", () => {
+  const { pluginRoot } = buildPluginBundle(ROOT, mkdtempSync(join(tmpdir(), "gsd-plugin-marketplace-")));
+  const skill = readFileSync(join(pluginRoot, "skills", "gsd-cleanup", "SKILL.md"), "utf8");
+  assert.match(skill, /Search every spelling a caller may use/, "dead-code search covers every naming style");
+  assert.match(skill, /data files and test fixtures included/, "dead-code search covers data files");
+});
