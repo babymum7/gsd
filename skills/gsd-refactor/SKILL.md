@@ -28,8 +28,10 @@ For module boundaries and deepening candidates, read `GSD_ROOT/skills/gsd-codeba
 
 ## Rules
 
+Write for agents: agents are the only readers and editors of this code and of every file the run writes, and the owner only runs a few commands by hand, such as a dev server or a manual test. Favor what lets an agent find and change code fast in little context: small single-purpose files, names a search finds, one owner per concern. Each rule holds for every language in the repository; a check that only one language needs goes into that language's linter config.
+
 - **Lint config:** every rule a tool can check goes into the repository's existing linter config. Confirm each rule name and option against the installed tool before writing it (`biome explain <rule>`, `ruff rule <code>`, `golangci-lint linters`, `npx eslint --print-config <file>`); never write a rule name from memory. Pick thresholds the code meets once the refactor lands. Adding a new linter is part of the approval.
-- **`AGENTS.md`:** everything else goes into one `## Code quality` section, upserted once and kept short: one checkable rule per line, naming this repository's folders, config locations, and commands. Cover where new files go, where config and secrets live instead of literals, the hot-path performance rules, how tests are written (public seams, no duplicates), and backend and frontend specifics. Never duplicate what the linter already enforces.
+- **`AGENTS.md`:** everything else goes into one `## Code quality` section, upserted once and kept short: one checkable rule per line, naming this repository's folders, config locations, and commands. Cover where new files go, where config and secrets live instead of literals, the hot-path performance rules, how tests are written (public seams, no duplicates), backend and frontend specifics, the commands the owner runs by hand (they keep their names and behavior), and that every commit on the base branch passes all checks and can deploy. Never duplicate what the linter already enforces.
 - **`CLAUDE.md`:** some agents read only `CLAUDE.md`, so it must import the rules with a line `@AGENTS.md`. When one of the two files is a symlink to the other, write the section once into the real file and add no import. When only `CLAUDE.md` exists, create `AGENTS.md` with the section and add the import. When neither exists, create `AGENTS.md` and a `CLAUDE.md` holding only the import.
 
 ## GSD setup
@@ -46,7 +48,7 @@ Each architecture finding is shown in the candidate form of the Candidate contra
 - A refactor changes structure, never behavior: no feature or bug fix rides along. Before a target changes, a characterization test at its public seam pins its current behavior; the existing suite stays green after every task.
 - A changed interface migrates every caller in the same task when the caller list is complete. When compatibility prevents that cutover, plan Expand → Migrate → Contract (add the new interface, move the callers, then remove the old one), each step its own green task; never remove an interface that callers outside the repository still use.
 - Read `GSD_ROOT/skills/gsd-to-plan/SKILL.md` and plan feature `refactor-<area>`. The first task writes the rules files and the GSD setup; each lint rule lands in the task that makes the code pass it. Each criterion is a GIVEN/WHEN/THEN at a public seam showing behavior unchanged, or a lint rule passing.
-- Several areas become parts as `gsd-brainstorming` describes, all converged in this one approval and run back to back.
+- Several areas become parts as `gsd-brainstorming` describes, all converged in this one approval and run back to back on an integration branch that merges into the base once, so the base gains one commit that passes every check.
 - Then follow `gsd-executing-plans` and `gsd-verify` to the end and deliver as approved.
 
 The final report lists the rules added, the refactors done with their measured before and after, and any decision made on the way.
