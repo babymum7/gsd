@@ -63,7 +63,7 @@ After a pull request HEAD stays on its WIP branch, so before planning the next p
 ## Delivery question
 
 Before the transition, ask one question with a recommendation, batched with any other open ones: how the finished work lands. `merge` merges into the base, `merge-push` also pushes the base, `pull-request` pushes the WIP branch and opens a pull request, and `branch` leaves the work on `wip/<feature>`. Offer the push and pull request only when `git remote` lists a remote.
-When the user already said how it lands, or said to follow your recommendations, record that answer without asking. Execution then runs to the end without check-in questions.
+When the user already named how it lands, record that answer without asking. A general instruction to follow your recommendations may record `merge` or `branch` without asking, never a push or a pull request. Execution then runs to the end without check-in questions.
 
 ## Convergence transition
 
