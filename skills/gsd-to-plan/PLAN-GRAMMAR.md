@@ -44,6 +44,8 @@ None.
 | Criterion | Seam | Path | Lower-seam reason |
 | --- | --- | --- | --- |
 | AC-1 | <public seam> | `<repository-relative path>` | none |
+## Delivery
+`<merge|merge-push|pull-request|branch>`
 ## Tasks
 ### T1: <short task>
 - **Satisfies:** AC-1
@@ -57,6 +59,7 @@ None.
 Decisions is exact `None.` or sequential blocks of `### D-1: <title>`, `- **Decision:** <value>`, `- **Rationale:** <value>`.
 
 - `## Feature` equals the `.scratch/<feature>` directory name. Backticks on Feature and Base are canonical but optional.
+- `## Delivery` is optional and holds exactly one value, backticks optional: `merge` merges into Base, `merge-push` merges then pushes Base, `pull-request` pushes the WIP branch and opens a pull request, `branch` leaves the work on `wip/<feature>`. Absent means the terminal gate asks.
 - A task that serves several criteria lists them comma-separated: `- **Satisfies:** AC-1, AC-2`.
 - AC and task IDs are positive sequential integers in heading order. Only `active` criteria execute; a replacement gets a new ID and the former becomes `superseded`.
 - Every active criterion carries one concrete `GIVEN/WHEN/THEN` Scenario, and the optional Outcome, Action, and Expected, when present, appear in that order and stay concrete. A whole value or clause of `TBD`, `TODO`, `<placeholder>`, `works correctly`, `run tests`, `valid`, `covered`, or `success` is invalid; the same words inside real text (a todo list, a `<form>` element) are fine.

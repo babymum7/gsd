@@ -244,6 +244,7 @@ if (input.usageError) {
       `base: ${result.base}`,
       `tasks: ${result.tasks}`,
     ];
+    if (result.parsed.delivery) lines.push(`delivery: ${result.parsed.delivery}`);
     if (input.command === "analyze-waves") {
       const waves = analyzeWaves(result.parsed.tasks)
         .map((wave) => wave.tasks.join(","))
