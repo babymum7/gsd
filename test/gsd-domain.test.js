@@ -350,6 +350,22 @@ test("normalize CLI names normalize in the validate help for a section order err
   rmSync(dir, { recursive: true, force: true });
 });
 
+// The section rejection also covers a missing or extra section, which normalize cannot fix,
+// so its help must send the agent to the hand edit instead of a normalize run that changes nothing.
+test("validate help for a missing section says it is fixed by hand", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-domain-"));
+  const docs = join(dir, "docs", "domain");
+  mkdirSync(docs, { recursive: true });
+  writeFileSync(join(docs, "index.md"), indexContent([["billing", "Invoicing."]]));
+  const shard = shardContent("billing");
+  writeFileSync(join(docs, "billing.md"), `${shard.slice(0, shard.indexOf("## Domain policies")).trimEnd()}\n`);
+  const result = run(["validate", "--index", join(docs, "index.md")]);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /help: .*missing.*by hand/);
+  assert.match(run(["normalize", "--index", join(docs, "index.md")]).stdout, /fixes: none/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
 test("normalize CLI rejects --write on validate and missing --index", () => {
   assert.equal(run(["validate", "--index", "x.md", "--write"]).status, 2);
   assert.equal(run(["normalize"]).status, 2);

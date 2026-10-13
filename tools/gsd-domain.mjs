@@ -37,7 +37,10 @@ function commandUsage() {
 }
 
 const NORMALIZE_HELP = `run ${INVOCATION} normalize --index docs/domain/index.md --write, then validate again`;
-const ORDER_ERROR_RE = /must be sorted|lexicographically sorted|sections must appear exactly in order/;
+// The section rejection also covers a missing or extra section, which normalize cannot fix.
+const SECTION_HELP = `add a missing section or remove an extra one by hand, then ${NORMALIZE_HELP}`;
+const ORDER_ERROR_RE = /must be sorted|lexicographically sorted/;
+const SECTION_ERROR_RE = /sections must appear exactly in order/;
 
 function emitHelp() {
   write([
@@ -65,7 +68,9 @@ function failUsage(message) {
 }
 
 function failDomain(message) {
-  const help = ORDER_ERROR_RE.test(message) ? NORMALIZE_HELP : commandUsage();
+  let help = commandUsage();
+  if (SECTION_ERROR_RE.test(message)) help = SECTION_HELP;
+  else if (ORDER_ERROR_RE.test(message)) help = NORMALIZE_HELP;
   write(["status: error", "code: invalid-domain", `error: ${quote(message)}`, `help: ${quote(help)}`]);
   process.exitCode = 1;
 }
