@@ -140,6 +140,10 @@ function emitHelp(command) {
       "  - no path outside .scratch/ is uncommitted, staged, or untracked",
       "  - plan.md validates and names base_ref as its Base",
       "",
+      "It also prints one outside_files: line per path the WIP branch changed that",
+      "no live task lists in Files (outside_files: none when every path is listed).",
+      "These lines never block; the terminal gate judges them.",
+      "",
       "Blocked means the gate stops; it never retargets the merge.",
       "",
       "Options:",
@@ -534,6 +538,30 @@ function readBasePin(dir, wip) {
   return pin.status === 0 && pin.stdout ? pin.stdout : null;
 }
 
+// Paths the WIP branch changed that no live task lists. Informational: the terminal gate judges
+// whether each serves the scope, and this list only spares the agent computing it.
+function outsideFiles(cwd, base, wip, repos, tasks) {
+  const home = repos.find((entry) => entry.path === ".");
+  const targets = [{ name: home?.name ?? null, path: ".", base }, ...repos.filter((entry) => entry.path !== ".")];
+  const outside = [];
+  for (const target of targets) {
+    const listed = new Set(
+      tasks
+        .filter((task) => task.status !== "superseded" && (task.repo ?? null) === target.name)
+        .flatMap((task) => task.files),
+    );
+    const dir = resolve(cwd, target.path);
+    const range = `${target.base}...${BRANCH_REF_PREFIX}${wip}`;
+    const diff = git(["diff", "--name-only", "--no-renames", "-z", range], dir);
+    if (diff.status !== 0) blocked("git-query-failed", `git diff failed for ${range} in ${target.path}`);
+    for (const path of diff.raw.split("\0").filter(Boolean)) {
+      if (path === ".scratch" || path.startsWith(".scratch/") || listed.has(path)) continue;
+      outside.push(target.path === "." ? path : `${target.path}/${path}`);
+    }
+  }
+  return outside;
+}
+
 function preflight(cwd, featureDir) {
   requireWorkTree(cwd);
   let state;
@@ -554,8 +582,9 @@ function preflight(cwd, featureDir) {
   // A cross-repo plan carries one `wip/<feature>` branch per listed repository, each
   // merging into its own recorded base, so every one must hold before the gate is ready.
   let repos = [];
+  let tasks = [];
   try {
-    repos = validatePlanFile(join(featureDir, "plan.md"), { cwd, kind: "plan", expectedBase: base }).parsed.repos;
+    ({ repos, tasks } = validatePlanFile(join(featureDir, "plan.md"), { cwd, kind: "plan", expectedBase: base }).parsed);
   } catch (error) {
     blocked("plan-invalid", `cannot validate plan ${join(featureDir, "plan.md")}: ${error.message}`);
   }
@@ -584,6 +613,7 @@ function preflight(cwd, featureDir) {
     proveBranchIdentity(dir, repo.base, wip, ` in repo ${repo.name}`);
     repoLines.push(`repo: ${repo.name} base=${repo.base} wip=${wip}${unpinned}`);
   }
+  const outsideLines = outsideFiles(cwd, base, wip, repos, tasks).map((path) => `outside_files: ${path}`);
   // The trailing exit line is the report's own echo of the process exit code. A consumer
   // that reads the report through a pipe sees the last stage's exit status, so without this
   // line a blocked run can travel downstream looking successful; with it, the verdict is
@@ -595,6 +625,7 @@ function preflight(cwd, featureDir) {
     `head: ${head}`,
     "tree: clean outside .scratch/",
     ...repoLines,
+    ...(outsideLines.length > 0 ? outsideLines : ["outside_files: none"]),
     "exit=0",
   ]);
 }
@@ -654,11 +685,14 @@ function verifyTaskBranch(cwd, featureDir, taskId, branch, waveBase) {
     }
   }
 
+  // Every stray path goes in one report, so the owner repairs the slice in one pass.
   const allowedFiles = new Set(task.files);
-  for (const path of changedPaths) {
-    if (!allowedFiles.has(path)) {
-      blocked("out-of-slice-path", `task branch ${branch} touched ${path}, which is outside ${taskId} slice: ${task.files.join(", ")}`);
-    }
+  const strays = changedPaths.filter((path) => !allowedFiles.has(path));
+  if (strays.length > 0) {
+    blocked(
+      "out-of-slice-path",
+      `task branch ${branch} touched ${strays.length} path(s) outside ${taskId} slice (${task.files.join(", ")}): ${strays.join(", ")}`,
+    );
   }
 
   write_([
