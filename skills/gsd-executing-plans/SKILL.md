@@ -42,8 +42,9 @@ Only implementation is dispatched; repair, diagnosis, architecture, and verifica
 A **wave** is a maximal contiguous run of tasks whose pairs have disjoint `Files` (per repository), disjoint `Satisfies`, and differing `Test`; `analyze-waves` prints them separated by `|`. Each dispatched task runs in its own isolated workspace; without isolation or dispatch, run the wave serially in plan order.
 
 1. Each sub-agent gets one task's full slice, the plan path, base and WIP identity, and the absolute paths of `skills/gsd-tdd/SKILL.md` and, when `Domain Impact` is not `none`, `skills/gsd-domain-modeling/SKILL.md` under the injected `GSD_ROOT`. Use the bootstrap's `worker` profile when listed.
-2. It runs RED, GREEN, refactor and commits only green task-owned changes on its own task branch cut from the wave base. It never touches `state.toon` or `plan.md`, merges, or runs slow suites.
+2. It runs RED, GREEN, refactor and commits only green changes for its task on its own task branch cut from the wave base. A path outside its `Files` that the task needs (a test the change broke, a generated file) is named in its report with the reason; a path another task of the wave owns is never edited. It never touches `state.toon` or `plan.md`, merges, or runs slow suites.
 3. Reconcile with Git bytes, never the sub-agent's report: `bun "<GSD_ROOT>/tools/gsd-git.mjs" verify-task-branch --feature-dir .scratch/<feature> --task <Tn> --branch <task-branch> --wave-base <ref>` must print `status: ready`. A block (`branch-missing`, `base-not-ancestor`, `empty-diff`, `out-of-slice-path`, `scratch-mutated`, `plan-invalid`, `not-a-repository-root`) is an integrity failure the owner repairs inline, never re-dispatches.
+   `out-of-slice-path` names every stray path at once: one that serves the task's criteria and no other task owns is added to that task's `Files` under § Plan amendment before rerunning the check; any other is reverted on the task branch.
 4. Merge the wave's task branches into `wip/<feature>` in plan order, rerun every merged task's focused check, then checkpoint with the wave's last task.
 
 ## Close or abandon

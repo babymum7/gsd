@@ -1,11 +1,13 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, symlinkSync, writeFileSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
 import {
+  normalizeDomainIndex,
+  normalizeDomainScope,
   parseAgentsDomainSection,
   parseDomainIndex,
   parseDomainScope,
@@ -231,4 +233,155 @@ test("validate CLI usage and help exit codes", () => {
   assert.equal(help.status, 0, help.stdout);
   assert.match(help.stdout, /Usage:/);
   assert.match(help.stdout, /Commands:/);
+});
+
+// Swap two `## ` sections of a canonical shard, keeping one blank line between sections.
+function swapSections(content, first, second) {
+  const [head, ...rest] = content.split(/\n(?=## )/);
+  const sections = rest.map((section) => section.replace(/\n+$/, ""));
+  const a = sections.findIndex((section) => section.startsWith(`## ${first}\n`));
+  const b = sections.findIndex((section) => section.startsWith(`## ${second}\n`));
+  [sections[a], sections[b]] = [sections[b], sections[a]];
+  return `${[head.replace(/\n+$/, ""), ...sections].join("\n\n")}\n`;
+}
+
+const SORTED_TERMS = [["Account", "A.", "x"], ["Capture", "B.", "y"], ["Settlement", "C.", "z"]];
+const UNSORTED_TERMS = [SORTED_TERMS[2], SORTED_TERMS[0], SORTED_TERMS[1]];
+
+test("normalizeDomainIndex sorts Scope rows and reports the fix", () => {
+  const sorted = indexContent([["billing", "Invoicing."], ["payments", "Funds."], ["risk", "Limits."]]);
+  const shuffled = indexContent([["risk", "Limits."], ["billing", "Invoicing."], ["payments", "Funds."]]);
+  const result = normalizeDomainIndex(shuffled);
+  assert.equal(result.content, sorted);
+  assert.equal(result.fixes.length, 1);
+  assert.equal(result.fixes[0].type, "sort-scopes");
+  assert.equal(parseDomainIndex(result.content).scopes.length, 3);
+});
+
+test("normalizeDomainIndex leaves a canonical or unparseable index byte-identical", () => {
+  const sorted = indexContent([["billing", "Invoicing."], ["payments", "Funds."]]);
+  assert.deepEqual(normalizeDomainIndex(sorted), { content: sorted, fixes: [] });
+  const broken = `${indexContent([["payments", "Funds."], ["billing", "Invoicing."]])}not a row\n`;
+  assert.deepEqual(normalizeDomainIndex(broken), { content: broken, fixes: [] });
+  assert.deepEqual(normalizeDomainIndex("nope"), { content: "nope", fixes: [] });
+});
+
+test("normalizeDomainScope sorts Terms and restores section order", () => {
+  const canonical = shardContent("billing", { terms: SORTED_TERMS });
+  const messy = swapSections(shardContent("billing", { terms: UNSORTED_TERMS }), "Actors", "Domain policies");
+  assert.throws(() => parseDomainScope(messy, "billing"));
+  const result = normalizeDomainScope(messy, "billing");
+  assert.equal(result.content, canonical);
+  assert.deepEqual(result.fixes.map((fix) => fix.type).sort(), ["reorder-sections", "sort-terms"]);
+  assert.deepEqual(parseDomainScope(result.content, "billing").terms, ["Account", "Capture", "Settlement"]);
+});
+
+test("normalizeDomainScope sorts Terms alone and reorders sections alone", () => {
+  const termsOnly = normalizeDomainScope(shardContent("billing", { terms: UNSORTED_TERMS }), "billing");
+  assert.equal(termsOnly.content, shardContent("billing", { terms: SORTED_TERMS }));
+  assert.deepEqual(termsOnly.fixes.map((fix) => fix.type), ["sort-terms"]);
+  const swapped = swapSections(shardContent("billing"), "Terms", "Actors");
+  const sectionsOnly = normalizeDomainScope(swapped, "billing");
+  assert.equal(sectionsOnly.content, shardContent("billing"));
+  assert.deepEqual(sectionsOnly.fixes.map((fix) => fix.type), ["reorder-sections"]);
+});
+
+test("normalizeDomainScope leaves canonical, partial, and unparseable shards byte-identical", () => {
+  const canonical = shardContent("billing", { terms: SORTED_TERMS });
+  assert.deepEqual(normalizeDomainScope(canonical, "billing"), { content: canonical, fixes: [] });
+  const missing = canonical.replace(/## Actors\n\n- An actor\.\n\n/, "");
+  const swappedMissing = swapSections(missing, "Terms", "Invariants");
+  assert.deepEqual(normalizeDomainScope(swappedMissing, "billing").fixes, []);
+  assert.equal(normalizeDomainScope(swappedMissing, "billing").content, swappedMissing);
+  const noTerms = canonical.replace(/\| Term \|[\s\S]*?\| Settlement[^\n]*\n/, "None.\n");
+  assert.deepEqual(normalizeDomainScope(noTerms, "billing").fixes, []);
+  assert.deepEqual(normalizeDomainScope("garbage", "billing"), { content: "garbage", fixes: [] });
+});
+
+function writeUnsortedModel(dir) {
+  const docs = join(dir, "docs", "domain");
+  mkdirSync(docs, { recursive: true });
+  writeFileSync(join(docs, "index.md"), indexContent([["payments", "Funds."], ["billing", "Invoicing."]]));
+  writeFileSync(join(docs, "billing.md"), swapSections(shardContent("billing", { terms: UNSORTED_TERMS }), "Actors", "Invariants"));
+  writeFileSync(join(docs, "payments.md"), shardContent("payments"));
+  return docs;
+}
+
+test("normalize CLI proposes fixes without --write and rewrites with --write", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-domain-"));
+  const docs = writeUnsortedModel(dir);
+  const indexPath = join(docs, "index.md");
+  const shardPath = join(docs, "billing.md");
+  const before = [readFileSync(indexPath), readFileSync(shardPath)];
+
+  const sortHelp = run(["validate", "--index", indexPath]);
+  assert.equal(sortHelp.status, 1);
+  assert.match(sortHelp.stdout, /help: .*normalize --index .* --write/);
+
+  const dry = run(["normalize", "--index", indexPath]);
+  assert.equal(dry.status, 0, dry.stdout);
+  assert.match(dry.stdout, /status: ok/);
+  assert.match(dry.stdout, /fix: .*index\.md: sort-scopes/);
+  assert.match(dry.stdout, /fix: .*billing\.md: sort-terms/);
+  assert.match(dry.stdout, /fix: .*billing\.md: reorder-sections/);
+  assert.deepEqual([readFileSync(indexPath), readFileSync(shardPath)], before);
+
+  const written = run(["normalize", "--index", indexPath, "--write"]);
+  assert.equal(written.status, 0, written.stdout);
+  assert.notDeepEqual(readFileSync(indexPath), before[0]);
+  assert.notDeepEqual(readFileSync(shardPath), before[1]);
+  const valid = run(["validate", "--index", indexPath]);
+  assert.equal(valid.status, 0, valid.stdout);
+
+  const again = run(["normalize", "--index", indexPath, "--write"]);
+  assert.match(again.stdout, /fixes: none/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("normalize CLI names normalize in the validate help for a section order error", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-domain-"));
+  const docs = join(dir, "docs", "domain");
+  mkdirSync(docs, { recursive: true });
+  writeFileSync(join(docs, "index.md"), indexContent([["billing", "Invoicing."]]));
+  writeFileSync(join(docs, "billing.md"), swapSections(shardContent("billing"), "Actors", "Invariants"));
+  const result = run(["validate", "--index", join(docs, "index.md")]);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /help: .*normalize --index .* --write, then validate again/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+// The section rejection also covers a missing or extra section, which normalize cannot fix,
+// so its help must send the agent to the hand edit instead of a normalize run that changes nothing.
+test("validate help for a missing section says it is fixed by hand", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-domain-"));
+  const docs = join(dir, "docs", "domain");
+  mkdirSync(docs, { recursive: true });
+  writeFileSync(join(docs, "index.md"), indexContent([["billing", "Invoicing."]]));
+  const shard = shardContent("billing");
+  writeFileSync(join(docs, "billing.md"), `${shard.slice(0, shard.indexOf("## Domain policies")).trimEnd()}\n`);
+  const result = run(["validate", "--index", join(docs, "index.md")]);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /help: .*missing.*by hand/);
+  assert.match(run(["normalize", "--index", join(docs, "index.md")]).stdout, /fixes: none/);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test("normalize CLI rejects --write on validate and missing --index", () => {
+  assert.equal(run(["validate", "--index", "x.md", "--write"]).status, 2);
+  assert.equal(run(["normalize"]).status, 2);
+});
+
+test("normalize CLI refuses to write through a symlink", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-domain-"));
+  const docs = writeUnsortedModel(dir);
+  const real = join(dir, "real-billing.md");
+  const original = readFileSync(join(docs, "billing.md"));
+  writeFileSync(real, original);
+  rmSync(join(docs, "billing.md"));
+  symlinkSync(real, join(docs, "billing.md"));
+  const result = run(["normalize", "--index", join(docs, "index.md"), "--write"]);
+  assert.equal(result.status, 1);
+  assert.match(result.stdout, /code: io-error/);
+  assert.deepEqual(readFileSync(real), original);
+  rmSync(dir, { recursive: true, force: true });
 });

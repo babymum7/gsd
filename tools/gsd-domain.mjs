@@ -4,16 +4,18 @@
 // could silently ship a malformed index, an orphaned shard, or a duplicate AGENTS section.
 // This tool parses the canonical grammar and proves the whole domain model is consistent and
 // complete before a session returns its changed paths.
-import { readdirSync, readFileSync } from "node:fs";
+import { lstatSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import {
+  normalizeDomainIndex,
+  normalizeDomainScope,
   parseAgentsDomainSection,
   parseDomainIndex,
   parseDomainScope,
 } from "../lib/gsd-domain.mjs";
 
-const COMMANDS = new Set(["validate"]);
+const COMMANDS = new Set(["validate", "normalize"]);
 const VALUE_FLAGS = new Set(["--index", "--agents"]);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -28,8 +30,17 @@ function write(lines) {
 }
 
 function commandUsage() {
-  return `${INVOCATION} validate --index docs/domain/index.md [--agents AGENTS.md]`;
+  return [
+    `${INVOCATION} validate --index docs/domain/index.md [--agents AGENTS.md]`,
+    `${INVOCATION} normalize --index docs/domain/index.md [--write]`,
+  ].join("\n");
 }
+
+const NORMALIZE_HELP = `run ${INVOCATION} normalize --index docs/domain/index.md --write, then validate again`;
+// The section rejection also covers a missing or extra section, which normalize cannot fix.
+const SECTION_HELP = `add a missing section or remove an extra one by hand, then ${NORMALIZE_HELP}`;
+const ORDER_ERROR_RE = /must be sorted|lexicographically sorted/;
+const SECTION_ERROR_RE = /sections must appear exactly in order/;
 
 function emitHelp() {
   write([
@@ -39,11 +50,14 @@ function emitHelp() {
     "Commands:",
     "  validate  Parse the index, every mapped shard, and the AGENTS.md section; exit 0",
     "            reports a complete, sorted, well-formed domain model, exit 1 reports",
-    "            a malformed or inconsistent model.",
+    "            a malformed or inconsistent model. Never writes.",
+    "  normalize Propose canonical order for Scope rows, Terms rows, and shard sections;",
+    "            writes the fixes only with --write, otherwise only prints them.",
     "",
     "Flags:",
     "  --index   Path to docs/domain/index.md. Shards resolve beside it.",
     "  --agents  Path to AGENTS.md; optional, validates its documentation sections.",
+    "  --write   normalize only: rewrite the changed files instead of only printing the fixes.",
   ]);
   process.exitCode = 0;
 }
@@ -54,7 +68,10 @@ function failUsage(message) {
 }
 
 function failDomain(message) {
-  write(["status: error", "code: invalid-domain", `error: ${quote(message)}`, `help: ${quote(commandUsage())}`]);
+  let help = commandUsage();
+  if (SECTION_ERROR_RE.test(message)) help = SECTION_HELP;
+  else if (ORDER_ERROR_RE.test(message)) help = NORMALIZE_HELP;
+  write(["status: error", "code: invalid-domain", `error: ${quote(message)}`, `help: ${quote(help)}`]);
   process.exitCode = 1;
 }
 
@@ -71,8 +88,15 @@ function parseArguments(argv) {
 
   let index = null;
   let agents = null;
+  let writeFlag = false;
   for (let position = 0; position < args.length; position += 1) {
     const flag = args[position];
+    if (flag === "--write") {
+      if (command !== "normalize") return { usageError: "--write is only valid with normalize", command };
+      if (writeFlag) return { usageError: "--write may be supplied only once", command };
+      writeFlag = true;
+      continue;
+    }
     if (!VALUE_FLAGS.has(flag)) {
       return { usageError: `unknown argument: ${flag}`, command };
     }
@@ -85,13 +109,14 @@ function parseArguments(argv) {
       if (index !== null) return { usageError: "--index may be supplied only once", command };
       index = value;
     } else {
+      if (command === "normalize") return { usageError: "--agents is only valid with validate", command };
       if (agents !== null) return { usageError: "--agents may be supplied only once", command };
       agents = value;
     }
   }
 
   if (index === null) return { usageError: "--index is required", command };
-  return { command, index, agents };
+  return { command, index, agents, write: writeFlag };
 }
 
 function readText(pathLike, command) {
@@ -159,11 +184,83 @@ function runValidate({ index, agents, command }) {
   write(output);
 }
 
+// Atomic replace: the temp file lives beside the target so the rename never crosses a device.
+function writeAtomic(target, content) {
+  const temp = `${target}.${process.pid}.tmp`;
+  try {
+    writeFileSync(temp, content, { flag: "wx" });
+    renameSync(temp, target);
+  } catch (error) {
+    rmSync(temp, { force: true });
+    throw error;
+  }
+}
+
+function isSymlink(target) {
+  try {
+    return lstatSync(target).isSymbolicLink();
+  } catch {
+    return false;
+  }
+}
+
+function runNormalize({ index, write: shouldWrite, command }) {
+  const indexContent = readText(index, command);
+  if (indexContent === null) return;
+  const normalizedIndex = normalizeDomainIndex(indexContent);
+  let parsed;
+  try {
+    parsed = parseDomainIndex(normalizedIndex.content);
+  } catch (error) {
+    failDomain(`${index}: ${error.message}`);
+    return;
+  }
+  const changes = [];
+  if (normalizedIndex.fixes.length > 0) {
+    changes.push({ file: index, content: normalizedIndex.content, fixes: normalizedIndex.fixes });
+  }
+  const directory = path.dirname(index);
+  for (const { scope, file } of parsed.scopes) {
+    const shardPath = path.join(directory, file);
+    const shardContent = readText(shardPath, command);
+    if (shardContent === null) return;
+    const normalized = normalizeDomainScope(shardContent, scope);
+    if (normalized.fixes.length > 0) {
+      changes.push({ file: shardPath, content: normalized.content, fixes: normalized.fixes });
+    }
+  }
+  if (shouldWrite) {
+    for (const change of changes) {
+      if (isSymlink(change.file)) {
+        failIo(`refusing to write through symlink ${change.file}`, command);
+        return;
+      }
+    }
+    for (const change of changes) {
+      try {
+        writeAtomic(change.file, change.content);
+      } catch (error) {
+        failIo(`cannot write ${change.file}: ${error.message}`, command);
+        return;
+      }
+    }
+  }
+  const output = ["status: ok"];
+  for (const change of changes) {
+    for (const fix of change.fixes) output.push(`fix: ${change.file}: ${fix.type} ${fix.detail}`);
+  }
+  if (changes.length === 0) output.push("fixes: none");
+  else output.push(`written: ${shouldWrite ? changes.length : 0}`);
+  write(output);
+}
+
 const input = parseArguments(process.argv.slice(2));
 if (input.usageError) {
   failUsage(input.usageError);
 } else if (input.help) {
   emitHelp();
+} else if (input.command === "normalize") {
+  runNormalize(input);
 } else {
   runValidate(input);
 }

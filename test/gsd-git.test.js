@@ -251,6 +251,7 @@ test("preflight passes when the recorded base and WIP branch both still hold", (
         "wip: wip/ready-demo",
         "head: wip/ready-demo",
         "tree: clean outside .scratch/",
+        "outside_files: none",
         "exit=0",
         "",
       ].join("\n"),
@@ -263,6 +264,30 @@ test("preflight passes when the recorded base and WIP branch both still hold", (
 // Canon requires the reviewed non-scratch tree to match the recorded binding before the
 // squash, and the requirement has teeth: the commit after `git merge --squash` commits the
 // whole index, so a staged path outside `.scratch/` lands in the squash unreviewed.
+// AC-6: the terminal gate judges changed paths no task lists; preflight names them so the
+// agent never computes the list, and the list never blocks.
+test("preflight lists changed paths outside every task's Files without blocking", () => {
+  const { root, relative } = makePacket({ feature: "outside-demo", base: "trunk" });
+  try {
+    writeFileSync(join(root, "src", "app.js"), "planned change\n");
+    git(["commit", "-qam", "planned change"], root);
+    const listed = cli(["preflight", "--feature-dir", relative], root);
+    assert.equal(listed.status, 0, listed.stdout + listed.stderr);
+    assert.match(listed.stdout, /^outside_files: none$/m);
+
+    writeFileSync(join(root, "file.txt"), "supporting change\n");
+    git(["commit", "-qam", "supporting change"], root);
+    const outside = cli(["preflight", "--feature-dir", relative], root);
+    assert.equal(outside.status, 0, outside.stdout + outside.stderr);
+    assert.match(outside.stdout, /^status: ready$/m);
+    assert.match(outside.stdout, /^outside_files: file\.txt$/m);
+    assert.doesNotMatch(outside.stdout, /^outside_files: (none|src\/app\.js)$/m);
+    assert.match(outside.stdout, /^exit=0$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 // verify-task-branch already takes an absolute feature directory; preflight joined it onto cwd.
 test("preflight accepts an absolute feature directory", () => {
   const { root, relative } = makePacket({ feature: "absolute-demo" });
@@ -985,6 +1010,32 @@ test("verify-task-branch blocks an empty diff against wave base", () => {
     assert.match(result.stdout, /^status: blocked$/m);
     assert.match(result.stdout, /^code: empty-diff$/m);
     assert.match(result.stdout, /^exit=1$/m);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// AC-5: one report names every stray path, so the owner repairs the slice in one pass.
+test("verify-task-branch names every stray path in one out-of-slice report", () => {
+  const { root, relative } = makeTaskBranchPacket();
+  try {
+    git(["checkout", "-q", "-b", "task-t2-strays", "main"], root);
+    writeFileSync(join(root, "src", "app.js"), "t2 work\n");
+    writeFileSync(join(root, "file.txt"), "stray one\n");
+    writeFileSync(join(root, "extra.txt"), "stray two\n");
+    git(["add", "src/app.js", "file.txt", "extra.txt"], root);
+    git(["commit", "-qm", "t2 with strays"], root);
+
+    const result = cli(
+      ["verify-task-branch", "--feature-dir", relative, "--task", "T2", "--branch", "task-t2-strays", "--wave-base", "main"],
+      root,
+    );
+    assert.equal(result.status, 1, result.stdout + result.stderr);
+    assert.match(result.stdout, /^code: out-of-slice-path$/m);
+    assert.equal(result.stdout.match(/^code: /gm).length, 1);
+    const error = result.stdout.match(/^error: (.+)$/m)[1];
+    assert.match(error, /extra\.txt/);
+    assert.match(error, /file\.txt/);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

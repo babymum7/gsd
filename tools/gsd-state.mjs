@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { randomUUID } from "node:crypto";
+import { spawnSync } from "node:child_process";
 import { existsSync, readFileSync, statSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -105,6 +106,7 @@ function emitHelp(command) {
       "",
       "Set state fields atomically with validation and derived defaults.",
       "Accepts key=value pairs for canonical v0.0.3 state fields.",
+      "last_green_commit accepts HEAD or a short SHA; Git resolves it to the full SHA.",
       "",
       "Options:",
       "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
@@ -196,6 +198,32 @@ function requireOwner(feature, recorded) {
     "code: owner-required",
     `error: ${quote(`packet ${feature} is owned by ${recorded}, and this set names no owner`)}`,
     `help: ${quote(`rerun this set with owner=<GSD_SESSION> added; if ${recorded} is not your GSD_SESSION, leave the packet alone unless the user named it`)}`,
+  ]);
+  process.exit(1);
+}
+
+// Agents pass HEAD or a short SHA; state files store only the full 40-hex SHA. A full SHA is
+// stored untouched, so a commit from another repository keeps working. Anything else is resolved
+// read-only by Git, without a shell, in the directory holding .scratch.
+const FULL_SHA_RE = /^[a-f0-9]{40}$/;
+
+function resolveCommitRef(value, featureDir) {
+  const root = path.resolve(featureDir, "..", "..");
+  // A leading dash would read as an option and whitespace or control characters never name a ref.
+  const spawned = /^-|[\s\x00-\x1F\x7F]/.test(value)
+    ? null
+    : spawnSync("git", ["-C", root, "rev-parse", "--verify", "--quiet", "--end-of-options", `${value}^{commit}`], {
+      encoding: "utf8",
+      timeout: 10000,
+    });
+  const resolved = spawned?.status === 0 ? spawned.stdout.trim() : "";
+  if (FULL_SHA_RE.test(resolved)) return resolved;
+  const shown = value.replace(/[\x00-\x1F\x7F]+/g, " ").slice(0, 100);
+  write_([
+    "status: error",
+    "code: invalid-artifact",
+    `error: ${quote(`last_green_commit ${shown} does not name a commit in ${root}`)}`,
+    `help: ${quote("pass a commit Git resolves in this repository, such as the output of git rev-parse HEAD")}`,
   ]);
   process.exit(1);
 }
@@ -402,6 +430,10 @@ if (input.usageError) {
   const state = { ...baseState };
   for (const { key, value } of input.pairs) {
     state[key] = value;
+  }
+  // An empty value is left to the state validator, which rejects it.
+  if (updateKeys.has("last_green_commit") && state.last_green_commit !== "none" && state.last_green_commit !== "" && !FULL_SHA_RE.test(state.last_green_commit)) {
+    state.last_green_commit = resolveCommitRef(state.last_green_commit, input.featureDir);
   }
 
   if (exists) {

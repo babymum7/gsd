@@ -79,9 +79,11 @@ bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/
 ```
 
 - The same command validates a new, resumed, or amended plan; `plan.md` bytes are not pinned, so an edit is judged by grammar, not by a hash.
-- `normalize-plan` proposes or applies surface-only fixes (backticks on Feature/Base, trailing whitespace, blank lines next to headings or inside structured sections, section order, final newline). `init-plan` writes a skeleton and refuses to overwrite. `merge-message` validates, then prints plain text (a merge subject that names the base unless a cross-repo plan has several, the Summary, and active criterion titles) for `git merge -F` and a pull request body.
+- `normalize-plan` proposes or applies surface-only fixes (backticks on Feature/Base, trailing whitespace, blank lines next to headings or inside structured sections, section order, sorted Domain Impact Contexts, final newline). `init-plan` writes a skeleton and refuses to overwrite. `merge-message` validates, then prints plain text (a merge subject that names the base unless a cross-repo plan has several, the Summary, and active criterion titles) for `git merge -F` and a pull request body.
 - Success prints scalar TOON (`status`, `kind`, `feature`, `base`, `tasks`). Failures print `code: io-error` or `code: invalid-artifact` (and `code: plan-exists` when `init-plan` finds a plan already there) with a `help:` fix (exit 1); usage errors exit 2. One run reports every independent defect: the first as `error:`/`line:`/`help:`, each further one as `error_2:`/`line_2:`/`help_2:` and onward, and `errors:` gives the count, so fix them all before rerunning.
-- Only `init-plan`, `normalize-plan --write`, and `gsd-state.mjs set` write anything.
+- Domain docs have their own surface fixer: `bun "<GSD_ROOT>/tools/gsd-domain.mjs" normalize --index docs/domain/index.md [--write]` sorts the index Scope rows and each mapped shard's Terms rows and section order; run it with `--write` before `validate` instead of reordering by hand.
+- `gsd-state.mjs set` resolves a `last_green_commit` such as `HEAD` or a short SHA to the full SHA in the repository holding `.scratch`.
+- Only `init-plan`, `normalize-plan --write`, `gsd-domain.mjs normalize --write`, and `gsd-state.mjs set` write anything.
 
 ### Plan binding and auto-execution
 
@@ -135,7 +137,9 @@ The owner rebuilds task and terminal slices from plan, state, and Git.
 ### Plan amendment
 
 `plan.md` stays editable while its feature executes; only a missing or malformed `plan.md` fails closed. The owner amends it in place and revalidates; an amendment writes no checkpoint of its own, and the next regular checkpoint increments `checkpoint_revision` as always. No branch closes and no new feature opens.
-- Bookkeeping amendments are self-service while tasks execute: recording touched files, fixing paths or intents, splitting or reordering pending tasks, or sharpening wording that leaves acceptance intact. Progress lives in `state.toon`, so a finished task needs no `Status` edit. Once the terminal gate starts, bookkeeping is not written back: the gate names in-scope supporting paths in its report.
+- Bookkeeping amendments are self-service while tasks execute: fixing paths or intents, adding a supporting path to a pending or dispatched task's `Files`, splitting or reordering pending tasks, or sharpening wording that leaves acceptance intact.
+- `Files` keeps dispatched tasks disjoint, so a task completed inline is not backfilled with the supporting paths it touched; preflight's `outside_files:` lines name them for the terminal gate.
+- Progress lives in `state.toon`, so a finished task needs no `Status` edit. Once the terminal gate starts, bookkeeping is not written back: the gate names in-scope supporting paths in its report.
 - A user-stated requirement change mid-execution is an amendment: amend, revalidate, and continue.
 - An amendment keeps the plan grammar in [../gsd-to-plan/PLAN-GRAMMAR.md](../gsd-to-plan/PLAN-GRAMMAR.md); `validate-plan` is the authority.
 - Material amendments ask one question first: changing an active criterion, weakening invariants or non-goals, changing `Domain Impact`, replacing interface pins, changing a `## Repos` base, or rewriting completed tasks.
