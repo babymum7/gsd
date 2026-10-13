@@ -28,6 +28,7 @@ Present in one message: the targets with current, chosen, and held-back versions
 
 - Patch and minor upgrades together are one part. Each major upgrade and each engine or toolchain change is its own part, so a failure isolates to one target.
 - Within a part, the first task raises the version in the manifest and lets the package manager rewrite the lockfile (never edit a lockfile by hand), then fixes what breaks; a second task adopts the new APIs: replace deprecated calls and code the new version makes redundant. Behavior stays the same: the whole suite, slow suites included, stays green after each task.
+- A target the local suite never runs on (a CI runtime pin, a Docker `FROM` tag, a workflow action version) counts as green only after the suite runs under that version (that runtime, that image); otherwise it is reported as unverified for the owner, never as passing.
 - A library change that alters observable behavior is kept out: hold that target at its last working version and report why. Never weaken a test to make an upgrade pass.
 - Read `GSD_ROOT/skills/gsd-to-plan/SKILL.md` and plan feature `upgrade-<area>`; several parts run back to back on an integration branch that merges into the base once, as `gsd-brainstorming` describes. Then follow `gsd-executing-plans` and `gsd-verify` to the end and deliver as approved.
 - Without GSD in the repository, add `.scratch/` to `.git/info/exclude` before writing the plan.
