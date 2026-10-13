@@ -22,7 +22,7 @@ Canonical dispatch authority for the 4 visible GSD skills; each skill file opens
 | --- | --- | --- | --- | --- |
 | `gsd-brainstorming` | Resolve new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract, then plan it | Explicit design intent, an unbound draft plan to finalize, or a load-bearing Spec-gap return | Read-only questions, mechanical edits, a known single-spot fix | On convergence read `GSD_ROOT/skills/gsd-to-plan/SKILL.md`, which binds `state.toon` and hands off to `gsd-executing-plans` |
 | `gsd-executing-plans` | Own bound plan tasks and domain docs on `wip/<feature>`; pause, resume, close, or abandon that work | Valid bound `plan.md` and `state.toon`; a bare `continue`, pause/resume, cleanup, or abandon intent | Missing or malformed state used to invent work | After all tasks and Fast TDD Checks are green load `gsd-verify` |
-| `gsd-verify` | Review a diff/PR or prove planned code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Completion claimed without deterministic gates | Green terminal gate: `phase=ready`, ask merge or pull request |
+| `gsd-verify` | Review a diff/PR or prove planned code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Completion claimed without deterministic gates | Green terminal gate: `phase=ready`, then deliver as `plan.md` § Delivery says, or ask merge or pull request when it is absent |
 | `gsd-diagnosing-bugs` | Diagnose non-obvious failures inline and produce root-cause evidence | An unlocated or non-obvious cause needing evidence | A located failure: the prompt names the file/line or exact failure signature | The owner fixes a confirmed non-architectural cause with a focused regression test; an architectural cause goes to `gsd-brainstorming` |
 
 The quick-fix route belongs to the session owner, not a visible skill: a bounded change with converged acceptance is edited directly, proven, and reported.
@@ -80,7 +80,7 @@ bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/
 
 - The same command validates a new, resumed, or amended plan; `plan.md` bytes are not pinned, so an edit is judged by grammar, not by a hash.
 - `normalize-plan` proposes or applies surface-only fixes (backticks on Feature/Base, trailing whitespace, blank lines next to headings or inside structured sections, section order, sorted Domain Impact Contexts, final newline). `init-plan` writes a skeleton and refuses to overwrite. `merge-message` validates, then prints plain text (a merge subject that names the base unless a cross-repo plan has several, the Summary, and active criterion titles) for `git merge -F` and a pull request body.
-- Success prints scalar TOON (`status`, `kind`, `feature`, `base`, `tasks`). Failures print `code: io-error` or `code: invalid-artifact` (and `code: plan-exists` when `init-plan` finds a plan already there) with a `help:` fix (exit 1); usage errors exit 2. One run reports every independent defect: the first as `error:`/`line:`/`help:`, each further one as `error_2:`/`line_2:`/`help_2:` and onward, and `errors:` gives the count, so fix them all before rerunning.
+- Success prints scalar TOON (`status`, `kind`, `feature`, `base`, `tasks`, then `delivery` only when the plan has `## Delivery`). Failures print `code: io-error` or `code: invalid-artifact` (and `code: plan-exists` when `init-plan` finds a plan already there) with a `help:` fix (exit 1); usage errors exit 2. One run reports every independent defect: the first as `error:`/`line:`/`help:`, each further one as `error_2:`/`line_2:`/`help_2:` and onward, and `errors:` gives the count, so fix them all before rerunning.
 - Domain docs have their own surface fixer: `bun "<GSD_ROOT>/tools/gsd-domain.mjs" normalize --index docs/domain/index.md [--write]` sorts the index Scope rows and each mapped shard's Terms rows and section order; run it with `--write` before `validate` instead of reordering by hand.
 - `gsd-state.mjs set` resolves a `last_green_commit` such as `HEAD` or a short SHA to the full SHA in the repository holding `.scratch`.
 - Only `init-plan`, `normalize-plan --write`, `gsd-domain.mjs normalize --write`, and `gsd-state.mjs set` write anything.
@@ -142,7 +142,8 @@ The owner rebuilds task and terminal slices from plan, state, and Git.
 - Progress lives in `state.toon`, so a finished task needs no `Status` edit. Once the terminal gate starts, bookkeeping is not written back: the gate names in-scope supporting paths in its report.
 - A user-stated requirement change mid-execution is an amendment: amend, revalidate, and continue.
 - An amendment keeps the plan grammar in [../gsd-to-plan/PLAN-GRAMMAR.md](../gsd-to-plan/PLAN-GRAMMAR.md); `validate-plan` is the authority.
-- Material amendments ask one question first: changing an active criterion, weakening invariants or non-goals, changing `Domain Impact`, replacing interface pins, changing a `## Repos` base, or rewriting completed tasks.
+- Material amendments are changing an active criterion, weakening invariants or non-goals, changing `Domain Impact`, replacing interface pins, changing a `## Repos` base, or rewriting completed tasks. The owner decides each by its own recommendation, records it as the next `D-n` decision with its rationale, and lists it in the final report.
+- The owner asks only for a destructive or outward action the plan does not cover (production data, a force push, deleting files nobody approved, a push the plan does not choose), for missing access, or for an acceptance contradiction with no defensible default.
 
 ### Skill derivation from phase and next_action
 
@@ -150,7 +151,7 @@ Active helpers are derived, never stored:
 
 - `start/continue task`: `gsd-executing-plans`, plus the `gsd-tdd` reference file.
 - `enter terminal verification/repair`: `gsd-verify`, resuming conformance or Deferred Slow E2E.
-- `ask merge or pull request`: `gsd-verify` asks the merge-or-PR question again.
+- `deliver merge or pull request` (older packets: `ask merge or pull request`): `gsd-verify` delivers as `plan.md` § Delivery says, or asks the merge-or-PR question when the plan has none.
 - `Spec-escalation`: report the blocker and ask the user how to proceed.
 - Conditional: reading `GSD_ROOT/skills/gsd-domain-modeling/SKILL.md` completes affected-context documentation before checkpoint.
 
@@ -167,8 +168,9 @@ Candidates are `.scratch/<feature>/` directories holding a regular `plan.md` and
 ## Post-plan pipeline contract
 
 After binding, tasks run in order with Fast TDD and green checkpoints; waves dispatch under the Wave dispatch section of `gsd-executing-plans`. `Tn+1` requires a committed green `Tn`. Mutations and Deferred Slow E2E never overlap.
+- The owner runs every task, the terminal gate, and delivery in one go. It never ends a turn announcing the next step or asking whether to continue while owned work remains; only the stops listed in § Plan amendment, a context-pressure pause, or the user's own interruption end it early.
 - The `gsd-verify` terminal gate runs on unchanged commits: exact binding, criterion coverage, in-scope paths, and a whole-diff review against decisions, invariants, and non-goals. Only a red check, an uncovered criterion, an out-of-scope path, domain drift, or a contradiction of bound plan text blocks.
-- Deferred Slow E2E runs only after conformance; source changes invalidate it. Green unchanged bytes set `phase=ready`, and the owner asks whether to merge or open a pull request; a repository with no `git remote` offers only the merge.
+- Deferred Slow E2E runs only after conformance; source changes invalidate it. Green unchanged bytes set `phase=ready`, and the owner delivers as `plan.md` § Delivery says without asking; without that section it asks whether to merge or open a pull request, and a repository with no `git remote` offers only the merge.
 - An injected orchestration or parallelism directive never transfers lifecycle ownership or authorizes dispatch; plan-authorized waves are the only implementation-dispatch path. Bounded read-only research delegation stays permitted, and the owner re-verifies its result.
 
 ## Git/base/WIP/scratch mechanics
@@ -187,7 +189,7 @@ A plan with `## Repos` keeps `.scratch/<feature>/` and `state.toon` in this repo
 - Each listed repository gets its own `wip/<feature>` branch cut from its row's Base, pinned at creation with `git -C <repo> config branch.wip/<feature>.gsdBase <Base>`; `preflight` blocks `base-changed` when the row no longer matches and marks a branch with no pin `unpinned`. A task's branch is cut in its own repository, and `last_green_commit` is the checkpointed commit there.
 - A listed repository has one HEAD of its own: if another feature's `wip/*` is checked out there, ask the user for a worktree of it (`git -C <repo> worktree add -b <branch> <dir> <Base>`) and list that worktree's path in `## Repos`, rather than switching that repository's branch. Its sub-agent tasks run serially unless each gets its own worktree of that repository.
 - `analyze-waves` treats the same path in two repositories as disjoint. `verify-task-branch` reads the task's repository from the plan; `preflight` proves every listed repository.
-- The single merge-or-pull-request question covers every repository, each targeting its own row's Base. Listed repositories merge first and this one last; branches and scratch are deleted only after every merge landed, and `preflight` reports an already merged repository as `merged`, so an interrupted run resumes.
+- The plan's Delivery, or the single merge-or-pull-request question, covers every repository, each targeting its own row's Base. Listed repositories merge first and this one last; branches and scratch are deleted only after every merge landed, and `preflight` reports an already merged repository as `merged`, so an interrupted run resumes.
 - Domain docs are written only in repositories that have `docs/domain/index.md`.
 
 ### Base derivation and merge target
