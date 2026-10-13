@@ -357,7 +357,7 @@ test("full-plan domain shard ownership skips superseded tasks", () => {
 });
 test("a none classification that still owns domain documentation", () => {
   // `classification=none` declares the fix touches no domain meaning, so owning a
-  // domain shard, the index, or AGENTS.md contradicts that declaration. The non-`none`
+  // domain shard or the index contradicts that declaration. The non-`none`
   // branch already enforces the direction it can see; this closes the inverse.
   const fullPlanShard = canonicalPlan("none-shard-plan")
     .replace("  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation", "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation\n  - `docs/domain/gsd.md` \u2014 modify: record the corrected production behavior");
@@ -382,6 +382,79 @@ test("a none classification that still owns domain documentation", () => {
     }
   } finally {
     for (const entry of cases) rmSync(entry.workspace, { recursive: true, force: true });
+  }
+});
+
+test("a none classification allows AGENTS.md ownership but still rejects docs/domain paths (AC-2)", () => {
+  const ownAgents = canonicalPlan("none-agents-plan")
+    .replace("  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation", "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation\n  - `AGENTS.md` \u2014 modify: record an unrelated agent instruction");
+  const ownIndex = canonicalPlan("none-agents-index-plan")
+    .replace("  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation", "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation\n  - `docs/domain/index.md` \u2014 modify: keep the index current");
+  const cases = [
+    { feature: "none-agents-plan", content: ownAgents },
+    { feature: "none-agents-index-plan", content: ownIndex },
+  ].map((entry) => ({ ...entry, ...makePlanWorkspace(entry.feature, entry.content) }));
+
+  try {
+    const [agents, index] = cases.map((entry) =>
+      spawnSync(process.execPath, [CLI, "validate-plan", "--path", entry.planPath], { cwd: entry.workspace, encoding: "utf8" }),
+    );
+    assert.equal(agents.status, 0, `${agents.stdout}${agents.stderr}`);
+    assert.match(agents.stdout, /^status: valid\nkind: plan\n/);
+    assert.equal(index.status, 1, `${index.stdout}${index.stderr}`);
+    assert.match(index.stdout, /classification none must not own domain documentation: T1 owns docs\/domain\/index\.md/);
+  } finally {
+    for (const entry of cases) rmSync(entry.workspace, { recursive: true, force: true });
+  }
+});
+
+test("normalize-plan --write sorts Domain Impact Contexts and validate-plan then accepts the plan (AC-3)", () => {
+  const unsorted = canonicalPlan("unsorted-fix")
+    .replace(
+      "- **Classification:** none\n- **Contexts:** none\n- **Documentation:** none",
+      "- **Classification:** change-existing-context\n- **Contexts:** gsd, billing\n- **Documentation:** update-existing",
+    )
+    .replace(
+      "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation",
+      "  - `tools/gsd-contract.mjs` \u2014 create: expose canonical plan validation\n  - `docs/domain/billing.md` \u2014 modify: update billing docs\n  - `docs/domain/gsd.md` \u2014 modify: update gsd docs",
+    );
+  const { workspace, planPath } = makePlanWorkspace("unsorted-fix", unsorted);
+  const relPath = join(".scratch", "unsorted-fix", "plan.md");
+  const cli = (...args) => spawnSync(process.execPath, [CLI, ...args], { cwd: workspace, encoding: "utf8" });
+  try {
+    const before = cli("validate-plan", "--path", relPath);
+    assert.equal(before.status, 1, before.stdout);
+    assert.match(before.stdout, /Domain Impact Contexts must be sorted/);
+    assert.match(before.stdout, /^help: ".*normalize-plan --write.*"$/m);
+    assert.equal(readFileSync(planPath, "utf8"), unsorted, "validate-plan never writes");
+
+    const write = cli("normalize-plan", "--path", relPath, "--write");
+    assert.equal(write.status, 0, write.stdout + write.stderr);
+    const fixed = readFileSync(planPath, "utf8");
+    assert.match(fixed, /- \*\*Contexts:\*\* billing, gsd\n/);
+    assert.equal(fixed, unsorted.replace("Contexts:** gsd, billing", "Contexts:** billing, gsd"));
+
+    const after = cli("validate-plan", "--path", relPath);
+    assert.equal(after.status, 0, after.stdout + after.stderr);
+    assert.match(after.stdout, /^status: valid\nkind: plan\n/);
+
+    const second = cli("normalize-plan", "--path", relPath, "--write");
+    assert.equal(second.status, 0);
+    assert.equal(readFileSync(planPath, "utf8"), fixed);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("normalizePlan reports a sort-contexts fix and leaves none or sorted Contexts alone", () => {
+  const withContexts = (value) => canonicalPlan("ctx-fix").replace("- **Contexts:** none", `- **Contexts:** ${value}`);
+  const { content, fixes } = normalizePlan(withContexts("gsd, billing"));
+  assert.match(content, /- \*\*Contexts:\*\* billing, gsd\n/);
+  const fix = fixes.find((entry) => entry.type === "sort-contexts");
+  assert.deepEqual({ from: fix.from, to: fix.to }, { from: "gsd, billing", to: "billing, gsd" });
+  assert.equal(typeof fix.line, "number");
+  for (const value of ["none", "billing, gsd"]) {
+    assert.equal(normalizePlan(withContexts(value)).fixes.some((entry) => entry.type === "sort-contexts"), false, value);
   }
 });
 
@@ -1366,6 +1439,7 @@ test("semantic validator failures attach concrete remediation help lines across 
     assert.match(domainResult.stdout, /^status: error\ncode: invalid-artifact\n/);
     assert.match(domainResult.stdout, /Domain Impact Contexts must be sorted/);
     assert.match(domainResult.stdout, /^help: ".*sort contexts alphabetically in ascending order.*"$/m);
+    assert.match(domainResult.stdout, /^help: ".*normalize-plan --write.*"$/m);
 
     // 4. The retired hash binding flag is a usage error, never a silent no-op
     const hashResult = spawnSync(
