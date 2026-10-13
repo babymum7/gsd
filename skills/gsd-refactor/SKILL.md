@@ -39,10 +39,12 @@ When the repository has no GSD conventions yet: add `.scratch/` to `.gitignore`,
 ## Approval
 
 Present in one message: the findings ranked by impact with their evidence, the proposed lint changes and the `## Code quality` text, the GSD setup, the cleanup candidates, the refactor split into parts, and the Delivery question from `gsd-brainstorming`. The user approves or edits once; after that the run asks nothing more.
+Each architecture finding is shown in the candidate form of the Candidate contract section in `GSD_ROOT/skills/gsd-codebase-architecture/SKILL.md`: recommendation strength, evidence, before and after sketch with the target seam, migration with rollback, and the tests that survive.
 
 ## Run
 
 - A refactor changes structure, never behavior: no feature or bug fix rides along. Before a target changes, a characterization test at its public seam pins its current behavior; the existing suite stays green after every task.
+- A changed interface migrates every caller in the same task when the caller list is complete. When compatibility prevents that cutover, plan Expand → Migrate → Contract (add the new interface, move the callers, then remove the old one), each step its own green task; never remove an interface that callers outside the repository still use.
 - Read `GSD_ROOT/skills/gsd-to-plan/SKILL.md` and plan feature `refactor-<area>`. The first task writes the rules files and the GSD setup; each lint rule lands in the task that makes the code pass it. Each criterion is a GIVEN/WHEN/THEN at a public seam showing behavior unchanged, or a lint rule passing.
 - Several areas become parts as `gsd-brainstorming` describes, all converged in this one approval and run back to back.
 - Then follow `gsd-executing-plans` and `gsd-verify` to the end and deliver as approved.
