@@ -246,6 +246,7 @@ test("skills directory names list the router, then visible and explicit-only ski
     "gsd-diagnosing-bugs",
     "gsd-executing-plans",
     "gsd-refactor",
+    "gsd-upgrade",
     "gsd-verify",
   ]);
 });

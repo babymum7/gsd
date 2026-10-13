@@ -20,7 +20,7 @@ Pick the lightest path that fits. Read only what the prompt names; never scan th
 - **New or changed behavior**: features, interfaces, architecture, domain, integrations, or finalizing an unbound draft plan go to `gsd-brainstorming`.
 - **Review a diff or PR**: `gsd-verify`.
 - **Continue, pause, resume, close, or abandon a feature**: `gsd-executing-plans`.
-- **Explicit request to refactor or clean up the repository**: read `GSD_ROOT/skills/gsd-refactor/SKILL.md` or `GSD_ROOT/skills/gsd-cleanup/SKILL.md`, not a Skill tool.
+- **Explicit request to refactor, clean up, or upgrade the repository**: read `GSD_ROOT/skills/<gsd-refactor|gsd-cleanup|gsd-upgrade>/SKILL.md`, not a Skill tool.
 - **Unclear intent**: ask one question with a recommended default.
 
 When a skill fits, read its `skillPath` before acting on it. Every choice you offer names a recommendation and its cost.
