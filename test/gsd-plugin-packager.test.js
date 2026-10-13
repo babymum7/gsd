@@ -177,3 +177,11 @@ test("every relative link in a shipped skill resolves inside the built bundle", 
     rmSync(work, { recursive: true, force: true });
   }
 });
+
+test("the shipped refactor skill writes rules for agent readers in every language and lands parts as one base commit", () => {
+  const { pluginRoot } = buildPluginBundle(ROOT, mkdtempSync(join(tmpdir(), "gsd-plugin-marketplace-")));
+  const skill = readFileSync(join(pluginRoot, "skills", "gsd-refactor", "SKILL.md"), "utf8");
+  assert.match(skill, /agents are the only readers/, "rules are written for agents");
+  assert.match(skill, /every language in the repository/, "rules hold across languages");
+  assert.match(skill, /integration branch that merges into the base once/, "parts reach the base as one commit");
+});
