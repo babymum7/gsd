@@ -30,7 +30,7 @@ For module boundaries and deepening candidates, read `GSD_ROOT/skills/gsd-codeba
 
 - **Lint config:** every rule a tool can check goes into the repository's existing linter config. Confirm each rule name and option against the installed tool before writing it (`biome explain <rule>`, `ruff rule <code>`, `golangci-lint linters`, `npx eslint --print-config <file>`); never write a rule name from memory. Pick thresholds the code meets once the refactor lands. Adding a new linter is part of the approval.
 - **`AGENTS.md`:** everything else goes into one `## Code quality` section, upserted once and kept short: one checkable rule per line, naming this repository's folders, config locations, and commands. Cover where new files go, where config and secrets live instead of literals, the hot-path performance rules, how tests are written (public seams, no duplicates), and backend and frontend specifics. Never duplicate what the linter already enforces.
-- **`CLAUDE.md`:** Claude Code reads `CLAUDE.md`, so it must import the rules with a line `@AGENTS.md`. When one of the two files is a symlink to the other, write the section once into the real file and add no import. When only `CLAUDE.md` exists, create `AGENTS.md` with the section and add the import. When neither exists, create `AGENTS.md` and a `CLAUDE.md` holding only the import.
+- **`CLAUDE.md`:** some agents read only `CLAUDE.md`, so it must import the rules with a line `@AGENTS.md`. When one of the two files is a symlink to the other, write the section once into the real file and add no import. When only `CLAUDE.md` exists, create `AGENTS.md` with the section and add the import. When neither exists, create `AGENTS.md` and a `CLAUDE.md` holding only the import.
 
 ## GSD setup
 
