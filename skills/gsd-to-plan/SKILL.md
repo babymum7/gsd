@@ -24,6 +24,7 @@ Write `.scratch/<feature>/plan.md` exactly from [PLAN-GRAMMAR.md](PLAN-GRAMMAR.m
 - Several repositories: add `## Repos` with every repository (this one as path `.`), run `derive-base` in each for its Base, and give each task outside this repository a `- **Repo:**` line; `Files` stay relative to that task's repository.
 - `Domain Impact` only where a touched repository has `docs/domain/index.md` or the user accepted a bootstrap. Bind the exact shard paths `gsd-domain-modeling` returned to the same task as the semantic code they describe, never to a trailing docs-only task.
 - Decision and design records bind to their producing tasks; record-only tasks are allowed.
+- Write the Delivery the user chose at convergence as `## Delivery`; leave the section out when they did not choose one.
 - Vague checks, unowned or duplicate criteria or paths, contradictory `Domain Impact`, or unresolved decisions go back to `gsd-brainstorming`.
 
 ## Validate and bind

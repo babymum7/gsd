@@ -92,7 +92,7 @@ test("visible catalog descriptions stay within the injected byte budget", () => 
   let total = 0;
   for (const name of skillNames()) {
     const skill = read(`skills/${name}/SKILL.md`);
-    if (/^hide: true$/m.test(skill)) continue;
+    if (/^hide: true$/m.test(skill) || /^disable-model-invocation: true$/m.test(skill)) continue;
     const description = JSON.parse(skill.match(/^description: (.+)$/m)[1]);
     total += Buffer.byteLength(description, "utf8");
   }

@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { discoverSkillCatalog } from '../../lib/gsd-bootstrap.mjs';
+import { discoverHostSkills } from '../../lib/gsd-bootstrap.mjs';
 
 const MARKETPLACE_MARKER = '.gsd-plugin-marketplace';
 const PLUGIN_MARKER = '.gsd-plugin';
@@ -79,9 +79,9 @@ function buildIntoTemp(sourceRoot, targetRoot, tempRoot) {
   fs.mkdirSync(pluginRoot, { recursive: true });
 
   const packageJson = JSON.parse(fs.readFileSync(path.join(sourceRoot, 'package.json'), 'utf8'));
-  const visibleSkills = discoverSkillCatalog(sourceRoot)
-    .map((row) => row.name)
-    .sort();
+  // Explicit-only skills ship here too: each host's own flag in their files keeps them out of
+  // implicit activation, and the injected catalog never lists them.
+  const visibleSkills = discoverHostSkills(sourceRoot).map((row) => row.name);
 
   // Adapters resolve `../../lib` from the bundle root; core tools resolve `../lib` from `core/`.
   copyDirectory(path.join(sourceRoot, 'lib'), path.join(pluginRoot, 'lib'));

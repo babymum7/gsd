@@ -34,7 +34,7 @@ Add `--dry-run` to print the exact host commands. The CLI builds one self-contai
 - Claude Code: `claude plugin marketplace add <marketplace> --scope user`, then `claude plugin uninstall gsd@gsd-local --scope user --keep-data` (skipped without error when nothing is installed), then `claude plugin install gsd@gsd-local --scope user`. Claude Code keeps its cached copy of a plugin while the version is unchanged, so the uninstall is what lets a reinstall of the same version pick up the rebuilt bundle.
 - Codex: `codex plugin marketplace add <marketplace>` then `codex plugin add gsd@gsd-local`
 
-The bundle carries `lib/`, the canonical skills and tools under `core/`, only the four visible skills in the host-facing `skills/` directory, and host manifests. Hidden runtime skills stay internal. Claude Code and Codex hooks still require their normal trust review. Uninstall is the inverse CLI operation:
+The bundle carries `lib/`, the canonical skills and tools under `core/`, the four visible skills plus the explicit-only `gsd-refactor` and `gsd-cleanup` in the host-facing `skills/` directory, and host manifests. Hidden runtime skills stay internal. Claude Code and Codex hooks still require their normal trust review. Uninstall is the inverse CLI operation:
 
 ```bash
 bun bin/gsd.mjs uninstall --agent claude
@@ -53,7 +53,7 @@ bun bin/gsd.mjs install --skills-dir <harness skills directory>
 bun bin/gsd.mjs uninstall --skills-dir <harness skills directory>
 ```
 
-Install builds the same bundle, then writes the four visible skills plus a visible `gsd` router skill into that directory, with every `<GSD_ROOT>` resolved to the bundle's absolute `core/` path. The router carries the bootstrap body, so the harness should load it first. What the adapters add is missing (decision 0029): no host session id exists, so each skills-only session mints its own owner token with `gsd-state.mjs session` (decision 0030), and no recovery capsule follows compaction. A token lost to compaction is not recovered: `continue` then finds no owned packet, and the earlier one resumes only when you name it. Install refuses to overwrite a skill directory GSD did not write, and uninstall removes only the directories it marked.
+Install builds the same bundle, then writes the four visible skills, the explicit-only `gsd-refactor` and `gsd-cleanup`, and a visible `gsd` router skill into that directory, with every `<GSD_ROOT>` resolved to the bundle's absolute `core/` path. The router carries the bootstrap body, so the harness should load it first. What the adapters add is missing (decision 0029): no host session id exists, so each skills-only session mints its own owner token with `gsd-state.mjs session` (decision 0030), and no recovery capsule follows compaction. A token lost to compaction is not recovered: `continue` then finds no owned packet, and the earlier one resumes only when you name it. Install refuses to overwrite a skill directory GSD did not write, and uninstall removes only the directories it marked.
 
 ### Sub-agent profiles
 

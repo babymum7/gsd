@@ -140,6 +140,64 @@ test("validate-plan emits deterministic minimal TOON for a canonical plan", () =
   }
 });
 
+test("validate-plan prints delivery after tasks only when the plan has a Delivery section (AC-1)", () => {
+  const withDelivery = canonicalPlan("delivery-plan").replace("## Tasks", "## Delivery\n`merge-push`\n## Tasks");
+  const { workspace, planPath } = makePlanWorkspace("delivery-plan", withDelivery);
+  try {
+    const valid = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], { cwd: workspace, encoding: "utf8" });
+    assert.equal(valid.status, 0, valid.stderr || valid.stdout);
+    assert.equal(valid.stdout, ["status: valid", "kind: plan", "feature: delivery-plan", "base: main", "tasks: 1", "delivery: merge-push"].join("\n"));
+
+    const waves = runWaves(planPath, workspace);
+    assert.equal(waves.status, 0, waves.stderr || waves.stdout);
+    assert.match(waves.stdout, /tasks: 1\ndelivery: merge-push\nwaves: T1$/);
+
+    writeFileSync(planPath, withDelivery.replace("`merge-push`", "pull-request"));
+    const bare = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], { cwd: workspace, encoding: "utf8" });
+    assert.equal(bare.status, 0, bare.stderr || bare.stdout);
+    assert.match(bare.stdout, /\ndelivery: pull-request$/);
+
+    writeFileSync(planPath, canonicalPlan("delivery-plan"));
+    const absent = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], { cwd: workspace, encoding: "utf8" });
+    assert.equal(absent.status, 0, absent.stderr || absent.stdout);
+    assert.equal(absent.stdout, ["status: valid", "kind: plan", "feature: delivery-plan", "base: main", "tasks: 1"].join("\n"));
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("validate-plan rejects an unknown Delivery value and names the four accepted ones (AC-2)", () => {
+  for (const body of ["`ship-it`", "ship-it", "`merge` and more", "`merge`\n`branch`"]) {
+    const plan = canonicalPlan("delivery-bad").replace("## Tasks", `## Delivery\n${body}\n## Tasks`);
+    const { workspace, planPath } = makePlanWorkspace("delivery-bad", plan);
+    try {
+      const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], { cwd: workspace, encoding: "utf8" });
+      assert.equal(result.status, 1, `${body}: ${result.stdout}`);
+      assert.match(result.stdout, /code: invalid-artifact/);
+      assert.match(result.stdout, /^help: .*merge.*merge-push.*pull-request.*branch/m);
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
+test("normalize-plan --write moves Delivery directly before Tasks (AC-2)", () => {
+  const canonical = canonicalPlan("delivery-order").replace("## Tasks", "## Delivery\n`branch`\n## Tasks");
+  const [head, tasks] = canonical.split("## Delivery\n`branch`\n");
+  const shuffled = `${head}${tasks}## Delivery\n\`branch\`\n`;
+  const { workspace, planPath } = makePlanWorkspace("delivery-order", shuffled);
+  const relPath = join(".scratch", "delivery-order", "plan.md");
+  try {
+    const write = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", relPath, "--write"], { cwd: workspace, encoding: "utf8" });
+    assert.equal(write.status, 0, write.stdout + write.stderr);
+    assert.equal(readFileSync(planPath, "utf8"), canonical);
+    const check = spawnSync(process.execPath, [CLI, "validate-plan", "--path", relPath], { cwd: workspace, encoding: "utf8" });
+    assert.equal(check.status, 0, check.stdout + check.stderr);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
 test("active criteria require one concrete scenario while small plans stay lightweight", () => {
   const scenarioPlan = canonicalPlan("scenario-plan");
   const cases = [

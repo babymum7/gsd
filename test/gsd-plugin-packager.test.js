@@ -30,7 +30,18 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
   const visible = discoverSkillCatalog(ROOT)
     .map((row) => row.name)
     .sort();
-  assert.deepEqual(readdirSync(join(pluginRoot, "skills")).sort(), visible);
+  assert.deepEqual(visible, ["gsd-brainstorming", "gsd-diagnosing-bugs", "gsd-executing-plans", "gsd-verify"]);
+  // Explicit-only skills ship to host skill discovery but never enter the injected catalog.
+  const explicitOnly = ["gsd-cleanup", "gsd-refactor"];
+  assert.deepEqual(readdirSync(join(pluginRoot, "skills")).sort(), [...visible, ...explicitOnly].sort());
+  for (const name of explicitOnly) {
+    const skill = readFileSync(join(pluginRoot, "skills", name, "SKILL.md"), "utf8");
+    assert.match(skill, /^disable-model-invocation: true$/m, `${name} is explicit-only on Claude Code`);
+    assert.match(skill, /^disableModelInvocation: true$/m, `${name} is explicit-only on OMP`);
+    const policy = readFileSync(join(pluginRoot, "skills", name, "agents", "openai.yaml"), "utf8");
+    assert.match(policy, /^policy:\n {2}allow_implicit_invocation: false$/m, `${name} is explicit-only on Codex`);
+    assert.doesNotMatch(createBootstrap(ROOT), new RegExp(`"name":"${name}"`));
+  }
   assert.equal(existsSync(join(pluginRoot, "skills", "gsd")), false);
   assert.equal(existsSync(join(pluginRoot, "skills", "gsd-codebase-architecture")), false);
   assert.ok(existsSync(join(pluginRoot, "core", "skills", "gsd", "SKILL.md")));

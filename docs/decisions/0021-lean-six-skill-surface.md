@@ -19,3 +19,7 @@ by path once acceptance converges, and an unbound draft plan to finalize routes 
 handoff instead of restating its canon matrix row, canon § Contextual disclosure templates and the
 matrix's Helper-when column are gone, and the quick-fix route covers mechanical refactors,
 docs-only edits, and version bumps proven by the existing suite or build.
+
+Amended 2026-10-13. A third kind of skill sits beside the visible and hidden ones: explicit-only
+skills (`gsd-refactor`, `gsd-cleanup`) ship to host skill directories but stay out of the injected
+catalog, so the catalog stays at four skills and the description budget is unchanged (decision 0033).

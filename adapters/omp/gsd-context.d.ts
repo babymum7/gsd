@@ -28,6 +28,8 @@ export interface SkillMetadata {
   name: string;
   description: string;
   hidden: boolean;
+  /** `disable-model-invocation: true`: shipped to host skill directories, never in the catalog. */
+  explicitOnly: boolean;
 }
 
 /** A visible skill catalog row. */
