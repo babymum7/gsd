@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import path from 'node:path';
-import { discoverSkillCatalog } from '../../lib/gsd-bootstrap.mjs';
+import { discoverHostSkills } from '../../lib/gsd-bootstrap.mjs';
 import { unsetSessionLine } from '../../lib/gsd-session-context.mjs';
 
 // A skills-only install serves harnesses GSD ships no adapter for: they discover skill
@@ -57,7 +57,7 @@ function copyResolved(source, target, coreRoot) {
 }
 
 export function skillsDirNames(coreRoot) {
-  return [ROUTER_NAME, ...discoverSkillCatalog(coreRoot).map((row) => row.name).sort()];
+  return [ROUTER_NAME, ...discoverHostSkills(coreRoot).map((row) => row.name)];
 }
 
 export function writeSkillsDir(coreRoot, targetDir) {

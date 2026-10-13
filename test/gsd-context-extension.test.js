@@ -5,7 +5,7 @@ import { basename, join, dirname, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
-import { sanitizeBootstrapError } from "../lib/gsd-bootstrap.mjs";
+import { discoverHostSkills, sanitizeBootstrapError } from "../lib/gsd-bootstrap.mjs";
 import { withSessionOwner } from "../lib/gsd-session-context.mjs";
 
 const require = createRequire(import.meta.url);
@@ -1122,7 +1122,18 @@ describe("automatic GSD bootstrap metadata and catalog contract", () => {
         '---\nname: gsd-example\ndescription: "Example activation"\nhide: true\n---\n\n# Example\n',
         "/tmp/gsd-example/SKILL.md",
       ),
-      { name: "gsd-example", description: "Example activation", hidden: true },
+      { name: "gsd-example", description: "Example activation", hidden: true, explicitOnly: false },
+    );
+    assert.deepEqual(
+      parseSkillMetadata(
+        '---\nname: gsd-example\ndescription: "Example activation"\ndisable-model-invocation: true\n---\n',
+        "/tmp/gsd-example/SKILL.md",
+      ),
+      { name: "gsd-example", description: "Example activation", hidden: false, explicitOnly: true },
+    );
+    assert.throws(
+      () => parseSkillMetadata('---\nname: gsd-example\ndescription: "one"\ndisable-model-invocation: yes\n---\n', "/tmp/yes.md"),
+      /disable-model-invocation must be the literal true/,
     );
     assert.throws(
       () => parseSkillMetadata("---\nname: gsd-example\n---\n", "/tmp/missing.md"),
@@ -1149,9 +1160,11 @@ describe("automatic GSD bootstrap metadata and catalog contract", () => {
       writeSkill(root, "gsd-hidden-helper", "Hidden helper", "# Hidden Helper\nContext only.", "hide: true\n");
       writeSkill(root, "gsd-tdd", "TDD helper", "# Test-Driven Development\nFull TDD body.");
       writeSkill(root, "gsd-diagnosing-bugs", "Bug diagnosis", "# Diagnosing Bugs\nFull diagnosis body.");
+      writeSkill(root, "gsd-explicit", "Explicit only", "# Explicit\nOn request.", "disable-model-invocation: true\n");
 
       const catalog = discoverSkillCatalog(root);
       assert.deepEqual(catalog.map(({ name }) => name), ["gsd-diagnosing-bugs", "gsd-tdd"]);
+      assert.deepEqual(discoverHostSkills(root).map(({ name }) => name), ["gsd-diagnosing-bugs", "gsd-explicit", "gsd-tdd"]);
       assert.ok(catalog.every(({ skillPath }) => isAbsolute(skillPath)));
       assert.ok(catalog.every(({ skillPath }) => realpathSync(skillPath).startsWith(realpathSync(join(root, "skills")))));
       assert.equal(catalog.some(({ name }) => name === "gsd-hidden-helper"), false);

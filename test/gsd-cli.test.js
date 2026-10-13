@@ -16,6 +16,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { buildPluginBundle } from "../adapters/plugin/gsd-plugin-packager.mjs";
 import { needsAgentPrompt, runCli } from "../adapters/plugin/gsd-cli.mjs";
+import { skillsDirNames } from "../adapters/plugin/gsd-skills-dir.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -237,6 +238,18 @@ test("uninstall keeps user settings", () => {
   assert.ok(existsSync(join(home, "settings.json")));
 });
 
+test("skills directory names list the router, then visible and explicit-only skills sorted", () => {
+  assert.deepEqual(skillsDirNames(ROOT), [
+    "gsd",
+    "gsd-brainstorming",
+    "gsd-cleanup",
+    "gsd-diagnosing-bugs",
+    "gsd-executing-plans",
+    "gsd-refactor",
+    "gsd-verify",
+  ]);
+});
+
 test("skills-only install writes resolved visible skills and a router, and uninstall removes only them", () => {
   const home = mkdtempSync(join(tmpdir(), "gsd-cli-home-"));
   const skillsDir = mkdtempSync(join(tmpdir(), "gsd-skills-dir-"));
@@ -263,6 +276,7 @@ test("skills-only install writes resolved visible skills and a router, and unins
   assert.ok(executing.includes(`bun "${coreRoot}/tools/gsd-state.mjs"`));
   assert.ok(existsSync(join(coreRoot, "tools", "gsd-state.mjs")));
   assert.ok(!existsSync(join(skillsDir, "gsd-tdd")), "hidden helper skills stay in core");
+  assert.ok(existsSync(join(skillsDir, "gsd-refactor", "SKILL.md")), "explicit-only skills are written");
   assert.equal(JSON.parse(readFileSync(join(home, "state.json"), "utf8")).agents[`skills:${skillsDir}`], "skills");
 
   const removed = runCli(["uninstall", "--skills-dir", skillsDir, "--home", home]);

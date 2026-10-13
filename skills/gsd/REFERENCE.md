@@ -30,6 +30,8 @@ In a Git work tree it runs `derive-base` before the first edit: a `head-is-wip` 
 
 `gsd-to-plan`, `gsd-codebase-architecture`, `gsd-domain-modeling`, and `gsd-tdd` are hidden internal references, not visible owners; any owner may read them when their details are load-bearing. A hidden reference is a file, not a registered skill: read `GSD_ROOT/skills/<name>/SKILL.md`. Never call a Skill tool for it or look under the plugin's own `skills/` directory.
 
+`gsd-refactor` and `gsd-cleanup` are explicit-only skills: `disable-model-invocation: true` keeps them out of the injected catalog, while host skill directories still ship them with each host's own marker (`disableModelInvocation: true` for OMP, `agents/openai.yaml` with `allow_implicit_invocation: false` for Codex). They run only when the user invokes one or explicitly asks to refactor or clean up the repository; the owner then reads `GSD_ROOT/skills/<name>/SKILL.md`.
+
 ## Durable documentation contract
 
 Git-tracked knowledge for people and agents is strict Markdown under `docs/`; TOON is only the runtime `state.toon` under `.scratch/`.

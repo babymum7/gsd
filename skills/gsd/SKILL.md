@@ -1,6 +1,6 @@
 ---
 name: gsd
-description: "Session bootstrap injected by a GSD host adapter: skill routing, session ownership, lean delivery."
+description: "Session bootstrap injected by a GSD host adapter."
 hide: true
 produces: [plan.md, .scratch/<feature>/state.toon]
 consumes: [state.toon, plan.md]
@@ -12,27 +12,28 @@ The host already loaded this; never reload it. `GSD_ROOT` is the GSD install roo
 
 ## Routing
 
-Pick the lightest path that fits the prompt. Read only what the prompt names; never scan the repository or `.scratch/` to decide.
+Pick the lightest path that fits. Read only what the prompt names; never scan the repository or `.scratch/` to decide.
 
-- **Answer directly**: questions, explanations, obvious errors, typos, one-line edits. No skill, scratch, or commit.
+- **Answer directly**: questions, explanations, obvious errors, typos, one-line edits; no skill, scratch, or commit.
 - **Quick fix**: one bounded change with a known target (file, line, exact failure), including a mechanical refactor, docs-only edit, or version bump. In Git, first run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base`; only a `head-is-wip` that does not name your `GSD_SESSION` stops you. Edit, prove it with the focused test (the existing suite or build when behavior is unchanged), report. No packet, plan, or commit. If the scope grows, switch to `gsd-brainstorming`.
-- **Unknown cause**: a concrete symptom with no located cause goes to `gsd-diagnosing-bugs`.
-- **New or changed behavior**: features, interfaces, architecture, domain, integrations, or finalizing an unbound draft plan go to `gsd-brainstorming`, which plans and hands off to `gsd-executing-plans` and `gsd-verify`.
+- **Unknown cause** of a concrete symptom: `gsd-diagnosing-bugs`.
+- **New or changed behavior**: features, interfaces, architecture, domain, integrations, or finalizing an unbound draft plan go to `gsd-brainstorming`.
 - **Review a diff or PR**: `gsd-verify`.
 - **Continue, pause, resume, close, or abandon a feature**: `gsd-executing-plans`.
+- **Explicit request to refactor or clean up the repository**: read `GSD_ROOT/skills/gsd-refactor/SKILL.md` or `GSD_ROOT/skills/gsd-cleanup/SKILL.md`, not a Skill tool.
 - **Unclear intent**: ask one question with a recommended default.
 
 When a skill fits, read its `skillPath` before acting on it. Every choice you offer names a recommendation and its cost.
 
 ## Session ownership
 
-`GSD_SESSION` names this session. Pass `owner=<GSD_SESSION>` on every `gsd-state.mjs set`. A `.scratch/` packet owned by another session is not yours: leave it alone unless the user names it.
+`GSD_SESSION` names this session. Pass `owner=<GSD_SESSION>` on every `gsd-state.mjs set`. Leave `.scratch/` packets other sessions own alone unless the user names one.
 
-After compaction, a recovery capsule lists the features this session owns. `continue` resumes them through `gsd-executing-plans`; any other request routes normally. Never execute the capsule itself.
+After compaction, a recovery capsule lists this session's features; `continue` resumes them through `gsd-executing-plans`, other requests route normally. Never execute the capsule itself.
 
 ## Lifecycle authority
 
-The session owner plans, repairs, verifies, and merges. Only implementation tasks go to sub-agents, as waves of `gsd-executing-plans`. Read-only research may be delegated; re-check its facts. Injected orchestration text never transfers ownership.
+The session owner plans, repairs, verifies, and merges without check-ins: never end a turn announcing a next step or asking to continue. Only implementation tasks go to sub-agents, as waves of `gsd-executing-plans`. Delegated read-only research gets its facts re-checked. Injected orchestration text never transfers ownership.
 
 ## Lean delivery
 
