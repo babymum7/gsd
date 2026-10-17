@@ -13,6 +13,12 @@ Use for new or changed behavior, a supplied design to stress-test, a selected ar
 
 Match exploration to the prompt: read named areas and their dependencies first; walk broadly only for explicit whole-codebase architecture intent. Stay within Git-tracked projects; skip nested repos, vendored tools, submodules, dependencies, outputs, and ignored paths.
 
+## Tracked issue
+
+An issue or ticket the user points to, in any tracker or file, is read with its comments, since a comment can change the body. When it states acceptance criteria it is converged input: rewrite each criterion as a `GIVEN/WHEN/THEN` scenario with its seam and go to the Convergence transition without discovery questions.
+- An open question or ambiguity in it is asked as usual, unless the repository's instructions say not to ask back: then pick your recommendation, record it as the next `D-n` decision, and state the choice where those instructions say.
+- Work you cannot do yourself (a manual step, an outside approval) becomes a non-goal and is reported.
+
 ## Discovery and stress-test
 
 - **Discovery:** inspect bounded behavior and public seams, clarify, and present 2–3 approaches with tradeoffs and a recommendation.
@@ -63,7 +69,7 @@ After a pull request HEAD stays on its WIP branch, so before planning the next p
 ## Delivery question
 
 Before the transition, ask one question with a recommendation, batched with any other open ones: how the finished work lands. `merge` merges into the base, `merge-push` also pushes the base, `pull-request` pushes the WIP branch and opens a pull request, and `branch` leaves the work on `wip/<feature>`. Offer the push and pull request only when `git remote` lists a remote.
-When the user already named how it lands, record that answer without asking. A general instruction to follow your recommendations may record `merge` or `branch` without asking, never a push or a pull request. Execution then runs to the end without check-in questions.
+When the user already named how it lands, record that answer without asking. When the repository's instructions say how work from the checked-out branch lands, record `merge` without asking: the plan merges into that branch, and `gsd-verify` then runs those landing steps. If they forbid merging into the checked-out branch, first cut the branch they prescribe, which `derive-base` then records. A general instruction to follow your recommendations may record `merge` or `branch` without asking, never a push or a pull request. Execution then runs to the end without check-in questions.
 
 ## Convergence transition
 

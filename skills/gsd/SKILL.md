@@ -12,12 +12,12 @@ The host already loaded this; never reload it. `GSD_ROOT` is the GSD install roo
 
 ## Routing
 
-Pick the lightest path that fits. Read only what the prompt names; never scan the repository or `.scratch/` to decide.
+Pick the lightest fitting path. Read only what the prompt names; never scan the repository or `.scratch/` to decide.
 
 - **Answer directly**: questions, explanations, obvious errors, typos, one-line edits; no skill, scratch, or commit.
 - **Quick fix**: one bounded change with a known target (file, line, exact failure), including a mechanical refactor, docs-only edit, or version bump. In Git, first run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base`; only a `head-is-wip` that does not name your `GSD_SESSION` stops you. Edit, prove it with the focused test (the existing suite or build when behavior is unchanged), report. No packet, plan, or commit. If the scope grows, switch to `gsd-brainstorming`.
 - **Unknown cause** of a concrete symptom: `gsd-diagnosing-bugs`.
-- **New or changed behavior**: features, interfaces, architecture, domain, integrations, or finalizing an unbound draft plan go to `gsd-brainstorming`.
+- **New or changed behavior**, even a well-specified issue: features, interfaces, architecture, domain, integrations, or an unbound draft plan go to `gsd-brainstorming`.
 - **Review a diff or PR**: `gsd-verify`.
 - **Continue, pause, resume, close, or abandon a feature**: `gsd-executing-plans`.
 - **Explicit request to refactor, clean up, or upgrade the repository**: read `GSD_ROOT/skills/<gsd-refactor|gsd-cleanup|gsd-upgrade>/SKILL.md`, not a Skill tool.
