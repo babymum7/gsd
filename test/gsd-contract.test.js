@@ -281,6 +281,14 @@ test("plans reject content between the title and the first section", () => {
     }
   }
 });
+test("bare --help and -h print the usage of every command and exit 0", () => {
+  for (const flag of ["--help", "-h"]) {
+    const result = spawnSync(process.execPath, [CLI, flag], { encoding: "utf8" });
+    assert.equal(result.status ?? 0, 0, result.stdout);
+    assert.match(result.stdout, /usage: .*validate-plan\|analyze-waves\|normalize-plan\|init-plan\|merge-message/);
+  }
+});
+
 test("a blank line under the title is reported with the plan's other defects and names normalize-plan", () => {
   const content = canonicalPlan("blank-title")
     .replace("# Plan\n", "# Plan\n\n")
