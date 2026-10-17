@@ -490,9 +490,11 @@ test("CLI validate rejects a FIFO without hanging", () => {
 });
 
 test("CLI --help exits 0 and prints usage", () => {
-  const result = run(["validate", "--help"]);
-  assert.equal(result.status, 0);
-  assert.match(result.stdout, /Usage:/);
-  assert.match(result.stdout, /--path/);
-  assert.match(result.stdout, /--kind/);
+  for (const args of [["validate", "--help"], ["--help"], ["-h"]]) {
+    const result = run(args);
+    assert.equal(result.status, 0, args.join(" "));
+    assert.match(result.stdout, /Usage:/);
+    assert.match(result.stdout, /--path/);
+    assert.match(result.stdout, /--kind/);
+  }
 });

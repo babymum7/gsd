@@ -116,6 +116,7 @@ function failArtifact(error, command) {
 
 function parseArguments(argv) {
   const [command, ...args] = argv;
+  if (args.length === 0 && (command === "--help" || command === "-h")) return { command: null, help: true };
   if (!command) return { usageError: "a validation command is required", command: null };
   if (!COMMANDS.has(command)) return { usageError: `unknown command: ${command}`, command: null };
   if (args.length === 1 && args[0] === "--help") return { command, help: true };

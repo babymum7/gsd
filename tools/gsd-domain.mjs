@@ -82,6 +82,7 @@ function failIo(message) {
 
 function parseArguments(argv) {
   const [command, ...args] = argv;
+  if (args.length === 0 && (command === "--help" || command === "-h")) return { command: null, help: true };
   if (!command) return { usageError: "a domain command is required" };
   if (!COMMANDS.has(command)) return { usageError: `unknown command: ${command}` };
   if (args.length === 1 && args[0] === "--help") return { command, help: true };

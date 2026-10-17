@@ -229,10 +229,12 @@ test("validate CLI usage and help exit codes", () => {
   assert.equal(usage.status, 2);
   assert.match(usage.stdout, /code: usage/);
 
-  const help = run(["validate", "--help"]);
-  assert.equal(help.status, 0, help.stdout);
-  assert.match(help.stdout, /Usage:/);
-  assert.match(help.stdout, /Commands:/);
+  for (const args of [["validate", "--help"], ["--help"], ["-h"]]) {
+    const help = run(args);
+    assert.equal(help.status, 0, help.stdout);
+    assert.match(help.stdout, /Usage:/);
+    assert.match(help.stdout, /Commands:/);
+  }
 });
 
 // Swap two `## ` sections of a canonical shard, keeping one blank line between sections.
