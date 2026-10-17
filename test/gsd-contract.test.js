@@ -281,6 +281,68 @@ test("plans reject content between the title and the first section", () => {
     }
   }
 });
+test("a blank line under the title is reported with the plan's other defects and names normalize-plan", () => {
+  const content = canonicalPlan("blank-title")
+    .replace("# Plan\n", "# Plan\n\n")
+    .replace("- **Test:** `bun test test/gsd-contract.test.js`", "- **Test:** `bun test test/gsd-contract.test.js` (green)");
+  const { workspace, planPath } = makePlanWorkspace("blank-title", content);
+  try {
+    const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], { cwd: workspace, encoding: "utf8" });
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /error: "Markdown contract: # Plan must be followed directly by the first ## section"/);
+    assert.match(result.stdout, /\nhelp: "[^"]*normalize-plan --write/);
+    assert.match(result.stdout, /error_2: "Markdown contract: T1 Test/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("a Test with text outside its backticks quotes that text and suggests cd <dir> && <command>", () => {
+  for (const [line, stray] of [
+    ["`bun test test/gsd-contract.test.js` (green)", "(green)"],
+    ["`bun test` from `console/`", "from `console/`"],
+    ["console: `bun test`", "console:"],
+  ]) {
+    const content = canonicalPlan("stray-test").replace("`bun test test/gsd-contract.test.js`", line);
+    const { workspace, planPath } = makePlanWorkspace("stray-test", content);
+    try {
+      const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], { cwd: workspace, encoding: "utf8" });
+      assert.equal(result.status, 1, result.stdout);
+      assert.ok(result.stdout.includes(`text outside the backticks: ${JSON.stringify(stray).slice(1, -1)}`), result.stdout);
+      assert.ok(result.stdout.includes("cd <dir> && <command>"), result.stdout);
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
+test("a Test that runs from a temporary directory is rejected", () => {
+  const content = canonicalPlan("tmp-test").replace("`bun test test/gsd-contract.test.js`", "`bash /tmp/session/scratchpad/gate.sh .`");
+  const { workspace, planPath } = makePlanWorkspace("tmp-test", content);
+  try {
+    const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", planPath], { cwd: workspace, encoding: "utf8" });
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /T1 Test must not depend on a temporary directory/);
+    assert.match(result.stdout, /help: "[^"]*inside the repository/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("normalizePlan rewrites a near-miss section heading to its exact form", () => {
+  const plan = canonicalPlan("heading-fix").replace("## Acceptance Criteria", "## Acceptance criteria").replace("## Non-goals", "### non-goals ");
+  const { content, fixes } = normalizePlan(plan);
+  assert.equal(content, canonicalPlan("heading-fix"));
+  assert.deepEqual(
+    fixes.filter((fix) => fix.type === "heading").map(({ from, to }) => [from, to]),
+    [
+      ["## Acceptance criteria", "## Acceptance Criteria"],
+      ["### non-goals", "## Non-goals"],
+    ],
+  );
+  assert.equal(normalizePlan(canonicalPlan("heading-fix")).fixes.length, 0);
+});
+
 test("full-plan domain shard ownership skips superseded tasks", () => {
   // The rule only ran for `kind === "quick-fix"`, so an identical non-`none` full plan
   // validated with no shard task at all. Full plans differ twice: `parseTasks` scopes
@@ -899,7 +961,7 @@ test("an unreadable plan is an environment failure, not malformed authority", ()
       {
         entry: malformed,
         code: "invalid-artifact",
-        expect: /must be followed directly by the first ## section/,
+        expect: /missing Feature section/,
       },
     ];
     for (const fixture of cases) {
