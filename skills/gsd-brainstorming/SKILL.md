@@ -15,7 +15,8 @@ Match exploration to the prompt: read named areas and their dependencies first; 
 
 ## Tracked issue
 
-An issue or ticket the user points to, in any tracker or file, is read with its comments, since a comment can change the body. When it states acceptance criteria it is converged input: rewrite each criterion as a `GIVEN/WHEN/THEN` scenario with its seam and go to the Convergence transition without discovery questions.
+Issues or tickets the user points to, in any tracker or file, are read with their comments, since a comment can change the body. Those that state acceptance criteria are converged input: rewrite each criterion as a `GIVEN/WHEN/THEN` scenario with its seam and go to the Convergence transition without discovery questions.
+- How several issues map to work is your recommendation, not the tracker's: one feature, parts, or separate features, and within a feature a task per issue runs on its own sub-agent when the tasks qualify for one wave.
 - An open question or ambiguity in it is asked as usual, unless the repository's instructions say not to ask back: then pick your recommendation, record it as the next `D-n` decision, and state the choice where those instructions say.
 - Work you cannot do yourself (a manual step, an outside approval) becomes a non-goal and is reported.
 
