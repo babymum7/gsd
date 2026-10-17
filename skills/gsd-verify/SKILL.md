@@ -34,7 +34,7 @@ From step 1 on, the gate never edits `plan.md` for bookkeeping (`Files`, `Status
    An out-of-scope path has two exits: revert it in repair, or, when it serves the request, keep it as a material amendment under § Plan amendment.
 7. On green, run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>` unpiped again. Only `status: ready` proceeds. `code: base-advanced` merges `base_ref` into `wip/<feature>` and repeats this gate from step 2; any other block stops as Spec escalation.
 8. Write `phase=ready` with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> owner=<GSD_SESSION> phase=ready`, which fills `next_action=deliver merge or pull request`. Then deliver as `plan.md` § Delivery says, without asking, in every listed repository:
-   - `merge`: Merge below, then § Feature cleanup.
+   - `merge`: Merge below, then § Feature cleanup, then the landing steps the repository's instructions give for that branch, if any (for example, push it and open its review).
    - `merge-push`: Merge below, then `git push <remote> <base_ref>` to the base's upstream remote, or the only remote when the base has no upstream, then § Feature cleanup.
    - `pull-request`: Pull request below.
    - `branch`: leave the work on `wip/<feature>` and report the branch; `.scratch/<feature>/` stays until the user merges or abandons it.
