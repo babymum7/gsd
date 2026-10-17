@@ -17,12 +17,20 @@ test("the bootstrap routes a well-specified issue to brainstorming", () => {
 
 test("brainstorming takes an issue from any tracker as converged input", () => {
   const issue = section(read("skills/gsd-brainstorming/SKILL.md"), "Tracked issue");
-  assert.match(issue, /with its comments/);
+  assert.match(issue, /with their comments/);
   assert.match(issue, /acceptance criteria/);
   assert.match(issue, /the Convergence transition without discovery questions/);
   assert.match(issue, /`D-n` decision/);
   assert.match(issue, /repository's instructions say not to ask back/);
   assert.doesNotMatch(issue, /GitHub|Gitea|GitLab|Jira|Linear|`gh`/);
+});
+
+test("how issues map to features, tasks, and sub-agents is the agent's recommendation", () => {
+  const issue = section(read("skills/gsd-brainstorming/SKILL.md"), "Tracked issue");
+  assert.match(issue, /several issues/i);
+  assert.match(issue, /one feature, parts, or separate features/);
+  assert.match(issue, /own sub-agent/);
+  assert.match(issue, /your recommendation/);
 });
 
 test("repository landing steps follow a merge into the checked-out branch", () => {
