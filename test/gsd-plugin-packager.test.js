@@ -86,6 +86,12 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
   const codexHandler = codexHooks.hooks.SessionStart[0].hooks[0];
   assert.match(codexHandler.command, /\$\{PLUGIN_ROOT\}\/adapters\/codex\/gsd-context\.mjs/);
   assert.equal(codexHandler.additionalContextLimit, 6000);
+  // dsh has no plugin manifest; its home patch points a hooks-bridge row at this file.
+  assert.equal(existsSync(join(pluginRoot, "adapters", "dsh", "gsd-context.mjs")), true);
+  const dshHooks = JSON.parse(readFileSync(join(pluginRoot, "hooks", "dsh.json"), "utf8"));
+  const dshCommand = 'bun "${CLAUDE_PLUGIN_ROOT}/adapters/dsh/gsd-context.mjs"';
+  assert.equal(dshHooks.hooks.SessionStart[0].hooks[0].command, dshCommand);
+  assert.equal(dshHooks.hooks.UserPromptSubmit[0].hooks[0].command, dshCommand);
 
   const marketplace = JSON.parse(
     readFileSync(join(marketplaceRoot, ".claude-plugin", "marketplace.json"), "utf8"),
