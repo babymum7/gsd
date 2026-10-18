@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  readdirSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -19,6 +20,11 @@ import { needsAgentPrompt, runCli } from "../adapters/plugin/gsd-cli.mjs";
 import { skillsDirNames } from "../adapters/plugin/gsd-skills-dir.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+
+// Every run that installs `--agent all` or `dsh` reaches DSH_HOME, so the default is a
+// temporary directory and no test can touch the real ~/.dsh.
+const SHARED_DSH_HOME = mkdtempSync(join(tmpdir(), "gsd-cli-dsh-shared-"));
+process.env.DSH_HOME = SHARED_DSH_HOME;
 
 function fakeBinDir(logPath) {
   const binDir = mkdtempSync(join(tmpdir(), "gsd-cli-bin-"));
@@ -66,6 +72,7 @@ test("install dry-run plans commands without building or invoking a host", () =>
   assert.match(result.stdout, /claude plugin install gsd@gsd-local --scope user/);
   assert.match(result.stdout, /codex plugin add gsd@gsd-local/);
   assert.match(result.stdout, /omp plugin link/);
+  assert.match(result.stdout, /\[dsh\]\nwrite /);
   assert.equal(existsSync(join(home, "marketplace")), false);
   assert.equal(existsSync(join(home, "state.json")), false);
 });
@@ -379,7 +386,7 @@ test("a partial uninstall keeps only the agents still installed, so a retry can 
     assert.equal(runCli(["install", "--agent", "all", "--home", home], withBin(ok)).status, 0);
     const failed = runCli(["uninstall", "--agent", "all", "--home", home], withBin(failing));
     assert.equal(failed.status, 4, failed.stderr);
-    assert.deepEqual(readAgents(home), { claude: "plugin", codex: "plugin" });
+    assert.deepEqual(readAgents(home), { claude: "plugin", codex: "plugin", dsh: "plugin" });
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
@@ -594,6 +601,146 @@ test("a skills directory under a path with $ patterns keeps the path verbatim", 
     assert.equal(result.status, 0, result.stderr);
     const executing = readFileSync(join(skillsDir, "gsd-executing-plans", "SKILL.md"), "utf8");
     assert.ok(executing.includes(join(dollarHome, "marketplace", "gsd", "core")), "the core path is unchanged");
+  } finally {
+    rmSync(home, { recursive: true, force: true });
+  }
+});
+
+const DSH_USER_PATCH = "# my routes\nroutes:\n  - id: fast\n    model: x # keep\n\n";
+
+function dshFixture(patch = DSH_USER_PATCH) {
+  const root = mkdtempSync(join(tmpdir(), "gsd-cli-dsh-"));
+  const dshHome = join(root, "dsh");
+  const home = join(root, "gsd");
+  mkdirSync(dshHome);
+  if (patch !== null) writeFileSync(join(dshHome, "cordis.patch.yml"), patch);
+  return { root, dshHome, home, options: { env: { ...process.env, DSH_HOME: dshHome } } };
+}
+
+const dshArgv = (command, home, ...rest) => [command, "--agent", "dsh", "--home", home, ...rest];
+
+test("dsh install appends one marked hook block once, writes host skills without the router, and records dsh", () => {
+  const { root, dshHome, home, options } = dshFixture();
+  try {
+    const patchPath = join(dshHome, "cordis.patch.yml");
+    for (let run = 0; run < 2; run += 1) {
+      const result = runCli(dshArgv("install", home), options);
+      assert.equal(result.status, 0, result.stderr);
+    }
+    const patch = readFileSync(patchPath, "utf8");
+    assert.ok(patch.startsWith(DSH_USER_PATCH), "the original bytes come first");
+    const block = patch.slice(DSH_USER_PATCH.length);
+    assert.equal(patch.split("# gsd:dsh-hooks begin").length, 2);
+    assert.match(block, /^# gsd:dsh-hooks begin\n/);
+    assert.match(block, /# gsd:dsh-hooks end\n$/);
+    assert.match(block, /- id: gsd-hooks\n/);
+    assert.ok(block.includes(`configPath: ${JSON.stringify(join(home, "marketplace", "gsd", "hooks", "dsh.json"))}`));
+    assert.ok(block.includes(`pluginRoot: ${JSON.stringify(join(home, "marketplace", "gsd"))}`));
+
+    const skills = readdirSync(join(dshHome, "skills")).sort();
+    assert.deepEqual(skills, skillsDirNames(ROOT, { router: false }).sort());
+    assert.ok(!skills.includes("gsd"));
+    assert.ok(skills.includes("gsd-verify") && skills.includes("gsd-refactor"));
+    assert.deepEqual(readAgents(home), { dsh: "plugin" });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("dsh install into a patch or a missing file keeps the user bytes", () => {
+  for (const original of ["a: 1\n", null]) {
+    const { root, dshHome, home, options } = dshFixture(original);
+    try {
+      assert.equal(runCli(dshArgv("install", home), options).status, 0);
+      assert.equal(runCli(dshArgv("install", home), options).status, 0);
+      const patchPath = join(dshHome, "cordis.patch.yml");
+      assert.equal(readFileSync(patchPath, "utf8").split("# gsd:dsh-hooks begin").length, 2);
+      assert.equal(runCli(dshArgv("uninstall", home), options).status, 0);
+      if (original === null) assert.equal(existsSync(patchPath), false);
+      else assert.equal(readFileSync(patchPath, "utf8"), original);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("dsh uninstall restores the patch bytes, removes the GSD skills, and leaves the state", () => {
+  const { root, dshHome, home, options } = dshFixture();
+  try {
+    mkdirSync(join(dshHome, "skills", "mine"), { recursive: true });
+    assert.equal(runCli(dshArgv("install", home), options).status, 0);
+    const removed = runCli(dshArgv("uninstall", home), options);
+    assert.equal(removed.status, 0, removed.stderr);
+    assert.equal(readFileSync(join(dshHome, "cordis.patch.yml"), "utf8"), DSH_USER_PATCH);
+    assert.deepEqual(readdirSync(join(dshHome, "skills")), ["mine"]);
+    assert.equal(existsSync(join(home, "state.json")), false);
+    assert.equal(existsSync(join(home, "marketplace")), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("dsh install refuses a missing home or a foreign gsd-hooks row and writes nothing", () => {
+  const missing = dshFixture();
+  try {
+    const gone = join(missing.root, "absent");
+    const result = runCli(dshArgv("install", missing.home), { env: { ...process.env, DSH_HOME: gone } });
+    assert.equal(result.status, 1);
+    assert.ok(result.stderr.includes(gone), result.stderr);
+    assert.equal(existsSync(gone), false);
+  } finally {
+    rmSync(missing.root, { recursive: true, force: true });
+  }
+
+  const foreignPatch = "- id: gsd-hooks\n  name: other\n";
+  const foreign = dshFixture(foreignPatch);
+  try {
+    const result = runCli(dshArgv("install", foreign.home), foreign.options);
+    assert.equal(result.status, 1);
+    assert.ok(result.stderr.includes(join(foreign.dshHome, "cordis.patch.yml")), result.stderr);
+    assert.equal(readFileSync(join(foreign.dshHome, "cordis.patch.yml"), "utf8"), foreignPatch);
+    assert.equal(existsSync(join(foreign.dshHome, "skills")), false);
+    assert.equal(existsSync(join(foreign.home, "state.json")), false);
+  } finally {
+    rmSync(foreign.root, { recursive: true, force: true });
+  }
+});
+
+test("dsh install refuses a skill directory GSD did not write before touching the patch", () => {
+  const { root, dshHome, home, options } = dshFixture();
+  try {
+    mkdirSync(join(dshHome, "skills", "gsd-verify"), { recursive: true });
+    const result = runCli(dshArgv("install", home), options);
+    assert.equal(result.status, 1);
+    assert.equal(readFileSync(join(dshHome, "cordis.patch.yml"), "utf8"), DSH_USER_PATCH);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("dsh dry-run lists the patch and skills writes and writes nothing", () => {
+  const { root, dshHome, home, options } = dshFixture();
+  try {
+    const result = runCli(dshArgv("install", home, "--dry-run"), options);
+    assert.equal(result.status, 0, result.stderr);
+    const lines = result.stdout.trim().split("\n");
+    assert.equal(lines[0], "[dsh]");
+    assert.ok(lines.includes(`write ${join(dshHome, "cordis.patch.yml")} (gsd-hooks block)`));
+    assert.ok(lines.includes(`write ${join(dshHome, "skills", "gsd-verify")}`));
+    assert.ok(!lines.includes(`write ${join(dshHome, "skills", "gsd")}`));
+    assert.equal(readFileSync(join(dshHome, "cordis.patch.yml"), "utf8"), DSH_USER_PATCH);
+    assert.equal(existsSync(join(dshHome, "skills")), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("dsh is an install agent, not a config host", () => {
+  const home = mkdtempSync(join(tmpdir(), "gsd-cli-dsh-config-"));
+  try {
+    const result = runCli(["config", "set", "worker.dsh", "x", "--home", home]);
+    assert.equal(result.status, 2);
+    assert.match(result.stderr, /host omp\|claude\|codex$/m);
   } finally {
     rmSync(home, { recursive: true, force: true });
   }

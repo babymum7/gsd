@@ -16,15 +16,21 @@ import { PLUGIN_BUNDLE_CONSTANTS, buildPluginBundle } from './gsd-plugin-package
 import { removeSkillsDir, skillsDirNames, writeSkillsDir } from './gsd-skills-dir.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const AGENTS = ['omp', 'claude', 'codex'];
+const AGENTS = ['omp', 'claude', 'codex', 'dsh'];
+// dsh is only an install agent: its `subagent` tool exposes no model unless the user turns
+// `modelSelectionSettings` on, so it has no sub-agent profiles to configure.
+const CONFIG_HOSTS = ['omp', 'claude', 'codex'];
+const DSH_BEGIN = '# gsd:dsh-hooks begin';
+const DSH_END = '# gsd:dsh-hooks end';
+const DSH_ROW_ID = /^\s*(?:-\s+)?id:\s*["']?gsd-hooks["']?\s*(?:#.*)?$/;
 const PLUGIN_SELECTOR = 'gsd@gsd-local';
 
 const HELP = `GSD host plugin CLI
 
 Usage:
-  gsd install [--agent omp|claude|codex|all] [--home <path>] [--dry-run]
+  gsd install [--agent omp|claude|codex|dsh|all] [--home <path>] [--dry-run]
   gsd install --skills-dir <path> [--home <path>] [--dry-run]
-  gsd uninstall [--agent omp|claude|codex|all] [--home <path>] [--dry-run]
+  gsd uninstall [--agent omp|claude|codex|dsh|all] [--home <path>] [--dry-run]
   gsd uninstall --skills-dir <path> [--home <path>] [--dry-run]
   gsd config list [--home <path>]
   gsd config get <profile>.<host> [--home <path>]
@@ -267,14 +273,112 @@ function runSkillsUninstall(parsed) {
   return { status: 0, stdout: `uninstalled skills (${skillsDir})\n`, stderr: '' };
 }
 
+// dsh reads `$DSH_HOME`, falling back to `~/.dsh` when it is unset or blank.
+function resolveDshHome(options) {
+  const value = options.env?.DSH_HOME ?? process.env.DSH_HOME;
+  return path.resolve(value && value.trim() !== '' ? value : path.join(os.homedir(), '.dsh'));
+}
+
+function dshPatchPath(dshHome) {
+  return path.join(dshHome, 'cordis.patch.yml');
+}
+
+function dshHookBlock(home) {
+  const pluginRoot = path.join(home, 'marketplace', PLUGIN_BUNDLE_CONSTANTS.PLUGIN_NAME);
+  return [
+    DSH_BEGIN,
+    '- id: gsd-hooks',
+    "  name: '@deepseek-ai/dsh-hooks-claude-code'",
+    '  config:',
+    `    configPath: ${JSON.stringify(path.join(pluginRoot, 'hooks', 'dsh.json'))}`,
+    `    pluginRoot: ${JSON.stringify(pluginRoot)}`,
+    DSH_END,
+    '',
+  ].join('\n');
+}
+
+// The marked block as byte offsets, from the begin marker line through the end marker line's
+// newline. Null when the file has no begin marker; a begin without an end is refused.
+function findDshBlock(text, patchPath) {
+  const begin = text.startsWith(`${DSH_BEGIN}\n`) ? 0 : text.indexOf(`\n${DSH_BEGIN}\n`) + 1;
+  if (begin === 0 && !text.startsWith(`${DSH_BEGIN}\n`)) return null;
+  const endMarker = text.indexOf(`\n${DSH_END}`, begin);
+  if (endMarker === -1) throw new Error(`${patchPath}: has a "${DSH_BEGIN}" marker without "${DSH_END}"`);
+  const lineEnd = text.indexOf('\n', endMarker + 1);
+  return { start: begin, end: lineEnd === -1 ? text.length : lineEnd + 1 };
+}
+
+function writeFileAtomic(filePath, content) {
+  const temp = `${filePath}.gsd-tmp-${process.pid}`;
+  fs.writeFileSync(temp, content);
+  fs.renameSync(temp, filePath);
+}
+
+// The patch text after install: an existing block is replaced in place, otherwise one is
+// appended after a newline-terminated file. Refuses a `gsd-hooks` row outside the markers.
+function withDshBlock(text, patchPath, block) {
+  const found = findDshBlock(text, patchPath);
+  const outside = found ? text.slice(0, found.start) + text.slice(found.end) : text;
+  if (outside.split('\n').some((line) => DSH_ROW_ID.test(line))) {
+    throw new Error(`${patchPath}: already has an "id: gsd-hooks" row outside the GSD markers`);
+  }
+  if (found) return text.slice(0, found.start) + block + text.slice(found.end);
+  return `${text}${text === '' || text.endsWith('\n') ? '' : '\n'}${block}`;
+}
+
+function withoutDshBlock(text, patchPath) {
+  const found = findDshBlock(text, patchPath);
+  return found ? text.slice(0, found.start) + text.slice(found.end) : text;
+}
+
+// Everything that can refuse a dsh install is checked here, before any host changes.
+function prepareDshInstall(home, options) {
+  const dshHome = resolveDshHome(options);
+  const patchPath = dshPatchPath(dshHome);
+  if (!fs.existsSync(dshHome) || !fs.statSync(dshHome).isDirectory()) {
+    throw new Error(`${dshHome}: no DeepSeek Harness home; run dsh once first`);
+  }
+  const current = fs.existsSync(patchPath) ? fs.readFileSync(patchPath, 'utf8') : '';
+  return { dshHome, patchPath, patch: withDshBlock(current, patchPath, dshHookBlock(home)) };
+}
+
+function applyDshInstall(home, plan) {
+  const coreRoot = path.join(home, 'marketplace', PLUGIN_BUNDLE_CONSTANTS.PLUGIN_NAME, 'core');
+  // Skills refuse a foreign directory before writing anything, so they go before the patch.
+  writeSkillsDir(coreRoot, path.join(plan.dshHome, 'skills'), { router: false });
+  writeFileAtomic(plan.patchPath, plan.patch);
+}
+
+function runDshUninstall(options) {
+  const dshHome = resolveDshHome(options);
+  const patchPath = dshPatchPath(dshHome);
+  if (fs.existsSync(patchPath)) {
+    const patch = withoutDshBlock(fs.readFileSync(patchPath, 'utf8'), patchPath);
+    if (patch === '') fs.rmSync(patchPath);
+    else writeFileAtomic(patchPath, patch);
+  }
+  removeSkillsDir(path.join(dshHome, 'skills'));
+}
+
+// What a dsh dry run lists: the patch write and each skill directory it would write.
+function dshDryRunLines(options) {
+  const dshHome = resolveDshHome(options);
+  return [
+    `write ${dshPatchPath(dshHome)} (gsd-hooks block)`,
+    ...skillsDirNames(ROOT, { router: false }).map((name) => `write ${path.join(dshHome, 'skills', name)}`),
+  ];
+}
+
 function runInstall(parsed, options) {
   const home = resolveHome(parsed);
   const agents = selectedAgents(parsed.agent);
-  const plans = agents.map((agent) => ({ agent, commands: commandPlan(agent, home) }));
+  const plans = agents.map((agent) => ({ agent, commands: agent === 'dsh' ? [] : commandPlan(agent, home) }));
   if (parsed.dryRun) {
     const lines = plans.flatMap(({ agent, commands }) => [
       `[${agent}]`,
-      ...commands.map((command) => `${command.binary} ${command.args.join(' ')}`),
+      ...(agent === 'dsh'
+        ? dshDryRunLines(options)
+        : commands.map((command) => `${command.binary} ${command.args.join(' ')}`)),
     ]);
     return { status: 0, stdout: `${lines.join('\n')}\n`, stderr: '' };
   }
@@ -283,8 +387,10 @@ function runInstall(parsed, options) {
   // succeed: a host that fails later must not leave an earlier one installed but unrecorded,
   // where uninstall would skip it and delete the marketplace it still links to.
   const state = readState(home);
+  const dshPlan = agents.includes('dsh') ? prepareDshInstall(home, options) : null;
   buildPluginBundle(ROOT, path.join(home, 'marketplace'));
   for (const { agent, commands } of plans) {
+    if (agent === 'dsh') applyDshInstall(home, dshPlan);
     for (const command of commands) {
       const result = runCommand(command, options);
       if (result.status !== 0 && !command.optional) return result;
@@ -305,12 +411,15 @@ function runUninstall(parsed, options) {
   const state = readState(home);
   const plans = agents.map((agent) => ({
     agent,
-    commands: state.agents[agent] === 'plugin' ? uninstallCommandPlan(agent) : [],
+    commands: state.agents[agent] === 'plugin' && agent !== 'dsh' ? uninstallCommandPlan(agent) : [],
   }));
   if (parsed.dryRun) {
+    const dshHome = resolveDshHome(options);
     const lines = plans.flatMap(({ agent, commands }) => [
       `[${agent}]`,
-      ...commands.map((command) => `${command.binary} ${command.args.join(' ')}`),
+      ...(agent === 'dsh' && state.agents.dsh === 'plugin'
+        ? [`remove the gsd-hooks block from ${dshPatchPath(dshHome)}`, `remove GSD-managed skills in ${path.join(dshHome, 'skills')}`]
+        : commands.map((command) => `${command.binary} ${command.args.join(' ')}`)),
     ]);
     return { status: 0, stdout: `${lines.join('\n')}\n`, stderr: '' };
   }
@@ -318,6 +427,7 @@ function runUninstall(parsed, options) {
   // Each agent leaves the state once its own commands succeed, so a retry after a failure
   // only repeats what is still installed. The marketplace goes with the last agent.
   for (const { agent, commands } of plans) {
+    if (agent === 'dsh' && state.agents.dsh === 'plugin') runDshUninstall(options);
     for (const command of commands) {
       const result = runCommand(command, options);
       if (result.status !== 0 && !command.optional) return result;
@@ -360,7 +470,7 @@ function parseConfigArgs(argv) {
   if (given !== arity[action] || extra.length > 0) {
     throw new Error(`config ${action} expects ${arity[action]} argument(s)`);
   }
-  if (action !== 'list') parseSettingsKey(key, AGENTS);
+  if (action !== 'list') parseSettingsKey(key, CONFIG_HOSTS);
   return { action, key, value, home, help: false };
 }
 
@@ -377,7 +487,7 @@ function runConfig(argv) {
     const settings = readSettings(home);
     if (parsed.action === 'list') {
       const lines = SETTINGS_PROFILES.flatMap((profile) =>
-        AGENTS.flatMap((host) => {
+        CONFIG_HOSTS.flatMap((host) => {
           const value = settings?.profiles?.[profile]?.[host];
           return value ? [`${profile}.${host}=${value}`] : [];
         }),
@@ -385,7 +495,7 @@ function runConfig(argv) {
       const stdout = lines.length > 0 ? `${lines.join('\n')}\n` : `${settingsPath(home)}: no profiles set\n`;
       return { status: 0, stdout, stderr: '' };
     }
-    const { profile, host } = parseSettingsKey(parsed.key, AGENTS);
+    const { profile, host } = parseSettingsKey(parsed.key, CONFIG_HOSTS);
     if (parsed.action === 'get') {
       const value = settings?.profiles?.[profile]?.[host];
       if (!value) return { status: 1, stdout: '', stderr: `${parsed.key} is not set\n` };
