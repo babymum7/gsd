@@ -161,10 +161,12 @@ A read-only diff review by the session owner along two independent axes: **Stand
    mints its own owner token and gets no recovery capsule. It never overwrites a skill
    directory GSD did not write, and its uninstall removes only the directories it marked;
    the bundle stays while any plugin agent or skills directory is recorded.
-5. The `dsh` agent edits files, not a host command: it appends one marked `gsd-hooks` block to
-   `$DSH_HOME/cordis.patch.yml` and writes the skills without the `gsd` router, since the hook injects
-   the bootstrap. Uninstall removes only that block and the marked skills. It refuses a missing
-   `DSH_HOME` or a `gsd-hooks` row outside the markers, and `gsd config` hosts exclude it.
+5. The `dsh` agent edits files, not a host command: it inserts the GSD Cordis plugin by path in a
+   marked block of `$DSH_HOME/cordis.patch.yml`, replacing the earlier hooks-bridge row, and writes
+   the skills without the `gsd` router, since the plugin injects the bootstrap and, after
+   compaction, re-injects the bootstrap and capsule. Uninstall removes only that block and the
+   marked skills. It refuses a missing `DSH_HOME` or a `gsd` row outside the markers, and
+   `gsd config` hosts exclude it.
 
 ## Commands, events, and outcomes
 
