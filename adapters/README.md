@@ -18,7 +18,7 @@ sibling adapter.
 | `adapters/omp/` | Shipped (M7) | OMP session lifecycle events, context injection, compaction hooks, `sendMessage`, task isolation |
 | `adapters/claude-code/` | Shipped (M1) | Claude Code lifecycle hooks and `additionalContext` injection |
 | `adapters/codex/` | Shipped (M2) | Codex hooks and `additionalContext` injection |
-| `adapters/dsh/` | Shipped | DeepSeek Harness hooks through the `@deepseek-ai/dsh-hooks-claude-code` bridge and `additionalContext` injection |
+| `adapters/dsh/` | Shipped | DeepSeek Harness native Cordis plugin: `agent/created`, `session/event`, and `agent/pre-step` listeners |
 
 The OMP adapter body is `adapters/omp/gsd-context.js` and its public types are
 `adapters/omp/gsd-context.d.ts`. The `extensions/gsd-context.js` and
@@ -41,7 +41,7 @@ Each host receives its native registration:
 | OMP | `package.json` with `omp.extensions` | `omp plugin link <bundle>` |
 | Claude Code | `.claude-plugin/plugin.json`, `skills/`, `hooks/claude.json` | local marketplace plus `claude plugin install` |
 | Codex | `.codex-plugin/plugin.json`, `skills/`, `hooks/codex.json` (no root `plugin.json`, which Codex would prefer) | local marketplace plus `codex plugin add` |
-| DeepSeek Harness | `hooks/dsh.json` (no manifest) | skills written to `$DSH_HOME/skills` and a marked `gsd-hooks` row in `$DSH_HOME/cordis.patch.yml` (decision 0037) |
+| DeepSeek Harness | `adapters/dsh/gsd-context.mjs` (no manifest) | skills written to `$DSH_HOME/skills` and a marked `insert` row `gsd` naming that module in `$DSH_HOME/cordis.patch.yml` (decisions 0037, 0038) |
 
 `gsd install --skills-dir <dir>` (`adapters/plugin/gsd-skills-dir.mjs`) serves a harness with no adapter: it writes the visible and explicit-only skills with `<GSD_ROOT>` resolved to the bundle's `core/`, plus a visible `gsd` router skill that stands in for the bootstrap (decision 0029).
 
@@ -77,9 +77,10 @@ cannot satisfy takes the named fallback; it is never faked.
 | Isolated task workspaces | Per-task isolated workspaces with `merge: branch` | Subagent `isolation` when available, else serial in plan order | Per-agent `sandbox_mode`; a `Worktree` environment isolates a chat, while subagents share the parent environment, so a wave without a per-task workspace runs serially |
 | Sub-agent profiles | Values name OMP agents, passed as the task tool `agent`; each agent's model role picks the model | Agent-tool model aliases (`sonnet`, `opus`, `haiku`, ...) passed as the Agent tool `model` | Model ids passed as `spawn_agent` `model` |
 
-The dsh adapter maps only the first two rows: the bootstrap rides `SessionStart`
-`hookSpecificOutput.additionalContext`, and the recovery capsule rides `SessionStart` with
-`source: "compact"` or `"resume"`, values the bridge's `SessionStartSource` type declares.
+The dsh adapter maps only the first two rows, as an in-process plugin rather than a hook:
+`agent/created` injects the bootstrap, or the capsule on `source: "resume"`. dsh announces no
+compaction source, so a `compaction/end` session event marks the session and the next
+`agent/pre-step` appends the bootstrap and capsule to the entering messages (decision 0038).
 Plan mode, goals, sub-agents, isolation, and sub-agent profiles stay unmapped for dsh
 (decision 0037), so waves there run serially in plan order.
 
