@@ -59,6 +59,18 @@ function codexHooks() {
   };
 }
 
+// dsh has no plugin manifest: the GSD CLI points a `@deepseek-ai/dsh-hooks-claude-code` row in
+// the dsh home patch at this file, and that bridge substitutes `${CLAUDE_PLUGIN_ROOT}` itself.
+function dshHooks() {
+  const command = `bun "\${CLAUDE_PLUGIN_ROOT}/adapters/dsh/gsd-context.mjs"`;
+  return {
+    hooks: {
+      SessionStart: [{ hooks: [{ type: 'command', command }] }],
+      UserPromptSubmit: [{ hooks: [{ type: 'command', command }] }],
+    },
+  };
+}
+
 export function buildPluginBundle(root, marketplaceRoot) {
   const sourceRoot = fs.realpathSync(root);
   const targetRoot = path.resolve(marketplaceRoot);
@@ -113,6 +125,10 @@ function buildIntoTemp(sourceRoot, targetRoot, tempRoot) {
     path.join(sourceRoot, 'adapters', 'codex', 'gsd-context.mjs'),
     path.join(pluginRoot, 'adapters', 'codex', 'gsd-context.mjs'),
   );
+  copyFile(
+    path.join(sourceRoot, 'adapters', 'dsh', 'gsd-context.mjs'),
+    path.join(pluginRoot, 'adapters', 'dsh', 'gsd-context.mjs'),
+  );
 
   fs.writeFileSync(path.join(pluginRoot, PLUGIN_MARKER), '');
   writeJsonAtomic(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), {
@@ -143,6 +159,7 @@ function buildIntoTemp(sourceRoot, targetRoot, tempRoot) {
   });
   writeJsonAtomic(path.join(pluginRoot, 'hooks', 'claude.json'), claudeHooks());
   writeJsonAtomic(path.join(pluginRoot, 'hooks', 'codex.json'), codexHooks());
+  writeJsonAtomic(path.join(pluginRoot, 'hooks', 'dsh.json'), dshHooks());
   writeJsonAtomic(path.join(tempRoot, '.claude-plugin', 'marketplace.json'), {
     name: MARKETPLACE_NAME,
     description: 'GSD workflow skills and session adapters',
