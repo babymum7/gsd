@@ -633,7 +633,9 @@ test("dsh install appends one marked hook block once, writes host skills without
     assert.equal(patch.split("# gsd:dsh-hooks begin").length, 2);
     assert.match(block, /^# gsd:dsh-hooks begin\n/);
     assert.match(block, /# gsd:dsh-hooks end\n$/);
-    assert.match(block, /- id: gsd-hooks\n/);
+    // A bare `- id:` row in a dsh patch edits an existing entry and fails with "entry not found";
+    // a new row must sit under `- insert:`.
+    assert.match(block, /^# gsd:dsh-hooks begin\n- insert:\n    - id: gsd-hooks\n/);
     assert.ok(block.includes(`configPath: ${JSON.stringify(join(home, "marketplace", "gsd", "hooks", "dsh.json"))}`));
     assert.ok(block.includes(`pluginRoot: ${JSON.stringify(join(home, "marketplace", "gsd"))}`));
 

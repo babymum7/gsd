@@ -285,13 +285,15 @@ function dshPatchPath(dshHome) {
 
 function dshHookBlock(home) {
   const pluginRoot = path.join(home, 'marketplace', PLUGIN_BUNDLE_CONSTANTS.PLUGIN_NAME);
+  // A bare `- id:` row edits an existing entry and fails as "entry not found"; a new row is inserted.
   return [
     DSH_BEGIN,
-    '- id: gsd-hooks',
-    "  name: '@deepseek-ai/dsh-hooks-claude-code'",
-    '  config:',
-    `    configPath: ${JSON.stringify(path.join(pluginRoot, 'hooks', 'dsh.json'))}`,
-    `    pluginRoot: ${JSON.stringify(pluginRoot)}`,
+    '- insert:',
+    '    - id: gsd-hooks',
+    "      name: '@deepseek-ai/dsh-hooks-claude-code'",
+    '      config:',
+    `        configPath: ${JSON.stringify(path.join(pluginRoot, 'hooks', 'dsh.json'))}`,
+    `        pluginRoot: ${JSON.stringify(pluginRoot)}`,
     DSH_END,
     '',
   ].join('\n');
