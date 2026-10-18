@@ -635,15 +635,33 @@ test("dsh install appends one marked hook block once, writes host skills without
     assert.match(block, /# gsd:dsh-hooks end\n$/);
     // A bare `- id:` row in a dsh patch edits an existing entry and fails with "entry not found";
     // a new row must sit under `- insert:`.
-    assert.match(block, /^# gsd:dsh-hooks begin\n- insert:\n    - id: gsd-hooks\n/);
-    assert.ok(block.includes(`configPath: ${JSON.stringify(join(home, "marketplace", "gsd", "hooks", "dsh.json"))}`));
-    assert.ok(block.includes(`pluginRoot: ${JSON.stringify(join(home, "marketplace", "gsd"))}`));
+    const modulePath = join(home, "marketplace", "gsd", "adapters", "dsh", "gsd-context.mjs");
+    assert.equal(
+      block,
+      `# gsd:dsh-hooks begin\n- insert:\n    - id: gsd\n      name: ${JSON.stringify(modulePath)}\n# gsd:dsh-hooks end\n`,
+    );
+    assert.equal(existsSync(join(home, "marketplace", "gsd", "hooks", "dsh.json")), false);
 
     const skills = readdirSync(join(dshHome, "skills")).sort();
     assert.deepEqual(skills, skillsDirNames(ROOT, { router: false }).sort());
     assert.ok(!skills.includes("gsd"));
     assert.ok(skills.includes("gsd-verify") && skills.includes("gsd-refactor"));
     assert.deepEqual(readAgents(home), { dsh: "plugin" });
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("dsh install replaces the earlier hooks-bridge block in place", () => {
+  const earlier =
+    "# gsd:dsh-hooks begin\n- insert:\n    - id: gsd-hooks\n      name: '@deepseek-ai/dsh-hooks-claude-code'\n" +
+    "      config:\n        configPath: \"/old/hooks/dsh.json\"\n        pluginRoot: \"/old\"\n# gsd:dsh-hooks end\n";
+  const { root, dshHome, home, options } = dshFixture(DSH_USER_PATCH + earlier);
+  try {
+    assert.equal(runCli(dshArgv("install", home), options).status, 0);
+    const modulePath = join(home, "marketplace", "gsd", "adapters", "dsh", "gsd-context.mjs");
+    const block = `# gsd:dsh-hooks begin\n- insert:\n    - id: gsd\n      name: ${JSON.stringify(modulePath)}\n# gsd:dsh-hooks end\n`;
+    assert.equal(readFileSync(join(dshHome, "cordis.patch.yml"), "utf8"), DSH_USER_PATCH + block);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }
@@ -682,7 +700,7 @@ test("dsh uninstall restores the patch bytes, removes the GSD skills, and leaves
   }
 });
 
-test("dsh install refuses a missing home or a foreign gsd-hooks row and writes nothing", () => {
+test("dsh install refuses a missing home or a foreign gsd row and writes nothing", () => {
   const missing = dshFixture();
   try {
     const gone = join(missing.root, "absent");
@@ -694,7 +712,7 @@ test("dsh install refuses a missing home or a foreign gsd-hooks row and writes n
     rmSync(missing.root, { recursive: true, force: true });
   }
 
-  const foreignPatch = "- id: gsd-hooks\n  name: other\n";
+  const foreignPatch = "- id: gsd\n  name: other\n";
   const foreign = dshFixture(foreignPatch);
   try {
     const result = runCli(dshArgv("install", foreign.home), foreign.options);
@@ -727,7 +745,7 @@ test("dsh dry-run lists the patch and skills writes and writes nothing", () => {
     assert.equal(result.status, 0, result.stderr);
     const lines = result.stdout.trim().split("\n");
     assert.equal(lines[0], "[dsh]");
-    assert.ok(lines.includes(`write ${join(dshHome, "cordis.patch.yml")} (gsd-hooks block)`));
+    assert.ok(lines.includes(`write ${join(dshHome, "cordis.patch.yml")} (gsd plugin block)`));
     assert.ok(lines.includes(`write ${join(dshHome, "skills", "gsd-verify")}`));
     assert.ok(!lines.includes(`write ${join(dshHome, "skills", "gsd")}`));
     assert.equal(readFileSync(join(dshHome, "cordis.patch.yml"), "utf8"), DSH_USER_PATCH);

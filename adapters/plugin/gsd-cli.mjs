@@ -22,7 +22,7 @@ const AGENTS = ['omp', 'claude', 'codex', 'dsh'];
 const CONFIG_HOSTS = ['omp', 'claude', 'codex'];
 const DSH_BEGIN = '# gsd:dsh-hooks begin';
 const DSH_END = '# gsd:dsh-hooks end';
-const DSH_ROW_ID = /^\s*(?:-\s+)?id:\s*["']?gsd-hooks["']?\s*(?:#.*)?$/;
+const DSH_ROW_ID = /^\s*(?:-\s+)?id:\s*["']?gsd["']?\s*(?:#.*)?$/;
 const PLUGIN_SELECTOR = 'gsd@gsd-local';
 
 const HELP = `GSD host plugin CLI
@@ -285,15 +285,14 @@ function dshPatchPath(dshHome) {
 
 function dshHookBlock(home) {
   const pluginRoot = path.join(home, 'marketplace', PLUGIN_BUNDLE_CONSTANTS.PLUGIN_NAME);
-  // A bare `- id:` row edits an existing entry and fails as "entry not found"; a new row is inserted.
+  const modulePath = path.join(pluginRoot, 'adapters', 'dsh', 'gsd-context.mjs');
+  // The GSD adapter is a native Cordis module that dsh loads by absolute path. A bare `- id:` row
+  // edits an existing entry and fails as "entry not found"; a new row is inserted.
   return [
     DSH_BEGIN,
     '- insert:',
-    '    - id: gsd-hooks',
-    "      name: '@deepseek-ai/dsh-hooks-claude-code'",
-    '      config:',
-    `        configPath: ${JSON.stringify(path.join(pluginRoot, 'hooks', 'dsh.json'))}`,
-    `        pluginRoot: ${JSON.stringify(pluginRoot)}`,
+    `    - id: ${PLUGIN_BUNDLE_CONSTANTS.PLUGIN_NAME}`,
+    `      name: ${JSON.stringify(modulePath)}`,
     DSH_END,
     '',
   ].join('\n');
@@ -317,12 +316,12 @@ function writeFileAtomic(filePath, content) {
 }
 
 // The patch text after install: an existing block is replaced in place, otherwise one is
-// appended after a newline-terminated file. Refuses a `gsd-hooks` row outside the markers.
+// appended after a newline-terminated file. Refuses a `gsd` row outside the markers.
 function withDshBlock(text, patchPath, block) {
   const found = findDshBlock(text, patchPath);
   const outside = found ? text.slice(0, found.start) + text.slice(found.end) : text;
   if (outside.split('\n').some((line) => DSH_ROW_ID.test(line))) {
-    throw new Error(`${patchPath}: already has an "id: gsd-hooks" row outside the GSD markers`);
+    throw new Error(`${patchPath}: already has an "id: gsd" row outside the GSD markers`);
   }
   if (found) return text.slice(0, found.start) + block + text.slice(found.end);
   return `${text}${text === '' || text.endsWith('\n') ? '' : '\n'}${block}`;
@@ -366,7 +365,7 @@ function runDshUninstall(options) {
 function dshDryRunLines(options) {
   const dshHome = resolveDshHome(options);
   return [
-    `write ${dshPatchPath(dshHome)} (gsd-hooks block)`,
+    `write ${dshPatchPath(dshHome)} (gsd plugin block)`,
     ...skillsDirNames(ROOT, { router: false }).map((name) => `write ${path.join(dshHome, 'skills', name)}`),
   ];
 }
@@ -420,7 +419,7 @@ function runUninstall(parsed, options) {
     const lines = plans.flatMap(({ agent, commands }) => [
       `[${agent}]`,
       ...(agent === 'dsh' && state.agents.dsh === 'plugin'
-        ? [`remove the gsd-hooks block from ${dshPatchPath(dshHome)}`, `remove GSD-managed skills in ${path.join(dshHome, 'skills')}`]
+        ? [`remove the gsd plugin block from ${dshPatchPath(dshHome)}`, `remove GSD-managed skills in ${path.join(dshHome, 'skills')}`]
         : commands.map((command) => `${command.binary} ${command.args.join(' ')}`)),
     ]);
     return { status: 0, stdout: `${lines.join('\n')}\n`, stderr: '' };
