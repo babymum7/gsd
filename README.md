@@ -26,6 +26,7 @@ The interactive prompt recommends `all`; choose one agent with:
 bun bin/gsd.mjs install --agent omp
 bun bin/gsd.mjs install --agent claude
 bun bin/gsd.mjs install --agent codex
+bun bin/gsd.mjs install --agent dsh
 ```
 
 Add `--dry-run` to print the exact host commands. The CLI builds one self-contained bundle at `~/.gsd/marketplace/gsd` (override the CLI home with `--home <path>`), then uses each host's own plugin system:
@@ -33,6 +34,7 @@ Add `--dry-run` to print the exact host commands. The CLI builds one self-contai
 - OMP: `omp plugin link <bundle>`
 - Claude Code: `claude plugin marketplace add <marketplace> --scope user`, then `claude plugin uninstall gsd@gsd-local --scope user --keep-data` (skipped without error when nothing is installed), then `claude plugin install gsd@gsd-local --scope user`. Claude Code keeps its cached copy of a plugin while the version is unchanged, so the uninstall is what lets a reinstall of the same version pick up the rebuilt bundle.
 - Codex: `codex plugin marketplace add <marketplace>` then `codex plugin add gsd@gsd-local`
+- DeepSeek Harness (`dsh` and `dsh-tui`), which has no plugin command: the CLI writes the visible and explicit-only skills into `$DSH_HOME/skills` (default `~/.dsh/skills`) and appends one `@deepseek-ai/dsh-hooks-claude-code` row between `# gsd:dsh-hooks begin` and `# gsd:dsh-hooks end` to `$DSH_HOME/cordis.patch.yml`, pointing it at the bundle's `hooks/dsh.json`. The rest of that file is never parsed or rewritten, and a `gsd-hooks` row outside the markers stops the install (decision 0037). Run `dsh` once first so its home exists.
 
 The bundle carries `lib/`, the canonical skills and tools under `core/`, the four visible skills plus the explicit-only `gsd-refactor`, `gsd-cleanup`, and `gsd-upgrade` in the host-facing `skills/` directory, and host manifests. Hidden runtime skills stay internal. Claude Code and Codex hooks still require their normal trust review. Uninstall is the inverse CLI operation:
 
@@ -40,7 +42,7 @@ The bundle carries `lib/`, the canonical skills and tools under `core/`, the fou
 bun bin/gsd.mjs uninstall --agent claude
 ```
 
-Uninstall runs only the host's native plugin uninstall command and removes the local bundle when no selected agent still uses it. It does not inspect or modify files outside that plugin registration. Unrelated hooks, skills, agents, settings, and marketplaces stay untouched.
+Uninstall runs only the host's native plugin uninstall command, or for dsh removes the marked block and the skill directories GSD marked, and removes the local bundle when no selected agent still uses it. It does not inspect or modify files outside that plugin registration. Unrelated hooks, skills, agents, settings, and marketplaces stay untouched.
 
 Relocation of the checkout does not require reinstall because the installed plugin is a copied, self-contained bundle. Editing the checkout does not update the installed bundle; run `bun bin/gsd.mjs install` again to refresh it, then follow the selected host's normal reload and trust behavior.
 
