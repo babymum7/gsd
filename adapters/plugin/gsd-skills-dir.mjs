@@ -56,12 +56,15 @@ function copyResolved(source, target, coreRoot) {
   }
 }
 
-export function skillsDirNames(coreRoot) {
-  return [ROUTER_NAME, ...discoverHostSkills(coreRoot).map((row) => row.name)];
+// A host with a session hook passes `router: false`: the hook injects the bootstrap, and the
+// router would contradict it by stating an unset session.
+export function skillsDirNames(coreRoot, { router = true } = {}) {
+  const names = discoverHostSkills(coreRoot).map((row) => row.name);
+  return router ? [ROUTER_NAME, ...names] : names;
 }
 
-export function writeSkillsDir(coreRoot, targetDir) {
-  const names = skillsDirNames(coreRoot);
+export function writeSkillsDir(coreRoot, targetDir, options = {}) {
+  const names = skillsDirNames(coreRoot, options);
   // Refuse before writing anything, so a name clash never leaves a half-written install.
   for (const name of names) {
     const target = path.join(targetDir, name);
