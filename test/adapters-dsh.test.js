@@ -190,9 +190,10 @@ test("a failure inside the plugin injects the sanitized error and never throws i
   assert.match(textOf(injected[0]), /header/);
   assert.doesNotMatch(textOf(injected[0]), /\[GSD Recovery Capsule\]/);
 
+  // Only a step that owes a compaction re-injection may carry an error; any other step passes
+  // through untouched, or a broken session would gain the error on every step.
   const decision = await dsh.step(broken, enter("hi"));
-  assert.equal(decision.messages.length, 2, "an unreadable step gains the sanitized error");
-  assert.match(textOf(decision.messages[1]), /header/);
+  assert.equal(decision.messages.length, 1, "an unreadable step passes through untouched");
   assert.doesNotThrow(() => dsh.event({}, "compaction/end"));
 });
 

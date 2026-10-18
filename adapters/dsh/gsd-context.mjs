@@ -100,15 +100,17 @@ export function apply(ctx) {
 
   ctx.on('agent/pre-step', async ({ agent }, next) => {
     const decision = await next();
+    // Only a step that owes a re-injection is touched, so a broken session never gains an
+    // error on every step.
+    const id = agent?.session?.header?.id;
+    if (id === undefined || !compacted.has(id) || decision?.kind !== 'enter') return decision;
+    compacted.delete(id);
+    let text;
     try {
-      const id = agent.session.header.id;
-      if (!compacted.has(id) || decision.kind !== 'enter') return decision;
-      compacted.delete(id);
-      const owner = sessionOwnerToken('dsh', id);
-      return { ...decision, messages: [...decision.messages, userMessage(renderAfterCompaction(owner, cwdOf(agent)))] };
+      text = renderAfterCompaction(sessionOwnerToken('dsh', id), cwdOf(agent));
     } catch (error) {
-      if (decision?.kind !== 'enter') return decision;
-      return { ...decision, messages: [...decision.messages, userMessage(sanitizeBootstrapError(error))] };
+      text = sanitizeBootstrapError(error);
     }
+    return { ...decision, messages: [...decision.messages, userMessage(text)] };
   });
 }
