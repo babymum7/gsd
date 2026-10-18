@@ -4,37 +4,50 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, realpathSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
+import { apply, name } from "../adapters/dsh/gsd-context.mjs";
 import { createBootstrap } from "../lib/gsd-bootstrap.mjs";
 import { renderRecoveryCapsule, sessionOwnerToken, withSessionOwner } from "../lib/gsd-session-context.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // Byte identity holds against an empty GSD home unless a case sets its own.
 process.env.GSD_HOME = mkdtempSync(join(tmpdir(), "gsd-empty-home-"));
-const HOOK = join(ROOT, "adapters", "dsh", "gsd-context.mjs");
-// The emitted payload is the core's own render for the same inputs, byte for byte. The hook
-// realpaths its own location, so the comparison root does too.
+const ADAPTER = join(ROOT, "adapters", "dsh", "gsd-context.mjs");
+// The injected text is the core's own render for the same inputs, byte for byte. The adapter
+// resolves its root from its own (real) location, so the comparison root realpaths too.
 const CORE_ROOT = realpathSync(ROOT);
 const owner = (session) => sessionOwnerToken("dsh", session);
 const bootstrapFor = (session) => withSessionOwner(createBootstrap(CORE_ROOT), owner(session));
+const capsuleFor = (project, session) => renderRecoveryCapsule(CORE_ROOT, project, owner(session));
 
-function run(payload, cwd, stateRoot, env = {}) {
-  const result = spawnSync(process.execPath, [HOOK], {
-    input: JSON.stringify(payload),
-    encoding: "utf8",
-    cwd,
-    env: { ...process.env, TMPDIR: stateRoot, ...env },
+// A recording Cordis context: `on` stores listeners, the helpers fire them like dsh would.
+function recordingContext() {
+  const listeners = new Map();
+  apply({
+    on(event, fn) {
+      listeners.set(event, [...(listeners.get(event) ?? []), fn]);
+    },
   });
-  assert.equal(result.status, 0, `hook exited ${result.status}: ${result.stderr}`);
-  return result.stdout;
+  return {
+    created: (agent, source) => Promise.all(listeners.get("agent/created").map((fn) => fn({ agent, source }))),
+    event: (session, type) => listeners.get("session/event").forEach((fn) => fn(session, { type })),
+    // The innermost `next` yields the decision dsh would have made.
+    step: (agent, decision) => listeners.get("agent/pre-step")[0]({ agent, messages: [] }, async () => decision),
+  };
 }
 
-function parseContext(stdout, event) {
-  assert.notEqual(stdout.trim(), "", "expected hook output");
-  const parsed = JSON.parse(stdout);
-  assert.equal(parsed.hookSpecificOutput.hookEventName, event);
-  return parsed.hookSpecificOutput.additionalContext;
+function fakeAgent(id, cwd) {
+  const injected = [];
+  return { session: { header: { id, cwd } }, inject: (message) => injected.push(message), injected };
 }
+
+const enter = (...texts) => ({
+  kind: "enter",
+  messages: texts.map((text) => ({ role: "user", content: [{ type: "text", text }] })),
+});
+const textOf = (message) => message.content[0].text;
+const isDeeplyFrozen = (message) =>
+  Object.isFrozen(message) && Object.isFrozen(message.content) && message.content.every(Object.isFrozen);
 
 function projectWithActiveFeature(owner = "none") {
   const project = mkdtempSync(join(tmpdir(), "gsd-dsh-project-"));
@@ -61,76 +74,141 @@ function projectWithActiveFeature(owner = "none") {
   return project;
 }
 
-test("startup then compact deliver the bootstrap and the capsule, and a later prompt stays silent", () => {
+test("startup injects one frozen user message holding the core bootstrap", async () => {
   const project = projectWithActiveFeature("dsh-abc");
-  const stateRoot = mkdtempSync(join(tmpdir(), "gsd-dsh-state-"));
+  const dsh = recordingContext();
+  const agent = fakeAgent("abc", project);
 
-  const startup = parseContext(
-    run({ hook_event_name: "SessionStart", session_id: "abc", cwd: project, source: "startup" }, project, stateRoot),
-    "SessionStart",
-  );
-  assert.equal(startup, bootstrapFor("abc"), "startup carries the core's exact bootstrap bytes, never a capsule");
-  assert.doesNotMatch(startup, /\[GSD Recovery Capsule\]/);
+  await dsh.created(agent, "startup");
 
-  const compact = parseContext(
-    run({ hook_event_name: "SessionStart", session_id: "abc", cwd: project, source: "compact" }, project, stateRoot),
-    "SessionStart",
-  );
-  assert.equal(
-    compact,
-    `${bootstrapFor("abc")}\n\n${renderRecoveryCapsule(CORE_ROOT, project, "dsh-abc")}`,
-    "compact is the core bootstrap then the core capsule, byte for byte",
-  );
-
-  const prompt = run(
-    { hook_event_name: "UserPromptSubmit", session_id: "abc", cwd: project, prompt: "fix a typo" },
-    project,
-    stateRoot,
-  );
-  assert.equal(prompt, "", "an ordinary prompt after SessionStart emits nothing");
+  assert.equal(name, "gsd");
+  assert.equal(agent.injected.length, 1);
+  const [message] = agent.injected;
+  assert.equal(message.role, "user");
+  assert.equal(message.content.length, 1);
+  assert.equal(message.content[0].type, "text");
+  assert.equal(textOf(message), bootstrapFor("abc"), "startup carries the core's exact bootstrap bytes, never a capsule");
+  assert.doesNotMatch(textOf(message), /\[GSD Recovery Capsule\]/);
+  assert.ok(isDeeplyFrozen(message));
 });
 
-test("a resume SessionStart delivers the capsule only, and another session gets the bootstrap", () => {
-  const project = projectWithActiveFeature(owner("d4"));
-  const stateRoot = mkdtempSync(join(tmpdir(), "gsd-dsh-state-"));
+test("a resume injects the capsule only, and a session owning no packet gets the bootstrap", async () => {
+  const project = projectWithActiveFeature(owner("abc"));
+  const dsh = recordingContext();
+  const resumed = fakeAgent("abc", project);
+  const other = fakeAgent("d9", project);
 
-  const resumed = parseContext(
-    run({ hook_event_name: "SessionStart", session_id: "d4", cwd: project, source: "resume" }, project, stateRoot),
-    "SessionStart",
-  );
-  assert.equal(resumed, renderRecoveryCapsule(CORE_ROOT, project, owner("d4")), "a resume renders the core capsule");
+  await dsh.created(resumed, "resume");
+  await dsh.created(other, "resume");
 
-  const other = parseContext(
-    run({ hook_event_name: "SessionStart", session_id: "d9", cwd: project, source: "resume" }, project, stateRoot),
-    "SessionStart",
-  );
-  assert.equal(other, bootstrapFor("d9"), "a packet owned by another session yields no capsule");
+  assert.match(capsuleFor(project, "abc"), /\[GSD Recovery Capsule\]/);
+  assert.deepEqual(resumed.injected.map(textOf), [capsuleFor(project, "abc")]);
+  assert.deepEqual(other.injected.map(textOf), [bootstrapFor("d9")]);
 });
 
-test("UserPromptSubmit injects the bootstrap once when SessionStart did not run", () => {
+test("a compact source injects the bootstrap then the capsule, or the bootstrap alone", async () => {
+  const project = projectWithActiveFeature(owner("abc"));
+  const dsh = recordingContext();
+  const owning = fakeAgent("abc", project);
+  const other = fakeAgent("d9", project);
+
+  await dsh.created(owning, "compact");
+  await dsh.created(other, "compact");
+
+  assert.deepEqual(owning.injected.map(textOf), [`${bootstrapFor("abc")}\n\n${capsuleFor(project, "abc")}`]);
+  assert.deepEqual(other.injected.map(textOf), [bootstrapFor("d9")]);
+});
+
+test("a clear source injects the bootstrap even when the session header has no cwd", async () => {
+  const dsh = recordingContext();
+  const cleared = fakeAgent("abc", undefined);
+
+  await dsh.created(cleared, "clear");
+
+  assert.deepEqual(cleared.injected.map(textOf), [bootstrapFor("abc")]);
+});
+
+test("compaction/end adds the bootstrap and capsule to the next entering step of that session once", async () => {
+  const project = projectWithActiveFeature(owner("abc"));
+  const dsh = recordingContext();
+  const agent = fakeAgent("abc", project);
+  const bystander = fakeAgent("d9", project);
+
+  dsh.event(agent.session, "compaction/start");
+  assert.deepEqual((await dsh.step(agent, enter("hi"))).messages.map(textOf), ["hi"], "only compaction/end marks a session");
+
+  dsh.event(agent.session, "compaction/end");
+  assert.deepEqual((await dsh.step(bystander, enter("hi"))).messages.map(textOf), ["hi"], "another session gains nothing");
+
+  const decision = await dsh.step(agent, enter("hi", "again"));
+  assert.equal(decision.kind, "enter");
+  assert.equal(decision.messages.length, 3);
+  assert.deepEqual(decision.messages.slice(0, 2).map(textOf), ["hi", "again"]);
+  const added = decision.messages[2];
+  assert.equal(added.role, "user");
+  assert.equal(added.content.length, 1);
+  assert.equal(textOf(added), `${bootstrapFor("abc")}\n\n${capsuleFor(project, "abc")}`);
+  assert.ok(isDeeplyFrozen(added));
+
+  assert.deepEqual((await dsh.step(agent, enter("later"))).messages.map(textOf), ["later"], "a later step gains nothing");
+});
+
+test("after a compaction a session owning no packet gets the bootstrap alone", async () => {
   const project = mkdtempSync(join(tmpdir(), "gsd-dsh-cwd-"));
-  const stateRoot = mkdtempSync(join(tmpdir(), "gsd-dsh-state-"));
-  // dsh-tui sends a bare uuid and headless sends `session-<uuid>`; both are opaque.
-  const session = "session-0b6f5c1e-3f7a-4d2e-9a54-6a1d2c3e4f50";
+  const dsh = recordingContext();
+  const agent = fakeAgent("abc", project);
 
-  const first = parseContext(
-    run({ hook_event_name: "UserPromptSubmit", session_id: session, cwd: project, prompt: "build X" }, project, stateRoot),
-    "UserPromptSubmit",
-  );
-  assert.equal(first, bootstrapFor(session), "the fallback injects the same core bytes as SessionStart");
+  dsh.event(agent.session, "compaction/end");
+  const decision = await dsh.step(agent, enter());
 
-  const second = run(
-    { hook_event_name: "UserPromptSubmit", session_id: session, cwd: project, prompt: "more" },
-    project,
-    stateRoot,
+  assert.deepEqual(decision.messages.map(textOf), [bootstrapFor("abc")]);
+});
+
+test("a rejected step passes through untouched and keeps the mark for the next entering step", async () => {
+  const project = projectWithActiveFeature(owner("abc"));
+  const dsh = recordingContext();
+  const agent = fakeAgent("abc", project);
+  const reject = { kind: "reject" };
+
+  dsh.event(agent.session, "compaction/end");
+  assert.equal(await dsh.step(agent, reject), reject);
+
+  const decision = await dsh.step(agent, enter());
+  assert.deepEqual(decision.messages.map(textOf), [`${bootstrapFor("abc")}\n\n${capsuleFor(project, "abc")}`]);
+});
+
+// The core is fault tolerant for a bad cwd, so a session without a header is the honest way to
+// fail inside a listener.
+test("a failure inside the plugin injects the sanitized error and never throws into dsh", async () => {
+  const dsh = recordingContext();
+  const injected = [];
+  const broken = { session: {}, inject: (message) => injected.push(message) };
+
+  await dsh.created(broken, "startup");
+
+  assert.equal(injected.length, 1);
+  assert.match(textOf(injected[0]), /header/);
+  assert.doesNotMatch(textOf(injected[0]), /\[GSD Recovery Capsule\]/);
+
+  const decision = await dsh.step(broken, enter("hi"));
+  assert.equal(decision.messages.length, 2, "an unreadable step gains the sanitized error");
+  assert.match(textOf(decision.messages[1]), /header/);
+  assert.doesNotThrow(() => dsh.event({}, "compaction/end"));
+});
+
+test("the module loads under real node and exposes the plugin shape", () => {
+  const url = pathToFileURL(ADAPTER).href;
+  const result = spawnSync(
+    "node",
+    ["-e", `import(${JSON.stringify(url)}).then(m => { if (typeof m.apply !== 'function' || m.name !== 'gsd') process.exit(1) })`],
+    { encoding: "utf8" },
   );
-  assert.equal(second, "", "the bootstrap is not injected twice");
+  assert.equal(result.status, 0, `node exited ${result.status}: ${result.stderr}`);
 });
 
 // dsh gets no sub-agent profiles: `gsd config` hosts stay claude|codex|omp.
-test("user sub-agent profiles for other hosts never change the dsh bootstrap", () => {
+test("user sub-agent profiles for other hosts never change the dsh bootstrap", async () => {
   const project = mkdtempSync(join(tmpdir(), "gsd-dsh-cwd-"));
-  const stateRoot = mkdtempSync(join(tmpdir(), "gsd-dsh-state-"));
   const home = mkdtempSync(join(tmpdir(), "gsd-dsh-home-"));
   writeFileSync(
     join(home, "settings.json"),
@@ -139,16 +217,16 @@ test("user sub-agent profiles for other hosts never change the dsh bootstrap", (
       profiles: { scout: { codex: "gpt-x", claude: "haiku" }, worker: { codex: "gpt-y", claude: "sonnet" } },
     }),
   );
-
-  const injected = parseContext(
-    run(
-      { hook_event_name: "SessionStart", session_id: "s1", cwd: project, source: "startup" },
-      project,
-      stateRoot,
-      { GSD_HOME: home },
-    ),
-    "SessionStart",
-  );
-  assert.equal(injected, bootstrapFor("s1"), "the dsh bootstrap is the bare core render");
-  assert.doesNotMatch(injected, /Sub-agent profiles/);
+  const previous = process.env.GSD_HOME;
+  process.env.GSD_HOME = home;
+  try {
+    const dsh = recordingContext();
+    const agent = fakeAgent("s1", project);
+    await dsh.created(agent, "startup");
+    const injected = textOf(agent.injected[0]);
+    assert.equal(injected, bootstrapFor("s1"), "the dsh bootstrap is the bare core render");
+    assert.doesNotMatch(injected, /Sub-agent profiles/);
+  } finally {
+    process.env.GSD_HOME = previous;
+  }
 });
