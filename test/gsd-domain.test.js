@@ -387,3 +387,54 @@ test("normalize CLI refuses to write through a symlink", () => {
   assert.deepEqual(readFileSync(real), original);
   rmSync(dir, { recursive: true, force: true });
 });
+
+// A session fixed one shard per rerun because validate stopped at the first failing file.
+test("validate CLI lists every failing file in one run", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-domain-"));
+  const docs = join(dir, "docs", "domain");
+  mkdirSync(docs, { recursive: true });
+  writeFileSync(join(docs, "index.md"), indexContent([["billing", "Invoicing."], ["payments", "Funds."]]));
+  writeFileSync(join(docs, "billing.md"), shardContent("billing", { terms: UNSORTED_TERMS }));
+  writeFileSync(join(docs, "payments.md"), shardContent("wrong"));
+  writeFileSync(join(docs, "orphan.md"), shardContent("orphan"));
+  const result = run(["validate", "--index", join(docs, "index.md")]);
+  assert.equal(result.status, 1, result.stdout);
+  assert.match(result.stdout, /^error: .*billing\.md/m);
+  assert.match(result.stdout, /^error_2: .*payments\.md/m);
+  assert.match(result.stdout, /^error_3: .*orphan shard/m);
+  assert.match(result.stdout, /^errors: 3$/m);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+// Domain drift outside a feature's contexts belongs to another change, so --scope keeps a
+// feature's check and normalize to the contexts it touches.
+test("--scope limits validate parsing and normalize writes to the named contexts", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-domain-"));
+  const docs = join(dir, "docs", "domain");
+  mkdirSync(docs, { recursive: true });
+  const indexPath = join(docs, "index.md");
+  writeFileSync(indexPath, indexContent([["billing", "Invoicing."], ["payments", "Funds."]]));
+  writeFileSync(join(docs, "billing.md"), shardContent("billing", { terms: UNSORTED_TERMS }));
+  writeFileSync(join(docs, "payments.md"), shardContent("payments", { terms: UNSORTED_TERMS }));
+
+  const scoped = run(["validate", "--index", indexPath, "--scope", "billing"]);
+  assert.equal(scoped.status, 1, scoped.stdout);
+  assert.match(scoped.stdout, /billing\.md/);
+  assert.doesNotMatch(scoped.stdout, /payments\.md/);
+
+  const before = readFileSync(join(docs, "payments.md"));
+  const written = run(["normalize", "--index", indexPath, "--write", "--scope", "billing"]);
+  assert.equal(written.status, 0, written.stdout);
+  assert.deepEqual(readFileSync(join(docs, "payments.md")), before);
+  assert.equal(run(["validate", "--index", indexPath, "--scope", "billing"]).status, 0);
+
+  rmSync(join(docs, "payments.md"));
+  const missing = run(["validate", "--index", indexPath, "--scope", "billing"]);
+  assert.equal(missing.status, 1, missing.stdout);
+  assert.match(missing.stdout, /code: io-error/);
+
+  const unknown = run(["validate", "--index", indexPath, "--scope", "bliling"]);
+  assert.equal(unknown.status, 1, unknown.stdout);
+  assert.match(unknown.stdout, /has no scope bliling; known scopes: billing, payments/);
+  rmSync(dir, { recursive: true, force: true });
+});

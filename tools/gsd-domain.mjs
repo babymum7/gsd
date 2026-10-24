@@ -17,7 +17,8 @@ import {
 import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
 
 const COMMANDS = commandsOf("gsd-domain.mjs");
-const VALUE_FLAGS = new Set(["--index", "--agents"]);
+const VALUE_FLAGS = new Set(["--index", "--agents", "--scope"]);
+const MAX_LISTED_ERRORS = 10;
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
 const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
@@ -32,8 +33,8 @@ function write(lines) {
 
 function commandUsage() {
   return [
-    `${INVOCATION} validate --index docs/domain/index.md [--agents AGENTS.md]`,
-    `${INVOCATION} normalize --index docs/domain/index.md [--write]`,
+    `${INVOCATION} validate --index docs/domain/index.md [--agents AGENTS.md] [--scope <scope>]...`,
+    `${INVOCATION} normalize --index docs/domain/index.md [--write] [--scope <scope>]...`,
   ].join("\n");
 }
 
@@ -59,6 +60,8 @@ function emitHelp() {
     "  --index   Path to docs/domain/index.md. Shards resolve beside it.",
     "  --agents  Path to AGENTS.md; optional, validates its documentation sections.",
     "  --write   normalize only: rewrite the changed files instead of only printing the fixes.",
+    "  --scope   Repeatable: parse and normalize only these index scopes; the other shards",
+    "            are only checked to exist, so a feature leaves unrelated contexts alone.",
   ]);
   process.exitCode = 0;
 }
@@ -68,11 +71,23 @@ function failUsage(message) {
   process.exitCode = 2;
 }
 
-function failDomain(message) {
-  let help = commandUsage();
-  if (SECTION_ERROR_RE.test(message)) help = SECTION_HELP;
-  else if (ORDER_ERROR_RE.test(message)) help = NORMALIZE_HELP;
-  write(["status: error", "code: invalid-domain", `error: ${quote(message)}`, `help: ${quote(help)}`]);
+function domainHelp(message) {
+  if (SECTION_ERROR_RE.test(message)) return SECTION_HELP;
+  if (ORDER_ERROR_RE.test(message)) return NORMALIZE_HELP;
+  return commandUsage();
+}
+
+// Every failing file is listed in one run, numbered from 2 as gsd-contract does, so one
+// pass fixes them all.
+function failDomain(...messages) {
+  const [first, ...more] = messages;
+  const rows = ["status: error", "code: invalid-domain", `error: ${quote(first)}`, `help: ${quote(domainHelp(first))}`];
+  more.slice(0, MAX_LISTED_ERRORS - 1).forEach((message, index) => {
+    rows.push(`error_${index + 2}: ${quote(message)}`);
+    rows.push(`help_${index + 2}: ${quote(domainHelp(message))}`);
+  });
+  if (more.length > 0) rows.push(`errors: ${messages.length}`);
+  write(rows);
   process.exitCode = 1;
 }
 
@@ -91,6 +106,7 @@ function parseArguments(argv) {
   let index = null;
   let agents = null;
   let writeFlag = false;
+  const scopes = [];
   for (let position = 0; position < args.length; position += 1) {
     const flag = args[position];
     if (flag === "--write") {
@@ -107,7 +123,9 @@ function parseArguments(argv) {
       return { usageError: `${flag} requires a value`, command };
     }
     position += 1;
-    if (flag === "--index") {
+    if (flag === "--scope") {
+      if (!scopes.includes(value)) scopes.push(value);
+    } else if (flag === "--index") {
       if (index !== null) return { usageError: "--index may be supplied only once", command };
       index = value;
     } else {
@@ -118,7 +136,7 @@ function parseArguments(argv) {
   }
 
   if (index === null) return { usageError: "--index is required", command };
-  return { command, index, agents, write: writeFlag };
+  return { command, index, agents, write: writeFlag, scopes };
 }
 
 function readText(pathLike, command) {
@@ -130,7 +148,18 @@ function readText(pathLike, command) {
   }
 }
 
-function runValidate({ index, agents, command }) {
+// A --scope naming no index row is a typo that would otherwise check nothing.
+function selectScopes(parsed, scopes, index) {
+  const known = new Set(parsed.scopes.map((entry) => entry.scope));
+  const unknown = scopes.filter((scope) => !known.has(scope));
+  if (unknown.length > 0) {
+    failDomain(`${index} has no scope ${unknown.join(", ")}; known scopes: ${[...known].join(", ")}`);
+    return null;
+  }
+  return scopes.length === 0 ? known : new Set(scopes);
+}
+
+function runValidate({ index, agents, scopes, command }) {
   const indexContent = readText(index, command);
   if (indexContent === null) return;
   let parsed;
@@ -140,17 +169,20 @@ function runValidate({ index, agents, command }) {
     failDomain(`${index}: ${error.message}`);
     return;
   }
+  const selected = selectScopes(parsed, scopes, index);
+  if (selected === null) return;
+  const errors = [];
   const directory = path.dirname(index);
   const mapped = new Set(parsed.scopes.map((entry) => entry.file));
   for (const { scope, file } of parsed.scopes) {
     const shardPath = path.join(directory, file);
     const shardContent = readText(shardPath, command);
     if (shardContent === null) return;
+    if (!selected.has(scope)) continue;
     try {
       parseDomainScope(shardContent, scope);
     } catch (error) {
-      failDomain(`${shardPath}: ${error.message}`);
-      return;
+      errors.push(`${shardPath}: ${error.message}`);
     }
   }
   let orphans;
@@ -165,8 +197,7 @@ function runValidate({ index, agents, command }) {
     return;
   }
   if (orphans.length > 0) {
-    failDomain(`orphan shard files without an index row: ${orphans.join(", ")}`);
-    return;
+    errors.push(`orphan shard files without an index row: ${orphans.join(", ")}`);
   }
   let sections = null;
   if (agents !== null) {
@@ -175,9 +206,12 @@ function runValidate({ index, agents, command }) {
     try {
       sections = parseAgentsDomainSection(agentsContent);
     } catch (error) {
-      failDomain(`${agents}: ${error.message}`);
-      return;
+      errors.push(`${agents}: ${error.message}`);
     }
+  }
+  if (errors.length > 0) {
+    failDomain(...errors);
+    return;
   }
   const output = ["status: valid", `scopes: ${parsed.scopes.length}`];
   if (sections !== null) {
@@ -206,7 +240,7 @@ function isSymlink(target) {
   }
 }
 
-function runNormalize({ index, write: shouldWrite, command }) {
+function runNormalize({ index, write: shouldWrite, scopes, command }) {
   const indexContent = readText(index, command);
   if (indexContent === null) return;
   const normalizedIndex = normalizeDomainIndex(indexContent);
@@ -217,12 +251,15 @@ function runNormalize({ index, write: shouldWrite, command }) {
     failDomain(`${index}: ${error.message}`);
     return;
   }
+  const selected = selectScopes(parsed, scopes, index);
+  if (selected === null) return;
   const changes = [];
   if (normalizedIndex.fixes.length > 0) {
     changes.push({ file: index, content: normalizedIndex.content, fixes: normalizedIndex.fixes });
   }
   const directory = path.dirname(index);
   for (const { scope, file } of parsed.scopes) {
+    if (!selected.has(scope)) continue;
     const shardPath = path.join(directory, file);
     const shardContent = readText(shardPath, command);
     if (shardContent === null) return;
