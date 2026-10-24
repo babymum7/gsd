@@ -68,12 +68,16 @@ async function recordingContext(sessions, directory = "/nowhere") {
     dispose,
     aborted: () => signal?.aborted === true,
     prompt: (sessionID) => hooks.get("prompt")({ sessionID, messageID: "x", prompt: { text: "hi", files: [] }, delivery: "immediate" }),
-    // A compaction replaces the history with a summary, dropping earlier synthetic messages.
-    async compact(sessionID, type = "session.compaction.ended") {
-      contexts.set(sessionID, [{ type: "compaction" }]);
+    dropTo: (sessionID, entries) => contexts.set(sessionID, entries),
+    async event(sessionID, type = "session.compaction.ended") {
       queue.push({ type, data: { sessionID, reason: "auto", text: "summary" } });
       wake?.();
       await settle();
+    },
+    // A compaction replaces the history with a summary, dropping earlier synthetic messages.
+    async compact(sessionID, type = "session.compaction.ended") {
+      contexts.set(sessionID, [{ type: "compaction" }]);
+      await this.event(sessionID, type);
     },
   };
 }
@@ -144,6 +148,25 @@ test("after a compaction a session owning no packet gets the bootstrap alone, fr
   await oc.compact("ses_a");
   assert.equal(oc.sent.length, 1);
   assert.equal(oc.sent[0].text, bootstrapFor("ses_a"));
+  await oc.dispose();
+});
+
+test("a prompt after a compaction whose event was missed sends the bootstrap then the capsule", async () => {
+  const project = projectWithActiveFeature("opencode-ses_a");
+  const oc = await recordingContext({ ses_a: { id: "ses_a", location: { directory: project } } });
+  oc.dropTo("ses_a", [{ type: "compaction" }]);
+  await oc.prompt("ses_a");
+  assert.equal(oc.sent.length, 1);
+  assert.equal(oc.sent[0].text, `${bootstrapFor("ses_a")}\n\n${capsuleFor(project, "ses_a")}`);
+  await oc.dispose();
+});
+
+test("a compaction event after the prompt already re-sent the bootstrap sends nothing more", async () => {
+  const oc = await recordingContext({ ses_a: { id: "ses_a" } });
+  oc.dropTo("ses_a", [{ type: "compaction" }]);
+  await oc.prompt("ses_a");
+  await oc.event("ses_a");
+  assert.equal(oc.sent.length, 1);
   await oc.dispose();
 });
 

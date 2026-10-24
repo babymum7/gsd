@@ -89,7 +89,8 @@ Plan mode, goals, sub-agents, isolation, and sub-agent profiles stay unmapped fo
 The opencode adapter maps the same two rows through synthetic user messages tagged
 `gsd/bootstrap`: the `prompt` hook sends the bootstrap when the root session's context holds no
 tagged message, and `session.compaction.ended` sends the bootstrap then the capsule, since the
-compaction dropped the earlier message. Child sessions get nothing, and the remaining rows stay
+compaction dropped the earlier message. A prompt whose context starts from a compaction but holds
+no tagged message, because the process ended before the event was handled, gets both too. Child sessions get nothing, and the remaining rows stay
 unmapped, so waves run serially (decision 0040).
 
 There is no reviewer sub-agent: the session owner reviews the whole diff itself in the

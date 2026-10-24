@@ -4,13 +4,15 @@
 // in lib/. See adapters/README.md.
 //
 // Surfaces:
+//   event `session.compaction.ended` -> the compaction dropped the bootstrap, so send it then the
+//                                       recovery capsule, reaching a loop that is still running
 //   prompt hook                      -> before a root session's prompt, send the bootstrap as a
-//                                       synthetic user message unless its context already holds one
-//   event `session.compaction.ended` -> the compaction dropped that message, so send the
-//                                       bootstrap then the recovery capsule
+//                                       synthetic user message unless its context already holds
+//                                       one, with the capsule when the context starts from a
+//                                       compaction whose event this process never saw
 //
-// Every message GSD sends carries the `gsd/bootstrap` metadata tag, so the context check sees it
-// across processes and resumes and the prompt after a compaction adds nothing. Ordinary prompts
+// Every message GSD sends carries the `gsd/bootstrap` metadata tag, and both surfaces send only
+// when the context holds none, so one history gets one message across processes and resumes. Ordinary prompts
 // add nothing, so per-turn token cost stays at zero. Child sessions (sub-agents) get nothing, and
 // opencode gets no sub-agent profiles.
 
@@ -47,6 +49,14 @@ function tagged(entry) {
   return (entry?.payload?.metadata ?? entry?.metadata)?.[TAG] === true;
 }
 
+// Null when the context already holds a GSD message, else whether it starts from a compaction.
+async function owedAfter(ctx, sessionID) {
+  const context = await ctx.session.context({ sessionID }).catch(() => []);
+  const list = Array.isArray(context) ? context : [];
+  if (list.some(tagged)) return null;
+  return { compacted: list.some((entry) => entry?.type === 'compaction') };
+}
+
 export default {
   id: 'gsd',
   async setup(ctx) {
@@ -78,9 +88,13 @@ export default {
     }
 
     await ctx.session.hook('prompt', async ({ sessionID }) => {
-      const context = await ctx.session.context({ sessionID }).catch(() => []);
-      if (Array.isArray(context) && context.some(tagged)) return;
-      await deliver(sessionID, async () => ((await rootDirectory(sessionID)) === null ? null : renderBootstrap(sessionID)));
+      const owed = await owedAfter(ctx, sessionID);
+      if (owed === null) return;
+      await deliver(sessionID, async () => {
+        const cwd = await rootDirectory(sessionID);
+        if (cwd === null) return null;
+        return owed.compacted ? renderAfterCompaction(sessionID, cwd) : renderBootstrap(sessionID);
+      });
     });
 
     const controller = new AbortController();
@@ -90,7 +104,7 @@ export default {
         // included, so only a finished one owes a re-injection.
         if (event?.type !== 'session.compaction.ended') continue;
         const sessionID = event.data?.sessionID;
-        if (typeof sessionID !== 'string') continue;
+        if (typeof sessionID !== 'string' || (await owedAfter(ctx, sessionID)) === null) continue;
         await deliver(sessionID, async () => {
           const cwd = await rootDirectory(sessionID);
           return cwd === null ? null : renderAfterCompaction(sessionID, cwd);
