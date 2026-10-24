@@ -199,6 +199,7 @@ test("the shipped refactor skill keeps the repository's intent, simplifies, meas
   assert.match(skill, /benchmark or profile/, "performance changes are measured");
   assert.match(skill, /beyond run-to-run noise/, "only a real gain is kept");
   assert.match(skill, /Run section of `GSD_ROOT\/skills\/gsd-cleanup\/SKILL.md`/, "approved cleanup follows gsd-cleanup's Run");
+  assert.match(skill, /no separate `cleanup-<area>` plan/, "cleanup lands inside the one refactor plan");
   assert.match(skill, /cleanup first, then the refactor parts, then performance/, "parts run in a fixed order");
 });
 
