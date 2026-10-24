@@ -10,8 +10,9 @@ import {
   RECORD_KINDS,
   parseRecordHeader,
 } from "../lib/gsd-record.mjs";
+import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
 
-const COMMANDS = new Set(["validate"]);
+const COMMANDS = commandsOf("gsd-record.mjs");
 const VALUE_FLAGS = new Set(["--path", "--kind"]);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -68,7 +69,7 @@ function parseArguments(argv) {
   const [command, ...args] = argv;
   if (args.length === 0 && (command === "--help" || command === "-h")) return { command: null, help: true };
   if (!command) return { usageError: "a record command is required", command: null };
-  if (!COMMANDS.has(command)) return { usageError: `unknown command: ${command}`, command: null };
+  if (!COMMANDS.has(command)) return { usageError: unknownCommandMessage("gsd-record.mjs", command), command: null };
   if (args.length === 1 && args[0] === "--help") return { command, help: true };
 
   let path = null;

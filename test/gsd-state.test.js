@@ -39,8 +39,34 @@ function tmpFeatureDir(feature = "test-feature") {
   const dir = mkdtempSync(join(tmpdir(), "gsd-state-test-"));
   const scratch = join(dir, ".scratch", feature);
   mkdirSync(scratch, { recursive: true });
-  writeFileSync(join(dir, ".scratch", feature, "plan.md"), "# Plan\n");
+  writeFileSync(join(dir, ".scratch", feature, "plan.md"), validPlan(feature));
   return { dir, scratch };
+}
+
+// The smallest plan validate-plan accepts, since binding refuses any other.
+function validPlan(feature, base = "main") {
+  return [
+    "# Plan",
+    "## Feature",
+    `\`${feature}\``,
+    "## Base",
+    `\`${base}\``,
+    "## Acceptance Criteria",
+    "### AC-1: App updates",
+    "- **State:** active",
+    "- **Outcome:** The app file changes.",
+    "- **Action:** Edit the app file.",
+    "- **Expected:** The app file holds new bytes.",
+    "- **Scenario:** GIVEN the base app WHEN the task edits it THEN the app file holds new bytes.",
+    "## Tasks",
+    "### T1: Update app",
+    "- **Satisfies:** AC-1",
+    "- **Files:**",
+    "  - `src/app.js` — modify: update the app file",
+    "- **Test:** `bun test`",
+    "- **Status:** pending",
+    "",
+  ].join("\n");
 }
 
 function cli(args) {
@@ -652,6 +678,46 @@ test("CLI set creates new approved packet with default next_action and matches w
     rawWrite2,
     "set and write-state must produce byte-identical state.toon for ready phase"
   );
+});
+
+// An agent bound a plan validate-plan rejected and only learned at the merge gate.
+test("CLI set refuses to bind an invalid plan and writes no state", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  writeFileSync(join(scratch, "plan.md"), "# Plan\n");
+  const r = cli(["set", "--feature-dir", scratch, "owner=claude-test", "phase=approved", "base_ref=main"]);
+  assert.equal(r.exitCode, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /code: invalid-artifact/);
+  assert.match(r.stdout, /plan \.scratch\/test-feature\/plan\.md does not validate/);
+  assert.match(r.stdout, /nothing was written/);
+  assert.equal(existsSync(join(scratch, "state.toon")), false);
+});
+
+test("CLI set refuses a base_ref the plan does not name", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  const r = cli(["set", "--feature-dir", scratch, "owner=claude-test", "phase=approved", "base_ref=develop"]);
+  assert.equal(r.exitCode, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /does not validate/);
+  assert.equal(existsSync(join(scratch, "state.toon")), false);
+});
+
+test("CLI set re-approving a bound feature revalidates its plan", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  assert.equal(cli(["set", "--feature-dir", scratch, "owner=claude-test", "phase=approved", "base_ref=main"]).exitCode, 0);
+  assert.equal(cli(["set", "--feature-dir", scratch, "owner=claude-test", "phase=executing"]).exitCode, 0);
+  writeFileSync(join(scratch, "plan.md"), "# Plan\n");
+  // A checkpoint is not a binding, so a plan mid-amendment does not block it.
+  assert.equal(cli(["set", "--feature-dir", scratch, "owner=claude-test", "last_green_task=none"]).exitCode, 0);
+  const r = cli(["set", "--feature-dir", scratch, "owner=claude-test", "phase=approved"]);
+  assert.equal(r.exitCode, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /does not validate/);
+});
+
+test("CLI set help for an unknown commit names the full SHA for another repository", () => {
+  const { scratch } = tmpFeatureDir("test-feature");
+  assert.equal(cli(["set", "--feature-dir", scratch, "owner=claude-test", "phase=approved", "base_ref=main"]).exitCode, 0);
+  const r = cli(["set", "--feature-dir", scratch, "owner=claude-test", "last_green_task=T1", "last_green_commit=abc1234"]);
+  assert.equal(r.exitCode, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /full 40-character SHA for a commit in another repository listed in ## Repos/);
 });
 
 test("CLI set allows explicit next_action override", () => {

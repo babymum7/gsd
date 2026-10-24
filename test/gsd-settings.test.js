@@ -51,7 +51,7 @@ function runHook(host, home) {
 test("the profile block names each set profile in canonical order with the host's spawn field", () => {
   assert.equal(
     render(SETTINGS, "claude"),
-    "## Sub-agent profiles\nUser GSD settings; pass as the Agent tool `model` when spawning that profile: scout `haiku`, worker `sonnet`.",
+    "## Sub-agent profiles\nUser GSD settings; pass as the Agent tool `model` when spawning that profile, never another model unless the user asks: scout `haiku`, worker `sonnet`.",
   );
   assert.match(render(SETTINGS, "codex"), /pass as `spawn_agent` `model`/);
   assert.match(render(SETTINGS, "omp"), /pass as the task tool `agent`.*scout `scout`, worker `task`\.$/);

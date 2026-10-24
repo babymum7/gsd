@@ -1494,7 +1494,8 @@ test("verify-task-branch diffs the branch, not a tag that shares its name", () =
     const result = verifyT2(root, relative, "task-tagged");
     assert.equal(result.status, 1, result.stdout + result.stderr);
     assert.match(result.stdout, /^code: out-of-slice-path$/m);
-    assert.match(result.stdout, /stray\.txt/);
+    // The strays lead, so a long slice never pushes the actual fault off the line.
+    assert.match(result.stdout, /outside T2 slice: stray\.txt; the slice allows: /);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

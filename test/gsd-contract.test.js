@@ -224,7 +224,7 @@ test("active criteria require one concrete scenario while small plans stay light
         .filter((line) => !line.startsWith("- **Scenario:**"))
         .join("\n"),
       expectedStatus: 1,
-      expectedError: /then Scenario/,
+      expectedError: /AC-1 is missing - \*\*Scenario:\*\*/,
     },
     {
       feature: "placeholder-scenario",
@@ -3051,5 +3051,59 @@ test("a nested or wrapped Scope line gets help naming the one-line top-level bul
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
+  }
+});
+
+// Agents rearranged fields that were already in order because a missing field read as an
+// ordering rule; each error now names what is missing.
+test("plan errors name a missing field or a trailing slash instead of a field-order rule", () => {
+  const cases = [
+    { drop: "- **State:** active", error: /AC-1 is missing - \*\*State:\*\*/ },
+    { drop: "- **Test:** `bun test test/gsd-contract.test.js`", error: /T1 is missing - \*\*Test:\*\*/ },
+    { drop: "- **Status:** pending", error: /T1 is missing - \*\*Status:\*\*/ },
+    {
+      replace: ["`tools/gsd-contract.mjs` — create", "`tools/` — create"],
+      error: /T1 Files path ends with a slash: tools\//,
+    },
+  ];
+  for (const { drop, replace, error } of cases) {
+    const lines = canonicalPlan("missing-field").split("\n");
+    const content = drop ? lines.filter((line) => line !== drop).join("\n") : lines.join("\n").replace(...replace);
+    const { workspace } = makePlanWorkspace("missing-field", content);
+    try {
+      const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", ".scratch/missing-field/plan.md"], {
+        cwd: workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 1, result.stdout);
+      assert.match(result.stdout, error);
+      assert.doesNotMatch(result.stdout, /must be (exactly )?ordered/);
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
+  }
+});
+
+test("validate-plan takes --feature-dir, and a --path from a subdirectory names the current directory", () => {
+  const { workspace } = makePlanWorkspace("feature-dir", canonicalPlan("feature-dir"));
+  try {
+    const byDir = spawnSync(process.execPath, [CLI, "validate-plan", "--feature-dir", ".scratch/feature-dir", "--expected-base", "main"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(byDir.status, 0, byDir.stdout);
+    assert.match(byDir.stdout, /feature: feature-dir/);
+
+    const sub = join(workspace, "src");
+    mkdirSync(sub);
+    const fromSub = spawnSync(process.execPath, [CLI, "validate-plan", "--path", "../.scratch/feature-dir/plan.md"], {
+      cwd: sub,
+      encoding: "utf8",
+    });
+    assert.equal(fromSub.status, 2, fromSub.stdout);
+    assert.ok(fromSub.stdout.includes(sub), fromSub.stdout);
+    assert.match(fromSub.stdout, /run from the repository root/);
+  } finally {
+    rmSync(workspace, { recursive: true, force: true });
   }
 });

@@ -8,8 +8,9 @@
 // builds its own frozen user message. See adapters/README.md.
 //
 // Listeners:
-//   agent/created  -> inject the bootstrap, or the capsule when resuming; a `compact` source
-//                     (not emitted by dsh 0.2.0-rc.2) gets the bootstrap then the capsule
+//   agent/created  -> inject the bootstrap; a resume of a session that already got it gets only
+//                     the capsule, or nothing; a `compact` source (not emitted by dsh
+//                     0.2.0-rc.2) gets the bootstrap then the capsule
 //   session/event  -> remember the session on `compaction/end`
 //   agent/pre-step -> after a compaction, add one message with the bootstrap then the capsule to
 //                     the next step that enters the model, once
@@ -19,10 +20,12 @@
 
 import { randomUUID } from 'node:crypto';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBootstrap, sanitizeBootstrapError } from '../../lib/gsd-bootstrap.mjs';
 import {
+  createMarkerStore,
   renderRecoveryCapsule,
   sessionOwnerToken,
   withSessionOwner,
@@ -35,6 +38,8 @@ const DEFAULT_GSD_ROOT = path.resolve(SCRIPT_DIR, '..', '..');
 const GSD_ROOT = fs.existsSync(path.join(DEFAULT_GSD_ROOT, '.gsd-plugin'))
   ? path.join(DEFAULT_GSD_ROOT, 'core')
   : DEFAULT_GSD_ROOT;
+// Read per call, since dsh may set TMPDIR after loading the plugin.
+const stateRoot = () => path.join(os.tmpdir(), 'gsd-dsh');
 
 export const name = 'gsd';
 
@@ -65,12 +70,11 @@ function renderAfterCompaction(owner, cwd) {
   return capsule ? `${bootstrap}\n\n${capsule}` : bootstrap;
 }
 
-function renderForSource(source, owner, cwd) {
-  if (source === 'resume') {
-    // A resume replays the bootstrap with the transcript, so the capsule alone is enough.
-    return renderRecoveryCapsule(GSD_ROOT, cwd, owner) ?? renderBootstrap(owner);
-  }
-  if (source === 'compact') return renderAfterCompaction(owner, cwd);
+// A resume replays the transcript, so a bootstrap this session already got is still in it and
+// only the capsule, if any, is new. A session the marker does not know gets the full set.
+function renderForSource(source, owner, cwd, delivered) {
+  if (source === 'resume' && delivered) return renderRecoveryCapsule(GSD_ROOT, cwd, owner);
+  if (source === 'resume' || source === 'compact') return renderAfterCompaction(owner, cwd);
   return renderBootstrap(owner);
 }
 
@@ -79,8 +83,11 @@ export function apply(ctx) {
 
   ctx.on('agent/created', async ({ agent, source }) => {
     try {
-      const owner = sessionOwnerToken('dsh', agent.session.header.id);
-      agent.inject(userMessage(renderForSource(source, owner, cwdOf(agent))));
+      const id = agent.session.header.id;
+      const store = createMarkerStore(stateRoot(), id);
+      const text = renderForSource(source, sessionOwnerToken('dsh', id), cwdOf(agent), store.read('bootstrap-emitted') !== null);
+      store.write('bootstrap-emitted');
+      if (text) agent.inject(userMessage(text));
     } catch (error) {
       try {
         agent.inject(userMessage(sanitizeBootstrapError(error)));

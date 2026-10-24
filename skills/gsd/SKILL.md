@@ -8,7 +8,7 @@ consumes: [state.toon, plan.md]
 
 # GSD Session Bootstrap
 
-The host already loaded this; never reload it. `GSD_ROOT` is the GSD install root, and each catalog row gives a skill's `skillPath`. Respond in the user's language; keep code, paths, keys, IDs, and skill names as written.
+The host already loaded this; never reload it. Respond in the latest user message's language; keep code, paths, keys, IDs, and skill names as written.
 
 ## Routing
 
@@ -17,13 +17,13 @@ Pick the lightest fitting path. Read only what the prompt names; never scan the 
 - **Answer directly**: questions, explanations, obvious errors, typos, one-line edits; no skill, scratch, or commit.
 - **Quick fix**: one bounded change with a known target (file, line, exact failure), including a mechanical refactor, docs-only edit, or version bump. In Git, first run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base`; only a `head-is-wip` that does not name your `GSD_SESSION` stops you. Edit, prove it with the focused test (the existing suite or build when behavior is unchanged), report. No packet, plan, or commit. If the scope grows, switch to `gsd-brainstorming`.
 - **Unknown cause** of a concrete symptom: `gsd-diagnosing-bugs`.
-- **New or changed behavior**, even a well-specified issue: features, interfaces, architecture, domain, integrations, or an unbound draft plan go to `gsd-brainstorming`.
+- **New or changed behavior**, even a well-specified issue: features, interfaces, architecture, domain, integrations, or an unbound draft plan go to `gsd-brainstorming`; repository issue/PR flows set Delivery, never skip GSD.
 - **Review a diff or PR**: `gsd-verify`.
 - **Continue, pause, resume, close, or abandon a feature**: `gsd-executing-plans`.
 - **Explicit request to refactor, clean up, or upgrade the repository**: read `GSD_ROOT/skills/<gsd-refactor|gsd-cleanup|gsd-upgrade>/SKILL.md`, not a Skill tool.
 - **Unclear intent**: ask one question with a recommended default.
 
-When a skill fits, read its `skillPath` before acting on it. Every choice you offer names a recommendation and its cost.
+When a skill fits, read its `skillPath` before acting on it. Every choice you offer names a recommendation and its cost; await the real answer.
 
 ## Session ownership
 

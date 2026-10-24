@@ -71,7 +71,7 @@ cannot satisfy takes the named fallback; it is never faked.
 | GSD need | OMP | Claude Code | Codex |
 | --- | --- | --- | --- |
 | Session bootstrap at session start | Message injected at the `context` boundary | `SessionStart` hook `hookSpecificOutput.additionalContext` | `SessionStart` hook `hookSpecificOutput.additionalContext` |
-| Recovery capsule across compaction | Capsule staged on the pre-compaction hook, delivered next turn after compaction | `SessionStart` with `source: "compact"` or `"resume"`, which fires before the next request | `SessionStart` with `source: "compact"` or `"resume"`, which fires before the next request |
+| Recovery capsule across compaction | Capsule staged on the pre-compaction hook, delivered next turn after compaction | `SessionStart` with `source: "compact"` or `"resume"`, which fires before the next request | `SessionStart` with `source: "compact"` or `"resume"`, which fires before the next request; a resume of a session the `bootstrap-emitted` marker knows gets only the capsule, or nothing (decision 0041) |
 | Current-request preservation | Extracted from the pre-compaction message list | The prompt stashed on `UserPromptSubmit` and attached to the capsule | Not needed: the live next prompt follows the continuing `SessionStart` |
 | Plan mode | Read-only plan mode with a plan todo list; the canonical `plan.md` is the only authority | Presentation only; the canonical `plan.md` is the only authority | `/plan` toggles host plan mode; the canonical `plan.md` is the only authority |
 | Goals | None; the canonical `plan.md` acceptance criteria are the goal record | `/goal` runs a host completion condition judged by a separate evaluator; GSD never treats it as the goal record | `/goal` runs a persistent host goal with its own completion criteria; GSD never treats it as the goal record |
@@ -80,7 +80,8 @@ cannot satisfy takes the named fallback; it is never faked.
 | Sub-agent profiles | Values name OMP agents, passed as the task tool `agent`; each agent's model role picks the model | Agent-tool model aliases (`sonnet`, `opus`, `haiku`, ...) passed as the Agent tool `model` | Model ids passed as `spawn_agent` `model` |
 
 The dsh adapter maps only the first two rows, as an in-process plugin rather than a hook:
-`agent/created` injects the bootstrap, or the capsule on `source: "resume"`. dsh announces no
+`agent/created` injects the bootstrap; on `source: "resume"` a session that already got it gets
+only the capsule, or nothing (decision 0041). dsh announces no
 compaction source, so a `compaction/end` session event marks the session and the next
 `agent/pre-step` appends the bootstrap and capsule to the entering messages (decision 0038).
 Plan mode, goals, sub-agents, isolation, and sub-agent profiles stay unmapped for dsh
@@ -206,6 +207,7 @@ The Compaction Recovery Capsule is the canonical recovery interface. Its exact t
 [GSD Recovery Capsule]
 GSD features owned by this session: <features>
 <resume_instruction>
+Lifecycle tools, in the tools directory of the GSD_ROOT the bootstrap names, run as bun "<tool path>": gsd-state.mjs set --feature-dir .scratch/<feature> owner=<GSD_SESSION> key=value...; gsd-contract.mjs validate-plan|analyze-waves|merge-message --path .scratch/<feature>/plan.md [--expected-base <base>]; gsd-git.mjs preflight --feature-dir .scratch/<feature>
 Compaction MUST preserve and continue the current user request. Only resume an active feature when the preserved request or a bare continue explicitly selects it.
 ```
 
@@ -223,5 +225,7 @@ With more than 5 active features, an additional clause is appended:
     ` Some features are omitted from this list — stop and select exactly one active feature before resuming.`
 Both modes end with:
     ` Stop immediately on malformed or ambiguous state. Otherwise, continue ordinary routing for the current request.`
+
+The tools line names no path, since the bootstrap before it already names `GSD_ROOT`; it keeps `<tool path>`, `<feature>`, `<GSD_SESSION>`, and `<base>` literally: they name what the session fills in, and `GSD_SESSION` closes the capsule, so a session resuming after compaction can call the lifecycle tools without rereading the skill.
 
 A rendered capsule over 4000 bytes fails closed; nothing is truncated.

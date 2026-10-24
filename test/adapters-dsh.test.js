@@ -12,6 +12,8 @@ import { renderRecoveryCapsule, sessionOwnerToken, withSessionOwner } from "../l
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // Byte identity holds against an empty GSD home unless a case sets its own.
 process.env.GSD_HOME = mkdtempSync(join(tmpdir(), "gsd-empty-home-"));
+// The adapter keeps its delivery markers under the temp directory, so each run gets its own.
+process.env.TMPDIR = mkdtempSync(join(tmpdir(), "gsd-dsh-markers-"));
 const ADAPTER = join(ROOT, "adapters", "dsh", "gsd-context.mjs");
 // The injected text is the core's own render for the same inputs, byte for byte. The adapter
 // resolves its root from its own (real) location, so the comparison root realpaths too.
@@ -92,18 +94,27 @@ test("startup injects one frozen user message holding the core bootstrap", async
   assert.ok(isDeeplyFrozen(message));
 });
 
-test("a resume injects the capsule only, and a session owning no packet gets the bootstrap", async () => {
-  const project = projectWithActiveFeature(owner("abc"));
+// A resume replays the transcript, so a session that already got the bootstrap gets only what
+// is new: the capsule, or nothing. A session the marker does not know gets the full set.
+test("a resume after a delivered bootstrap injects the capsule or nothing, an unknown session the full set", async () => {
+  const project = projectWithActiveFeature(owner("res-a"));
   const dsh = recordingContext();
-  const resumed = fakeAgent("abc", project);
-  const other = fakeAgent("d9", project);
+  const started = fakeAgent("res-a", project);
+  const idle = fakeAgent("res-b", project);
+  await dsh.created(started, "startup");
+  await dsh.created(idle, "startup");
 
+  const resumed = fakeAgent("res-a", project);
+  const resumedIdle = fakeAgent("res-b", project);
+  const unknown = fakeAgent("res-c", projectWithActiveFeature(owner("res-c")));
   await dsh.created(resumed, "resume");
-  await dsh.created(other, "resume");
+  await dsh.created(resumedIdle, "resume");
+  await dsh.created(unknown, "resume");
 
-  assert.match(capsuleFor(project, "abc"), /\[GSD Recovery Capsule\]/);
-  assert.deepEqual(resumed.injected.map(textOf), [capsuleFor(project, "abc")]);
-  assert.deepEqual(other.injected.map(textOf), [bootstrapFor("d9")]);
+  assert.match(capsuleFor(project, "res-a"), /\[GSD Recovery Capsule\]/);
+  assert.deepEqual(resumed.injected.map(textOf), [capsuleFor(project, "res-a")]);
+  assert.deepEqual(resumedIdle.injected, []);
+  assert.deepEqual(unknown.injected.map(textOf), [`${bootstrapFor("res-c")}\n\n${capsuleFor(unknown.session.header.cwd, "res-c")}`]);
 });
 
 test("a compact source injects the bootstrap then the capsule, or the bootstrap alone", async () => {
