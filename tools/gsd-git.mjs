@@ -721,7 +721,7 @@ function verifyTaskBranch(cwd, featureDir, taskId, branch, waveBase) {
   if (strays.length > 0) {
     blocked(
       "out-of-slice-path",
-      `task branch ${branch} touched ${strays.length} path(s) outside ${taskId} slice (${task.files.join(", ")}): ${strays.join(", ")}`,
+      `task branch ${branch} touched ${strays.length} path(s) outside ${taskId} slice: ${strays.join(", ")}; the slice allows: ${task.files.join(", ")}`,
     );
   }
 
