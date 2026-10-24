@@ -16,7 +16,7 @@
     "darwin"
   ],
   "scripts": {
-    "test": "bun test --timeout=30000 test/*.test.js",
+    "test": "bun test --parallel --timeout=30000 test/*.test.js",
     "lint": "bunx --yes @biomejs/biome@2.5.8 lint .",
     "format": "bunx --yes @biomejs/biome@2.5.8 format --write"
   }
