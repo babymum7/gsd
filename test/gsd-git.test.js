@@ -1579,3 +1579,49 @@ test("derive-base ignores an inherited GIT_DIR", () => {
     rmSync(second.root, { recursive: true, force: true });
   }
 });
+
+// A pull request or a branch delivery never checks out or moves the base, so another
+// worktree holding the base cannot conflict with it; a local merge still can.
+test("preflight lets a pull-request or branch delivery through while the base is checked out elsewhere", () => {
+  for (const [delivery, blocks] of [["pull-request", false], ["branch", false], ["merge-push", true]]) {
+    const packet = makePacket({ feature: "delivery-demo", base: "trunk" });
+    const other = `${packet.root}-other`;
+    try {
+      const planPath = join(packet.root, packet.relative, "plan.md");
+      writeFileSync(planPath, readFileSync(planPath, "utf8").replace("## Tasks", `## Delivery\n\`${delivery}\`\n## Tasks`));
+      git(["worktree", "add", "-q", other, "trunk"], packet.root);
+      const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
+      if (blocks) assert.match(result.stdout, /^code: base-checked-out-elsewhere$/m, delivery);
+      else assert.equal(result.status, 0, `${delivery}: ${result.stdout}`);
+    } finally {
+      rmSync(other, { recursive: true, force: true });
+      rmSync(packet.root, { recursive: true, force: true });
+    }
+  }
+});
+
+// Claude Code's `isolation: worktree` registers agent worktrees under `.claude/worktrees/`.
+test("preflight does not count a linked worktree registered inside the work tree as dirt", () => {
+  const packet = makePacket({ feature: "nested-demo", base: "trunk" });
+  try {
+    git(["worktree", "add", "-q", "-b", "agent-x", join(packet.root, ".claude", "worktrees", "agent-x"), "trunk"], packet.root);
+    const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
+    assert.equal(result.status, 0, result.stdout);
+    assert.match(result.stdout, /^status: ready$/m);
+  } finally {
+    rmSync(packet.root, { recursive: true, force: true });
+  }
+});
+
+test("verify-task-branch keeps the validator's help on an invalid plan", () => {
+  const { root, relative } = makeTaskBranchPacket();
+  try {
+    const planPath = join(root, relative, "plan.md");
+    writeFileSync(planPath, readFileSync(planPath, "utf8").replace("- **Status:** pending", "- **Status:** done (abc123)"));
+    const result = cli(["verify-task-branch", "--feature-dir", relative, "--task", "T2", "--branch", "main", "--wave-base", "main"], root);
+    assert.match(result.stdout, /^code: plan-invalid$/m);
+    assert.match(result.stdout, /^help: ".*pending, in_progress, done, or superseded/m, result.stdout);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
