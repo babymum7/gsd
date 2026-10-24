@@ -2,7 +2,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import {
   SETTINGS_PROFILES,
   SETTINGS_VERSION,
@@ -16,21 +16,23 @@ import { PLUGIN_BUNDLE_CONSTANTS, buildPluginBundle } from './gsd-plugin-package
 import { removeSkillsDir, skillsDirNames, writeSkillsDir } from './gsd-skills-dir.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
-const AGENTS = ['omp', 'claude', 'codex', 'dsh'];
+const AGENTS = ['omp', 'claude', 'codex', 'dsh', 'opencode'];
 // dsh is only an install agent: its `subagent` tool exposes no model unless the user turns
-// `modelSelectionSettings` on, so it has no sub-agent profiles to configure.
+// `modelSelectionSettings` on, so it has no sub-agent profiles to configure. opencode is one
+// too: its `subagent` tool steers callers away from setting a model.
 const CONFIG_HOSTS = ['omp', 'claude', 'codex'];
 const DSH_BEGIN = '# gsd:dsh-hooks begin';
 const DSH_END = '# gsd:dsh-hooks end';
 const DSH_ROW_ID = /^\s*(?:-\s+)?id:\s*["']?gsd["']?\s*(?:#.*)?$/;
 const PLUGIN_SELECTOR = 'gsd@gsd-local';
+const OPENCODE_MARKER = '.gsd-plugin';
 
 const HELP = `GSD host plugin CLI
 
 Usage:
-  gsd install [--agent omp|claude|codex|dsh|all] [--home <path>] [--dry-run]
+  gsd install [--agent omp|claude|codex|dsh|opencode|all] [--home <path>] [--dry-run]
   gsd install --skills-dir <path> [--home <path>] [--dry-run]
-  gsd uninstall [--agent omp|claude|codex|dsh|all] [--home <path>] [--dry-run]
+  gsd uninstall [--agent omp|claude|codex|dsh|opencode|all] [--home <path>] [--dry-run]
   gsd uninstall --skills-dir <path> [--home <path>] [--dry-run]
   gsd config list [--home <path>]
   gsd config get <profile>.<host> [--home <path>]
@@ -370,16 +372,77 @@ function dshDryRunLines(options) {
   ];
 }
 
+// opencode reads `$OPENCODE_CONFIG_DIR`, else `$XDG_CONFIG_HOME/opencode`, else ~/.config/opencode.
+function resolveOpencodeConfigDir(options) {
+  const env = options.env ?? process.env;
+  const set = (value) => value && value.trim() !== '';
+  if (set(env.OPENCODE_CONFIG_DIR)) return path.resolve(env.OPENCODE_CONFIG_DIR);
+  const xdg = set(env.XDG_CONFIG_HOME) ? env.XDG_CONFIG_HOME : path.join(os.homedir(), '.config');
+  return path.resolve(xdg, 'opencode');
+}
+
+// opencode loads `<configDir>/plugins/<name>/server.mjs`; GSD's directory holds a re-export of
+// the bundled adapter and a marker, so a `gsd` plugin GSD did not write is never replaced.
+function opencodePluginDir(configDir) {
+  return path.join(configDir, 'plugins', PLUGIN_BUNDLE_CONSTANTS.PLUGIN_NAME);
+}
+
+// Everything that can refuse an opencode install is checked here, before any host changes.
+function prepareOpencodeInstall(options) {
+  const configDir = resolveOpencodeConfigDir(options);
+  if (!fs.existsSync(configDir) || !fs.statSync(configDir).isDirectory()) {
+    throw new Error(`${configDir}: no opencode config directory; run opencode once first`);
+  }
+  const pluginDir = opencodePluginDir(configDir);
+  if (fs.existsSync(pluginDir) && !fs.existsSync(path.join(pluginDir, OPENCODE_MARKER))) {
+    throw new Error(`${pluginDir}: exists and is not a GSD-managed opencode plugin`);
+  }
+  return { configDir, pluginDir };
+}
+
+function applyOpencodeInstall(home, plan) {
+  const pluginRoot = path.join(home, 'marketplace', PLUGIN_BUNDLE_CONSTANTS.PLUGIN_NAME);
+  const modulePath = path.join(pluginRoot, 'adapters', 'opencode', 'gsd-context.mjs');
+  // Skills refuse a foreign directory before writing anything, so they go before the shim.
+  writeSkillsDir(path.join(pluginRoot, 'core'), path.join(plan.configDir, 'skills'), { router: false });
+  fs.mkdirSync(plan.pluginDir, { recursive: true });
+  fs.writeFileSync(path.join(plan.pluginDir, OPENCODE_MARKER), '');
+  writeFileAtomic(
+    path.join(plan.pluginDir, 'server.mjs'),
+    `// Written by gsd install; gsd uninstall removes this directory.\nexport { default } from ${JSON.stringify(pathToFileURL(modulePath).href)};\n`,
+  );
+}
+
+function runOpencodeUninstall(options) {
+  const configDir = resolveOpencodeConfigDir(options);
+  const pluginDir = opencodePluginDir(configDir);
+  if (fs.existsSync(path.join(pluginDir, OPENCODE_MARKER))) fs.rmSync(pluginDir, { recursive: true, force: true });
+  removeSkillsDir(path.join(configDir, 'skills'));
+}
+
+function opencodeDryRunLines(options) {
+  const configDir = resolveOpencodeConfigDir(options);
+  return [
+    `write ${path.join(opencodePluginDir(configDir), 'server.mjs')}`,
+    ...skillsDirNames(ROOT, { router: false }).map((name) => `write ${path.join(configDir, 'skills', name)}`),
+  ];
+}
+
+// dsh and opencode are installed by writing files, not by a host plugin command.
+const FILE_AGENTS = new Set(['dsh', 'opencode']);
+
 function runInstall(parsed, options) {
   const home = resolveHome(parsed);
   const agents = selectedAgents(parsed.agent);
-  const plans = agents.map((agent) => ({ agent, commands: agent === 'dsh' ? [] : commandPlan(agent, home) }));
+  const plans = agents.map((agent) => ({ agent, commands: FILE_AGENTS.has(agent) ? [] : commandPlan(agent, home) }));
   if (parsed.dryRun) {
     const lines = plans.flatMap(({ agent, commands }) => [
       `[${agent}]`,
       ...(agent === 'dsh'
         ? dshDryRunLines(options)
-        : commands.map((command) => `${command.binary} ${command.args.join(' ')}`)),
+        : agent === 'opencode'
+          ? opencodeDryRunLines(options)
+          : commands.map((command) => `${command.binary} ${command.args.join(' ')}`)),
     ]);
     return { status: 0, stdout: `${lines.join('\n')}\n`, stderr: '' };
   }
@@ -389,9 +452,11 @@ function runInstall(parsed, options) {
   // where uninstall would skip it and delete the marketplace it still links to.
   const state = readState(home);
   const dshPlan = agents.includes('dsh') ? prepareDshInstall(home, options) : null;
+  const opencodePlan = agents.includes('opencode') ? prepareOpencodeInstall(options) : null;
   buildPluginBundle(ROOT, path.join(home, 'marketplace'));
   for (const { agent, commands } of plans) {
     if (agent === 'dsh') applyDshInstall(home, dshPlan);
+    if (agent === 'opencode') applyOpencodeInstall(home, opencodePlan);
     for (const command of commands) {
       const result = runCommand(command, options);
       if (result.status !== 0 && !command.optional) return result;
@@ -412,15 +477,18 @@ function runUninstall(parsed, options) {
   const state = readState(home);
   const plans = agents.map((agent) => ({
     agent,
-    commands: state.agents[agent] === 'plugin' && agent !== 'dsh' ? uninstallCommandPlan(agent) : [],
+    commands: state.agents[agent] === 'plugin' && !FILE_AGENTS.has(agent) ? uninstallCommandPlan(agent) : [],
   }));
   if (parsed.dryRun) {
     const dshHome = resolveDshHome(options);
+    const configDir = resolveOpencodeConfigDir(options);
     const lines = plans.flatMap(({ agent, commands }) => [
       `[${agent}]`,
       ...(agent === 'dsh' && state.agents.dsh === 'plugin'
         ? [`remove the gsd plugin block from ${dshPatchPath(dshHome)}`, `remove GSD-managed skills in ${path.join(dshHome, 'skills')}`]
-        : commands.map((command) => `${command.binary} ${command.args.join(' ')}`)),
+        : agent === 'opencode' && state.agents.opencode === 'plugin'
+          ? [`remove ${opencodePluginDir(configDir)}`, `remove GSD-managed skills in ${path.join(configDir, 'skills')}`]
+          : commands.map((command) => `${command.binary} ${command.args.join(' ')}`)),
     ]);
     return { status: 0, stdout: `${lines.join('\n')}\n`, stderr: '' };
   }
@@ -429,6 +497,7 @@ function runUninstall(parsed, options) {
   // only repeats what is still installed. The marketplace goes with the last agent.
   for (const { agent, commands } of plans) {
     if (agent === 'dsh' && state.agents.dsh === 'plugin') runDshUninstall(options);
+    if (agent === 'opencode' && state.agents.opencode === 'plugin') runOpencodeUninstall(options);
     for (const command of commands) {
       const result = runCommand(command, options);
       if (result.status !== 0 && !command.optional) return result;

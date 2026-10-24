@@ -118,6 +118,11 @@ function buildIntoTemp(sourceRoot, targetRoot, tempRoot) {
     path.join(sourceRoot, 'adapters', 'dsh', 'gsd-context.mjs'),
     path.join(pluginRoot, 'adapters', 'dsh', 'gsd-context.mjs'),
   );
+  // opencode loads a shim in its config directory that re-exports this module.
+  copyFile(
+    path.join(sourceRoot, 'adapters', 'opencode', 'gsd-context.mjs'),
+    path.join(pluginRoot, 'adapters', 'opencode', 'gsd-context.mjs'),
+  );
 
   fs.writeFileSync(path.join(pluginRoot, PLUGIN_MARKER), '');
   writeJsonAtomic(path.join(pluginRoot, '.claude-plugin', 'plugin.json'), {
