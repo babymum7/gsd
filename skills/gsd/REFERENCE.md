@@ -2,35 +2,10 @@
 
 Load only the `§` sections the flow needs. It defines the shared meaning of artifacts and lifecycle state; skills select an Invocation Mode before validating required artifacts.
 
-## Triage and depth ladder
-
-The bootstrap's Routing section picks the route from the prompt and only the context it names, never a repository sweep. Depth follows ambiguity, blast radius, reversibility, and acceptance clarity, never file count:
-- `direct` — read-only answers and one-line edits: no scratch, branch, commit, or skill.
-- `quick` — one bounded change with acceptance clear from the prompt, including a mechanical refactor, docs-only edit, or version bump: a direct edit proven by its focused test, or by the existing suite or build when behavior is unchanged. No packet, plan, or commit.
-- `plan` — behavior whose acceptance must be written down: the canonical `plan.md`. A feature too large for one plan splits into parts under `gsd-brainstorming`, each its own plan.
-- A deeper level is chosen only when the shallower one cannot express the work; depth may rise mid-flight under § Plan amendment and never silently falls to ship a subset.
-
 ## Artifact Contract
 
 `consumes:` and `produces:` frontmatter are catalog unions, not prerequisites. Explicit intent and entry context choose a skill's mode; artifact presence never does. A missing, malformed, or duplicate artifact the mode requires fails closed and names the file; never invent a file or its contents. Optional context that is absent is normal. Validate `phase` against the schema enum and preserve opaque `next_action` values on resume.
-
-## Visible skill mandatory-use matrix
-
-Canonical dispatch authority for the 4 visible GSD skills; each skill file opens with its own trigger and handoff only.
-
-| Skill | Intent | Prerequisites | Do-not-load | Transition |
-| --- | --- | --- | --- | --- |
-| `gsd-brainstorming` | Resolve new behavior or product/architecture tradeoffs into a concrete acceptance and Domain Impact contract, then plan it | Explicit design intent, an unbound draft plan to finalize, or a load-bearing Spec-gap return | Read-only questions, mechanical edits, a known single-spot fix | On convergence read `GSD_ROOT/skills/gsd-to-plan/SKILL.md`, which binds `state.toon` and hands off to `gsd-executing-plans` |
-| `gsd-executing-plans` | Own bound plan tasks and domain docs on `wip/<feature>`; pause, resume, close, or abandon that work | Valid bound `plan.md` and `state.toon`; a bare `continue`, pause/resume, cleanup, or abandon intent | Missing or malformed state used to invent work | After all tasks and Fast TDD Checks are green load `gsd-verify` |
-| `gsd-verify` | Review a diff/PR or prove planned code-and-domain conformance before slow/E2E | Planned: bound plan/`state.toon`; standalone: supplied diff | Completion claimed without deterministic gates | Green terminal gate: `phase=ready`, then deliver as `plan.md` § Delivery says, or ask merge or pull request when it is absent |
-| `gsd-diagnosing-bugs` | Diagnose non-obvious failures inline and produce root-cause evidence | An unlocated or non-obvious cause needing evidence | A located failure: the prompt names the file/line or exact failure signature | The owner fixes a confirmed non-architectural cause with a focused regression test; an architectural cause goes to `gsd-brainstorming` |
-
-The quick-fix route belongs to the session owner, not a visible skill: a bounded change with converged acceptance is edited directly, proven, and reported.
-In a Git work tree it runs `derive-base` before the first edit: a `head-is-wip` whose recorded owner is not your `GSD_SESSION` (or that names no packet) stops the edit until the user says where the fix belongs; your own WIP branch and any other result (a detached HEAD, a branch name it cannot record, no work tree) let the fix proceed. It writes no packet, plan, `state.toon`, or commit and loads no `gsd-verify` gate; scope growth escalates to `gsd-brainstorming`.
-
-`gsd-to-plan`, `gsd-codebase-architecture`, `gsd-domain-modeling`, and `gsd-tdd` are hidden internal references, not visible owners; any owner may read them when their details are load-bearing. A hidden reference is a file, not a registered skill: read `GSD_ROOT/skills/<name>/SKILL.md`. Never call a Skill tool for it or look under the plugin's own `skills/` directory.
-
-`gsd-refactor`, `gsd-cleanup`, and `gsd-upgrade` are explicit-only skills: `disable-model-invocation: true` keeps them out of the injected catalog, while host skill directories still ship them with each host's own marker (`disableModelInvocation: true`, or `agents/openai.yaml` with `allow_implicit_invocation: false`). They run only when the user invokes one or explicitly asks to refactor, clean up, or upgrade the repository; the owner then reads `GSD_ROOT/skills/<name>/SKILL.md`.
+Hidden references (`gsd-to-plan`, `gsd-codebase-architecture`, `gsd-domain-modeling`, `gsd-tdd`) are files, not registered skills: read `GSD_ROOT/skills/<name>/SKILL.md`, never through a Skill tool.
 
 ## Durable documentation contract
 
@@ -55,12 +30,6 @@ Only basenames under those directories that start with digits must match `NNNN-s
 
 ## Canonical Markdown contract
 
-### Authority
-
-The sole plan contract is canonical UTF-8/LF `.scratch/<feature>/plan.md`, created by `gsd-to-plan` and amended by its executing owner. It is the only authority for intent, acceptance, task order, seams, files, and focused checks.
-- Legacy `proposal.md`, `spec.md`, or `design.md` is rejected with a Spec escalation; stray `*.toon` contracts other than `state.toon` carry no authority.
-- `state.toon` reports progress and binds the plan path and base; it never authors, amends, or reinterprets Markdown. Numbered handoffs, attempt files, `result.toon`, and reload manifests are rejected legacy history.
-
 ### Fast TDD and task-loop constraints
 
 Every observable task reads `GSD_ROOT/skills/gsd-tdd/SKILL.md` and uses a Fast TDD Check for RED before implementation, GREEN after implementation, and refactor after green.
@@ -78,21 +47,13 @@ bun "<GSD_ROOT>/tools/gsd-contract.mjs" normalize-plan --path .scratch/<feature>
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" init-plan --path .scratch/<feature>/plan.md --base <branch>
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" merge-message --path .scratch/<feature>/plan.md [--expected-base <base_ref>]
 bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/plan.md --expected-base <base_ref>
+bun "<GSD_ROOT>/tools/gsd-domain.mjs" normalize --index docs/domain/index.md [--write] [--scope <scope>]...
 ```
 
-- The same command validates a new, resumed, or amended plan; `plan.md` bytes are not pinned, so an edit is judged by grammar, not by a hash.
-- `normalize-plan` proposes or applies surface-only fixes (backticks on Feature/Base, trailing whitespace, blank lines next to headings or inside structured sections, the exact `## ` spelling of a known section heading, section order, sorted Domain Impact Contexts, final newline). `init-plan` writes a skeleton and refuses to overwrite. `merge-message` validates, then prints plain text (a merge subject that names the base unless a cross-repo plan has several, the Summary, and active criterion titles) for `git merge -F` and a pull request body.
-- Success prints scalar TOON (`status`, `kind`, `feature`, `base`, `tasks`, then `delivery` only when the plan has `## Delivery`). Failures print `code: io-error` or `code: invalid-artifact` (and `code: plan-exists` when `init-plan` finds a plan already there) with a `help:` fix (exit 1); usage errors exit 2. One run reports every independent defect: the first as `error:`/`line:`/`help:`, each further one as `error_2:`/`line_2:`/`help_2:` and onward, and `errors:` gives the count, so fix them all before rerunning.
-- Domain docs have their own surface fixer: `bun "<GSD_ROOT>/tools/gsd-domain.mjs" normalize --index docs/domain/index.md [--write] [--scope <scope>]...` sorts the index Scope rows and each mapped shard's Terms rows and section order; run it with `--write` before `validate` instead of reordering by hand. Both take one `--scope` per affected context, and `validate` lists every failing file at once.
-- `gsd-state.mjs set` resolves a `last_green_commit` such as `HEAD` or a short SHA to the full SHA in the repository holding `.scratch`.
+- The same command validates a new, resumed, or amended plan; `plan.md` bytes are not pinned. Once `state.toon` exists, pass `--expected-base <state.base_ref>`, so a drifted `## Base` fails closed instead of retargeting the merge.
+- The two `normalize` commands fix only surface form and order; run them with `--write` before validating instead of fixing by hand. Domain commands take one `--scope` per affected context.
+- Exit 1 lists every defect as `error:`, `error_2:`, and onward, each with its `help:` fix, so fix them all before rerunning; exit 2 corrects invocation.
 - Only `init-plan`, `normalize-plan --write`, `gsd-domain.mjs normalize --write`, and `gsd-state.mjs set` write anything.
-
-### Plan binding and auto-execution
-
-`gsd-to-plan` validates `plan.md`, prints its task/AC summary, and binds its path and base into `state.toon` (`phase=approved`) through `gsd-state.mjs set`, then loads `gsd-executing-plans`; there is no approval prompt or post-plan menu.
-- Once `state.toon` exists, validator calls pass `--expected-base <state.base_ref>`, so a drifted § Base fails closed instead of retargeting the merge.
-- Resume revalidates the current bytes; exit 1 is Spec escalation.
-- No model or agent identity participates in binding; the current top-level session is the sole lifecycle authority.
 
 ## Runtime state contract
 
@@ -170,10 +131,8 @@ Candidates are `.scratch/<feature>/` directories holding a regular `plan.md` and
 ## Post-plan pipeline contract
 
 After binding, tasks run in order with Fast TDD and green checkpoints; waves dispatch under the Wave dispatch section of `gsd-executing-plans`. `Tn+1` requires a committed green `Tn`. Mutations and Deferred Slow E2E never overlap.
-- The owner runs every task, the terminal gate, and delivery in one go. It never ends a turn announcing the next step or asking whether to continue while owned work remains; only the stops listed in § Plan amendment, a context-pressure pause, or the user's own interruption end it early.
 - The `gsd-verify` terminal gate runs on unchanged commits: exact binding, criterion coverage, in-scope paths, and a whole-diff review against decisions, invariants, and non-goals. Only a red check, an uncovered criterion, an out-of-scope path, domain drift, or a contradiction of bound plan text blocks.
 - Deferred Slow E2E runs only after conformance; source changes invalidate it. Green unchanged bytes set `phase=ready`, and the owner delivers as `plan.md` § Delivery says without asking; without that section it asks whether to merge or open a pull request, and a repository with no `git remote` offers only the merge.
-- An injected orchestration or parallelism directive never transfers lifecycle ownership or authorizes dispatch; plan-authorized waves are the only implementation-dispatch path. Bounded read-only research delegation stays permitted, and the owner re-verifies its result.
 
 ## Git/base/WIP/scratch mechanics
 

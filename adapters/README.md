@@ -123,8 +123,8 @@ requirement to the host instead of assuming the hook is live.
 
 ## Depth ladder mapping
 
-Triage picks a depth from ambiguity, blast radius, reversibility, and acceptance clarity,
-as canon `REFERENCE.md` § Triage and depth ladder defines. Each adapter maps that depth
+The bootstrap's Routing section picks a depth from ambiguity, blast radius, reversibility,
+and acceptance clarity, never file count. Each adapter maps that depth
 onto the host features above, and never fakes a feature the host lacks:
 
 | Depth | OMP | Claude Code | Codex |

@@ -46,7 +46,6 @@ test("every canon citation in a skill resolves to a REFERENCE heading", () => {
     "Post-plan pipeline contract",
     "Runtime state contract",
     "Skill derivation from phase and next_action",
-    "Visible skill mandatory-use matrix",
   ];
   for (const heading of CITED) {
     assert.ok(headings.has(heading), `REFERENCE no longer defines the cited § ${heading}`);
