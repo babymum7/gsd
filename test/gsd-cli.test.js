@@ -14,7 +14,7 @@ import {
 import { spawnSync } from "node:child_process";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 import { buildPluginBundle } from "../adapters/plugin/gsd-plugin-packager.mjs";
 import { needsAgentPrompt, runCli } from "../adapters/plugin/gsd-cli.mjs";
 import { skillsDirNames } from "../adapters/plugin/gsd-skills-dir.mjs";
@@ -25,6 +25,8 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 // temporary directory and no test can touch the real ~/.dsh.
 const SHARED_DSH_HOME = mkdtempSync(join(tmpdir(), "gsd-cli-dsh-shared-"));
 process.env.DSH_HOME = SHARED_DSH_HOME;
+// The same holds for opencode's config directory and the real ~/.config/opencode.
+process.env.OPENCODE_CONFIG_DIR = mkdtempSync(join(tmpdir(), "gsd-cli-opencode-shared-"));
 
 function fakeBinDir(logPath) {
   const binDir = mkdtempSync(join(tmpdir(), "gsd-cli-bin-"));
@@ -73,6 +75,7 @@ test("install dry-run plans commands without building or invoking a host", () =>
   assert.match(result.stdout, /codex plugin add gsd@gsd-local/);
   assert.match(result.stdout, /omp plugin link/);
   assert.match(result.stdout, /\[dsh\]\nwrite /);
+  assert.match(result.stdout, /\[opencode\]\nwrite /);
   assert.equal(existsSync(join(home, "marketplace")), false);
   assert.equal(existsSync(join(home, "state.json")), false);
 });
@@ -386,7 +389,7 @@ test("a partial uninstall keeps only the agents still installed, so a retry can 
     assert.equal(runCli(["install", "--agent", "all", "--home", home], withBin(ok)).status, 0);
     const failed = runCli(["uninstall", "--agent", "all", "--home", home], withBin(failing));
     assert.equal(failed.status, 4, failed.stderr);
-    assert.deepEqual(readAgents(home), { claude: "plugin", codex: "plugin", dsh: "plugin" });
+    assert.deepEqual(readAgents(home), { claude: "plugin", codex: "plugin", dsh: "plugin", opencode: "plugin" });
   } finally {
     rmSync(home, { recursive: true, force: true });
   }
@@ -763,5 +766,102 @@ test("dsh is an install agent, not a config host", () => {
     assert.match(result.stderr, /host omp\|claude\|codex$/m);
   } finally {
     rmSync(home, { recursive: true, force: true });
+  }
+});
+
+function opencodeFixture() {
+  const root = mkdtempSync(join(tmpdir(), "gsd-cli-opencode-"));
+  const configDir = join(root, "opencode");
+  const home = join(root, "gsd");
+  mkdirSync(configDir);
+  return { root, configDir, home, options: { env: { ...process.env, OPENCODE_CONFIG_DIR: configDir } } };
+}
+
+const opencodeArgv = (command, home, ...rest) => [command, "--agent", "opencode", "--home", home, ...rest];
+
+test("opencode install writes a marked plugin shim and the host skills, and uninstall removes only them", () => {
+  const { root, configDir, home, options } = opencodeFixture();
+  try {
+    mkdirSync(join(configDir, "plugins", "mine"), { recursive: true });
+    mkdirSync(join(configDir, "skills", "mine"), { recursive: true });
+    for (let run = 0; run < 2; run += 1) {
+      const result = runCli(opencodeArgv("install", home), options);
+      assert.equal(result.status, 0, result.stderr);
+    }
+    const modulePath = join(home, "marketplace", "gsd", "adapters", "opencode", "gsd-context.mjs");
+    assert.ok(existsSync(modulePath));
+    const shim = readFileSync(join(configDir, "plugins", "gsd", "server.mjs"), "utf8");
+    assert.ok(shim.includes(`export { default } from ${JSON.stringify(pathToFileURL(modulePath).href)};`), shim);
+    assert.ok(existsSync(join(configDir, "plugins", "gsd", ".gsd-plugin")));
+    const skills = readdirSync(join(configDir, "skills")).filter((name) => name !== "mine").sort();
+    assert.deepEqual(skills, skillsDirNames(ROOT, { router: false }).sort());
+    assert.deepEqual(readAgents(home), { opencode: "plugin" });
+
+    const removed = runCli(opencodeArgv("uninstall", home), options);
+    assert.equal(removed.status, 0, removed.stderr);
+    assert.deepEqual(readdirSync(join(configDir, "plugins")), ["mine"]);
+    assert.deepEqual(readdirSync(join(configDir, "skills")), ["mine"]);
+    assert.equal(existsSync(join(home, "state.json")), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("opencode install refuses a missing config dir or a foreign gsd plugin and writes nothing", () => {
+  const missing = opencodeFixture();
+  try {
+    const gone = join(missing.root, "absent");
+    const result = runCli(opencodeArgv("install", missing.home), { env: { ...process.env, OPENCODE_CONFIG_DIR: gone } });
+    assert.equal(result.status, 1);
+    assert.ok(result.stderr.includes(gone), result.stderr);
+    assert.equal(existsSync(gone), false);
+    assert.equal(existsSync(missing.home), false);
+  } finally {
+    rmSync(missing.root, { recursive: true, force: true });
+  }
+
+  const foreign = opencodeFixture();
+  try {
+    const pluginDir = join(foreign.configDir, "plugins", "gsd");
+    mkdirSync(pluginDir, { recursive: true });
+    writeFileSync(join(pluginDir, "server.mjs"), "export default {}\n");
+    const result = runCli(opencodeArgv("install", foreign.home), foreign.options);
+    assert.equal(result.status, 1);
+    assert.ok(result.stderr.includes(pluginDir), result.stderr);
+    assert.equal(readFileSync(join(pluginDir, "server.mjs"), "utf8"), "export default {}\n");
+    assert.equal(existsSync(join(foreign.configDir, "skills")), false);
+    assert.equal(existsSync(foreign.home), false);
+  } finally {
+    rmSync(foreign.root, { recursive: true, force: true });
+  }
+});
+
+test("opencode reads XDG_CONFIG_HOME when OPENCODE_CONFIG_DIR is unset", () => {
+  const { root, home } = opencodeFixture();
+  try {
+    const xdg = join(root, "xdg");
+    mkdirSync(join(xdg, "opencode"), { recursive: true });
+    const env = { ...process.env, XDG_CONFIG_HOME: xdg };
+    delete env.OPENCODE_CONFIG_DIR;
+    const result = runCli(opencodeArgv("install", home, "--dry-run"), { env });
+    assert.equal(result.status, 0, result.stderr);
+    assert.ok(result.stdout.includes(`write ${join(xdg, "opencode", "plugins", "gsd", "server.mjs")}`), result.stdout);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("opencode dry-run lists the shim and skills writes and writes nothing", () => {
+  const { root, configDir, home, options } = opencodeFixture();
+  try {
+    const result = runCli(opencodeArgv("install", home, "--dry-run"), options);
+    assert.equal(result.status, 0, result.stderr);
+    const lines = result.stdout.trim().split("\n");
+    assert.equal(lines[0], "[opencode]");
+    assert.ok(lines.includes(`write ${join(configDir, "plugins", "gsd", "server.mjs")}`));
+    assert.ok(lines.includes(`write ${join(configDir, "skills", "gsd-verify")}`));
+    assert.deepEqual(readdirSync(configDir), []);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });

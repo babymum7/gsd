@@ -89,6 +89,7 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
   // dsh has no plugin manifest or hooks file; its home patch inserts this module by path.
   assert.equal(existsSync(join(pluginRoot, "adapters", "dsh", "gsd-context.mjs")), true);
   assert.equal(existsSync(join(pluginRoot, "hooks", "dsh.json")), false);
+  assert.equal(existsSync(join(pluginRoot, "adapters", "opencode", "gsd-context.mjs")), true);
 
   const marketplace = JSON.parse(
     readFileSync(join(marketplaceRoot, ".claude-plugin", "marketplace.json"), "utf8"),

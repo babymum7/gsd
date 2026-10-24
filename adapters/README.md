@@ -19,6 +19,7 @@ sibling adapter.
 | `adapters/claude-code/` | Shipped (M1) | Claude Code lifecycle hooks and `additionalContext` injection |
 | `adapters/codex/` | Shipped (M2) | Codex hooks and `additionalContext` injection |
 | `adapters/dsh/` | Shipped | DeepSeek Harness native Cordis plugin: `agent/created`, `session/event`, and `agent/pre-step` listeners |
+| `adapters/opencode/` | Shipped | opencode v2 native server plugin: `prompt` hook, `session.synthetic`, `session.compaction.ended` event |
 
 The OMP adapter body is `adapters/omp/gsd-context.js` and its public types are
 `adapters/omp/gsd-context.d.ts`. The `extensions/gsd-context.js` and
@@ -42,11 +43,12 @@ Each host receives its native registration:
 | Claude Code | `.claude-plugin/plugin.json`, `skills/`, `hooks/claude.json` | local marketplace plus `claude plugin install` |
 | Codex | `.codex-plugin/plugin.json`, `skills/`, `hooks/codex.json` (no root `plugin.json`, which Codex would prefer) | local marketplace plus `codex plugin add` |
 | DeepSeek Harness | `adapters/dsh/gsd-context.mjs` (no manifest) | skills written to `$DSH_HOME/skills` and a marked `insert` row `gsd` naming that module in `$DSH_HOME/cordis.patch.yml` (decisions 0037, 0038) |
+| opencode v2 | `adapters/opencode/gsd-context.mjs` (no manifest) | skills written to `<configDir>/skills` and a marked `<configDir>/plugins/gsd/server.mjs` re-exporting that module (decision 0040) |
 
 `gsd install --skills-dir <dir>` (`adapters/plugin/gsd-skills-dir.mjs`) serves a harness with no adapter: it writes the visible and explicit-only skills with `<GSD_ROOT>` resolved to the bundle's `core/`, plus a visible `gsd` router skill that stands in for the bootstrap (decision 0029).
 
 The local marketplace is generated beside the bundle and named `gsd-local`.
-Uninstall delegates only to each host's native plugin uninstall command; for dsh it removes the marked patch block and the skill directories it marked. The CLI
+Uninstall delegates only to each host's native plugin uninstall command; for dsh it removes the marked patch block and the skill directories it marked, and for opencode the marked plugin directory and skill directories. The CLI
 removes the generated bundle after no recorded agent still uses it and never
 inspects unrelated host files.
 
@@ -83,6 +85,13 @@ compaction source, so a `compaction/end` session event marks the session and the
 `agent/pre-step` appends the bootstrap and capsule to the entering messages (decision 0038).
 Plan mode, goals, sub-agents, isolation, and sub-agent profiles stay unmapped for dsh
 (decision 0037), so waves there run serially in plan order.
+
+The opencode adapter maps the same two rows through synthetic user messages tagged
+`gsd/bootstrap`: the `prompt` hook sends the bootstrap when the root session's context holds no
+tagged message, and `session.compaction.ended` sends the bootstrap then the capsule, since the
+compaction dropped the earlier message. A prompt whose context starts from a compaction but holds
+no tagged message, because the process ended before the event was handled, gets both too. Child sessions get nothing, and the remaining rows stay
+unmapped, so waves run serially (decision 0040).
 
 There is no reviewer sub-agent: the session owner reviews the whole diff itself in the
 `gsd-verify` terminal gate, on every host.
