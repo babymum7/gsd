@@ -1,0 +1,19 @@
+{
+  "scope": "bootstrap + owner skills + canon (canon compliance axis)",
+  "bootstrap_sha256": "970a64f0025c02ddec5cbcce20730486785c2770a6b08f76a19bab2eeef1e6b7",
+  "bootstrap_words": 537,
+  "canon_sha256": "deff0aab55362979c913eda2a468e2bd0f8b89cd66f919c21ce7f19bfc47a345",
+  "canon_words": 2577,
+  "owner_skills_sha256": "8984c3d0a8548af165d6ff9e624ee995f60ebb8dd329c71861b0b8a801b1dff7",
+  "pass": {
+    "google-antigravity/gemini-3.8-flash": {
+      "passed": 18,
+      "total": 18,
+      "accuracy": 100
+    }
+  },
+  "canon_reads": {
+    "google-antigravity/gemini-3.8-flash": 6
+  },
+  "failures": {}
+}

@@ -428,6 +428,11 @@ test("the committed eval reports keep their shape and flag stale bytes", () => {
     ["test/eval/eval-report.json", "bootstrap only", null],
     ["test/eval/triage-report.json", "bootstrap only (triage axis)", null],
     ["test/eval/brainstorm-compliance-report.json", "bootstrap + brainstorm skill (behavior compliance axis)", null],
+    [
+      "test/eval/canon-compliance-report.json",
+      "bootstrap + owner skills + canon (canon compliance axis)",
+      evalSurfaceFingerprint({ bootstrap, repoRoot: ROOT, canonSection: read("skills/gsd/REFERENCE.md") }),
+    ],
   ];
   // The fixture sets are the instrument. Their own contract is already checked above
   // (`validateFixtureSet`/`validateTriageFixtureSet` against these same files); what was
@@ -435,6 +440,10 @@ test("the committed eval reports keep their shape and flag stale bytes", () => {
   const activationFixtures = JSON.parse(read("test/eval/fixtures.json"));
   const triageFixtures = JSON.parse(read("test/eval/triage-fixtures.json"));
   const brainstormFixtures = JSON.parse(read("test/eval/brainstorm-fixtures.json"));
+  const canonFixtures = JSON.parse(read("test/eval/canon-fixtures.json"));
+  const ownerSkillsSha256 = createHash("sha256")
+    .update([...new Set(canonFixtures.map(({ skill }) => skill))].sort().map((name) => read(`skills/${name}/SKILL.md`)).join("\0"))
+    .digest("hex");
   const brainstormSkillSha256 = createHash("sha256")
     .update(read("skills/gsd-brainstorming/SKILL.md"))
     .digest("hex");
@@ -446,6 +455,7 @@ test("the committed eval reports keep their shape and flag stale bytes", () => {
     ["test/eval/eval-report.json", activationFixtures.length],
     ["test/eval/triage-report.json", triageFixtures.length],
     ["test/eval/brainstorm-compliance-report.json", brainstormFixtures.length],
+    ["test/eval/canon-compliance-report.json", canonFixtures.length],
   ]);
   let scoredModels = null;
   for (const [path, scope, canonFingerprint] of committed) {
@@ -462,6 +472,9 @@ test("the committed eval reports keep their shape and flag stale bytes", () => {
       report.brainstorm_skill_sha256 !== brainstormSkillSha256
     ) {
       warnStale(path, "different brainstorm skill bytes");
+    }
+    if (path === "test/eval/canon-compliance-report.json" && report.owner_skills_sha256 !== ownerSkillsSha256) {
+      warnStale(path, "different owner skill bytes");
     }
     const scores = report.pass1 ?? report.pass;
     assert.ok(scores && typeof scores === "object", `${path} must record per-model scores`);

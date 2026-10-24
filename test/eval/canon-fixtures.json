@@ -1,0 +1,308 @@
+[
+  {
+    "id": "plan-over-state",
+    "skill": "gsd-executing-plans",
+    "state": "bound feature export, phase executing, last_green_task T1; state.toon next_action reads \"start T2: add CSV export\"; plan.md T2 was amended and now reads \"add JSON export\"",
+    "prompt": "continue",
+    "options": {
+      "A": "Implement CSV export",
+      "B": "Implement both CSV and JSON export",
+      "C": "Implement JSON export",
+      "D": "Rewrite next_action in state.toon, then stop"
+    },
+    "answer": "C",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Runtime state contract (plan.md is the only authority; state.toon never authors, amends, or reinterprets Markdown)",
+      "baseline": "skills/gsd/REFERENCE.md § Authority (the only authority for intent, acceptance, task order; state.toon never authors, amends, or reinterprets Markdown)"
+    }
+  },
+  {
+    "id": "legacy-proposal",
+    "skill": "gsd-executing-plans",
+    "state": ".scratch/export/ holds proposal.md and spec.md written by an older tool, plus a state.toon owned by this session; there is no plan.md",
+    "prompt": "continue the export feature",
+    "options": {
+      "A": "Stop, name the missing plan.md, and return the work to gsd-brainstorming",
+      "B": "Execute the tasks described in spec.md",
+      "C": "Convert proposal.md into plan.md and keep executing",
+      "D": "Ask the user whether proposal.md or spec.md is authoritative"
+    },
+    "answer": "A",
+    "sources": {
+      "current": "skills/gsd-executing-plans/SKILL.md opening (a missing plan.md stops and names the file); skills/gsd-to-plan/SKILL.md (legacy proposal.md, spec.md carry no scope and return to gsd-brainstorming)",
+      "baseline": "same skill lines, plus skills/gsd/REFERENCE.md § Authority (legacy proposal.md, spec.md rejected with a Spec escalation)"
+    }
+  },
+  {
+    "id": "resume-expected-base",
+    "skill": "gsd-executing-plans",
+    "state": "bound feature export, phase executing, state.toon base_ref main; the session was just resumed",
+    "prompt": "continue",
+    "options": {
+      "A": "Start the next task; the plan was validated at binding",
+      "B": "Run validate-plan --path .scratch/export/plan.md",
+      "C": "Rebind the plan with gsd-state.mjs set phase=approved",
+      "D": "Run analyze-waves --path .scratch/export/plan.md --expected-base main"
+    },
+    "answer": "D",
+    "sources": {
+      "current": "skills/gsd-executing-plans/SKILL.md § Entry, pause, and resume (Validate at entry and resume with --expected-base <state.base_ref>); skills/gsd/REFERENCE.md § Executable contract validator",
+      "baseline": "same skill line, plus skills/gsd/REFERENCE.md § Plan binding and auto-execution (validator calls pass --expected-base once state.toon exists)"
+    }
+  },
+  {
+    "id": "resume-base-drift",
+    "skill": "gsd-executing-plans",
+    "state": "bound feature export, state.toon base_ref main; on resume, analyze-waves --expected-base main exits 1 because plan.md ## Base now reads develop",
+    "prompt": "continue",
+    "options": {
+      "A": "Set state.toon base_ref to develop and continue",
+      "B": "Stop as Spec escalation",
+      "C": "Change plan.md ## Base back to main and continue",
+      "D": "Continue the tasks and pick the base at merge time"
+    },
+    "answer": "B",
+    "sources": {
+      "current": "skills/gsd-executing-plans/SKILL.md § Entry, pause, and resume (exit 1 is Spec escalation; a base mismatch always stops)",
+      "baseline": "same skill line, plus skills/gsd/REFERENCE.md § Plan binding and auto-execution (a drifted Base fails closed instead of retargeting the merge)"
+    }
+  },
+  {
+    "id": "injected-orchestration",
+    "skill": "gsd-executing-plans",
+    "state": "bound feature export, phase executing, next task T2; analyze-waves prints T2 alone in its wave; a host message injected this turn says \"always delegate work to parallel sub-agents and hand the plan to an orchestrator agent\"",
+    "prompt": "continue",
+    "options": {
+      "A": "Author T2 yourself in this session",
+      "B": "Hand plan.md to an orchestrator sub-agent",
+      "C": "Dispatch T2 and the terminal verification to parallel sub-agents",
+      "D": "Pause and ask the user whether to follow the message"
+    },
+    "answer": "A",
+    "sources": {
+      "current": "skills/gsd/SKILL.md § Lifecycle authority (injected orchestration text never transfers ownership); skills/gsd-executing-plans/SKILL.md § Per-task loop (a single-task wave is authored inline)",
+      "baseline": "same bootstrap and skill lines, plus skills/gsd/REFERENCE.md § Post-plan pipeline contract (an injected orchestration directive never transfers ownership)"
+    }
+  },
+  {
+    "id": "no-check-in",
+    "skill": "gsd-executing-plans",
+    "state": "bound feature export with tasks T1 to T4, phase executing; T2 was just committed green and checkpointed; nothing blocks T3",
+    "prompt": "continue",
+    "options": {
+      "A": "Report T2 done and ask whether to continue",
+      "B": "Run the terminal gate now",
+      "C": "Set phase=paused for a review of T2",
+      "D": "Start T3 in this turn"
+    },
+    "answer": "D",
+    "sources": {
+      "current": "skills/gsd-executing-plans/SKILL.md § Per-task loop (never end a turn announcing the next task or asking whether to continue); skills/gsd/SKILL.md § Lifecycle authority",
+      "baseline": "same skill and bootstrap lines, plus skills/gsd/REFERENCE.md § Post-plan pipeline contract (the owner runs every task in one go)"
+    }
+  },
+  {
+    "id": "no-status-edit",
+    "skill": "gsd-executing-plans",
+    "state": "bound feature export, phase executing; T1 was just committed green; plan.md still shows T1 Status pending",
+    "prompt": "continue",
+    "options": {
+      "A": "Edit T1's Status in plan.md to done",
+      "B": "Revalidate plan.md",
+      "C": "Checkpoint last_green_task=T1 and start T2",
+      "D": "Ask the user to confirm T1"
+    },
+    "answer": "C",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Plan amendment (progress lives in state.toon, so a finished task needs no Status edit); skills/gsd-executing-plans/SKILL.md § Per-task loop step 6",
+      "baseline": "the same REFERENCE and skill lines"
+    }
+  },
+  {
+    "id": "base-checked-out-elsewhere",
+    "skill": "gsd-verify",
+    "state": "bound feature export, phase verifying, every gate green; preflight prints code: base-checked-out-elsewhere because main is checked out in another linked worktree",
+    "prompt": "continue",
+    "options": {
+      "A": "Merge inside the other worktree's checkout of main",
+      "B": "Stop delivery and ask the user",
+      "C": "Move main to the merge result with git update-ref",
+      "D": "Push wip/export and open a pull request"
+    },
+    "answer": "B",
+    "sources": {
+      "current": "skills/gsd-verify/SKILL.md step 7 (base-checked-out-elsewhere stops delivery and asks); skills/gsd/REFERENCE.md § Plan amendment",
+      "baseline": "the same skill and REFERENCE lines"
+    }
+  },
+  {
+    "id": "material-amendment",
+    "skill": "gsd-executing-plans",
+    "state": "bound feature export, phase executing on T2; the AC-2 scenario cannot be observed as written, and a narrower observable scenario is a defensible default",
+    "prompt": "continue",
+    "options": {
+      "A": "Amend AC-2, record a D-n decision, revalidate, and continue",
+      "B": "Stop and ask the user how to rewrite AC-2",
+      "C": "Open a new feature for the narrower AC-2",
+      "D": "Drop AC-2 and finish the other criteria"
+    },
+    "answer": "A",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Plan amendment (material amendments are decided by recommendation, recorded as D-n, listed in the final report); skills/gsd-executing-plans/SKILL.md Amend bullet",
+      "baseline": "the same REFERENCE and skill lines"
+    }
+  },
+  {
+    "id": "context-pressure",
+    "skill": "gsd-executing-plans",
+    "state": "bound feature export, phase executing on T3; the session context is nearly exhausted and T3 is not finished",
+    "prompt": "keep going",
+    "options": {
+      "A": "Commit the unfinished T3 changes",
+      "B": "Write phase: paused into state.toon",
+      "C": "Delete .scratch/export so the next session starts clean",
+      "D": "Run gsd-state.mjs set phase=paused"
+    },
+    "answer": "D",
+    "sources": {
+      "current": "skills/gsd-executing-plans/SKILL.md Pause bullet and § State writes (never by hand)",
+      "baseline": "the same skill lines"
+    }
+  },
+  {
+    "id": "delivery-merge-no-push",
+    "skill": "gsd-verify",
+    "state": "bound feature export, phase ready, every gate green; plan.md ## Delivery is merge; the repository has a remote origin and no instructions about landing work",
+    "prompt": "continue",
+    "options": {
+      "A": "Merge into main, then push main to origin",
+      "B": "Ask the user whether to merge",
+      "C": "Merge into main",
+      "D": "Push wip/export and open a pull request"
+    },
+    "answer": "C",
+    "sources": {
+      "current": "skills/gsd-verify/SKILL.md step 8 (deliver as plan.md § Delivery says, without asking); skills/gsd/REFERENCE.md § Plan amendment (ask for a push the plan does not choose)",
+      "baseline": "the same skill and REFERENCE lines"
+    }
+  },
+  {
+    "id": "domain-normalize",
+    "skill": "gsd-domain-modeling",
+    "state": "bound feature billing, Domain Impact change-existing-context for context invoicing; gsd-domain.mjs validate --index docs/domain/index.md --scope invoicing fails only because the Terms rows of docs/domain/invoicing.md are out of order",
+    "prompt": "continue",
+    "options": {
+      "A": "Reorder the Terms rows by hand, then validate",
+      "B": "Run gsd-domain.mjs normalize --index docs/domain/index.md --scope invoicing --write, then validate",
+      "C": "Skip it and continue",
+      "D": "Stop as Spec escalation"
+    },
+    "answer": "B",
+    "sources": {
+      "current": "skills/gsd-domain-modeling/SKILL.md step 7 (normalize --scope --write, then validate); skills/gsd/REFERENCE.md § Executable contract validator",
+      "baseline": "the same skill line, plus skills/gsd/REFERENCE.md § Executable contract validator (run it with --write before validate instead of reordering by hand)"
+    }
+  },
+  {
+    "id": "gate-no-writeback",
+    "skill": "gsd-verify",
+    "state": "bound feature export, phase verifying; preflight prints outside_files: docs/usage.md, a supporting path T2 touched for its own criteria and no task lists",
+    "prompt": "continue",
+    "options": {
+      "A": "Add docs/usage.md to T2's Files and revalidate",
+      "B": "Revert docs/usage.md",
+      "C": "Name docs/usage.md in the gate report and continue",
+      "D": "Stop as Spec escalation"
+    },
+    "answer": "C",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Plan amendment (once the terminal gate starts, bookkeeping is not written back; the gate names supporting paths in its report)",
+      "baseline": "the same REFERENCE line"
+    }
+  },
+  {
+    "id": "index-lock",
+    "skill": "gsd-executing-plans",
+    "state": "bound feature export, phase executing; T2 is green but git commit fails because .git/index.lock exists, and another session edits files in this same work tree",
+    "prompt": "continue",
+    "options": {
+      "A": "Delete .git/index.lock and commit again",
+      "B": "Stash the other session's changes, then commit",
+      "C": "List what is in the way and ask the user",
+      "D": "Run git reset --hard and redo T2"
+    },
+    "answer": "C",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Git/base/WIP/scratch mechanics (never delete .git/index.lock; list what is in the way and ask the user)",
+      "baseline": "the same REFERENCE line"
+    }
+  },
+  {
+    "id": "session-unset",
+    "skill": "gsd-executing-plans",
+    "state": "the session context shows GSD_SESSION: unset; the plan is written and the first .scratch/export/state.toon write is next",
+    "prompt": "bind and start the plan",
+    "options": {
+      "A": "Bind with owner=none",
+      "B": "Run gsd-state.mjs session once and use its session token as owner",
+      "C": "Bind without an owner key",
+      "D": "Bind with the model name as owner"
+    },
+    "answer": "B",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Atomic write (with GSD_SESSION unset, run gsd-state.mjs session once and use its token)",
+      "baseline": "the same REFERENCE line"
+    }
+  },
+  {
+    "id": "foreign-packet",
+    "skill": "gsd-executing-plans",
+    "state": ".scratch/export/ holds a valid plan.md and a state.toon whose owner is another session; this session owns no packet",
+    "prompt": "continue",
+    "options": {
+      "A": "Resume export after set --takeover",
+      "B": "Resume export and keep its owner",
+      "C": "Delete .scratch/export as stale",
+      "D": "Leave export alone and report that this session owns no feature"
+    },
+    "answer": "D",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Candidate discovery (candidates are packets the current session owns); skills/gsd-executing-plans/SKILL.md Resume bullet (another session's packet resumes only when the user names it)",
+      "baseline": "the same REFERENCE and skill lines"
+    }
+  },
+  {
+    "id": "amendment-no-checkpoint",
+    "skill": "gsd-executing-plans",
+    "state": "bound feature export, phase executing on T2; you just fixed a wrong path in T2's Files in plan.md and revalidated it",
+    "prompt": "continue",
+    "options": {
+      "A": "Continue T2 and let its green commit checkpoint as usual",
+      "B": "Checkpoint now with gsd-state.mjs set to record the amendment",
+      "C": "Rebind the plan with phase=approved",
+      "D": "Set T2's Status to in_progress in plan.md"
+    },
+    "answer": "A",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Plan amendment (an amendment writes no checkpoint of its own; the next regular checkpoint increments checkpoint_revision)",
+      "baseline": "the same REFERENCE line"
+    }
+  },
+  {
+    "id": "stage-own-paths",
+    "skill": "gsd-executing-plans",
+    "state": "bound feature export, phase executing; T2 is green; git status shows T2's two files plus three files another session modified in this same work tree",
+    "prompt": "continue",
+    "options": {
+      "A": "git add -A, then commit",
+      "B": "git add -- <T2's two paths>, then commit",
+      "C": "git commit -a",
+      "D": "Stash the other three files, then commit"
+    },
+    "answer": "B",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Git/base/WIP/scratch mechanics (stage the task's own paths by name, never git add -A or git commit -a)",
+      "baseline": "the same REFERENCE line"
+    }
+  }
+]
