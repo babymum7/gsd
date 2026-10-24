@@ -10,61 +10,9 @@ export { existsSync, readdirSync, readFileSync, mkdtempSync, mkdirSync, writeFil
 export const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
 export const SKILLS = join(ROOT, "skills");
 export const read = (path) => readFileSync(join(ROOT, path), "utf8");
-export function parseAgentFrontmatter(content, label) {
-  const normalized = content.replace(/\r\n/g, "\n");
-  if (!normalized.startsWith("---\n")) throw new Error(`${label}: missing frontmatter`);
-  const end = normalized.indexOf("\n---\n", 4);
-  if (end === -1) throw new Error(`${label}: unterminated frontmatter`);
-  const sourceLines = normalized.slice(4, end).split("\n")
-    .filter((line) => line.trim() !== "")
-    .map((line) => ({ indent: line.length - line.trimStart().length, text: line.trim() }));
-  const scalar = (value) => {
-    if (value === "") return {};
-    if (value === "true") return true;
-    if (value === "false") return false;
-    if (/^-?\d+(?:\.\d+)?$/.test(value)) return Number(value);
-    if (value.startsWith('"') && value.endsWith('"')) return JSON.parse(value);
-    return value;
-  };
-  const parseBlock = (start, indent) => {
-    const isList = sourceLines[start]?.indent === indent && sourceLines[start].text.startsWith("- ");
-    const result = isList ? [] : {};
-    let index = start;
-    while (index < sourceLines.length && sourceLines[index].indent === indent) {
-      const { text } = sourceLines[index];
-      if (isList) {
-        if (!text.startsWith("- ")) break;
-        result.push(scalar(text.slice(2).trim()));
-        index++;
-        continue;
-      }
-      const match = text.match(/^([A-Za-z][A-Za-z0-9_-]*):(?:\s+(.*))?$/);
-      if (!match) throw new Error(`${label}: malformed frontmatter line "${text}"`);
-      const [, key, rawValue = ""] = match;
-      if (Object.hasOwn(result, key)) throw new Error(`${label}: duplicate ${key}`);
-      if (rawValue !== "") {
-        result[key] = scalar(rawValue);
-        index++;
-        continue;
-      }
-      if (sourceLines[index + 1]?.indent > indent) {
-        [result[key], index] = parseBlock(index + 1, sourceLines[index + 1].indent);
-      } else {
-        result[key] = {};
-        index++;
-      }
-    }
-    return [result, index];
-  };
-  const [frontmatter, next] = parseBlock(0, sourceLines[0]?.indent ?? 0);
-  assert.equal(next, sourceLines.length, `${label}: unparsed frontmatter`);
-  return frontmatter;
-}
 export const skillNames = () => readdirSync(SKILLS, { withFileTypes: true })
   .filter((entry) => entry.isDirectory() && entry.name.startsWith("gsd") && existsSync(join(SKILLS, entry.name, "SKILL.md")))
   .map((entry) => entry.name);
-export const visibleSkillNames = () => skillNames().filter((name) =>
-  parseAgentFrontmatter(read(`skills/${name}/SKILL.md`), name).hide !== true);
 export const filesUnder = (directory) => readdirSync(directory, { withFileTypes: true })
   .flatMap((entry) => {
     const path = join(directory, entry.name);
