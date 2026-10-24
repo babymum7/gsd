@@ -46,4 +46,6 @@ The merge target is exactly the recorded `base_ref` under § Base derivation and
 - Merge: check out `base_ref` and run `git merge --no-ff -F <absolute path of merge-message.txt> wip/<feature>`; a cross-repo plan merges each listed repository against its row's Base first, with the same message file, and this repository last. Only after every merge landed, clean up under § Feature cleanup.
 - Pull request: push `wip/<feature>` (in every listed repository) and open the PR with the host's tooling, using the message after its first line as the body; keep the branch and scratch until the user says it merged.
 
+When this feature is one part of a parts checklist (the Parts section of `gsd-brainstorming`), delivery does not end the turn: tick its line and start the next unchecked part in the same turn, as its Back to back rule says; only the closing merge waits for the worktree holding the base.
+
 The terminal gate reports progress or blockers only. Its final report lists the decisions the owner made on its own under § Plan amendment.

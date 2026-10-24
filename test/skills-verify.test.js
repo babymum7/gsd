@@ -20,3 +20,12 @@ test("all relative Markdown links resolve", () => {
   }
 });
 
+
+// Sessions stopped after each delivered part until the user typed "continue", and passed a
+// moving `wip/<feature>` as the wave base, which failed `base-not-ancestor` after the first merge.
+test("delivery moves on to the next part and the wave base is a commit", () => {
+  const verify = readFileSync(join(SKILLS, "gsd-verify", "SKILL.md"), "utf8");
+  assert.match(verify, /tick its line and start the next unchecked part in the same turn/);
+  const executing = readFileSync(join(SKILLS, "gsd-executing-plans", "SKILL.md"), "utf8");
+  assert.match(executing, /`--wave-base` is the commit SHA the wave's task branches were cut from/);
+});
