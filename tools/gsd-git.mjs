@@ -198,8 +198,14 @@ function failUsage(message, command = null) {
   process.exit(2);
 }
 
-function blocked(code, message) {
-  write_(["status: blocked", `code: ${code}`, `error: ${JSON.stringify(message)}`, "exit=1"]);
+function blocked(code, message, help = null) {
+  write_([
+    "status: blocked",
+    `code: ${code}`,
+    `error: ${JSON.stringify(message)}`,
+    ...(help ? [`help: ${JSON.stringify(help)}`] : []),
+    "exit=1",
+  ]);
   process.exit(1);
 }
 
@@ -326,6 +332,21 @@ function checkedOutElsewhere(branch, cwd) {
   return null;
 }
 
+// The other worktrees of this repository that sit inside this work tree, as paths relative to
+// its top level; a host that isolates sub-agents in worktrees may register them inside this one.
+function nestedWorktrees(cwd) {
+  const listing = git(["worktree", "list", "--porcelain"], cwd);
+  const self = git(["rev-parse", "--show-toplevel"], cwd);
+  if (listing.status !== 0 || self.status !== 0) return new Set();
+  const prefix = `${self.stdout}/`;
+  return new Set(
+    listing.stdout
+      .split("\n")
+      .filter((line) => line.startsWith(`worktree ${prefix}`))
+      .map((line) => line.slice(`worktree ${prefix}`.length)),
+  );
+}
+
 // Canon requires the reviewed non-scratch tree to be clean before the
 // merge. It is not cosmetic: the merge commit `git merge` records takes the whole
 // index, so anything staged outside `.scratch/` rides into the merge without being reviewed
@@ -339,6 +360,7 @@ function dirtyNonScratchPaths(cwd) {
     blocked("git-query-failed", "git could not report the working tree state, so it cannot be proven reviewed");
   }
   const records = report.raw.split("\0").filter((record) => record !== "");
+  const nested = nestedWorktrees(cwd);
   const dirty = new Set();
   // The index column tells work that only lacks a commit from edits nobody staged.
   const staged = new Set();
@@ -353,6 +375,9 @@ function dirtyNonScratchPaths(cwd) {
       index += 1;
       paths.push(records[index]);
     }
+    // A linked worktree registered inside this one shows as an untracked folder, but it is
+    // another checkout, never bytes this merge would carry.
+    if (record.startsWith("?? ") && nested.has(paths[0].replace(/\/$/, ""))) continue;
     for (const path of paths) {
       if (path.startsWith(".scratch/")) continue;
       dirty.add(path);
@@ -467,7 +492,8 @@ function parseArguments(argv) {
 
 // One repository's branch identity: base and WIP resolve locally, the base is free to
 // receive the merge, HEAD rests on the WIP branch, and nothing outside .scratch/ is dirty.
-function proveBranchIdentity(dir, base, wip, where) {
+// `baseMayBeElsewhere` is true for a delivery that never checks out or moves the base.
+function proveBranchIdentity(dir, base, wip, where, baseMayBeElsewhere = false) {
   if (base === wip) blocked("base-is-wip", `base_ref ${base}${where} is the branch being merged`);
   if (!localBranchExists(base, dir)) {
     blocked("base-missing", `base_ref ${base}${where} no longer resolves to a local branch, so the merge has no target`);
@@ -480,7 +506,7 @@ function proveBranchIdentity(dir, base, wip, where) {
       `wip_branch ${wip}${where} is not a local branch: it was deleted, or execution never created it. If no task committed yet, run \`git switch -c ${wip} ${base}\`${where ? " in that repository" : ""} (uncommitted feature paths travel with the switch), commit the feature's paths there, and rerun; otherwise ask the user where the work went`,
     );
   }
-  const elsewhere = checkedOutElsewhere(base, dir);
+  const elsewhere = baseMayBeElsewhere ? null : checkedOutElsewhere(base, dir);
   if (elsewhere !== null) {
     blocked(
       "base-checked-out-elsewhere",
@@ -578,16 +604,19 @@ function preflight(cwd, featureDir) {
   }
   const base = requireBranchName(state.base_ref, "base_ref");
   const wip = requireBranchName(state.wip_branch, "wip_branch");
-  const head = proveBranchIdentity(cwd, base, wip, "");
   // A cross-repo plan carries one `wip/<feature>` branch per listed repository, each
   // merging into its own recorded base, so every one must hold before the gate is ready.
   let repos = [];
   let tasks = [];
+  let delivery = null;
   try {
-    ({ repos, tasks } = validatePlanFile(join(featureDir, "plan.md"), { cwd, kind: "plan", expectedBase: base }).parsed);
+    ({ repos, tasks, delivery } = validatePlanFile(join(featureDir, "plan.md"), { cwd, kind: "plan", expectedBase: base }).parsed);
   } catch (error) {
-    blocked("plan-invalid", `cannot validate plan ${join(featureDir, "plan.md")}: ${error.message}`);
+    blocked("plan-invalid", `cannot validate plan ${join(featureDir, "plan.md")}: ${error.message}`, error.hint);
   }
+  // A pull request or a kept branch never checks out the base, so another worktree may hold it.
+  const baseMayBeElsewhere = delivery === "pull-request" || delivery === "branch";
+  const head = proveBranchIdentity(cwd, base, wip, "", baseMayBeElsewhere);
   const repoLines = [];
   for (const repo of repos.filter((entry) => entry.path !== ".")) {
     const dir = resolve(cwd, repo.path);
@@ -610,7 +639,7 @@ function preflight(cwd, featureDir) {
       repoLines.push(`repo: ${repo.name} base=${repo.base} wip=${wip} merged${unpinned}`);
       continue;
     }
-    proveBranchIdentity(dir, repo.base, wip, ` in repo ${repo.name}`);
+    proveBranchIdentity(dir, repo.base, wip, ` in repo ${repo.name}`, baseMayBeElsewhere);
     repoLines.push(`repo: ${repo.name} base=${repo.base} wip=${wip}${unpinned}`);
   }
   const outsideLines = outsideFiles(cwd, base, wip, repos, tasks).map((path) => `outside_files: ${path}`);
@@ -638,7 +667,7 @@ function verifyTaskBranch(cwd, featureDir, taskId, branch, waveBase) {
   try {
     validated = validatePlanFile(planPath, { cwd, kind: "plan" });
   } catch (planError) {
-    blocked("plan-invalid", `cannot read or parse approved plan at ${planPath}: ${planError.message}`);
+    blocked("plan-invalid", `cannot read or parse approved plan at ${planPath}: ${planError.message}`, planError.hint);
   }
 
   const task = validated.parsed.tasks.find((t) => t.id === taskId);

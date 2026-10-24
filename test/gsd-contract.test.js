@@ -3036,3 +3036,20 @@ test("bare Feature and Base slugs and space-separated Satisfies are accepted", (
     rmSync(workspace, { recursive: true, force: true });
   }
 });
+
+// Sessions wrapped a long scope item onto a second line or nested a sub-bullet, and the old
+// help only repeated "start with - ", which the first line already did.
+test("a nested or wrapped Scope line gets help naming the one-line top-level bullet rule", () => {
+  for (const extra of ["  - a nested detail", "  continued text of the item above"]) {
+    const plan = canonicalPlan().replace("- Validate one canonical plan.", `- Validate one canonical plan.\n${extra}`);
+    const dir = mkdtempSync(join(tmpdir(), "gsd-scope-"));
+    try {
+      mkdirSync(join(dir, ".scratch", "valid-plan"), { recursive: true });
+      writeFileSync(join(dir, ".scratch", "valid-plan", "plan.md"), plan);
+      const result = spawnSync(process.execPath, [CLI, "validate-plan", "--path", ".scratch/valid-plan/plan.md"], { cwd: dir, encoding: "utf8" });
+      assert.match(result.stdout + result.stderr, /one top-level bullet on one line/, extra);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+});

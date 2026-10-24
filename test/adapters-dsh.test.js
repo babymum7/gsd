@@ -30,7 +30,7 @@ function recordingContext() {
   });
   return {
     created: (agent, source) => Promise.all(listeners.get("agent/created").map((fn) => fn({ agent, source }))),
-    event: (session, type) => listeners.get("session/event").forEach((fn) => fn(session, { type })),
+    event: (session, type, extra = {}) => listeners.get("session/event").forEach((fn) => fn(session, { type, ...extra })),
     // The innermost `next` yields the decision dsh would have made.
     step: (agent, decision) => listeners.get("agent/pre-step")[0]({ agent, messages: [] }, async () => decision),
   };
@@ -151,6 +151,18 @@ test("compaction/end adds the bootstrap and capsule to the next entering step of
   assert.ok(isDeeplyFrozen(added));
 
   assert.deepEqual((await dsh.step(agent, enter("later"))).messages.map(textOf), ["later"], "a later step gains nothing");
+});
+
+// dsh ends a failed compaction (a 504, or a request too large) with `compaction/end` and an
+// `error`; the history was not compacted, so the bootstrap it still holds must not be repeated.
+test("a compaction/end carrying an error adds nothing to the next step", async () => {
+  const project = projectWithActiveFeature(owner("abc"));
+  const dsh = recordingContext();
+  const agent = fakeAgent("abc", project);
+
+  dsh.event(agent.session, "compaction/end", { error: "504 gateway timeout" });
+
+  assert.deepEqual((await dsh.step(agent, enter("hi"))).messages.map(textOf), ["hi"]);
 });
 
 test("after a compaction a session owning no packet gets the bootstrap alone", async () => {

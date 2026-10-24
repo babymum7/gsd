@@ -106,7 +106,8 @@ function handleSessionStart(input) {
 
 function handleUserPromptSubmit(input) {
   const store = createMarkerStore(STATE_ROOT, input.session_id);
-  if (typeof input.prompt === 'string' && input.prompt.trim() !== '') {
+  // A finished background task arrives as a prompt; it is not what the user asked for.
+  if (typeof input.prompt === 'string' && input.prompt.trim() !== '' && !input.prompt.startsWith('<task-notification>')) {
     store.write('last-request', input.prompt);
   }
   if (store.read('bootstrap-emitted')) return;

@@ -1,7 +1,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { detectCandidates, writeStateAtomic } from "../lib/gsd-state.mjs";
@@ -219,5 +219,41 @@ test("an oversized feature directory is named as a stop without hiding other pac
     assert.throws(() => detectCandidates(root), /entry limit/, "default discovery still fails closed");
   } finally {
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// Sessions often work from a subdirectory or cut a linked worktree for their feature; the
+// capsule used to read only `<cwd>/.scratch` and went silent for both.
+test("the capsule finds owned packets at the work tree root and names those in other worktrees", () => {
+  const base = mkdtempSync(join(tmpdir(), "gsd-session-worktrees-"));
+  const main = join(base, "main");
+  const linked = join(base, "linked");
+  const git = (cwd, ...args) => {
+    const result = spawnSync("git", ["-C", cwd, "-c", "user.name=t", "-c", "user.email=t@t", ...args], { encoding: "utf8" });
+    assert.equal(result.status, 0, result.stderr);
+  };
+  const packet = (root, feature, owner) => {
+    mkdirSync(join(root, ".scratch", feature), { recursive: true });
+    writeFileSync(join(root, ".scratch", feature, "plan.md"), "# Plan\n");
+    writeStateAtomic(join(root, ".scratch", feature), validState(feature, owner));
+  };
+  try {
+    mkdirSync(join(main, "src"), { recursive: true });
+    git(main, "init", "-q", "-b", "main");
+    git(main, "commit", "-q", "--allow-empty", "-m", "init");
+    git(main, "worktree", "add", "-q", "-b", "other", linked);
+    packet(main, "here", "s1");
+    packet(linked, "there", "s1");
+    packet(linked, "theirs", "s2");
+
+    const capsule = renderRecoveryCapsule("/gsd", join(main, "src"), "s1");
+    assert.match(capsule, /^GSD features owned by this session: here$/m);
+    assert.ok(
+      capsule.includes(`GSD features owned by this session in the worktree ${realpathSync(linked)} (resume them from there): there`),
+      capsule,
+    );
+    assert.doesNotMatch(capsule, /theirs/, "another session's packet stays hidden");
+  } finally {
+    rmSync(base, { recursive: true, force: true });
   }
 });
