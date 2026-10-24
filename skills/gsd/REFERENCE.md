@@ -44,7 +44,7 @@ Git-tracked knowledge for people and agents is strict Markdown under `docs/`; TO
 Domain docs apply only in repositories with `docs/domain/index.md` or after the user accepts a bootstrap; elsewhere a plan omits `Domain Impact`.
 - When recorded, `classification=none` requires `contexts=none`, `documentation=none`, and concrete evidence. Semantic changes name affected contexts and bind exact `docs/domain/<context>.md` paths to tasks that also change semantic code; prose-only or test-only ownership fails.
 - An existing index suppresses every broad bootstrap prompt: read only shards mapped to affected contexts. When absent, brainstorming may offer a bootstrap once; an accepted bootstrap writes the feature-scoped contexts, and a decline writes nothing.
-- Domain docs describe current production behavior after tasks; plans record target behavior before them. Code, schemas, contracts, and tests win on conflict, and drift blocks until they agree.
+- Domain docs describe current production behavior after tasks; plans record target behavior before them. Code, schemas, contracts, and tests win on conflict, and drift in the affected contexts blocks until they agree; drift elsewhere is reported, never repaired in this feature.
 - `gsd-domain-modeling` upserts one canonical `## Domain documentation` section in applicable `AGENTS.md` without duplication.
 
 ### Durable decision and design records
@@ -83,7 +83,7 @@ bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/
 - The same command validates a new, resumed, or amended plan; `plan.md` bytes are not pinned, so an edit is judged by grammar, not by a hash.
 - `normalize-plan` proposes or applies surface-only fixes (backticks on Feature/Base, trailing whitespace, blank lines next to headings or inside structured sections, the exact `## ` spelling of a known section heading, section order, sorted Domain Impact Contexts, final newline). `init-plan` writes a skeleton and refuses to overwrite. `merge-message` validates, then prints plain text (a merge subject that names the base unless a cross-repo plan has several, the Summary, and active criterion titles) for `git merge -F` and a pull request body.
 - Success prints scalar TOON (`status`, `kind`, `feature`, `base`, `tasks`, then `delivery` only when the plan has `## Delivery`). Failures print `code: io-error` or `code: invalid-artifact` (and `code: plan-exists` when `init-plan` finds a plan already there) with a `help:` fix (exit 1); usage errors exit 2. One run reports every independent defect: the first as `error:`/`line:`/`help:`, each further one as `error_2:`/`line_2:`/`help_2:` and onward, and `errors:` gives the count, so fix them all before rerunning.
-- Domain docs have their own surface fixer: `bun "<GSD_ROOT>/tools/gsd-domain.mjs" normalize --index docs/domain/index.md [--write]` sorts the index Scope rows and each mapped shard's Terms rows and section order; run it with `--write` before `validate` instead of reordering by hand.
+- Domain docs have their own surface fixer: `bun "<GSD_ROOT>/tools/gsd-domain.mjs" normalize --index docs/domain/index.md [--write] [--scope <scope>]...` sorts the index Scope rows and each mapped shard's Terms rows and section order; run it with `--write` before `validate` instead of reordering by hand. Both take one `--scope` per affected context, and `validate` lists every failing file at once.
 - `gsd-state.mjs set` resolves a `last_green_commit` such as `HEAD` or a short SHA to the full SHA in the repository holding `.scratch`.
 - Only `init-plan`, `normalize-plan --write`, `gsd-domain.mjs normalize --write`, and `gsd-state.mjs set` write anything.
 
@@ -145,7 +145,7 @@ The owner rebuilds task and terminal slices from plan, state, and Git.
 - A user-stated requirement change mid-execution is an amendment: amend, revalidate, and continue.
 - An amendment keeps the plan grammar in [../gsd-to-plan/PLAN-GRAMMAR.md](../gsd-to-plan/PLAN-GRAMMAR.md); `validate-plan` is the authority.
 - Material amendments are changing an active criterion, weakening invariants or non-goals, changing `Domain Impact`, replacing interface pins, changing a `## Repos` base, or rewriting completed tasks. The owner decides each by its own recommendation, records it as the next `D-n` decision with its rationale, and lists it in the final report.
-- The owner asks only for a destructive or outward action the plan does not cover (production data, a force push, deleting files nobody approved, a push the plan does not choose), for missing access, or for an acceptance contradiction with no defensible default.
+- The owner asks only for a destructive or outward action the plan does not cover (production data, a force push, deleting files nobody approved, a push the plan does not choose), for missing access, for a gate block whose help says to ask the user (such as `base-checked-out-elsewhere`; never merge inside another worktree's checkout), or for an acceptance contradiction with no defensible default.
 
 ### Skill derivation from phase and next_action
 
@@ -197,6 +197,7 @@ A plan with `## Repos` keeps `.scratch/<feature>/` and `state.toon` in this repo
 ### Base derivation and merge target
 
 At packet creation run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base` and record the printed `base:` branch in `plan.md` § Base and `state.toon` `base_ref`. A detached HEAD exits 1 with `code: detached-head` instead of recording a commit oid. A HEAD on any `wip/*` branch exits 1 with `code: head-is-wip`: another feature holds this work tree, so ask the user and recommend a separate `git worktree` rather than switching branches under that session. Defaults, upstreams, and conventions count only when checked out; a linked worktree records its own branch.
+- For a worktree of its own, run `derive-base` in the original tree, then `git worktree add -b wip/<feature> <dir> <base>`, and record that base in the new worktree's plan and state.
 
 Before merge run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>`, unpiped or under `set -o pipefail`.
 - Exit 0 prints `status: ready`, the observed base, WIP branch, and HEAD (equal to `wip_branch`), one `repo:` line per other listed repository, and a trailing `exit=0` line.

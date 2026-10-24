@@ -31,9 +31,9 @@ Before the first task, prove `state.toon` is bound and `wip/<feature>` is checke
 3. Follow `GSD_ROOT/skills/gsd-tdd/SKILL.md`: RED, GREEN, refactor, with Fast TDD Checks only.
 4. A non-`none` `Domain Impact` task updates its named shards in the same commit.
 5. A red check repairs inline. When its cause cannot be located, follow `GSD_ROOT/skills/gsd-diagnosing-bugs/SKILL.md` inline without asking questions; missing access or an ambiguous criterion is Spec escalation.
-6. Commit only green task-owned paths on `wip/<feature>`, then set `last_green_task`, `last_green_commit`, and `next_action=start/continue task`. `Tn+1` starts only from a committed green `Tn`.
+6. Commit only green task-owned paths on `wip/<feature>`, then set `last_green_task`, `last_green_commit`, and `next_action="start/continue task"`. `Tn+1` starts only from a committed green `Tn`.
 
-Record settled UI/UX decisions as `docs/design/NNNN-slug.md` under § Durable decision and design records. When every task is green, set `next_action=enter terminal verification/repair` and load `gsd-verify`. Report progress and blockers only.
+Record settled UI/UX decisions as `docs/design/NNNN-slug.md` under § Durable decision and design records. When every task is green, set `next_action="enter terminal verification/repair"` and load `gsd-verify`. Report progress and blockers only.
 
 Run tasks, the terminal gate, and delivery back to back under § Post-plan pipeline contract. Never end a turn by announcing the next task or asking whether to continue while owned work remains: start it instead. Only a stop listed in § Plan amendment ends a turn early.
 
@@ -43,12 +43,12 @@ Only implementation is dispatched; repair, diagnosis, architecture, and verifica
 
 A **wave** is a maximal contiguous run of tasks whose pairs have disjoint `Files` (per repository), disjoint `Satisfies`, and differing `Test`; `analyze-waves` prints them separated by `|`. Each dispatched task runs in its own isolated workspace; without isolation or dispatch, run the wave serially in plan order.
 
-1. Each sub-agent gets one task's full slice, the plan path, base and WIP identity, and the absolute paths of `skills/gsd-tdd/SKILL.md` and, when `Domain Impact` is not `none`, `skills/gsd-domain-modeling/SKILL.md` under the injected `GSD_ROOT`. Use the bootstrap's `worker` profile when listed.
+1. Each sub-agent gets exactly one task, never a whole plan, wave, review, or fix: that task's full slice, the plan path, base and WIP identity, and the absolute paths of `skills/gsd-tdd/SKILL.md` and, when `Domain Impact` is not `none`, `skills/gsd-domain-modeling/SKILL.md` under the injected `GSD_ROOT`. Use the bootstrap's `worker` profile when listed.
 2. It runs RED, GREEN, refactor and commits only green changes for its task on its own task branch cut from the wave base. A path outside its `Files` that the task needs (a test the change broke, a generated file) is named in its report with the reason; a path another task of the wave owns is never edited. It never touches `state.toon` or `plan.md`, merges, or runs slow suites.
 3. Reconcile with Git bytes, never the sub-agent's report: `bun "<GSD_ROOT>/tools/gsd-git.mjs" verify-task-branch --feature-dir .scratch/<feature> --task <Tn> --branch <task-branch> --wave-base <ref>` must print `status: ready`. A block (`branch-missing`, `base-not-ancestor`, `empty-diff`, `out-of-slice-path`, `scratch-mutated`, `plan-invalid`, `not-a-repository-root`) is an integrity failure the owner repairs inline, never re-dispatches.
    `--wave-base` is the commit SHA the wave's task branches were cut from, recorded before dispatch, never `wip/<feature>`: that branch moves with the first merge, and every later check then fails `base-not-ancestor`.
    `out-of-slice-path` names every stray path at once: one that serves the task's criteria and no other task owns is added to that task's `Files` under § Plan amendment before rerunning the check; any other is reverted on the task branch.
-4. Merge the wave's task branches into `wip/<feature>` in plan order, rerun every merged task's focused check, then checkpoint with the wave's last task.
+4. Merge the wave's task branches into `wip/<feature>` in plan order, rerun every merged task's focused check, then checkpoint with the wave's last task. Retire each task workspace: `git worktree remove` (after `git worktree unlock` when locked), then `git branch -d`, never `-D`.
 
 ## Close or abandon
 
