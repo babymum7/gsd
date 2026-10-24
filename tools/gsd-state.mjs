@@ -393,6 +393,14 @@ if (input.usageError) {
   const featureMetaName = path.basename(path.resolve(input.featureDir));
   const statePath = path.join(path.resolve(input.featureDir), "state.toon");
   const updateKeys = new Set(input.pairs.map((p) => p.key));
+  // A relative path read from the wrong directory would otherwise seed a fresh default state
+  // and fail on a field the caller never touched.
+  if (!existsSync(path.resolve(input.featureDir))) {
+    failArtifact(
+      new Error(`feature directory ${path.resolve(input.featureDir)} does not exist: run from the repository root that holds .scratch/<feature>, or pass its absolute path`),
+      "set",
+    );
+  }
 
   try {
     acquireStateLock(input.featureDir);

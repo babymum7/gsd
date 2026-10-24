@@ -1029,3 +1029,27 @@ test("CLI set reports io-error when the feature directory is read-only", () => {
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+// A shell left in another directory made a relative --feature-dir miss, and set reported
+// "git identity is required" against a state it had just invented.
+test("CLI set names a feature directory that does not exist", () => {
+  const r = cli(["set", "--feature-dir", join(tmpdir(), "gsd-no-such-dir", ".scratch", "demo"), "owner=claude-test", "phase=approved"]);
+  assert.equal(r.exitCode, 1, r.stdout + r.stderr);
+  assert.match(r.stdout, /feature directory .*gsd-no-such-dir.* does not exist/);
+});
+
+test("a half-set checkpoint names the missing field", () => {
+  const { dir, scratch } = tmpFeatureDir("test-feature");
+  try {
+    assert.throws(
+      () => writeStateAtomic(scratch, { ...VALID_STATE, last_green_task: "T1", last_green_commit: "none" }),
+      /last_green_commit is missing: set last_green_task and last_green_commit together/,
+    );
+    assert.throws(
+      () => writeStateAtomic(scratch, { ...VALID_STATE, last_green_task: "none", last_green_commit: "a".repeat(40) }),
+      /last_green_task is missing/,
+    );
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

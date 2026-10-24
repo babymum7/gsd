@@ -26,7 +26,7 @@ Only `# Plan`, `## Feature`, `## Base`, `## Acceptance Criteria`, and `## Tasks`
 - **Broad bootstrap:** <not-offered|declined|selected>
 - **Evidence:** <concrete code/schema/contract evidence>
 ## Scope
-- <included behavior>
+- <included behavior, one top-level bullet on one line>
 ## Acceptance Criteria
 ### AC-1: <title>
 - **State:** active
