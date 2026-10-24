@@ -871,7 +871,8 @@ describe("T3 Review Fixes detailed behavior", () => {
       assert.equal(compactResult.context.length, 1);
 
       const capsule = compactResult.context[0];
-      assert.ok(Buffer.byteLength(capsule, "utf8") < 2000, "Capsule must be under 2000 bytes even for five 255-byte slugs");
+      // The tools line adds ~367 fixed bytes; five maximal slugs stay far below the 4000-byte cap.
+      assert.ok(Buffer.byteLength(capsule, "utf8") < 2500, "Capsule must be under 2500 bytes even for five 255-byte slugs");
 
       await registeredEvents["session_compact"]({}, { cwd: tempDir, sessionManager: TEST_SESSION });
       assert.equal(sentMessages.length, 1);
@@ -1093,6 +1094,7 @@ describe("T3 Review Fixes detailed behavior", () => {
     const handWrittenExpected = `[GSD Recovery Capsule]
 GSD features owned by this session: feat-a
 If resuming, follow the bootstrap routing in ${expectedMasterPath}: bare "continue" selects gsd-executing-plans; a prompt naming an active feature routes to that feature's owner skill. Stop immediately on malformed or ambiguous state. Otherwise, continue ordinary routing for the current request.
+Lifecycle tools, in the tools directory of the GSD_ROOT the bootstrap names, run as bun "<tool path>": gsd-state.mjs set --feature-dir .scratch/<feature> owner=<GSD_SESSION> key=value...; gsd-contract.mjs validate-plan|analyze-waves|merge-message --path .scratch/<feature>/plan.md [--expected-base <base>]; gsd-git.mjs preflight --feature-dir .scratch/<feature>
 Compaction MUST preserve and continue the current user request. Only resume an active feature when the preserved request or a bare continue explicitly selects it.`;
 
     assert.equal(capsule, handWrittenExpected, "Capsule must match hand-written expected bytes exactly with literal special characters");

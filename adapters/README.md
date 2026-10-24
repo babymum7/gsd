@@ -207,6 +207,7 @@ The Compaction Recovery Capsule is the canonical recovery interface. Its exact t
 [GSD Recovery Capsule]
 GSD features owned by this session: <features>
 <resume_instruction>
+Lifecycle tools, in the tools directory of the GSD_ROOT the bootstrap names, run as bun "<tool path>": gsd-state.mjs set --feature-dir .scratch/<feature> owner=<GSD_SESSION> key=value...; gsd-contract.mjs validate-plan|analyze-waves|merge-message --path .scratch/<feature>/plan.md [--expected-base <base>]; gsd-git.mjs preflight --feature-dir .scratch/<feature>
 Compaction MUST preserve and continue the current user request. Only resume an active feature when the preserved request or a bare continue explicitly selects it.
 ```
 
@@ -224,5 +225,7 @@ With more than 5 active features, an additional clause is appended:
     ` Some features are omitted from this list — stop and select exactly one active feature before resuming.`
 Both modes end with:
     ` Stop immediately on malformed or ambiguous state. Otherwise, continue ordinary routing for the current request.`
+
+The tools line names no path, since the bootstrap before it already names `GSD_ROOT`; it keeps `<tool path>`, `<feature>`, `<GSD_SESSION>`, and `<base>` literally: they name what the session fills in, and `GSD_SESSION` closes the capsule, so a session resuming after compaction can call the lifecycle tools without rereading the skill.
 
 A rendered capsule over 4000 bytes fails closed; nothing is truncated.
