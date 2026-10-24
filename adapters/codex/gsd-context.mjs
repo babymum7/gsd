@@ -4,8 +4,9 @@
 // capsule that the harness-generic core in lib/ renders. See adapters/README.md.
 //
 // Events handled:
-//   SessionStart     -> inject the bootstrap, or the recovery capsule when the session
-//                       started from a compaction or a resume (`source: "compact"`/`"resume"`)
+//   SessionStart     -> inject the bootstrap, then the recovery capsule after a compaction;
+//                       a resume of a session that already got the bootstrap gets only the
+//                       capsule, or nothing when it owns no packet
 //   UserPromptSubmit -> inject the bootstrap once when no SessionStart ran
 //
 // Ordinary prompts emit nothing, so per-turn token cost stays at zero. Codex fires
@@ -76,17 +77,19 @@ function cwdOf(input) {
 
 function handleSessionStart(input) {
   const store = createMarkerStore(STATE_ROOT, input.session_id);
+  const delivered = store.read('bootstrap-emitted') !== null;
   store.write('bootstrap-emitted');
-  if (input.source === 'compact' || input.source === 'resume') {
-    const capsule = renderRecoveryCapsule(GSD_ROOT, cwdOf(input), ownerOf(input));
-    // A compaction drops the bootstrap injected earlier, so it comes back before the capsule;
-    // a resume replays it with the transcript.
-    if (capsule) {
-      emit('SessionStart', input.source === 'compact' ? `${renderBootstrap(ownerOf(input))}\n\n${capsule}` : capsule);
-      return;
-    }
+  const owner = ownerOf(input);
+  const capsule = input.source === 'compact' || input.source === 'resume'
+    ? renderRecoveryCapsule(GSD_ROOT, cwdOf(input), owner)
+    : null;
+  // A resume replays the transcript, so a bootstrap this session already got is still in it and
+  // only the capsule, if any, is new. A compaction drops it, so it comes back before the capsule.
+  if (input.source === 'resume' && delivered) {
+    emit('SessionStart', capsule);
+    return;
   }
-  emit('SessionStart', renderBootstrap(ownerOf(input)));
+  emit('SessionStart', capsule ? `${renderBootstrap(owner)}\n\n${capsule}` : renderBootstrap(owner));
 }
 
 function handleUserPromptSubmit(input) {

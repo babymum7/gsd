@@ -161,34 +161,38 @@ test("a compact SessionStart delivers the bootstrap followed by the recovery cap
   );
 });
 
-test("a resume SessionStart refreshes the recovery capsule when work is active", () => {
+// A resume replays the transcript, so a session that already got the bootstrap gets only what
+// is new: the capsule, or nothing. A session the marker does not know gets the full set.
+test("a resume SessionStart after a delivered bootstrap emits the capsule or nothing", () => {
   const project = projectWithActiveFeature(owner("c4"));
   const stateRoot = mkdtempSync(join(tmpdir(), "gsd-codex-state-"));
+  const start = (session_id, source) =>
+    run({ hook_event_name: "SessionStart", session_id, cwd: project, source }, project, stateRoot);
 
-  const resumed = parseContext(
-    run(
-      { hook_event_name: "SessionStart", session_id: "c4", cwd: project, source: "resume" },
-      project,
-      stateRoot,
-    ),
-    "SessionStart",
-  );
+  start("c4", "startup");
   assert.equal(
-    resumed,
+    parseContext(start("c4", "resume"), "SessionStart"),
     renderRecoveryCapsule(CORE_ROOT, project, owner("c4")),
     "a resume renders the core capsule, byte for byte",
   );
 
-  // Another session in the same work tree gets the bootstrap, never this session's packet.
-  const other = parseContext(
-    run(
-      { hook_event_name: "SessionStart", session_id: "c9", cwd: project, source: "resume" },
-      project,
-      stateRoot,
-    ),
-    "SessionStart",
+  start("c9", "startup");
+  assert.equal(start("c9", "resume"), "", "a resumed session owning no packet already holds its bootstrap");
+
+  // A session this machine never bootstrapped has nothing to replay.
+  assert.equal(
+    parseContext(start("c4-elsewhere", "resume"), "SessionStart"),
+    bootstrapFor("c4-elsewhere"),
+    "a packet owned by another session yields no capsule",
   );
-  assert.equal(other, bootstrapFor("c9"), "a packet owned by another session yields no capsule");
+  const unknownOwner = projectWithActiveFeature(owner("c7"));
+  assert.equal(
+    parseContext(
+      run({ hook_event_name: "SessionStart", session_id: "c7", cwd: unknownOwner, source: "resume" }, unknownOwner, stateRoot),
+      "SessionStart",
+    ),
+    `${bootstrapFor("c7")}\n\n${renderRecoveryCapsule(CORE_ROOT, unknownOwner, owner("c7"))}`,
+  );
 });
 
 // Contract rule 4, the Codex side of the same check as the Claude Code adapter: a
