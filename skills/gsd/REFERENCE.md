@@ -57,6 +57,8 @@ bun "<GSD_ROOT>/tools/gsd-domain.mjs" normalize --index docs/domain/index.md [--
 
 ## Runtime state contract
 
+`plan.md` is the only authority for intent, acceptance, and tasks. `state.toon` reports progress and binds the plan path and base; it never authors, amends, or reinterprets Markdown. Numbered handoffs, attempt files, `result.toon`, and reload manifests are rejected legacy history.
+
 ### Resumable State Snapshot
 
 Exactly one `.scratch/<feature>/state.toon` owns resume discovery. It is a fixed-schema UTF-8/LF scalar record in this field order:
