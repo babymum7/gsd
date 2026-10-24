@@ -46,7 +46,7 @@ test("the right choice after reads passes and reports whether REFERENCE was read
     FIXTURE,
     REFERENCE,
   );
-  assert.deepEqual(withCanon, { ok: true, pass: true, readCanon: true, detail: "chose B after 2 reads" });
+  assert.deepEqual(withCanon, { ok: true, pass: true, readCanon: true, reads: [skill, REFERENCE], detail: "chose B after 2 reads" });
   const skillOnly = parseCanonComplianceEvents(assistantEvent([read(skill)]) + answer({ choice: "B" }), FIXTURE, REFERENCE);
   assert.equal(skillOnly.pass, true);
   assert.equal(skillOnly.readCanon, false);

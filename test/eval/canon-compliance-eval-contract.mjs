@@ -79,7 +79,8 @@ export function parseCanonComplianceEvents(rawEvents, fixture, referencePath) {
   const visible = assistantMessages(events).flatMap(visibleContent);
   const calls = visible.filter((item) => item.type === "toolCall");
   const readCanon = calls.some((call) => call.name === "read" && call.arguments?.path === referencePath);
-  const fail = (detail) => ({ ok: true, pass: false, readCanon, detail });
+  const reads = calls.filter((call) => call.name === "read").map((call) => String(call.arguments?.path ?? ""));
+  const fail = (detail) => ({ ok: true, pass: false, readCanon, reads, detail });
 
   const other = calls.find((call) => call.name !== "read");
   if (other) return fail(`tool ${other.name} called; only read is allowed`);
@@ -95,5 +96,5 @@ export function parseCanonComplianceEvents(rawEvents, fixture, referencePath) {
   if (!exactKeys(value, ["choice"])) return fail(`answer must be exactly {"choice": "<letter>"}: ${text.slice(0, 120)}`);
   if (!CANON_CHOICES.includes(value.choice)) return fail(`choice ${JSON.stringify(value.choice)} is not A, B, C, or D`);
   if (value.choice !== fixture.answer) return fail(`want ${fixture.answer}, got ${value.choice}`);
-  return { ok: true, pass: true, readCanon, detail: `chose ${value.choice} after ${calls.length} reads` };
+  return { ok: true, pass: true, readCanon, reads, detail: `chose ${value.choice} after ${calls.length} reads` };
 }
