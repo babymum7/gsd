@@ -211,6 +211,18 @@ test("the shipped cleanup skill searches every spelling of a name, data files in
   assert.match(skill, /data files and test fixtures included/, "dead-code search covers data files");
 });
 
+test("the shipped cleanup skill removes dead tests and speeds up slow ones by measured time", () => {
+  const { pluginRoot } = buildPluginBundle(ROOT, mkdtempSync(join(tmpdir(), "gsd-plugin-marketplace-")));
+  const cleanup = readFileSync(join(pluginRoot, "skills", "gsd-cleanup", "SKILL.md"), "utf8");
+  assert.match(cleanup, /\*\*Tests:\*\*/, "tests are an inventory row");
+  assert.match(cleanup, /permanently skipped/, "dead tests are candidates");
+  assert.match(cleanup, /per-test timing/, "slow tests are found by the runner's timing");
+  assert.match(cleanup, /never weakening what it asserts/, "a faster test asserts the same behavior");
+  assert.match(cleanup, /beyond run-to-run noise/, "only a real speedup is kept");
+  const refactor = readFileSync(join(pluginRoot, "skills", "gsd-refactor", "SKILL.md"), "utf8");
+  assert.match(refactor, /dead and slow tests come from the cleanup Inventory/, "refactor reuses the cleanup test rows");
+});
+
 test("the shipped upgrade skill takes releases at least 14 days old, engines included, one part per major, new APIs after the bump", () => {
   const { pluginRoot } = buildPluginBundle(ROOT, mkdtempSync(join(tmpdir(), "gsd-plugin-marketplace-")));
   const skill = readFileSync(join(pluginRoot, "skills", "gsd-upgrade", "SKILL.md"), "utf8");
