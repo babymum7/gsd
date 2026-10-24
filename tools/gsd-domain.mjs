@@ -14,8 +14,9 @@ import {
   parseDomainIndex,
   parseDomainScope,
 } from "../lib/gsd-domain.mjs";
+import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
 
-const COMMANDS = new Set(["validate", "normalize"]);
+const COMMANDS = commandsOf("gsd-domain.mjs");
 const VALUE_FLAGS = new Set(["--index", "--agents"]);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
@@ -84,7 +85,7 @@ function parseArguments(argv) {
   const [command, ...args] = argv;
   if (args.length === 0 && (command === "--help" || command === "-h")) return { command: null, help: true };
   if (!command) return { usageError: "a domain command is required" };
-  if (!COMMANDS.has(command)) return { usageError: `unknown command: ${command}` };
+  if (!COMMANDS.has(command)) return { usageError: unknownCommandMessage("gsd-domain.mjs", command) };
   if (args.length === 1 && args[0] === "--help") return { command, help: true };
 
   let index = null;

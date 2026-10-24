@@ -9,8 +9,9 @@ import { join, resolve } from "node:path";
 import { realpathSync, statSync } from "node:fs";
 import { isSafeBranchRef, PLAN_FEATURE_RE, validatePlanFile } from "../lib/gsd-contract.mjs";
 import { inspectStateFile } from "../lib/gsd-state.mjs";
+import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
 
-const COMMANDS = new Set(["derive-base", "preflight", "verify-task-branch"]);
+const COMMANDS = commandsOf("gsd-git.mjs");
 const VALUE_FLAGS = new Set(["--feature-dir", "--cwd", "--task", "--branch", "--wave-base"]);
 
 // A subcommand name is not a permission: `git symbolic-ref <name> <ref>` writes a ref and
@@ -477,7 +478,7 @@ function parseArguments(argv) {
   }
 
   if (!result.command) result.usageError = "missing command";
-  else if (!COMMANDS.has(result.command)) result.usageError = `unknown command: ${result.command}`;
+  else if (!COMMANDS.has(result.command)) result.usageError = unknownCommandMessage("gsd-git.mjs", result.command);
   else if (result.command === "preflight" && result.featureDir === null) {
     result.usageError = "--feature-dir is required";
   }

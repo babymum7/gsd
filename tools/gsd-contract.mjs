@@ -10,8 +10,9 @@ import {
   renderMergeMessage,
   validatePlanFile,
 } from "../lib/gsd-contract.mjs";
+import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
 
-const COMMANDS = new Set(["validate-plan", "analyze-waves", "normalize-plan", "init-plan", "merge-message"]);
+const COMMANDS = commandsOf("gsd-contract.mjs");
 
 // The lifecycle runs in workspaces that are not this checkout, so every help and error
 // surface names the path this process was actually loaded from. A repo-relative form here
@@ -118,7 +119,7 @@ function parseArguments(argv) {
   const [command, ...args] = argv;
   if (args.length === 0 && (command === "--help" || command === "-h")) return { command: null, help: true };
   if (!command) return { usageError: "a validation command is required", command: null };
-  if (!COMMANDS.has(command)) return { usageError: `unknown command: ${command}`, command: null };
+  if (!COMMANDS.has(command)) return { usageError: unknownCommandMessage("gsd-contract.mjs", command), command: null };
   if (args.length === 1 && args[0] === "--help") return { command, help: true };
 
   let planPath = null;

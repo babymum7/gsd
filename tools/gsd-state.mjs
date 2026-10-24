@@ -13,8 +13,9 @@ import {
   readStateFile,
   writeStateAtomic,
 } from "../lib/gsd-state.mjs";
+import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
 
-const COMMANDS = new Set(["read-state", "write-state", "validate-state", "set", "session"]);
+const COMMANDS = commandsOf("gsd-state.mjs");
 const VALUE_FLAGS = new Set(["--path", "--feature-dir", "--json", "--json-file"]);
 const STATE_FIELD_SET = new Set(STATE_FIELD_ORDER);
 
@@ -325,7 +326,7 @@ function parseArguments(argv) {
       result.usageError = "missing command";
     }
   } else if (!COMMANDS.has(result.command)) {
-    result.usageError = `unknown command: ${result.command}`;
+    result.usageError = unknownCommandMessage("gsd-state.mjs", result.command);
   }
 
   return result;
