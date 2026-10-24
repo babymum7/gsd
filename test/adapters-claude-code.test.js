@@ -175,6 +175,21 @@ test("a compact SessionStart delivers the bootstrap, then the capsule with the p
   );
 });
 
+// Claude Code delivers a finished background task as a prompt that opens with
+// `<task-notification>`; it is not what the user asked, so the capsule keeps the last real one.
+test("a task notification prompt does not replace the preserved request", () => {
+  const project = projectWithActiveFeature(owner("s9"));
+  const stateRoot = mkdtempSync(join(tmpdir(), "gsd-cc-state-"));
+  for (const prompt of ["continue", "<task-notification>\n<task-id>b1</task-id>\n</task-notification>"]) {
+    run({ hook_event_name: "UserPromptSubmit", session_id: "s9", cwd: project, prompt }, project, stateRoot);
+  }
+  const after = parseContext(
+    run({ hook_event_name: "SessionStart", session_id: "s9", cwd: project, source: "compact" }, project, stateRoot),
+    "SessionStart",
+  );
+  assert.ok(after.endsWith("[GSD Current Request]\ncontinue"), "the request before the notification is kept");
+});
+
 test("a resume SessionStart refreshes an active capsule and stays silent otherwise", () => {
   const project = projectWithActiveFeature(owner("s4"));
   const stateRoot = mkdtempSync(join(tmpdir(), "gsd-cc-state-"));

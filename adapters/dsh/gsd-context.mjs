@@ -92,7 +92,9 @@ export function apply(ctx) {
 
   ctx.on('session/event', (session, event) => {
     try {
-      if (event?.type === 'compaction/end') compacted.add(session.header.id);
+      // A failed compaction also ends with `compaction/end`, carrying an `error`; the history
+      // still holds the bootstrap, so only a successful one owes a re-injection.
+      if (event?.type === 'compaction/end' && !event.error) compacted.add(session.header.id);
     } catch {
       // an unreadable session id leaves the session unmarked
     }
