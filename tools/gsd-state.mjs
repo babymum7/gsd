@@ -14,6 +14,7 @@ import {
   writeStateAtomic,
 } from "../lib/gsd-state.mjs";
 import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
+import { validatePlanFile } from "../lib/gsd-contract.mjs";
 
 const COMMANDS = commandsOf("gsd-state.mjs");
 const VALUE_FLAGS = new Set(["--path", "--feature-dir", "--json", "--json-file"]);
@@ -224,7 +225,7 @@ function resolveCommitRef(value, featureDir) {
     "status: error",
     "code: invalid-artifact",
     `error: ${quote(`last_green_commit ${shown} does not name a commit in ${root}`)}`,
-    `help: ${quote("pass a commit Git resolves in this repository, such as the output of git rev-parse HEAD")}`,
+    `help: ${quote("pass a commit Git resolves in this repository, such as the output of git rev-parse HEAD, or the full 40-character SHA for a commit in another repository listed in ## Repos")}`,
   ]);
   process.exit(1);
 }
@@ -473,10 +474,33 @@ if (input.usageError) {
     }
   }
 
+  // Binding is the moment a plan becomes executable, so an invalid plan never gets a record.
+  const binds = !exists
+    || (updateKeys.has("phase") && state.phase === "approved")
+    || (state.phase === "approved" && (updateKeys.has("plan_path") || updateKeys.has("base_ref")));
+  if (binds) refuseInvalidPlan(state, input.featureDir);
+
   try {
     const result = writeStateAtomic(input.featureDir, state);
     process.stdout.write(JSON.stringify(result, null, 2) + "\n");
   } catch (error) {
     failArtifact(error, "set");
+  }
+}
+
+function refuseInvalidPlan(state, featureDir) {
+  const root = path.resolve(featureDir, "..", "..");
+  try {
+    validatePlanFile(state.plan_path, { cwd: root, expectedBase: state.base_ref !== "none" ? state.base_ref : null });
+  } catch (error) {
+    const more = error?.additionalErrors?.length ?? 0;
+    const message = String(error?.message ?? error).replace(/[\x00-\x1F\x7F]+/g, " ").trim().slice(0, 500);
+    write_([
+      "status: error",
+      "code: invalid-artifact",
+      `error: ${quote(`plan ${state.plan_path} does not validate${more ? ` (${more + 1} errors)` : ""}: ${message}`)}`,
+      `help: ${quote(`nothing was written; fix the plan, check it with bun ${JSON.stringify(path.join(path.dirname(SCRIPT_PATH), "gsd-contract.mjs"))} validate-plan --path ${state.plan_path}, then rerun this set`)}`,
+    ]);
+    process.exit(1);
   }
 }
