@@ -12,9 +12,9 @@
 //                                       compaction whose event this process never saw
 //
 // Every message GSD sends carries the `gsd/bootstrap` metadata tag, and both surfaces send only
-// when the context holds none, so one history gets one message across processes and resumes. Ordinary prompts
-// add nothing, so per-turn token cost stays at zero. Child sessions (sub-agents) get nothing, and
-// opencode gets no sub-agent profiles.
+// when the context holds none, so one history gets one message across processes and resumes.
+// Ordinary prompts add nothing, so per-turn token cost stays at zero. Child sessions (sub-agents)
+// get nothing, and opencode gets no sub-agent profiles.
 
 import fs from 'node:fs';
 import path from 'node:path';
