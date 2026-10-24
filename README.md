@@ -221,7 +221,7 @@ skills/
 
 `adapters/omp/gsd-context.d.ts` is a hand-maintained public type surface for the OMP adapter; `test/gsd-context-dts.test.js` asserts the facade's runtime exports stay mirrored in it. The `extensions/gsd-context.{js,d.ts}` paths remain stable importer entry points, and each is a thin re-export of the adapter (decision 0015).
 
-Development checks: `bun test --timeout=30000 test/*.test.js` runs the full suite; `bun run lint` runs Biome with the repository rule set (currently zero diagnostics); and `bun run format -- <path>` reformats the passed JS/MJS/JSON files through Biome (the existing hand-formatted tree is intentionally not bulk-reformatted).
+Development checks: `bun test --parallel --timeout=30000 test/*.test.js` runs the full suite; `bun run lint` runs Biome with the repository rule set (currently zero diagnostics); and `bun run format -- <path>` reformats the passed JS/MJS/JSON files through Biome (the existing hand-formatted tree is intentionally not bulk-reformatted).
 
 ## Plan contract validation
 
@@ -244,7 +244,7 @@ Successful plan validation emits minimal deterministic TOON with the plan kind, 
 Run the deterministic repository contracts through the published script:
 
 ```bash
-bun test --timeout=30000 test/*.test.js
+bun test --parallel --timeout=30000 test/*.test.js
 ```
 
 That command is the published script body, which is also the direct form when no manifest is installed.
