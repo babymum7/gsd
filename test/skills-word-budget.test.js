@@ -10,7 +10,8 @@ const ROOT = join(import.meta.dir, "..");
 // new rule has to displace an old one instead of growing the canon. A file well under its
 // budget must lower it, so a cut is never spent again without review.
 const BUDGETS = {
-  "skills/gsd-brainstorming/SKILL.md": 1336,
+  "skills/gsd-brainstorming/PARTS.md": 412,
+  "skills/gsd-brainstorming/SKILL.md": 943,
   "skills/gsd-cleanup/SKILL.md": 579,
   "skills/gsd-codebase-architecture/DEEPENING.md": 386,
   "skills/gsd-codebase-architecture/DESIGN-IT-TWICE.md": 287,
