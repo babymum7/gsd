@@ -333,7 +333,7 @@ function checkedOutElsewhere(branch, cwd) {
 }
 
 // The other worktrees of this repository that sit inside this work tree, as paths relative to
-// its top level; Claude Code's `isolation: worktree` puts its agents under `.claude/worktrees/`.
+// its top level; a host that isolates sub-agents in worktrees may register them inside this one.
 function nestedWorktrees(cwd) {
   const listing = git(["worktree", "list", "--porcelain"], cwd);
   const self = git(["rev-parse", "--show-toplevel"], cwd);
