@@ -13,16 +13,18 @@ Runs only when the user asks for it: `/gsd:gsd-refactor`, or a request to refact
 
 ## Measure
 
-Read-only. Detect the stack from its manifests (`package.json`, `go.mod`, `Cargo.toml`, `pyproject.toml`, and so on) and the repository's own linter, formatter, build, and test commands. For broad repositories, spawn one read-only scout sub-agent (the bootstrap's `scout` profile when listed) per area, and re-check every finding you keep. Each finding names paths and numbers:
+Read-only. Detect the stack from its manifests (`package.json`, `go.mod`, `Cargo.toml`, `pyproject.toml`, and so on) and the repository's own linter, formatter, build, and test commands. For broad repositories, spawn one read-only scout sub-agent (the bootstrap's `scout` profile when listed) per area, and re-check every finding you keep. Each finding names paths and numbers.
 
+- **Intent:** before measuring, read the README, `AGENTS.md`, `docs/decisions/`, and the domain docs, and list the repository's goals and deliberate choices. Check every finding against that list. A finding that contradicts an accepted decision or a stated goal is shown as reopening that decision, with its evidence, and is never planned on its own.
 - **Size:** the largest files and functions, against the linter's own defaults for file length, function length, and complexity.
 - **Complexity:** deep nesting, long parameter lists, and branching hot spots, from the linter in report-only mode when it has such rules.
 - **Hard-coding:** magic numbers, repeated literals, URLs, hosts, credentials, and environment-specific paths that belong in config or named constants.
 - **Duplication:** repeated logic that one shared function or module should own.
-- **Performance:** only on hot paths with evidence: queries inside loops, unbounded reads, missing pagination, blocking I/O in request paths, work recomputed on every render.
+- **Simplify:** hand-written code the standard library, a platform feature, or an installed dependency already covers; abstraction or indirection with a single user; configuration flags and options nothing sets. Give line counts before and after.
+- **Performance:** only on hot paths with evidence: queries inside loops, unbounded reads, missing pagination, blocking I/O in request paths, work recomputed on every render. No evidence, no optimization.
 - **Organization:** files mixing concerns, layers reaching past each other, circular imports, and folders that will not scale as features grow; on the frontend, components that fetch, transform, and render at once.
 - **Tests:** redundant tests (the same behavior asserted twice), tests pinned to implementation details instead of public behavior, slow tests in the fast suite, and refactor targets with no test at their public seam.
-- **Leftovers:** the Inventory section of `GSD_ROOT/skills/gsd-cleanup/SKILL.md`.
+- **Leftovers:** the Inventory section of `GSD_ROOT/skills/gsd-cleanup/SKILL.md`; these rows become the cleanup candidates.
 - **Outdated dependencies:** list them as one finding and recommend `gsd-upgrade`; this run never upgrades.
 
 For module boundaries and deepening candidates, read `GSD_ROOT/skills/gsd-codebase-architecture/SKILL.md`.
@@ -41,7 +43,7 @@ When the repository has no GSD conventions yet: add `.scratch/` to `.gitignore`,
 
 ## Approval
 
-Present in one message: the findings ranked by impact with their evidence, the proposed lint changes and the `## Code quality` text, the GSD setup, the cleanup candidates, the refactor split into parts, and the Delivery question from `gsd-brainstorming`. The user approves or edits once; after that the run asks nothing more.
+Present in one message: the findings ranked by impact with their evidence, the proposed lint changes and the `## Code quality` text, the GSD setup, the cleanup candidates in the grouped form of `gsd-cleanup`'s Approval section with doubtful rows unselected, the refactor split into parts, and the Delivery question from `gsd-brainstorming`. The user approves or edits once; after that the run asks nothing more.
 Each architecture finding is shown in the candidate form of the Candidate contract section in `GSD_ROOT/skills/gsd-codebase-architecture/SKILL.md`: recommendation strength, evidence, before and after sketch with the target seam, migration with rollback, and the tests that survive.
 
 ## Run
@@ -50,6 +52,8 @@ Each architecture finding is shown in the candidate form of the Candidate contra
 - A changed interface migrates every caller in the same task when the caller list is complete. When compatibility prevents that cutover, plan Expand → Migrate → Contract (add the new interface, move the callers, then remove the old one), each step its own green task; never remove an interface that callers outside the repository still use.
 - Read `GSD_ROOT/skills/gsd-to-plan/SKILL.md` and plan feature `refactor-<area>`. The first task writes the rules files and the GSD setup; each lint rule lands in the task that makes the code pass it. Each criterion is a GIVEN/WHEN/THEN at a public seam showing behavior unchanged, or a lint rule passing.
 - Several areas become parts as `gsd-brainstorming` describes, all converged in this one approval and run back to back on an integration branch that merges into the base once, so the base gains one commit that passes every check.
+- Approved cleanup rows are the first part, removed as the Run section of `GSD_ROOT/skills/gsd-cleanup/SKILL.md` describes. Parts run cleanup first, then the refactor parts, then performance, so dead code is not characterized or moved and a benchmark is taken on the final structure.
+- Each performance change is its own task: a test pins its output, and a reproducible benchmark or profile at one seam is recorded before and after on the same machine. Keep the change only when the gain is clearly beyond run-to-run noise; otherwise revert it and report the numbers.
 - Then follow `gsd-executing-plans` and `gsd-verify` to the end and deliver as approved.
 
 The final report lists the rules added, the refactors done with their measured before and after, and any decision made on the way.

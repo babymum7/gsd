@@ -189,6 +189,19 @@ test("the shipped refactor skill writes rules for agent readers in every languag
   assert.match(skill, /integration branch that merges into the base once/, "parts reach the base as one commit");
 });
 
+test("the shipped refactor skill keeps the repository's intent, simplifies, measures performance, and cleans up first", () => {
+  const { pluginRoot } = buildPluginBundle(ROOT, mkdtempSync(join(tmpdir(), "gsd-plugin-marketplace-")));
+  const skill = readFileSync(join(pluginRoot, "skills", "gsd-refactor", "SKILL.md"), "utf8");
+  assert.match(skill, /\*\*Intent:\*\*/, "intent is read before measuring");
+  assert.match(skill, /reopening that decision/, "a finding against an accepted decision is not planned on its own");
+  assert.match(skill, /\*\*Simplify:\*\*/, "simplification is its own finding");
+  assert.match(skill, /standard library, a platform feature, or an installed dependency/, "simplify reuses what exists");
+  assert.match(skill, /benchmark or profile/, "performance changes are measured");
+  assert.match(skill, /beyond run-to-run noise/, "only a real gain is kept");
+  assert.match(skill, /Run section of `GSD_ROOT\/skills\/gsd-cleanup\/SKILL.md`/, "approved cleanup follows gsd-cleanup's Run");
+  assert.match(skill, /cleanup first, then the refactor parts, then performance/, "parts run in a fixed order");
+});
+
 test("the shipped cleanup skill searches every spelling of a name, data files included, before calling code dead", () => {
   const { pluginRoot } = buildPluginBundle(ROOT, mkdtempSync(join(tmpdir(), "gsd-plugin-marketplace-")));
   const skill = readFileSync(join(pluginRoot, "skills", "gsd-cleanup", "SKILL.md"), "utf8");
