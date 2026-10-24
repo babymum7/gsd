@@ -30,21 +30,22 @@ import gsdContextExtension, {
 // this fake session, and every compaction context carries its session manager.
 const TEST_SESSION = { getSessionId: () => "test-session" };
 const TEST_OWNER = "omp-test-session";
+const activeStateFields = (feature, overrides = {}) => ({
+  schema: "v0.0.3",
+  feature,
+  owner: TEST_OWNER,
+  phase: "executing",
+  next_action: "start/continue task",
+  plan_path: `.scratch/${feature}/plan.md`,
+  base_ref: "main",
+  wip_branch: `wip/${feature}`,
+  last_green_task: "none",
+  last_green_commit: "none",
+  checkpoint_revision: "1",
+  ...overrides,
+});
 function writeActiveStateFixture(featureDir, feature, overrides = {}) {
-  writeStateAtomic(featureDir, {
-    schema: "v0.0.3",
-    feature,
-    owner: TEST_OWNER,
-    phase: "executing",
-    next_action: "start/continue task",
-    plan_path: `.scratch/${feature}/plan.md`,
-    base_ref: "main",
-    wip_branch: `wip/${feature}`,
-    last_green_task: "none",
-    last_green_commit: "none",
-    checkpoint_revision: "1",
-    ...overrides,
-  });
+  writeStateAtomic(featureDir, activeStateFields(feature, overrides));
 }
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -1010,9 +1011,9 @@ describe("T3 Review Fixes detailed behavior", () => {
       rmSync(tempDir, { recursive: true, force: true });
     }
   });
-  // 1001 candidate fixtures cost ~2000 synchronous file writes plus a full discovery scan,
-  // which runs past Bun's 5s default on an ordinary machine. The over-cap capsule needs that
-  // many candidates, so the test declares its own budget instead of failing by machine speed.
+  // The over-cap capsule is proved on 1001 candidates. Their state is written as the same
+  // serialized bytes without writeStateAtomic, whose fsync per file cost ~10s here and is
+  // not what this test covers.
   test("proves production lifecycle coverage for 1001 candidates without failure", async () => {
     const tempDir = mkdtempSync(join(tmpdir(), "omp-gsd-1001-"));
     const scratchDir = join(tempDir, ".scratch");
@@ -1024,7 +1025,7 @@ describe("T3 Review Fixes detailed behavior", () => {
       const featDir = join(scratchDir, featName);
       mkdirSync(featDir);
       writeFileSync(join(featDir, "plan.md"), "plan");
-      writeActiveStateFixture(featDir, featName);
+      writeFileSync(join(featDir, "state.toon"), serializeState(activeStateFields(featName)));
     }
 
     try {
@@ -1052,7 +1053,7 @@ describe("T3 Review Fixes detailed behavior", () => {
     } finally {
       rmSync(tempDir, { recursive: true, force: true });
     }
-  }, 60_000);
+  });
 
   // 10. Invalid relative/multiline/control roots:
   test("proves rejection of relative, multiline, and control character roots", () => {
