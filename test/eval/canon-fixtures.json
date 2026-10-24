@@ -304,5 +304,175 @@
       "current": "skills/gsd/REFERENCE.md § Git/base/WIP/scratch mechanics (stage the task's own paths by name, never git add -A or git commit -a)",
       "baseline": "the same REFERENCE line"
     }
+  },
+  {
+    "id": "drift-other-context",
+    "skill": "gsd-verify",
+    "state": "bound feature billing, Domain Impact change-existing-context for context invoicing, phase verifying; the gate finds that docs/domain/shipping.md, a context this feature does not touch, contradicts current shipping code",
+    "prompt": "continue",
+    "options": {
+      "A": "Fix docs/domain/shipping.md in a new task of this feature",
+      "B": "Report the shipping drift and continue the gate",
+      "C": "Block delivery until shipping.md matches the code",
+      "D": "Add shipping to Domain Impact and update its shard"
+    },
+    "answer": "B",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Domain lifecycle (drift in the affected contexts blocks; drift elsewhere is reported, never repaired in this feature)",
+      "baseline": "the same REFERENCE line"
+    }
+  },
+  {
+    "id": "old-record-in-passing",
+    "skill": "gsd-verify",
+    "state": "bound feature export, phase verifying; the feature added docs/decisions/0042-export.md, which validates, and also fixed a typo in docs/decisions/0007-auth.md, an older record whose header lacks a Date line",
+    "prompt": "continue",
+    "options": {
+      "A": "Add a Date line to 0007-auth.md before delivery",
+      "B": "Revert the typo fix in 0007-auth.md",
+      "C": "Block the gate as an invalid record",
+      "D": "Validate only 0042-export.md and continue"
+    },
+    "answer": "D",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Durable decision and design records (the gate validates only records the feature added; an older record edited in passing keeps its shape)",
+      "baseline": "the same REFERENCE line"
+    }
+  },
+  {
+    "id": "cross-repo-merge-order",
+    "skill": "gsd-verify",
+    "state": "bound feature sync with ## Repos listing this repository (.) and ../api; phase ready, Delivery merge, every gate green in both",
+    "prompt": "continue",
+    "options": {
+      "A": "Merge ../api first, then this repository",
+      "B": "Merge this repository first, then ../api",
+      "C": "Merge both, then delete both branches as each merge lands",
+      "D": "Merge this repository only; ../api is the user's"
+    },
+    "answer": "A",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Cross-repo plans (listed repositories merge first and this one last; branches and scratch are deleted only after every merge landed)",
+      "baseline": "the same REFERENCE line"
+    }
+  },
+  {
+    "id": "cross-repo-scratch",
+    "skill": "gsd-to-plan",
+    "state": "new feature sync spans this repository and ../api; acceptance converged; you are about to write the plan and bind state",
+    "prompt": "plan it",
+    "options": {
+      "A": "Write .scratch/sync/ in both repositories, one plan each",
+      "B": "Write .scratch/sync/ in ../api, the repository with most tasks",
+      "C": "Write .scratch/sync/plan.md and state.toon in this repository only",
+      "D": "Write the plan here and a state.toon in each repository"
+    },
+    "answer": "C",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Cross-repo plans (.scratch/<feature>/ and state.toon live in this repository only)",
+      "baseline": "the same REFERENCE line"
+    }
+  },
+  {
+    "id": "cross-repo-busy-head",
+    "skill": "gsd-executing-plans",
+    "state": "bound feature sync with ## Repos listing ../api; ../api currently has wip/billing checked out, owned by another feature",
+    "prompt": "start the first ../api task",
+    "options": {
+      "A": "Switch ../api to a new wip/sync branch",
+      "B": "Ask the user for a worktree of ../api and list its path in ## Repos",
+      "C": "Commit the ../api task on wip/billing",
+      "D": "Stash ../api changes, then switch branches"
+    },
+    "answer": "B",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Cross-repo plans (if another feature's wip/* is checked out there, ask for a worktree of it and list that path in ## Repos)",
+      "baseline": "the same REFERENCE line"
+    }
+  },
+  {
+    "id": "base-advanced",
+    "skill": "gsd-verify",
+    "state": "bound feature export, phase verifying, every check green; preflight prints code: base-advanced because main gained two commits",
+    "prompt": "continue",
+    "options": {
+      "A": "Rebase wip/export onto main, then merge",
+      "B": "Merge wip/export into main as is",
+      "C": "Stop as Spec escalation",
+      "D": "Merge main into wip/export and repeat the terminal gate"
+    },
+    "answer": "D",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Base derivation and merge target (base-advanced merges base_ref into wip/<feature> and repeats the terminal gate)",
+      "baseline": "the same REFERENCE line"
+    }
+  },
+  {
+    "id": "base-no-widen",
+    "skill": "gsd-verify",
+    "state": "bound feature hotfix with base_ref release/1.2, phase ready, Delivery merge; the repository default branch is main, which usually receives release fixes as well",
+    "prompt": "continue",
+    "options": {
+      "A": "Merge into release/1.2, then into main",
+      "B": "Merge into release/1.2 only",
+      "C": "Merge into main, since it is the default",
+      "D": "Ask which branch to merge into"
+    },
+    "answer": "B",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Base derivation and merge target (the merge targets exactly base_ref; promoting base onward is separate user-owned work)",
+      "baseline": "the same REFERENCE line"
+    }
+  },
+  {
+    "id": "e2e-invalidated",
+    "skill": "gsd-verify",
+    "state": "bound feature export, phase verifying; conformance and the Deferred Slow E2E suite are green, then you fix a typo in a source string",
+    "prompt": "continue",
+    "options": {
+      "A": "Deliver; a typo cannot break the E2E suite",
+      "B": "Rerun only the focused check for that file, then deliver",
+      "C": "Rerun conformance, then the Deferred Slow E2E suite, before delivery",
+      "D": "Rerun only the Deferred Slow E2E suite"
+    },
+    "answer": "C",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Post-plan pipeline contract (the gate runs on unchanged commits; source changes invalidate Deferred Slow E2E)",
+      "baseline": "the same REFERENCE line"
+    }
+  },
+  {
+    "id": "retired-schema",
+    "skill": "gsd-executing-plans",
+    "state": "the user names feature export; .scratch/export/state.toon starts with schema:v0.0.2, and its help line names a rebind",
+    "prompt": "continue export",
+    "options": {
+      "A": "Edit the schema line to v0.0.3 and continue",
+      "B": "Revalidate plan.md, delete the old state.toon, and set a fresh record carrying its values",
+      "C": "Run the migration command for v0.0.2",
+      "D": "Ignore the schema and resume from last_green_task"
+    },
+    "answer": "B",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Resumable State Snapshot (other schemas are retired; there is no in-place migration; the help line names the rebind)",
+      "baseline": "the same REFERENCE line"
+    }
+  },
+  {
+    "id": "state-busy",
+    "skill": "gsd-executing-plans",
+    "state": "bound feature export, phase executing; T2 committed green, and the checkpoint gsd-state.mjs set fails with code: state-busy",
+    "prompt": "continue",
+    "options": {
+      "A": "Run the same gsd-state.mjs set again",
+      "B": "Delete .scratch/export/.state.lock, then set",
+      "C": "Write the checkpoint into state.toon by hand",
+      "D": "Stop as Spec escalation"
+    },
+    "answer": "A",
+    "sources": {
+      "current": "skills/gsd/REFERENCE.md § Atomic write (a concurrent write waits or fails code: state-busy to be rerun; a lock whose writer died is cleared)",
+      "baseline": "the same REFERENCE line"
+    }
   }
 ]
