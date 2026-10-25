@@ -8,6 +8,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 
+# Orca workspace files (screenshots dropped into the chat)
+.orca/
+
 # Editor files
 *.swp
 *.swo
