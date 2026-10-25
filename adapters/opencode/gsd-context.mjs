@@ -13,6 +13,10 @@
 //
 // Every message GSD sends carries the `gsd/bootstrap` metadata tag, and both surfaces send only
 // when the context holds none, so one history gets one message across processes and resumes.
+// Within one process the surfaces also share a claim per session, keyed by the compaction the
+// context starts from: opencode sets the plugin up several times in one process and every setup
+// hears the same event stream, and a message sent while the session is idle waits outside the context
+// until the next prompt, so one compaction gets one message until the context shows it.
 // Ordinary prompts add nothing, so per-turn token cost stays at zero. Child sessions (sub-agents)
 // get nothing, and opencode gets no sub-agent profiles.
 
@@ -35,6 +39,22 @@ const GSD_ROOT = fs.existsSync(path.join(DEFAULT_GSD_ROOT, '.gsd-plugin'))
   : DEFAULT_GSD_ROOT;
 const TAG = 'gsd/bootstrap';
 
+// Session ID -> the compaction ID (or '' before any) a sent message the context does not show
+// yet answers. Shared by every setup in this process; cleared when the last one is disposed.
+const claims = new Map();
+let setups = 0;
+
+// Synchronous, so of two surfaces racing on one compaction exactly one sends.
+function claim(sessionID, epoch) {
+  if (claims.get(sessionID) === epoch) return false;
+  claims.set(sessionID, epoch);
+  return true;
+}
+
+function release(sessionID, epoch) {
+  if (claims.get(sessionID) === epoch) claims.delete(sessionID);
+}
+
 function renderBootstrap(sessionID) {
   return withSessionOwner(createBootstrap(GSD_ROOT), sessionOwnerToken('opencode', sessionID));
 }
@@ -49,17 +69,23 @@ function tagged(entry) {
   return (entry?.payload?.metadata ?? entry?.metadata)?.[TAG] === true;
 }
 
-// Null when the context already holds a GSD message, else whether it starts from a compaction.
-async function owedAfter(ctx, sessionID) {
+// Whether the context already holds a GSD message, whether it starts from a compaction, and
+// which one.
+async function readContext(ctx, sessionID) {
   const context = await ctx.session.context({ sessionID }).catch(() => []);
   const list = Array.isArray(context) ? context : [];
-  if (list.some(tagged)) return null;
-  return { compacted: list.some((entry) => entry?.type === 'compaction') };
+  const compaction = list.findLast((entry) => entry?.type === 'compaction');
+  return {
+    held: list.some(tagged),
+    compacted: compaction !== undefined,
+    epoch: compaction === undefined ? '' : String(compaction.id ?? 'compaction'),
+  };
 }
 
 export default {
   id: 'gsd',
   async setup(ctx) {
+    setups += 1;
     const send = (sessionID, text) =>
       ctx.session.synthetic({ sessionID, text, description: 'GSD bootstrap', metadata: { [TAG]: true }, resume: false });
 
@@ -70,27 +96,37 @@ export default {
       return session?.location?.directory ?? ctx.location?.directory ?? process.cwd();
     }
 
-    // Each surface renders its text, or the sanitized error when the core fails; a failure to
-    // send even that is swallowed, because opencode must keep running whatever the plugin hit.
-    async function deliver(sessionID, render) {
+    // Each surface claims the session, then renders its text, or the sanitized error when the
+    // core fails; a failure to send even that is swallowed, because opencode must keep running
+    // whatever the plugin hit. Nothing sent releases the claim for a later surface.
+    async function deliver(sessionID, owed, render) {
+      if (!claim(sessionID, owed.epoch)) return;
       let text;
       try {
         text = await render();
       } catch (error) {
         text = sanitizeBootstrapError(error);
       }
-      if (text === null) return;
+      if (text === null) {
+        release(sessionID, owed.epoch);
+        return;
+      }
       try {
         await send(sessionID, text);
       } catch {
-        // nothing left to report to
+        release(sessionID, owed.epoch);
       }
     }
 
     await ctx.session.hook('prompt', async ({ sessionID }) => {
-      const owed = await owedAfter(ctx, sessionID);
-      if (owed === null) return;
-      await deliver(sessionID, async () => {
+      const owed = await readContext(ctx, sessionID);
+      // The context shows the message this claim was for; a read older than a newer claim
+      // names an older compaction and leaves that claim alone.
+      if (owed.held) {
+        release(sessionID, owed.epoch);
+        return;
+      }
+      await deliver(sessionID, owed, async () => {
         const cwd = await rootDirectory(sessionID);
         if (cwd === null) return null;
         return owed.compacted ? renderAfterCompaction(sessionID, cwd) : renderBootstrap(sessionID);
@@ -104,8 +140,10 @@ export default {
         // included, so only a finished one owes a re-injection.
         if (event?.type !== 'session.compaction.ended') continue;
         const sessionID = event.data?.sessionID;
-        if (typeof sessionID !== 'string' || (await owedAfter(ctx, sessionID)) === null) continue;
-        await deliver(sessionID, async () => {
+        if (typeof sessionID !== 'string') continue;
+        const owed = await readContext(ctx, sessionID);
+        if (owed.held) continue;
+        await deliver(sessionID, owed, async () => {
           const cwd = await rootDirectory(sessionID);
           return cwd === null ? null : renderAfterCompaction(sessionID, cwd);
         });
@@ -113,6 +151,10 @@ export default {
     })().catch(() => {
       // the stream ends with an abort when opencode disposes the plugin
     });
-    return async () => controller.abort();
+    return async () => {
+      controller.abort();
+      setups -= 1;
+      if (setups === 0) claims.clear();
+    };
   },
 };

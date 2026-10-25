@@ -20,10 +20,18 @@ const capsuleFor = (project, session) => renderRecoveryCapsule(CORE_ROOT, projec
 
 // A recording opencode plugin context. `sessions` maps an id to what `session.get` returns,
 // the context of each session grows with every synthetic message, and `emit` feeds the event
-// stream the plugin subscribed to.
-async function recordingContext(sessions, directory = "/nowhere") {
-  const sent = [];
-  const contexts = new Map();
+// stream the plugin subscribed to. Setups given one `store` share a process's sessions, as
+// opencode sets the plugin up once per open directory; with `idle`, a sent message waits
+// outside the context until `admit`, as one sent between turns does; `failSends` rejects that
+// many sends first.
+async function recordingContext(
+  sessions,
+  directory = "/nowhere",
+  { store = { sent: [], contexts: new Map() }, idle = false, failSends = 0 } = {},
+) {
+  const { sent, contexts } = store;
+  const waiting = [];
+  let compactions = 0;
   const hooks = new Map();
   const queue = [];
   let wake = null;
@@ -41,9 +49,14 @@ async function recordingContext(sessions, directory = "/nowhere") {
         return contexts.get(sessionID) ?? [];
       },
       async synthetic(input) {
+        if (failSends > 0) {
+          failSends -= 1;
+          throw new Error("send failed");
+        }
         sent.push(input);
         const entry = { type: "synthetic", payload: { text: input.text, description: input.description, metadata: input.metadata } };
-        contexts.set(input.sessionID, [...(contexts.get(input.sessionID) ?? []), entry]);
+        if (idle) waiting.push([input.sessionID, entry]);
+        else contexts.set(input.sessionID, [...(contexts.get(input.sessionID) ?? []), entry]);
         return { id: `m${sent.length}`, ...entry };
       },
     },
@@ -69,14 +82,18 @@ async function recordingContext(sessions, directory = "/nowhere") {
     aborted: () => signal?.aborted === true,
     prompt: (sessionID) => hooks.get("prompt")({ sessionID, messageID: "x", prompt: { text: "hi", files: [] }, delivery: "immediate" }),
     dropTo: (sessionID, entries) => contexts.set(sessionID, entries),
-    async event(sessionID, type = "session.compaction.ended") {
-      queue.push({ type, data: { sessionID, reason: "auto", text: "summary" } });
+    admit() {
+      for (const [sessionID, entry] of waiting.splice(0)) contexts.set(sessionID, [...(contexts.get(sessionID) ?? []), entry]);
+    },
+    async event(sessionID, type = "session.compaction.ended", id = undefined) {
+      queue.push({ id, type, data: { sessionID, reason: "auto", text: "summary" } });
       wake?.();
       await settle();
     },
     // A compaction replaces the history with a summary, dropping earlier synthetic messages.
     async compact(sessionID, type = "session.compaction.ended") {
-      contexts.set(sessionID, [{ type: "compaction" }]);
+      compactions += 1;
+      contexts.set(sessionID, [{ type: "compaction", id: `cmp_${compactions}` }]);
       await this.event(sessionID, type);
     },
   };
@@ -166,6 +183,56 @@ test("a compaction event after the prompt already re-sent the bootstrap sends no
   oc.dropTo("ses_a", [{ type: "compaction" }]);
   await oc.prompt("ses_a");
   await oc.event("ses_a");
+  assert.equal(oc.sent.length, 1);
+  await oc.dispose();
+});
+
+test("two setups in one process hearing the same compaction event send once", async () => {
+  const store = { sent: [], contexts: new Map() };
+  const first = await recordingContext({ ses_a: { id: "ses_a" } }, "/nowhere", { store });
+  const second = await recordingContext({ ses_a: { id: "ses_a" } }, "/elsewhere", { store });
+  store.contexts.set("ses_a", [{ type: "compaction" }]);
+  await Promise.all([first.event("ses_a", undefined, "evt_1"), second.event("ses_a", undefined, "evt_1")]);
+  assert.equal(store.sent.length, 1);
+  await first.dispose();
+  await second.dispose();
+});
+
+test("a message sent after a compaction while idle is not sent again by the next prompt", async () => {
+  const oc = await recordingContext({ ses_a: { id: "ses_a" } }, "/nowhere", { idle: true });
+  await oc.compact("ses_a");
+  assert.equal(oc.sent.length, 1);
+  await oc.prompt("ses_a");
+  oc.admit();
+  await oc.prompt("ses_a");
+  assert.equal(oc.sent.length, 1);
+  // Once the context shows it, the next compaction is owed again.
+  await oc.compact("ses_a");
+  assert.equal(oc.sent.length, 2);
+  await oc.dispose();
+});
+
+test("a prompt racing the compaction event sends once between them", async () => {
+  const oc = await recordingContext({ ses_a: { id: "ses_a" } }, "/nowhere", { idle: true });
+  oc.dropTo("ses_a", [{ type: "compaction", id: "cmp_1" }]);
+  await Promise.all([oc.prompt("ses_a"), oc.event("ses_a")]);
+  assert.equal(oc.sent.length, 1);
+  await oc.dispose();
+});
+
+test("a second compaction before any prompt is owed its own message", async () => {
+  const oc = await recordingContext({ ses_a: { id: "ses_a" } }, "/nowhere", { idle: true });
+  await oc.compact("ses_a");
+  await oc.compact("ses_a");
+  assert.equal(oc.sent.length, 2);
+  await oc.dispose();
+});
+
+test("a send that fails leaves the message owed to the next prompt", async () => {
+  const oc = await recordingContext({ ses_a: { id: "ses_a" } }, "/nowhere", { failSends: 1 });
+  await oc.prompt("ses_a");
+  assert.equal(oc.sent.length, 0);
+  await oc.prompt("ses_a");
   assert.equal(oc.sent.length, 1);
   await oc.dispose();
 });

@@ -171,8 +171,8 @@ A read-only diff review by the session owner along two independent axes: **Stand
 6. The `opencode` agent also edits files: it writes a marked `plugins/gsd/server.mjs` shim that
    re-exports the bundled GSD plugin into the opencode config directory, and the skills without
    the router into its `skills/`. The plugin sends the bootstrap on a root session's first prompt
-   unless the history already holds it, and the bootstrap and capsule after each compaction;
-   child sessions get nothing. Uninstall removes only the marked plugin directory and skills. It
+   unless the history already holds it, and the bootstrap and capsule once after each compaction,
+   however many times opencode set the plugin up in that process; child sessions get nothing. Uninstall removes only the marked plugin directory and skills. It
    refuses a missing config directory or a `gsd` plugin directory GSD did not write, and
    `gsd config` hosts exclude it.
 

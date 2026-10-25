@@ -91,7 +91,7 @@ The opencode adapter maps the same two rows through synthetic user messages tagg
 `gsd/bootstrap`: the `prompt` hook sends the bootstrap when the root session's context holds no
 tagged message, and `session.compaction.ended` sends the bootstrap then the capsule, since the
 compaction dropped the earlier message. A prompt whose context starts from a compaction but holds
-no tagged message, because the process ended before the event was handled, gets both too. Child sessions get nothing, and the remaining rows stay
+no tagged message, because the process ended before the event was handled, gets both too. opencode sets the plugin up several times in one process, each setup hearing the same events, and a message sent between turns stays out of the context until the next prompt, so within one process the two surfaces share one claim per session and compaction: a sent message the context does not show yet is never sent again, and a send that fails leaves the message owed. Child sessions get nothing, and the remaining rows stay
 unmapped, so waves run serially (decision 0040).
 
 There is no reviewer sub-agent: the session owner reviews the whole diff itself in the
