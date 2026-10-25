@@ -119,6 +119,21 @@ test("a resume after a delivered bootstrap injects the capsule or nothing, an un
   assert.deepEqual(unknown.injected.map(textOf), [`${bootstrapFor("res-c")}\n\n${capsuleFor(unknown.session.header.cwd, "res-c")}`]);
 });
 
+test("a resume after the delivered bootstrap changed injects the current bootstrap again", async () => {
+  const project = mkdtempSync(join(tmpdir(), "gsd-dsh-cwd-"));
+  const dsh = recordingContext();
+  await dsh.created(fakeAgent("res-s", project), "startup");
+  const resumed = fakeAgent("res-s", project);
+  await dsh.created(resumed, "resume");
+  assert.deepEqual(resumed.injected, [], "an unchanged bootstrap is not sent again");
+
+  // The marker names an earlier bootstrap, as after a GSD update.
+  writeFileSync(join(process.env.TMPDIR, "gsd-dsh", "res-s", "bootstrap-emitted"), "0".repeat(64));
+  const stale = fakeAgent("res-s", project);
+  await dsh.created(stale, "resume");
+  assert.deepEqual(stale.injected.map(textOf), [bootstrapFor("res-s")]);
+});
+
 test("a compact source injects the bootstrap then the capsule, or the bootstrap alone", async () => {
   const project = projectWithActiveFeature(owner("abc"));
   const dsh = recordingContext();

@@ -165,7 +165,8 @@ A read-only diff review by the session owner along two independent axes: **Stand
    marked block of `$DSH_HOME/cordis.patch.yml`, replacing the earlier hooks-bridge row, and writes
    the skills without the `gsd` router, since the plugin injects the bootstrap and, after
    compaction, re-injects the bootstrap and capsule; a resume of a session that already got the
-   bootstrap gets only the capsule, or nothing, as on Codex and Claude Code. Uninstall removes only that block and the
+   current bootstrap gets only the capsule, or nothing, as on Codex and Claude Code, and a resume
+   after the bootstrap changed, such as a new sub-agent model from `gsd config set`, gets it again. Uninstall removes only that block and the
    marked skills. It refuses a missing `DSH_HOME` or a `gsd` row outside the markers, and
    `gsd config` hosts exclude it.
 6. The `opencode` agent also edits files: it writes a marked `plugins/gsd/server.mjs` shim that

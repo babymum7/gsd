@@ -21,6 +21,7 @@ import { fileURLToPath } from 'node:url';
 import { createBootstrap, sanitizeBootstrapError } from '../../lib/gsd-bootstrap.mjs';
 import { loadSubagentProfiles, withSubagentProfiles } from '../../lib/gsd-settings.mjs';
 import {
+  bootstrapDigest,
   createMarkerStore,
   renderRecoveryCapsule,
   sessionOwnerToken,
@@ -84,6 +85,12 @@ function sourceOf(input) {
 function handleSessionStart(input) {
   const store = createMarkerStore(STATE_ROOT, input.session_id);
   const source = sourceOf(input);
+  const bootstrap = renderBootstrap(ownerOf(input));
+  const digest = bootstrapDigest(bootstrap);
+  // A resumed transcript replays the bootstrap it got; when GSD has since changed it, such as
+  // a new sub-agent model, the current one comes again. An unknown session waits for its prompt.
+  const stored = store.read('bootstrap-emitted');
+  const stale = source === 'resume' && stored !== null && stored !== digest;
   // After a compaction or a resume the host hands the session back; deliver the live
   // capsule so the owner recovers the packets this session owns. A compaction also drops the
   // bootstrap injected earlier, so it comes back first; a resume replays it with the transcript.
@@ -92,16 +99,16 @@ function handleSessionStart(input) {
       ? renderRecoveryCapsule(GSD_ROOT, cwdOf(input), ownerOf(input))
       : null;
   if (capsule) {
-    store.write('bootstrap-emitted');
+    store.write('bootstrap-emitted', digest);
     const recovery = withCurrentRequest(capsule, store.read('last-request'));
-    emit('SessionStart', source === 'compact' ? `${renderBootstrap(ownerOf(input))}\n\n${recovery}` : recovery);
+    emit('SessionStart', source === 'compact' || stale ? `${bootstrap}\n\n${recovery}` : recovery);
     return;
   }
   // A resume replays the bootstrap already injected in the resumed transcript, so
   // emitting nothing keeps the refresh free; the next prompt injects it if it is absent.
-  if (source === 'resume') return;
-  store.write('bootstrap-emitted');
-  emit('SessionStart', renderBootstrap(ownerOf(input)));
+  if (source === 'resume' && !stale) return;
+  store.write('bootstrap-emitted', digest);
+  emit('SessionStart', bootstrap);
 }
 
 function handleUserPromptSubmit(input) {
@@ -111,8 +118,9 @@ function handleUserPromptSubmit(input) {
     store.write('last-request', input.prompt);
   }
   if (store.read('bootstrap-emitted')) return;
-  store.write('bootstrap-emitted');
-  emit('UserPromptSubmit', renderBootstrap(ownerOf(input)));
+  const bootstrap = renderBootstrap(ownerOf(input));
+  store.write('bootstrap-emitted', bootstrapDigest(bootstrap));
+  emit('UserPromptSubmit', bootstrap);
 }
 
 function main() {

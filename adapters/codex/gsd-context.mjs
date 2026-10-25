@@ -20,6 +20,7 @@ import { fileURLToPath } from 'node:url';
 import { createBootstrap, sanitizeBootstrapError } from '../../lib/gsd-bootstrap.mjs';
 import { loadSubagentProfiles, withSubagentProfiles } from '../../lib/gsd-settings.mjs';
 import {
+  bootstrapDigest,
   createMarkerStore,
   renderRecoveryCapsule,
   sessionOwnerToken,
@@ -77,26 +78,30 @@ function cwdOf(input) {
 
 function handleSessionStart(input) {
   const store = createMarkerStore(STATE_ROOT, input.session_id);
-  const delivered = store.read('bootstrap-emitted') !== null;
-  store.write('bootstrap-emitted');
   const owner = ownerOf(input);
+  const bootstrap = renderBootstrap(owner);
+  const digest = bootstrapDigest(bootstrap);
+  const current = store.read('bootstrap-emitted') === digest;
+  store.write('bootstrap-emitted', digest);
   const capsule = input.source === 'compact' || input.source === 'resume'
     ? renderRecoveryCapsule(GSD_ROOT, cwdOf(input), owner)
     : null;
   // A resume replays the transcript, so a bootstrap this session already got is still in it and
-  // only the capsule, if any, is new. A compaction drops it, so it comes back before the capsule.
-  if (input.source === 'resume' && delivered) {
+  // only the capsule, if any, is new; a bootstrap GSD has since changed, such as a new sub-agent
+  // model, comes again. A compaction drops it, so it comes back before the capsule.
+  if (input.source === 'resume' && current) {
     emit('SessionStart', capsule);
     return;
   }
-  emit('SessionStart', capsule ? `${renderBootstrap(owner)}\n\n${capsule}` : renderBootstrap(owner));
+  emit('SessionStart', capsule ? `${bootstrap}\n\n${capsule}` : bootstrap);
 }
 
 function handleUserPromptSubmit(input) {
   const store = createMarkerStore(STATE_ROOT, input.session_id);
   if (store.read('bootstrap-emitted')) return;
-  store.write('bootstrap-emitted');
-  emit('UserPromptSubmit', renderBootstrap(ownerOf(input)));
+  const bootstrap = renderBootstrap(ownerOf(input));
+  store.write('bootstrap-emitted', bootstrapDigest(bootstrap));
+  emit('UserPromptSubmit', bootstrap);
 }
 
 function main() {

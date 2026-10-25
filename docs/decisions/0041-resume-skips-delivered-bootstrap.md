@@ -1,6 +1,6 @@
 # 0041 — A resumed Codex or dsh session gets only the capsule when it already holds the bootstrap
 
-- **Status:** Accepted
+- **Status:** Superseded by 0043
 - **Date:** 2026-10-25
 
 ## Decision
