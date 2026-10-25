@@ -25,6 +25,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBootstrap, sanitizeBootstrapError } from '../../lib/gsd-bootstrap.mjs';
 import {
+  bootstrapDigest,
   createMarkerStore,
   renderRecoveryCapsule,
   sessionOwnerToken,
@@ -71,9 +72,10 @@ function renderAfterCompaction(owner, cwd) {
 }
 
 // A resume replays the transcript, so a bootstrap this session already got is still in it and
-// only the capsule, if any, is new. A session the marker does not know gets the full set.
-function renderForSource(source, owner, cwd, delivered) {
-  if (source === 'resume' && delivered) return renderRecoveryCapsule(GSD_ROOT, cwd, owner);
+// only the capsule, if any, is new. A session the marker does not know, or whose bootstrap GSD
+// has since changed, gets the full set.
+function renderForSource(source, owner, cwd, current) {
+  if (source === 'resume' && current) return renderRecoveryCapsule(GSD_ROOT, cwd, owner);
   if (source === 'resume' || source === 'compact') return renderAfterCompaction(owner, cwd);
   return renderBootstrap(owner);
 }
@@ -85,8 +87,10 @@ export function apply(ctx) {
     try {
       const id = agent.session.header.id;
       const store = createMarkerStore(stateRoot(), id);
-      const text = renderForSource(source, sessionOwnerToken('dsh', id), cwdOf(agent), store.read('bootstrap-emitted') !== null);
-      store.write('bootstrap-emitted');
+      const owner = sessionOwnerToken('dsh', id);
+      const digest = bootstrapDigest(renderBootstrap(owner));
+      const text = renderForSource(source, owner, cwdOf(agent), store.read('bootstrap-emitted') === digest);
+      store.write('bootstrap-emitted', digest);
       if (text) agent.inject(userMessage(text));
     } catch (error) {
       try {
@@ -116,7 +120,9 @@ export function apply(ctx) {
     compacted.delete(id);
     let text;
     try {
-      text = renderAfterCompaction(sessionOwnerToken('dsh', id), cwdOf(agent));
+      const owner = sessionOwnerToken('dsh', id);
+      text = renderAfterCompaction(owner, cwdOf(agent));
+      createMarkerStore(stateRoot(), id).write('bootstrap-emitted', bootstrapDigest(renderBootstrap(owner)));
     } catch (error) {
       text = sanitizeBootstrapError(error);
     }

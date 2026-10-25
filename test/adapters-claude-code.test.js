@@ -190,6 +190,27 @@ test("a task notification prompt does not replace the preserved request", () => 
   assert.ok(after.endsWith("[GSD Current Request]\ncontinue"), "the request before the notification is kept");
 });
 
+test("a resume after the claude profiles changed re-sends the bootstrap, an unchanged one stays silent", () => {
+  const project = mkdtempSync(join(tmpdir(), "gsd-cc-cwd-"));
+  const stateRoot = mkdtempSync(join(tmpdir(), "gsd-cc-state-"));
+  const home = mkdtempSync(join(tmpdir(), "gsd-cc-home-"));
+  const setScout = (model) =>
+    writeFileSync(join(home, "settings.json"), JSON.stringify({ version: 1, profiles: { scout: { claude: model } } }));
+  const start = (source) => run({ hook_event_name: "SessionStart", session_id: "s-p", cwd: project, source }, project, stateRoot);
+  const previous = process.env.GSD_HOME;
+  process.env.GSD_HOME = home;
+  try {
+    setScout("haiku");
+    assert.match(parseContext(start("startup"), "SessionStart"), /scout `haiku`/);
+    assert.equal(start("resume"), "");
+    setScout("sonnet");
+    assert.match(parseContext(start("resume"), "SessionStart"), /scout `sonnet`/);
+    assert.equal(start("resume"), "");
+  } finally {
+    process.env.GSD_HOME = previous;
+  }
+});
+
 test("a resume SessionStart refreshes an active capsule and stays silent otherwise", () => {
   const project = projectWithActiveFeature(owner("s4"));
   const stateRoot = mkdtempSync(join(tmpdir(), "gsd-cc-state-"));

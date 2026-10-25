@@ -195,6 +195,31 @@ test("a resume SessionStart after a delivered bootstrap emits the capsule or not
   );
 });
 
+// A resume after `gsd config set` changed a sub-agent model re-sends the bootstrap, since the
+// transcript still holds the old model; an unchanged one stays out.
+test("a resume after the codex profiles changed re-sends the bootstrap with the new model", () => {
+  const project = mkdtempSync(join(tmpdir(), "gsd-codex-cwd-"));
+  const stateRoot = mkdtempSync(join(tmpdir(), "gsd-codex-state-"));
+  const home = mkdtempSync(join(tmpdir(), "gsd-codex-home-"));
+  const setScout = (model) =>
+    writeFileSync(join(home, "settings.json"), JSON.stringify({ version: 1, profiles: { scout: { codex: model } } }));
+  const start = (source) => run({ hook_event_name: "SessionStart", session_id: "c-p", cwd: project, source }, project, stateRoot);
+  const previous = process.env.GSD_HOME;
+  process.env.GSD_HOME = home;
+  try {
+    setScout("old-model");
+    assert.match(parseContext(start("startup"), "SessionStart"), /scout `old-model`/);
+    assert.equal(start("resume"), "", "an unchanged bootstrap is not sent again");
+    setScout("new-model");
+    const resumed = parseContext(start("resume"), "SessionStart");
+    assert.match(resumed, /scout `new-model`/);
+    assert.match(resumed, /^<GSD_BOOTSTRAP>/);
+    assert.equal(start("resume"), "", "the re-sent bootstrap is now the delivered one");
+  } finally {
+    process.env.GSD_HOME = previous;
+  }
+});
+
 // Contract rule 4, the Codex side of the same check as the Claude Code adapter: a
 // broken core must surface the core's own diagnostic, not a host-adapted version.
 test("a broken core fails closed with the core's own diagnostic, never a host rewrite", () => {
