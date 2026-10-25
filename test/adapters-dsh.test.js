@@ -32,7 +32,9 @@ function recordingContext() {
   });
   return {
     created: (agent, source) => Promise.all(listeners.get("agent/created").map((fn) => fn({ agent, source }))),
-    event: (session, type, extra = {}) => listeners.get("session/event").forEach((fn) => fn(session, { type, ...extra })),
+    event: (session, type, extra = {}) => listeners.get("session/event").forEach((fn) => {
+      fn(session, { type, ...extra });
+    }),
     // The innermost `next` yields the decision dsh would have made.
     step: (agent, decision) => listeners.get("agent/pre-step")[0]({ agent, messages: [] }, async () => decision),
   };
