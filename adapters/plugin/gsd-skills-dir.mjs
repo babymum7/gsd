@@ -51,7 +51,11 @@ function copyResolved(source, target, coreRoot) {
     else if (entry.name.endsWith('.md')) {
       // Both spellings name the core: the `<GSD_ROOT>` slot in commands and the bare
       // `GSD_ROOT/skills/...` pointers in prose, which no hook defines here.
-      fs.writeFileSync(to, fs.readFileSync(from, 'utf8').replace(/<GSD_ROOT>|\bGSD_ROOT(?=\/)/g, () => coreRoot));
+      let text = fs.readFileSync(from, 'utf8').replace(/<GSD_ROOT>|\bGSD_ROOT(?=\/)/g, () => coreRoot);
+      // `disableModelInvocation` is OMP's spelling, and OMP never installs from a skills
+      // directory; dsh rejects a skill that carries it, and `disable-model-invocation` stays.
+      if (entry.name === 'SKILL.md') text = text.replace(/^disableModelInvocation: true\r?\n/m, '');
+      fs.writeFileSync(to, text);
     } else fs.copyFileSync(from, to);
   }
 }

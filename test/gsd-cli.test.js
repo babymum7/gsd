@@ -649,6 +649,10 @@ test("dsh install appends one marked hook block once, writes host skills without
     assert.deepEqual(skills, skillsDirNames(ROOT, { router: false }).sort());
     assert.ok(!skills.includes("gsd"));
     assert.ok(skills.includes("gsd-verify") && skills.includes("gsd-refactor"));
+    // dsh drops a whole skill whose frontmatter has the legacy camelCase key.
+    const refactor = readFileSync(join(dshHome, "skills", "gsd-refactor", "SKILL.md"), "utf8");
+    assert.doesNotMatch(refactor, /^disableModelInvocation:/m);
+    assert.match(refactor, /^disable-model-invocation: true$/m);
     assert.deepEqual(readAgents(home), { dsh: "plugin" });
   } finally {
     rmSync(root, { recursive: true, force: true });
