@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { analyzeWaves, initPlanFile, readPlanFile, renderMergeMessage, validatePlanFile } from "../lib/gsd-contract.mjs";
+import { analyzeWaves, readPlanFile, renderMergeMessage, validatePlanFile } from "../lib/gsd-contract.mjs";
+import { initPlanFile } from "../lib/gsd-plan-init.mjs";
 import { normalizePlan, normalizePlanFile } from "../lib/gsd-plan-normalize.mjs";
 import { generateUnifiedDiff } from "../lib/gsd-unified-diff.mjs";
 
@@ -2583,7 +2584,7 @@ test("init-plan rejects a base equal to the packet's own WIP branch before writi
       [
         "-e",
         'const { initPlanFile } = require(process.argv[1]); try { initPlanFile(".scratch/selfbase/plan.md", { base: "wip/selfbase", cwd: process.argv[2] }); } catch (error) { console.log("thrown:", error.message); }',
-        join(ROOT, "lib", "gsd-contract.mjs"),
+        join(ROOT, "lib", "gsd-plan-init.mjs"),
         workspace,
       ],
       { encoding: "utf8" }
