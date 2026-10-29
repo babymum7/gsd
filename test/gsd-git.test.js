@@ -1,6 +1,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import {
+  cpSync,
   mkdtempSync,
   mkdirSync,
   readFileSync,
@@ -420,6 +421,7 @@ test("preflight blocks every way the recorded Git identity can stop holding", ()
       assert.match(result.stdout, /^status: blocked$/m, label);
       assert.match(result.stdout, new RegExp(`^code: ${code}$`, "m"), `${label}: ${result.stdout}`);
       if (code === "base-checked-out-elsewhere") {
+        assert.match(result.stdout, /is checked out in the linked worktree /, label);
         assert.match(result.stdout, /Ask the user: merge there once its session is idle, or leave wip\/blocked-demo for them to merge/, label);
         assert.match(result.stdout, /Never move trunk with update-ref, fetch, or commit-tree/, label);
       }
@@ -427,6 +429,45 @@ test("preflight blocks every way the recorded Git identity can stop holding", ()
       cleanup?.(packet);
       rmSync(packet.root, { recursive: true, force: true });
     }
+  }
+});
+
+// A session ran its feature in a linked worktree while its own first checkout, the main
+// worktree, held the base; the block called that checkout a linked worktree.
+test("preflight names the main worktree when it holds the base", () => {
+  const packet = makePacket({ feature: "main-holds", base: "trunk" });
+  const linked = `${packet.root}-wt`;
+  try {
+    git(["checkout", "-q", "trunk"], packet.root);
+    git(["worktree", "add", "-q", linked, "wip/main-holds"], packet.root);
+    cpSync(join(packet.root, packet.relative), join(linked, packet.relative), { recursive: true });
+    rmSync(join(packet.root, ".scratch"), { recursive: true, force: true });
+    const result = cli(["preflight", "--feature-dir", packet.relative], linked);
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^code: base-checked-out-elsewhere$/m, result.stdout);
+    assert.match(result.stdout, /base_ref trunk is checked out in the main worktree /, result.stdout);
+  } finally {
+    rmSync(linked, { recursive: true, force: true });
+    rmSync(packet.root, { recursive: true, force: true });
+  }
+});
+
+// The same session first left its packet in the main worktree and ran the gate from the linked
+// one, then read that `.scratch/<feature>/plan.md` was the format it had already used.
+test("preflight on a packet in another work tree says where packets live", () => {
+  const packet = makePacket({ feature: "packet-elsewhere", base: "trunk" });
+  const linked = `${packet.root}-wt`;
+  try {
+    git(["checkout", "-q", "trunk"], packet.root);
+    git(["worktree", "add", "-q", linked, "wip/packet-elsewhere"], packet.root);
+    const result = cli(["preflight", "--feature-dir", join(packet.root, packet.relative)], linked);
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^code: plan-invalid$/m, result.stdout);
+    assert.match(result.stdout, /lies outside the current workspace/, result.stdout);
+    assert.match(result.stdout, /work tree that has its WIP branch checked out/, result.stdout);
+  } finally {
+    rmSync(linked, { recursive: true, force: true });
+    rmSync(packet.root, { recursive: true, force: true });
   }
 });
 

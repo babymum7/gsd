@@ -136,7 +136,7 @@ function emitHelp(command) {
       "  - HEAD is attached, so every commit made is on a branch",
       "  - base_ref and wip_branch are recorded and usable branch names",
       "  - base_ref resolves to a local branch able to receive the merge",
-      "  - base_ref is not checked out in another linked worktree",
+      "  - base_ref is not checked out in another worktree, main or linked",
       "  - wip_branch resolves to a local branch",
       "  - no path outside .scratch/ is uncommitted, staged, or untracked",
       "  - plan.md validates and names base_ref as its Base",
@@ -323,11 +323,16 @@ function checkedOutElsewhere(branch, cwd) {
       `git could not report this repository's worktrees, so base_ref ${branch} cannot be proven free to receive the merge`,
     );
   }
+  // Git lists the main worktree first, then the linked ones, so the block can name which holds
+  // the base: often the main one, where the session started before cutting a linked worktree.
+  let first = null;
   let current = null;
   for (const line of listing.stdout.split("\n")) {
-    if (line.startsWith("worktree ")) current = line.slice(9);
-    else if (line === `branch refs/heads/${branch}` && current !== null && current !== self.stdout) {
-      return current;
+    if (line.startsWith("worktree ")) {
+      current = line.slice(9);
+      first ??= current;
+    } else if (line === `branch refs/heads/${branch}` && current !== null && current !== self.stdout) {
+      return { dir: current, main: current === first };
     }
   }
   return null;
@@ -513,7 +518,7 @@ function proveBranchIdentity(dir, base, wip, where, baseMayBeElsewhere = false) 
       "base-checked-out-elsewhere",
       // Moving the ref without a checkout would shift that worktree's HEAD under its index,
       // and its next commit would revert this merge, so the message rules that route out.
-      `base_ref ${base}${where} is checked out in the linked worktree ${elsewhere}, which cannot receive this merge. Ask the user: merge there once its session is idle, or leave ${wip} for them to merge; a feature in parts avoids this with an integration branch (gsd-brainstorming § Parts). Never move ${base} with update-ref, fetch, or commit-tree: that worktree's HEAD would shift under its index and its next commit would revert the merge`,
+      `base_ref ${base}${where} is checked out in the ${elsewhere.main ? "main" : "linked"} worktree ${elsewhere.dir}, which cannot receive this merge. Ask the user: merge there once its session is idle, or leave ${wip} for them to merge; a feature in parts avoids this with an integration branch (gsd-brainstorming § Parts). Never move ${base} with update-ref, fetch, or commit-tree: that worktree's HEAD would shift under its index and its next commit would revert the merge`,
     );
   }
   // A detached HEAD at the gate is not a cosmetic detail: commits made there sit on no
@@ -596,12 +601,6 @@ function preflight(cwd, featureDir) {
     state = inspectStateFile(resolve(cwd, featureDir, "state.toon"));
   } catch (error) {
     blocked("state-unusable", error.message);
-  }
-  if (state.base_ref === "none" || state.wip_branch === "none") {
-    blocked(
-      "no-git-identity",
-      `state records no Git identity: base_ref ${state.base_ref}, wip_branch ${state.wip_branch}`,
-    );
   }
   const base = requireBranchName(state.base_ref, "base_ref");
   const wip = requireBranchName(state.wip_branch, "wip_branch");
