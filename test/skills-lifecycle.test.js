@@ -11,6 +11,12 @@ import {
   createEvalAgentEnv, describeEvalBackendError, selectEvalBackend,
   evalSurfaceFingerprint,
 } from "./eval/activation-eval-contract.mjs";
+import {
+  DEFAULT_REPORT_PATH as OUTCOME_REPORT_PATH,
+  fingerprintMismatches,
+  liveOutcomeFingerprint,
+  validateOutcomeReport,
+} from "./eval/outcome-eval-contract.mjs";
 
 // `--tools read` let an eval session reach the user's MCP servers through `write xd://mcp__…`,
 // so eval sessions run on a linked copy of the agent directory with no MCP server.
@@ -495,6 +501,16 @@ test("the committed eval reports keep their shape and flag stale bytes", () => {
           assert.match(failure.detail, /want .+, got .+|parse error: .+/);
         }
       }
+    }
+  }
+
+  // The outcome benchmark's report has its own shape (decision 0044) and exists once a live run
+  // is committed. Its fingerprint also binds the plugin bundle, fixture, and harness bytes.
+  if (existsSync(join(ROOT, OUTCOME_REPORT_PATH))) {
+    const outcome = JSON.parse(read(OUTCOME_REPORT_PATH));
+    assert.deepEqual(validateOutcomeReport(outcome), { ok: true }, `${OUTCOME_REPORT_PATH} must keep its shape`);
+    for (const field of fingerprintMismatches(outcome.fingerprint, liveOutcomeFingerprint(ROOT))) {
+      warnStale(OUTCOME_REPORT_PATH, `a different ${field}`);
     }
   }
 });
