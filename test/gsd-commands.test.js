@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { TOOL_COMMANDS } from "../lib/gsd-commands.mjs";
+import { TOOL_COMMANDS, errorRows, invocationOf } from "../lib/gsd-commands.mjs";
 
 const TOOLS = join(dirname(fileURLToPath(import.meta.url)), "..", "tools");
 const run = (tool, ...args) => spawnSync(process.execPath, [join(TOOLS, tool), ...args], { encoding: "utf8" });
@@ -40,4 +40,16 @@ test("each tool accepts exactly the commands the owner map gives it", () => {
       assert.doesNotMatch(result.stdout, /unknown command/, `${tool} ${command}: ${result.stdout}`);
     }
   }
+});
+
+// Every tool refusal opens with the same four rows, and each value is one JSON string, so a
+// message holding a quote or a newline stays on its own row.
+test("tool refusals share one row shape with JSON-quoted values", () => {
+  assert.deepEqual(errorRows("usage", 'bad "flag"\nnext', 7), [
+    "status: error",
+    "code: usage",
+    'error: "bad \\"flag\\"\\nnext"',
+    'help: "7"',
+  ]);
+  assert.equal(invocationOf("/opt/g sd/tools/gsd-git.mjs"), 'bun "/opt/g sd/tools/gsd-git.mjs"');
 });

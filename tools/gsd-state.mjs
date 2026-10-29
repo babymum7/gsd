@@ -13,7 +13,13 @@ import {
   readStateFile,
   writeStateAtomic,
 } from "../lib/gsd-state.mjs";
-import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
+import {
+  ERROR_TEXT_MAX_CHARS,
+  commandsOf,
+  errorRows,
+  invocationOf,
+  unknownCommandMessage,
+} from "../lib/gsd-commands.mjs";
 import { validatePlanFile } from "../lib/gsd-contract.mjs";
 
 const COMMANDS = commandsOf("gsd-state.mjs");
@@ -21,7 +27,7 @@ const VALUE_FLAGS = new Set(["--path", "--feature-dir", "--json", "--json-file"]
 const STATE_FIELD_SET = new Set(STATE_FIELD_ORDER);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
+const INVOCATION = invocationOf(SCRIPT_PATH);
 
 function write_(lines) {
   process.stdout.write(lines.join("\n") + "\n");
@@ -155,12 +161,8 @@ function emitHelp(command) {
   ]);
 }
 
-function quote(value) {
-  return JSON.stringify(String(value));
-}
-
 function failUsage(message, command = null) {
-  write_(["status: error", "code: usage", `error: ${quote(message)}`, `help: ${quote(commandUsage(command))}`]);
+  write_(errorRows("usage", message, commandUsage(command)));
   process.exit(2);
 }
 
@@ -182,12 +184,11 @@ function checkpointAge(statePath) {
 // silently takes it back from the session the user handed it to, and both keep executing.
 function refuseOwnerChange(feature, recorded, requested, command, takeover, statePath) {
   if (recorded === "none" || requested === recorded || takeover) return;
-  write_([
-    "status: error",
-    "code: owner-mismatch",
-    `error: ${quote(`packet ${feature} is owned by ${recorded}, not ${requested}; its last checkpoint was ${checkpointAge(statePath)}`)}`,
-    `help: ${quote(`leave it alone unless the user named this packet; then rerun this ${command} with --takeover, telling the user the owner and checkpoint age, since a recent checkpoint means that session may still be running`)}`,
-  ]);
+  write_(errorRows(
+    "owner-mismatch",
+    `packet ${feature} is owned by ${recorded}, not ${requested}; its last checkpoint was ${checkpointAge(statePath)}`,
+    `leave it alone unless the user named this packet; then rerun this ${command} with --takeover, telling the user the owner and checkpoint age, since a recent checkpoint means that session may still be running`,
+  ));
   process.exit(1);
 }
 
@@ -195,12 +196,11 @@ function refuseOwnerChange(feature, recorded, requested, command, takeover, stat
 // from could still overwrite the new owner's checkpoint.
 function requireOwner(feature, recorded) {
   if (recorded === "none") return;
-  write_([
-    "status: error",
-    "code: owner-required",
-    `error: ${quote(`packet ${feature} is owned by ${recorded}, and this set names no owner`)}`,
-    `help: ${quote(`rerun this set with owner=<GSD_SESSION> added; if ${recorded} is not your GSD_SESSION, leave the packet alone unless the user named it`)}`,
-  ]);
+  write_(errorRows(
+    "owner-required",
+    `packet ${feature} is owned by ${recorded}, and this set names no owner`,
+    `rerun this set with owner=<GSD_SESSION> added; if ${recorded} is not your GSD_SESSION, leave the packet alone unless the user named it`,
+  ));
   process.exit(1);
 }
 
@@ -221,12 +221,11 @@ function resolveCommitRef(value, featureDir) {
   const resolved = spawned?.status === 0 ? spawned.stdout.trim() : "";
   if (FULL_SHA_RE.test(resolved)) return resolved;
   const shown = value.replace(/[\x00-\x1F\x7F]+/g, " ").slice(0, 100);
-  write_([
-    "status: error",
-    "code: invalid-artifact",
-    `error: ${quote(`last_green_commit ${shown} does not name a commit in ${root}`)}`,
-    `help: ${quote("pass a commit Git resolves in this repository, such as the output of git rev-parse HEAD, or the full 40-character SHA for a commit in another repository listed in ## Repos")}`,
-  ]);
+  write_(errorRows(
+    "invalid-artifact",
+    `last_green_commit ${shown} does not name a commit in ${root}`,
+    "pass a commit Git resolves in this repository, such as the output of git rev-parse HEAD, or the full 40-character SHA for a commit in another repository listed in ## Repos",
+  ));
   process.exit(1);
 }
 
@@ -234,11 +233,11 @@ function failArtifact(error, command) {
   const message = String(error?.message ?? error)
     .replace(/[\x00-\x1F\x7F]+/g, " ")
     .trim()
-    .slice(0, 500) || "state validation failed";
+    .slice(0, ERROR_TEXT_MAX_CHARS) || "state validation failed";
   const code = error?.contractFailure === "io-error" || error?.contractFailure === "state-busy"
     ? error.contractFailure
     : "invalid-artifact";
-  write_(["status: error", `code: ${code}`, `error: ${quote(message)}`, `help: ${quote(remediation(message, command))}`]);
+  write_(errorRows(code, message, remediation(message, command)));
   process.exit(1);
 }
 
@@ -494,13 +493,12 @@ function refuseInvalidPlan(state, featureDir) {
     validatePlanFile(state.plan_path, { cwd: root, expectedBase: state.base_ref !== "none" ? state.base_ref : null });
   } catch (error) {
     const more = error?.additionalErrors?.length ?? 0;
-    const message = String(error?.message ?? error).replace(/[\x00-\x1F\x7F]+/g, " ").trim().slice(0, 500);
-    write_([
-      "status: error",
-      "code: invalid-artifact",
-      `error: ${quote(`plan ${state.plan_path} does not validate${more ? ` (${more + 1} errors)` : ""}: ${message}`)}`,
-      `help: ${quote(`nothing was written; fix the plan, check it with bun ${JSON.stringify(path.join(path.dirname(SCRIPT_PATH), "gsd-contract.mjs"))} validate-plan --path ${state.plan_path}, then rerun this set`)}`,
-    ]);
+    const message = String(error?.message ?? error).replace(/[\x00-\x1F\x7F]+/g, " ").trim().slice(0, ERROR_TEXT_MAX_CHARS);
+    write_(errorRows(
+      "invalid-artifact",
+      `plan ${state.plan_path} does not validate${more ? ` (${more + 1} errors)` : ""}: ${message}`,
+      `nothing was written; fix the plan, check it with ${invocationOf(path.join(path.dirname(SCRIPT_PATH), "gsd-contract.mjs"))} validate-plan --path ${state.plan_path}, then rerun this set`,
+    ));
     process.exit(1);
   }
 }

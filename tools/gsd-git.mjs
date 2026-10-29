@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 import { realpathSync, statSync } from "node:fs";
 import { isSafeBranchRef, PLAN_FEATURE_RE, validatePlanFile } from "../lib/gsd-contract.mjs";
 import { inspectStateFile } from "../lib/gsd-state.mjs";
-import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
+import { commandsOf, errorRows, invocationOf, quote, unknownCommandMessage } from "../lib/gsd-commands.mjs";
 
 const COMMANDS = commandsOf("gsd-git.mjs");
 const VALUE_FLAGS = new Set(["--feature-dir", "--cwd", "--task", "--branch", "--wave-base"]);
@@ -95,7 +95,7 @@ export function assertReadOnlyGit(args) {
 }
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
+const INVOCATION = invocationOf(SCRIPT_PATH);
 
 function write_(lines) {
   process.stdout.write(lines.join("\n") + "\n");
@@ -197,7 +197,7 @@ function emitHelp(command) {
 }
 
 function failUsage(message, command = null) {
-  write_(["status: error", "code: usage", `error: ${JSON.stringify(message)}`, `help: ${JSON.stringify(commandUsage(command))}`]);
+  write_(errorRows("usage", message, commandUsage(command)));
   process.exit(2);
 }
 
@@ -205,8 +205,8 @@ function blocked(code, message, help = null) {
   write_([
     "status: blocked",
     `code: ${code}`,
-    `error: ${JSON.stringify(message)}`,
-    ...(help ? [`help: ${JSON.stringify(help)}`] : []),
+    `error: ${quote(message)}`,
+    ...(help ? [`help: ${quote(help)}`] : []),
     "exit=1",
   ]);
   process.exit(1);

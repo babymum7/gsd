@@ -14,18 +14,20 @@ import {
   parseDomainIndex,
   parseDomainScope,
 } from "../lib/gsd-domain.mjs";
-import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
+import {
+  MAX_LISTED_ERRORS,
+  commandsOf,
+  errorRows,
+  invocationOf,
+  quote,
+  unknownCommandMessage,
+} from "../lib/gsd-commands.mjs";
 
 const COMMANDS = commandsOf("gsd-domain.mjs");
 const VALUE_FLAGS = new Set(["--index", "--agents", "--scope"]);
-const MAX_LISTED_ERRORS = 10;
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
-
-function quote(value) {
-  return JSON.stringify(String(value));
-}
+const INVOCATION = invocationOf(SCRIPT_PATH);
 
 function write(lines) {
   process.stdout.write(lines.join("\n"));
@@ -67,7 +69,7 @@ function emitHelp() {
 }
 
 function failUsage(message) {
-  write(["status: error", "code: usage", `error: ${quote(message)}`, `help: ${quote(commandUsage())}`]);
+  write(errorRows("usage", message, commandUsage()));
   process.exitCode = 2;
 }
 
@@ -81,7 +83,7 @@ function domainHelp(message) {
 // pass fixes them all.
 function failDomain(...messages) {
   const [first, ...more] = messages;
-  const rows = ["status: error", "code: invalid-domain", `error: ${quote(first)}`, `help: ${quote(domainHelp(first))}`];
+  const rows = errorRows("invalid-domain", first, domainHelp(first));
   more.slice(0, MAX_LISTED_ERRORS - 1).forEach((message, index) => {
     rows.push(`error_${index + 2}: ${quote(message)}`);
     rows.push(`help_${index + 2}: ${quote(domainHelp(message))}`);
@@ -92,7 +94,7 @@ function failDomain(...messages) {
 }
 
 function failIo(message) {
-  write(["status: error", "code: io-error", `error: ${quote(message)}`, `help: ${quote(commandUsage())}`]);
+  write(errorRows("io-error", message, commandUsage()));
   process.exitCode = 1;
 }
 

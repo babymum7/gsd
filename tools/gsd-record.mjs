@@ -10,17 +10,13 @@ import {
   RECORD_KINDS,
   parseRecordHeader,
 } from "../lib/gsd-record.mjs";
-import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
+import { commandsOf, errorRows, invocationOf, quote, unknownCommandMessage } from "../lib/gsd-commands.mjs";
 
 const COMMANDS = commandsOf("gsd-record.mjs");
 const VALUE_FLAGS = new Set(["--path", "--kind"]);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
-
-function quote(value) {
-  return JSON.stringify(String(value));
-}
+const INVOCATION = invocationOf(SCRIPT_PATH);
 
 function write(lines) {
   process.stdout.write(lines.join("\n"));
@@ -51,17 +47,17 @@ function emitHelp(command) {
 }
 
 function failUsage(message, command = null) {
-  write(["status: error", "code: usage", `error: ${quote(message)}`, `help: ${quote(commandUsage(command))}`]);
+  write(errorRows("usage", message, commandUsage(command)));
   process.exitCode = 2;
 }
 
 function failRecord(message, command = "validate") {
-  write(["status: error", "code: invalid-record", `error: ${quote(message)}`, `help: ${quote(commandUsage(command))}`]);
+  write(errorRows("invalid-record", message, commandUsage(command)));
   process.exitCode = 1;
 }
 
 function failIo(message, command = "validate") {
-  write(["status: error", "code: io-error", `error: ${quote(message)}`, `help: ${quote(commandUsage(command))}`]);
+  write(errorRows("io-error", message, commandUsage(command)));
   process.exitCode = 1;
 }
 
