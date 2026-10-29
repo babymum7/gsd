@@ -83,7 +83,9 @@ The dsh adapter maps only the first two rows, as an in-process plugin rather tha
 `agent/created` injects the bootstrap; on `source: "resume"` a session that already got the current
 bootstrap gets only the capsule, or nothing, and one whose bootstrap changed gets it again (decision 0043). dsh announces no
 compaction source, so a `compaction/end` session event marks the session and the next
-`agent/pre-step` appends the bootstrap and capsule to the entering messages (decision 0038).
+`agent/pre-step` appends the bootstrap and capsule to the entering messages (decision 0038). A
+failed compaction also ends with `compaction/end`, carrying `data.error`; it marks nothing, since
+the history still holds the bootstrap.
 Plan mode, goals, sub-agents, isolation, and sub-agent profiles stay unmapped for dsh
 (decision 0037), so waves there run serially in plan order.
 

@@ -25,6 +25,7 @@ const capsuleFor = (project, session) => renderRecoveryCapsule(CORE_ROOT, projec
 // A recording Cordis context: `on` stores listeners, the helpers fire them like dsh would.
 function recordingContext() {
   const listeners = new Map();
+  let seq = 0;
   apply({
     on(event, fn) {
       listeners.set(event, [...(listeners.get(event) ?? []), fn]);
@@ -32,8 +33,10 @@ function recordingContext() {
   });
   return {
     created: (agent, source) => Promise.all(listeners.get("agent/created").map((fn) => fn({ agent, source }))),
-    event: (session, type, extra = {}) => listeners.get("session/event").forEach((fn) => {
-      fn(session, { type, ...extra });
+    // dsh's SessionEvent envelope: the event's own fields travel under `data`.
+    event: (session, type, data = {}) => listeners.get("session/event").forEach((fn) => {
+      seq += 1;
+      fn(session, { type, seq, time: Date.now(), data });
     }),
     // The innermost `next` yields the decision dsh would have made.
     step: (agent, decision) => listeners.get("agent/pre-step")[0]({ agent, messages: [] }, async () => decision),
@@ -188,7 +191,12 @@ test("a compaction/end carrying an error adds nothing to the next step", async (
   const dsh = recordingContext();
   const agent = fakeAgent("abc", project);
 
-  dsh.event(agent.session, "compaction/end", { error: "504 gateway timeout" });
+  // The payload a real dsh session recorded for an interrupted compaction.
+  dsh.event(agent.session, "compaction/end", {
+    compactionId: "9555eebd-f14e-4f3a-8847-0a7441c2f251",
+    turn: 9,
+    error: "upstream stream interrupted",
+  });
 
   assert.deepEqual((await dsh.step(agent, enter("hi"))).messages.map(textOf), ["hi"]);
 });
