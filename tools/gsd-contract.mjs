@@ -4,12 +4,12 @@ import { fileURLToPath } from "node:url";
 import {
   PLAN_FEATURE_RE,
   analyzeWaves,
-  initPlanFile,
   isSafeBranchRef,
-  normalizePlanFile,
   renderMergeMessage,
   validatePlanFile,
 } from "../lib/gsd-contract.mjs";
+import { initPlanFile } from "../lib/gsd-plan-init.mjs";
+import { normalizePlanFile } from "../lib/gsd-plan-normalize.mjs";
 import {
   ERROR_TEXT_MAX_CHARS,
   MAX_LISTED_ERRORS,
