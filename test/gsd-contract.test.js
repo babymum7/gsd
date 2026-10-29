@@ -6,7 +6,8 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { analyzeWaves, generateUnifiedDiff, initPlanFile, normalizePlan, normalizePlanFile, readPlanFile, renderMergeMessage, validatePlanFile } from "../lib/gsd-contract.mjs";
+import { analyzeWaves, initPlanFile, normalizePlan, normalizePlanFile, readPlanFile, renderMergeMessage, validatePlanFile } from "../lib/gsd-contract.mjs";
+import { generateUnifiedDiff } from "../lib/gsd-unified-diff.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CLI = join(ROOT, "tools", "gsd-contract.mjs");
