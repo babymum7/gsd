@@ -1,6 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import { discoverHostSkills } from '../../lib/gsd-bootstrap.mjs';
+import { writeFileAtomic } from '../../lib/gsd-fs.mjs';
 
 const MARKETPLACE_MARKER = '.gsd-plugin-marketplace';
 const PLUGIN_MARKER = '.gsd-plugin';
@@ -9,9 +10,7 @@ const PLUGIN_NAME = 'gsd';
 
 function writeJsonAtomic(target, value) {
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  const temp = `${target}.gsd-tmp-${process.pid}`;
-  fs.writeFileSync(temp, `${JSON.stringify(value, null, 2)}\n`);
-  fs.renameSync(temp, target);
+  writeFileAtomic(target, `${JSON.stringify(value, null, 2)}\n`);
 }
 
 // Refuses a directory GSD does not own. Nothing is deleted here: hosts load the installed
