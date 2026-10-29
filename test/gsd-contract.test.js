@@ -2806,17 +2806,20 @@ test("a section heading at the very end of the file is an empty section, not a m
 });
 
 test("normalize-plan --write keeps the file's permissions", () => {
-  const { workspace, planPath } = makePlanWorkspace("keep-mode", canonicalPlan("keep-mode").replace("## Summary", "## Summary "));
-  try {
-    chmodSync(planPath, 0o600);
-    const result = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", planPath, "--write"], {
-      cwd: workspace,
-      encoding: "utf8",
-    });
-    assert.equal(result.status, 0, result.stdout + result.stderr);
-    assert.equal(statSync(planPath).mode & 0o777, 0o600);
-  } finally {
-    rmSync(workspace, { recursive: true, force: true });
+  // The rewrite is created as 0600, so only a mode other than 0600 proves it is copied.
+  for (const mode of [0o600, 0o640]) {
+    const { workspace, planPath } = makePlanWorkspace("keep-mode", canonicalPlan("keep-mode").replace("## Summary", "## Summary "));
+    try {
+      chmodSync(planPath, mode);
+      const result = spawnSync(process.execPath, [CLI, "normalize-plan", "--path", planPath, "--write"], {
+        cwd: workspace,
+        encoding: "utf8",
+      });
+      assert.equal(result.status, 0, result.stdout + result.stderr);
+      assert.equal(statSync(planPath).mode & 0o777, mode);
+    } finally {
+      rmSync(workspace, { recursive: true, force: true });
+    }
   }
 });
 
@@ -2841,6 +2844,35 @@ test("normalizePlanFile completes a short write instead of committing a truncate
     assert.equal(validateCanonical("short-write", result.content).status, 0);
   } finally {
     fs.writeSync = realWriteSync;
+    rmSync(workspace, { recursive: true, force: true });
+  }
+});
+
+test("normalizePlanFile keeps the plan and leaves no temp file when the rewrite fails", () => {
+  const dirty = canonicalPlan("rewrite-fails").replace("## Summary", "## Summary ");
+  const { workspace, planPath } = makePlanWorkspace("rewrite-fails", dirty);
+  const failures = [
+    ["writeSync", "ENOSPC: no space left on device", "ENOSPC"],
+    ["renameSync", "EXDEV: cross-device link not permitted", "EXDEV"],
+  ];
+  try {
+    for (const [name, message, code] of failures) {
+      const real = fs[name];
+      fs[name] = () => {
+        throw Object.assign(new Error(message), { code });
+      };
+      try {
+        assert.throws(
+          () => normalizePlanFile(planPath, { cwd: workspace, write: true }),
+          new RegExp(`cannot write normalized plan file: ${code}`),
+        );
+      } finally {
+        fs[name] = real;
+      }
+      assert.equal(readFileSync(planPath, "utf8"), dirty, name);
+      assert.deepEqual(readdirSync(dirname(planPath)), ["plan.md"], name);
+    }
+  } finally {
     rmSync(workspace, { recursive: true, force: true });
   }
 });
