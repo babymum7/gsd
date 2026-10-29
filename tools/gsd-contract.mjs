@@ -6,10 +6,10 @@ import {
   analyzeWaves,
   initPlanFile,
   isSafeBranchRef,
-  normalizePlanFile,
   renderMergeMessage,
   validatePlanFile,
 } from "../lib/gsd-contract.mjs";
+import { normalizePlanFile } from "../lib/gsd-plan-normalize.mjs";
 import {
   ERROR_TEXT_MAX_CHARS,
   MAX_LISTED_ERRORS,
