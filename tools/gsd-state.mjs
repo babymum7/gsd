@@ -52,100 +52,83 @@ function commandUsage(command) {
   return `${INVOCATION} <read-state|write-state|validate-state|set|session> [options]`;
 }
 
+// Help for each command, printed after its usage line.
+const COMMAND_HELP = new Map([
+  ["read-state", [
+    "Read and validate a state.toon file. Outputs the parsed fields as JSON.",
+    "Unsupported experimental schemas are rejected without rewriting the file.",
+    "",
+    "Options:",
+    "  --path <path>    Path to state.toon (required)",
+    "",
+    "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
+  ]],
+  ["write-state", [
+    "Write a state.toon file atomically with validation and readback.",
+    "The JSON must be an object with exactly these v0.0.3 fields (order is normalised):",
+    "",
+    ...STATE_FIELD_ORDER.map((f) => `  ${f}`),
+    "",
+    "Unset fields use the literal string \"none\" (never null or \"\").",
+    "Constraints:",
+    `  phase                  one of: ${ACTIVE_STATE_PHASES.join(", ")}`,
+    "  plan_path              .scratch/<feature>/plan.md",
+    "  wip_branch             wip/<feature>",
+    "  no field value may contain a newline",
+    "",
+    "Options:",
+    "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
+    "  --json-file <path>     Path to JSON file with state fields (preferred, shell-safe)",
+    "  --json <json>          State fields as JSON string (legacy, breaks on apostrophes)",
+    "",
+    "Delete the --json-file temp file after this command succeeds or fails.",
+    "",
+    "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
+  ]],
+  ["validate-state", [
+    "Validate a state.toon file without writing anything. Outputs parsed fields as JSON.",
+    "",
+    "Options:",
+    "  --path <path>    Path to state.toon (required)",
+    "",
+    "Exit codes: 0 = valid, 1 = validation error, 2 = usage error",
+  ]],
+  ["set", [
+    "Set state fields atomically with validation and derived defaults.",
+    "Accepts key=value pairs for canonical v0.0.3 state fields.",
+    "last_green_commit accepts HEAD or a short SHA; Git resolves it to the full SHA.",
+    "",
+    "Options:",
+    "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
+    "  --takeover             Allow owner= to replace another session's recorded owner",
+    "",
+    "Fields:",
+    ...STATE_FIELD_ORDER.map((f) => `  ${f}`),
+    "",
+    "Defaults:",
+    "  schema                 v0.0.3",
+    "  feature                basename of --feature-dir",
+    "  owner                  none (pass the session GSD_SESSION token)",
+    "  phase                  approved",
+    "  next_action            derived from phase when omitted",
+    "  plan_path              .scratch/<feature>/plan.md",
+    "  wip_branch             wip/<feature>",
+    "  checkpoint_revision    incremented if existing state.toon, else 1",
+    "",
+    "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
+  ]],
+  ["session", [
+    "Print a new unique session token for a session that no host hook named.",
+    "Use the printed token as GSD_SESSION, and so as owner=, for the rest of the session.",
+    "",
+    "Exit codes: 0 = success, 2 = usage error",
+  ]],
+]);
+
 function emitHelp(command) {
-  const usage = commandUsage(command);
-  if (command === "read-state") {
-    write_([
-      "Usage: " + usage,
-      "",
-      "Read and validate a state.toon file. Outputs the parsed fields as JSON.",
-      "Unsupported experimental schemas are rejected without rewriting the file.",
-      "",
-      "Options:",
-      "  --path <path>    Path to state.toon (required)",
-      "",
-      "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
-    ]);
-    return;
-  }
-  if (command === "write-state") {
-    write_([
-      "Usage: " + usage,
-      "",
-      "Write a state.toon file atomically with validation and readback.",
-      "The JSON must be an object with exactly these v0.0.3 fields (order is normalised):",
-      "",
-      ...STATE_FIELD_ORDER.map((f) => `  ${f}`),
-      "",
-      "Unset fields use the literal string \"none\" (never null or \"\").",
-      "Constraints:",
-      `  phase                  one of: ${ACTIVE_STATE_PHASES.join(", ")}`,
-      "  plan_path              .scratch/<feature>/plan.md",
-      "  wip_branch             wip/<feature>",
-      "  no field value may contain a newline",
-      "",
-      "Options:",
-      "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
-      "  --json-file <path>     Path to JSON file with state fields (preferred, shell-safe)",
-      "  --json <json>          State fields as JSON string (legacy, breaks on apostrophes)",
-      "",
-      "Delete the --json-file temp file after this command succeeds or fails.",
-      "",
-      "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
-    ]);
-    return;
-  }
-  if (command === "validate-state") {
-    write_([
-      "Usage: " + usage,
-      "",
-      "Validate a state.toon file without writing anything. Outputs parsed fields as JSON.",
-      "",
-      "Options:",
-      "  --path <path>    Path to state.toon (required)",
-      "",
-      "Exit codes: 0 = valid, 1 = validation error, 2 = usage error",
-    ]);
-    return;
-  }
-  if (command === "set") {
-    write_([
-      "Usage: " + usage,
-      "",
-      "Set state fields atomically with validation and derived defaults.",
-      "Accepts key=value pairs for canonical v0.0.3 state fields.",
-      "last_green_commit accepts HEAD or a short SHA; Git resolves it to the full SHA.",
-      "",
-      "Options:",
-      "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
-      "  --takeover             Allow owner= to replace another session's recorded owner",
-      "",
-      "Fields:",
-      ...STATE_FIELD_ORDER.map((f) => `  ${f}`),
-      "",
-      "Defaults:",
-      "  schema                 v0.0.3",
-      "  feature                basename of --feature-dir",
-      "  owner                  none (pass the session GSD_SESSION token)",
-      "  phase                  approved",
-      "  next_action            derived from phase when omitted",
-      "  plan_path              .scratch/<feature>/plan.md",
-      "  wip_branch             wip/<feature>",
-      "  checkpoint_revision    incremented if existing state.toon, else 1",
-      "",
-      "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
-    ]);
-    return;
-  }
-  if (command === "session") {
-    write_([
-      "Usage: " + usage,
-      "",
-      "Print a new unique session token for a session that no host hook named.",
-      "Use the printed token as GSD_SESSION, and so as owner=, for the rest of the session.",
-      "",
-      "Exit codes: 0 = success, 2 = usage error",
-    ]);
+  const help = COMMAND_HELP.get(command);
+  if (help) {
+    write_(["Usage: " + commandUsage(command), "", ...help]);
     return;
   }
   write_([
@@ -256,25 +239,9 @@ function remediation(message, command) {
   );
 }
 
-function parseArguments(argv) {
-  const result = { command: null, help: false, path: null, featureDir: null, json: null, jsonFile: null, takeover: false, pairs: [] };
-
-  let i = 0;
-  if (i < argv.length && (argv[i] === "--help" || argv[i] === "-h")) {
-    result.help = true;
-    i++;
-  }
-
-  if (i < argv.length && !argv[i].startsWith("-")) {
-    result.command = argv[i];
-    i++;
-  }
-
-  if (result.help && i < argv.length) {
-    result.command = argv[i];
-    return result;
-  }
-
+// Reads the arguments after the command into `result`, failing on the first one misused.
+function readFlags(argv, start, result) {
+  let i = start;
   while (i < argv.length) {
     const arg = argv[i];
     if (arg === "--help" || arg === "-h") {
@@ -318,6 +285,28 @@ function parseArguments(argv) {
     }
     failUsage(`unknown argument: ${arg}`, result.command);
   }
+}
+
+function parseArguments(argv) {
+  const result = { command: null, help: false, path: null, featureDir: null, json: null, jsonFile: null, takeover: false, pairs: [] };
+
+  let i = 0;
+  if (i < argv.length && (argv[i] === "--help" || argv[i] === "-h")) {
+    result.help = true;
+    i++;
+  }
+
+  if (i < argv.length && !argv[i].startsWith("-")) {
+    result.command = argv[i];
+    i++;
+  }
+
+  if (result.help && i < argv.length) {
+    result.command = argv[i];
+    return result;
+  }
+
+  readFlags(argv, i, result);
 
   if (!result.command) {
     if (result.help) {
