@@ -35,6 +35,8 @@ const SKILLS_ONLY_SESSION = "skills-only";
 // The child-process runner fails with ENOBUFS once captured output passes its 1 MiB default, and
 // a tree with thousands of untracked files lists past that. The largest query is `status -z`.
 const GIT_OUTPUT_LIMIT = 64 * 1024 * 1024;
+// Longest part of Git's own refusal quoted back in a block message.
+const GIT_REASON_MAX_CHARS = 300;
 
 export function assertReadOnlyGit(args) {
   const shape = args.join(" ");
@@ -255,7 +257,7 @@ function requireWorkTree(cwd) {
   // Git refuses a repository owned by another user. That is neither a missing work tree nor
   // something this tool may override, and the remedy (`safe.directory`) is the user's to choose.
   if (probe.status !== 0 && /dubious ownership/i.test(probe.stderr)) {
-    const reason = probe.stderr.split("\n", 1)[0].replace(/[\x00-\x1F\x7F]+/g, " ").trim().slice(0, 300);
+    const reason = probe.stderr.split("\n", 1)[0].replace(/[\x00-\x1F\x7F]+/g, " ").trim().slice(0, GIT_REASON_MAX_CHARS);
     blocked(
       "git-query-failed",
       `git refuses to read ${cwd}: ${reason}; if that owner is trusted, run \`git config --global --add safe.directory <path>\` yourself`,
