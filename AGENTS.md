@@ -21,3 +21,17 @@
 - Treat `docs/design/NNNN-slug.md` as durable records of UI/UX decisions settled during execution; read the relevant record before changing an accepted interaction.
 - Measurement is optional; a record's mandatory part is its numbered title, `Status`, `Date`, and non-empty `## Decision` section.
 
+## Code quality
+
+<!-- gsd:code-quality -->
+- Code in `lib/` never prints, reads stdin, or calls `process.exit`; output belongs to `tools/`, `bin/` and `adapters/`.
+- Host glue lives in `adapters/<host>/`.
+- No file in `lib/`, `tools/` or `adapters/` passes 1,500 lines; split it by concern before adding to it.
+- A name, size, or truncation limit is a named constant in the module that owns it, never a second literal.
+- Homes and config directories come from `GSD_HOME`, `DSH_HOME`, `OPENCODE_CONFIG_DIR`, or `XDG_CONFIG_HOME`, falling back to `os.homedir()`; code holds no user paths, hosts, or secrets.
+- `adapters/*/gsd-context.*` and the `lib/` code they call make no network call and start no process other than `git`.
+- A new refusal a tool prints names what is missing and the command or key that fixes it.
+- Tests live in `test/<module>.test.js`, drive tools as `bun <tool>` subprocesses and modules through their exports, and write only under `tmpdir()`.
+- Extend the test that already covers a behavior instead of adding a second one.
+- The owner runs `bun bin/gsd.mjs install --agent all`, `bun run test` and `bun run lint` by hand; they keep their names and behavior.
+- Every commit on `main` passes `bun run test` and `bun run lint`.

@@ -4,13 +4,21 @@ import { fileURLToPath } from "node:url";
 import {
   PLAN_FEATURE_RE,
   analyzeWaves,
-  initPlanFile,
   isSafeBranchRef,
-  normalizePlanFile,
   renderMergeMessage,
   validatePlanFile,
 } from "../lib/gsd-contract.mjs";
-import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
+import { initPlanFile } from "../lib/gsd-plan-init.mjs";
+import { normalizePlanFile } from "../lib/gsd-plan-normalize.mjs";
+import {
+  ERROR_TEXT_MAX_CHARS,
+  MAX_LISTED_ERRORS,
+  commandsOf,
+  errorRows,
+  invocationOf,
+  quote,
+  unknownCommandMessage,
+} from "../lib/gsd-commands.mjs";
 
 const COMMANDS = commandsOf("gsd-contract.mjs");
 
@@ -19,11 +27,7 @@ const COMMANDS = commandsOf("gsd-contract.mjs");
 // would re-teach the one invocation that never resolves outside the GSD checkout, and a
 // `<GSD_ROOT>` placeholder is bootstrap text no shell expands.
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
-
-function quote(value) {
-  return JSON.stringify(String(value));
-}
+const INVOCATION = invocationOf(SCRIPT_PATH);
 
 function write(lines) {
   process.stdout.write(lines.join("\n"));
@@ -56,23 +60,17 @@ function emitHelp(command) {
 }
 
 function failUsage(message, command = null) {
-  write([
-    "status: error",
-    "code: usage",
-    `error: ${quote(message)}`,
-    `help: ${quote(commandUsage(command))}`,
-  ]);
+  write(errorRows("usage", message, commandUsage(command)));
   process.exitCode = 2;
 }
 
-const MAX_LISTED_ERRORS = 10;
 const clean = (value) => String(value ?? "").replace(/[\x00-\x1F\x7F]+/g, " ").trim();
 
 function failArtifact(error, command) {
   const message = String(error?.message ?? error)
     .replace(/[\x00-\x1F\x7F]+/g, " ")
     .trim()
-    .slice(0, 500) || "plan validation failed";
+    .slice(0, ERROR_TEXT_MAX_CHARS) || "plan validation failed";
   // Only the library's own tag selects `io-error`; anything else stays malformed
   // authority, so an unexpected tag value can never invent a third code.
   const code =
@@ -106,7 +104,7 @@ function failArtifact(error, command) {
   const more = Array.isArray(error?.additionalErrors) ? error.additionalErrors : [];
   more.slice(0, MAX_LISTED_ERRORS - 1).forEach((extra, index) => {
     const n = index + 2;
-    rows.push(`error_${n}: ${quote(clean(extra?.message).slice(0, 500))}`);
+    rows.push(`error_${n}: ${quote(clean(extra?.message).slice(0, ERROR_TEXT_MAX_CHARS))}`);
     if (Number.isInteger(extra?.contractLine) && extra.contractLine > 0) rows.push(`line_${n}: ${extra.contractLine}`);
     if (extra?.hint) rows.push(`help_${n}: ${quote(clean(extra.hint))}`);
   });
@@ -115,59 +113,59 @@ function failArtifact(error, command) {
   process.exitCode = 1;
 }
 
-function parseArguments(argv) {
-  const [command, ...args] = argv;
-  if (args.length === 0 && (command === "--help" || command === "-h")) return { command: null, help: true };
-  if (!command) return { usageError: "a validation command is required", command: null };
-  if (!COMMANDS.has(command)) return { usageError: unknownCommandMessage("gsd-contract.mjs", command), command: null };
-  if (args.length === 1 && args[0] === "--help") return { command, help: true };
+const FLAGS = new Set(["--path", "--feature-dir", "--expected-base", "--base", "--write"]);
 
+// The flags after the command, or `usageError` naming the first one misused.
+function readFlags(command, args) {
   let planPath = null;
   let expectedBase = null;
   let base = null;
   let write = false;
-  const FLAGS = new Set(["--path", "--feature-dir", "--expected-base", "--base", "--write"]);
   for (let index = 0; index < args.length; index += 1) {
     const flag = args[index];
     if (!FLAGS.has(flag)) {
-      return { usageError: `unknown argument: ${flag}`, command };
+      return { usageError: `unknown argument: ${flag}` };
     }
     if (flag === "--write") {
       if (command !== "normalize-plan") {
-        return { usageError: `${command} does not accept --write`, command };
+        return { usageError: `${command} does not accept --write` };
       }
       if (write) {
-        return { usageError: "--write may be supplied only once", command };
+        return { usageError: "--write may be supplied only once" };
       }
       write = true;
       continue;
     }
     const value = args[index + 1];
     if (value === undefined || value.startsWith("--")) {
-      return { usageError: `${flag} requires a value`, command };
+      return { usageError: `${flag} requires a value` };
     }
     index += 1;
     if (flag === "--path" || flag === "--feature-dir") {
-      if (planPath !== null) return { usageError: "supply one --path or --feature-dir, once", command };
+      if (planPath !== null) return { usageError: "supply one --path or --feature-dir, once" };
       // A feature directory names the plan inside it, the form gsd-state and gsd-git take.
       planPath = flag === "--path" ? value : path.join(value, "plan.md");
     } else if (flag === "--expected-base") {
       if (expectedBase !== null) {
-        return { usageError: "--expected-base may be supplied only once", command };
+        return { usageError: "--expected-base may be supplied only once" };
       }
       expectedBase = value;
     } else if (flag === "--base") {
       if (command !== "init-plan") {
-        return { usageError: `${command} does not accept --base`, command };
+        return { usageError: `${command} does not accept --base` };
       }
       if (base !== null) {
-        return { usageError: "--base may be supplied only once", command };
+        return { usageError: "--base may be supplied only once" };
       }
       base = value;
     }
   }
+  return { planPath, expectedBase, base, write };
+}
 
-  if (planPath === null) return { usageError: "--path is required", command };
+// Why `planPath` names no plan these commands read, or null when it does.
+function planPathError(planPath) {
+  if (planPath === null) return "--path is required";
   const absolute = path.resolve(process.cwd(), planPath);
   const relative = path.relative(process.cwd(), absolute);
   const segments = relative.split(path.sep);
@@ -179,27 +177,42 @@ function parseArguments(argv) {
     !PLAN_FEATURE_RE.test(segments[1]) ||
     segments[2] !== "plan.md"
   ) {
-    return {
-      usageError: `--path must be .scratch/<feature>/plan.md relative to the current directory ${process.cwd()}: run from the repository root that holds .scratch`,
-      command,
-    };
+    return `--path must be .scratch/<feature>/plan.md relative to the current directory ${process.cwd()}: run from the repository root that holds .scratch`;
   }
+  return null;
+}
+
+// Why the base flags do not fit `command`, or null when they do.
+function commandRuleError(command, { expectedBase, base }) {
   if (command === "normalize-plan") {
-    if (expectedBase !== null) return { usageError: `${command} does not accept --expected-base`, command };
+    if (expectedBase !== null) return `${command} does not accept --expected-base`;
   }
   if (command === "init-plan") {
-    if (expectedBase !== null) return { usageError: `${command} does not accept --expected-base`, command };
-    if (base === null) return { usageError: "--base is required", command };
+    if (expectedBase !== null) return `${command} does not accept --expected-base`;
+    if (base === null) return "--base is required";
     if (!isSafeBranchRef(base)) {
-      return { usageError: "--base must be one Git branch name able to receive a merge", command };
+      return "--base must be one Git branch name able to receive a merge";
     }
   } else {
-    if (base !== null) return { usageError: `${command} does not accept --base`, command };
+    if (base !== null) return `${command} does not accept --base`;
   }
   if (expectedBase !== null && !isSafeBranchRef(expectedBase)) {
-    return { usageError: "--expected-base must be one Git branch name able to receive a merge", command };
+    return "--expected-base must be one Git branch name able to receive a merge";
   }
-  return { command, planPath, expectedBase, base, write };
+  return null;
+}
+
+function parseArguments(argv) {
+  const [command, ...args] = argv;
+  if (args.length === 0 && (command === "--help" || command === "-h")) return { command: null, help: true };
+  if (!command) return { usageError: "a validation command is required", command: null };
+  if (!COMMANDS.has(command)) return { usageError: unknownCommandMessage("gsd-contract.mjs", command), command: null };
+  if (args.length === 1 && args[0] === "--help") return { command, help: true };
+
+  const flags = readFlags(command, args);
+  const usageError = flags.usageError ?? planPathError(flags.planPath) ?? commandRuleError(command, flags);
+  if (usageError) return { usageError, command };
+  return { command, ...flags };
 }
 
 const input = parseArguments(process.argv.slice(2));

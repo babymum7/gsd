@@ -12,6 +12,7 @@ import {
   settingsPath,
   writeSettings,
 } from '../../lib/gsd-settings.mjs';
+import { writeFileAtomic } from '../../lib/gsd-fs.mjs';
 import { PLUGIN_BUNDLE_CONSTANTS, buildPluginBundle } from './gsd-plugin-packager.mjs';
 import { removeSkillsDir, skillsDirNames, writeSkillsDir } from './gsd-skills-dir.mjs';
 
@@ -216,10 +217,7 @@ function readState(home) {
 
 function writeState(home, state) {
   fs.mkdirSync(home, { recursive: true });
-  const statePath = path.join(home, 'state.json');
-  const temp = `${statePath}.gsd-tmp-${process.pid}`;
-  fs.writeFileSync(temp, `${JSON.stringify(state, null, 2)}\n`);
-  fs.renameSync(temp, statePath);
+  writeFileAtomic(path.join(home, 'state.json'), `${JSON.stringify(state, null, 2)}\n`);
 }
 
 function removeState(home) {
@@ -309,12 +307,6 @@ function findDshBlock(text, patchPath) {
   if (endMarker === -1) throw new Error(`${patchPath}: has a "${DSH_BEGIN}" marker without "${DSH_END}"`);
   const lineEnd = text.indexOf('\n', endMarker + 1);
   return { start: begin, end: lineEnd === -1 ? text.length : lineEnd + 1 };
-}
-
-function writeFileAtomic(filePath, content) {
-  const temp = `${filePath}.gsd-tmp-${process.pid}`;
-  fs.writeFileSync(temp, content);
-  fs.renameSync(temp, filePath);
 }
 
 // The patch text after install: an existing block is replaced in place, otherwise one is
@@ -619,5 +611,3 @@ export function runCli(argv, options = {}) {
     return { status: 1, stdout: '', stderr: `${error.message}\n` };
   }
 }
-
-export const CLI_AGENTS = AGENTS;

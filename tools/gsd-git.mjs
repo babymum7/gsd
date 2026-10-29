@@ -9,7 +9,7 @@ import { join, resolve } from "node:path";
 import { realpathSync, statSync } from "node:fs";
 import { isSafeBranchRef, PLAN_FEATURE_RE, validatePlanFile } from "../lib/gsd-contract.mjs";
 import { inspectStateFile } from "../lib/gsd-state.mjs";
-import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
+import { commandsOf, errorRows, invocationOf, quote, unknownCommandMessage } from "../lib/gsd-commands.mjs";
 
 const COMMANDS = commandsOf("gsd-git.mjs");
 const VALUE_FLAGS = new Set(["--feature-dir", "--cwd", "--task", "--branch", "--wave-base"]);
@@ -35,6 +35,8 @@ const SKILLS_ONLY_SESSION = "skills-only";
 // The child-process runner fails with ENOBUFS once captured output passes its 1 MiB default, and
 // a tree with thousands of untracked files lists past that. The largest query is `status -z`.
 const GIT_OUTPUT_LIMIT = 64 * 1024 * 1024;
+// Longest part of Git's own refusal quoted back in a block message.
+const GIT_REASON_MAX_CHARS = 300;
 
 export function assertReadOnlyGit(args) {
   const shape = args.join(" ");
@@ -93,7 +95,7 @@ export function assertReadOnlyGit(args) {
 }
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
+const INVOCATION = invocationOf(SCRIPT_PATH);
 
 function write_(lines) {
   process.stdout.write(lines.join("\n") + "\n");
@@ -195,7 +197,7 @@ function emitHelp(command) {
 }
 
 function failUsage(message, command = null) {
-  write_(["status: error", "code: usage", `error: ${JSON.stringify(message)}`, `help: ${JSON.stringify(commandUsage(command))}`]);
+  write_(errorRows("usage", message, commandUsage(command)));
   process.exit(2);
 }
 
@@ -203,8 +205,8 @@ function blocked(code, message, help = null) {
   write_([
     "status: blocked",
     `code: ${code}`,
-    `error: ${JSON.stringify(message)}`,
-    ...(help ? [`help: ${JSON.stringify(help)}`] : []),
+    `error: ${quote(message)}`,
+    ...(help ? [`help: ${quote(help)}`] : []),
     "exit=1",
   ]);
   process.exit(1);
@@ -255,7 +257,7 @@ function requireWorkTree(cwd) {
   // Git refuses a repository owned by another user. That is neither a missing work tree nor
   // something this tool may override, and the remedy (`safe.directory`) is the user's to choose.
   if (probe.status !== 0 && /dubious ownership/i.test(probe.stderr)) {
-    const reason = probe.stderr.split("\n", 1)[0].replace(/[\x00-\x1F\x7F]+/g, " ").trim().slice(0, 300);
+    const reason = probe.stderr.split("\n", 1)[0].replace(/[\x00-\x1F\x7F]+/g, " ").trim().slice(0, GIT_REASON_MAX_CHARS);
     blocked(
       "git-query-failed",
       `git refuses to read ${cwd}: ${reason}; if that owner is trusted, run \`git config --global --add safe.directory <path>\` yourself`,

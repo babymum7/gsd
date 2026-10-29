@@ -34,5 +34,33 @@
   },
   "assist": {
     "enabled": false
-  }
+  },
+  "overrides": [
+    {
+      "includes": [
+        "lib/**",
+        "tools/**",
+        "adapters/**",
+        "bin/**"
+      ],
+      "linter": {
+        "rules": {
+          "complexity": {
+            "noExcessiveCognitiveComplexity": {
+              "level": "error",
+              "options": {
+                "maxAllowedComplexity": 40
+              }
+            },
+            "noExcessiveLinesPerFunction": {
+              "level": "error",
+              "options": {
+                "maxLines": 100
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
 }

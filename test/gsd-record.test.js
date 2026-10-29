@@ -9,8 +9,6 @@ import { spawnSync } from "node:child_process";
 import {
   RECORD_FILE_MAX_BYTES,
   RECORD_KINDS,
-  RECORD_NUMBER_RE,
-  RECORD_SLUG_RE,
   parseRecordHeader,
 } from "../lib/gsd-record.mjs";
 
@@ -61,26 +59,6 @@ test("RECORD_KINDS includes decisions and design", () => {
   assert.ok(RECORD_KINDS.has("decisions"));
   assert.ok(RECORD_KINDS.has("design"));
   assert.equal(RECORD_KINDS.size, 2);
-});
-
-test("RECORD_NUMBER_RE validates decimal digits", () => {
-  assert.ok(RECORD_NUMBER_RE.test("1"));
-  assert.ok(RECORD_NUMBER_RE.test("0001"));
-  assert.ok(RECORD_NUMBER_RE.test("42"));
-  assert.ok(!RECORD_NUMBER_RE.test(""));
-  assert.ok(!RECORD_NUMBER_RE.test("0001a"));
-  assert.ok(!RECORD_NUMBER_RE.test("-1"));
-});
-
-test("RECORD_SLUG_RE validates lowercase kebab-case slug", () => {
-  assert.ok(RECORD_SLUG_RE.test("durable-docs"));
-  assert.ok(RECORD_SLUG_RE.test("record1"));
-  assert.ok(RECORD_SLUG_RE.test("a-b-c"));
-  assert.ok(!RECORD_SLUG_RE.test("Durable-Docs"));
-  assert.ok(!RECORD_SLUG_RE.test("durable_docs"));
-  assert.ok(!RECORD_SLUG_RE.test("-leading"));
-  assert.ok(!RECORD_SLUG_RE.test("trailing-"));
-  assert.ok(!RECORD_SLUG_RE.test("double--hyphen"));
 });
 
 test("parseRecordHeader parses a valid decisions record", () => {

@@ -13,7 +13,13 @@ import {
   readStateFile,
   writeStateAtomic,
 } from "../lib/gsd-state.mjs";
-import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
+import {
+  ERROR_TEXT_MAX_CHARS,
+  commandsOf,
+  errorRows,
+  invocationOf,
+  unknownCommandMessage,
+} from "../lib/gsd-commands.mjs";
 import { validatePlanFile } from "../lib/gsd-contract.mjs";
 
 const COMMANDS = commandsOf("gsd-state.mjs");
@@ -21,7 +27,7 @@ const VALUE_FLAGS = new Set(["--path", "--feature-dir", "--json", "--json-file"]
 const STATE_FIELD_SET = new Set(STATE_FIELD_ORDER);
 
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
+const INVOCATION = invocationOf(SCRIPT_PATH);
 
 function write_(lines) {
   process.stdout.write(lines.join("\n") + "\n");
@@ -46,100 +52,83 @@ function commandUsage(command) {
   return `${INVOCATION} <read-state|write-state|validate-state|set|session> [options]`;
 }
 
+// Help for each command, printed after its usage line.
+const COMMAND_HELP = new Map([
+  ["read-state", [
+    "Read and validate a state.toon file. Outputs the parsed fields as JSON.",
+    "Unsupported experimental schemas are rejected without rewriting the file.",
+    "",
+    "Options:",
+    "  --path <path>    Path to state.toon (required)",
+    "",
+    "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
+  ]],
+  ["write-state", [
+    "Write a state.toon file atomically with validation and readback.",
+    "The JSON must be an object with exactly these v0.0.3 fields (order is normalised):",
+    "",
+    ...STATE_FIELD_ORDER.map((f) => `  ${f}`),
+    "",
+    "Unset fields use the literal string \"none\" (never null or \"\").",
+    "Constraints:",
+    `  phase                  one of: ${ACTIVE_STATE_PHASES.join(", ")}`,
+    "  plan_path              .scratch/<feature>/plan.md",
+    "  wip_branch             wip/<feature>",
+    "  no field value may contain a newline",
+    "",
+    "Options:",
+    "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
+    "  --json-file <path>     Path to JSON file with state fields (preferred, shell-safe)",
+    "  --json <json>          State fields as JSON string (legacy, breaks on apostrophes)",
+    "",
+    "Delete the --json-file temp file after this command succeeds or fails.",
+    "",
+    "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
+  ]],
+  ["validate-state", [
+    "Validate a state.toon file without writing anything. Outputs parsed fields as JSON.",
+    "",
+    "Options:",
+    "  --path <path>    Path to state.toon (required)",
+    "",
+    "Exit codes: 0 = valid, 1 = validation error, 2 = usage error",
+  ]],
+  ["set", [
+    "Set state fields atomically with validation and derived defaults.",
+    "Accepts key=value pairs for canonical v0.0.3 state fields.",
+    "last_green_commit accepts HEAD or a short SHA; Git resolves it to the full SHA.",
+    "",
+    "Options:",
+    "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
+    "  --takeover             Allow owner= to replace another session's recorded owner",
+    "",
+    "Fields:",
+    ...STATE_FIELD_ORDER.map((f) => `  ${f}`),
+    "",
+    "Defaults:",
+    "  schema                 v0.0.3",
+    "  feature                basename of --feature-dir",
+    "  owner                  none (pass the session GSD_SESSION token)",
+    "  phase                  approved",
+    "  next_action            derived from phase when omitted",
+    "  plan_path              .scratch/<feature>/plan.md",
+    "  wip_branch             wip/<feature>",
+    "  checkpoint_revision    incremented if existing state.toon, else 1",
+    "",
+    "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
+  ]],
+  ["session", [
+    "Print a new unique session token for a session that no host hook named.",
+    "Use the printed token as GSD_SESSION, and so as owner=, for the rest of the session.",
+    "",
+    "Exit codes: 0 = success, 2 = usage error",
+  ]],
+]);
+
 function emitHelp(command) {
-  const usage = commandUsage(command);
-  if (command === "read-state") {
-    write_([
-      "Usage: " + usage,
-      "",
-      "Read and validate a state.toon file. Outputs the parsed fields as JSON.",
-      "Unsupported experimental schemas are rejected without rewriting the file.",
-      "",
-      "Options:",
-      "  --path <path>    Path to state.toon (required)",
-      "",
-      "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
-    ]);
-    return;
-  }
-  if (command === "write-state") {
-    write_([
-      "Usage: " + usage,
-      "",
-      "Write a state.toon file atomically with validation and readback.",
-      "The JSON must be an object with exactly these v0.0.3 fields (order is normalised):",
-      "",
-      ...STATE_FIELD_ORDER.map((f) => `  ${f}`),
-      "",
-      "Unset fields use the literal string \"none\" (never null or \"\").",
-      "Constraints:",
-      `  phase                  one of: ${ACTIVE_STATE_PHASES.join(", ")}`,
-      "  plan_path              .scratch/<feature>/plan.md",
-      "  wip_branch             wip/<feature>",
-      "  no field value may contain a newline",
-      "",
-      "Options:",
-      "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
-      "  --json-file <path>     Path to JSON file with state fields (preferred, shell-safe)",
-      "  --json <json>          State fields as JSON string (legacy, breaks on apostrophes)",
-      "",
-      "Delete the --json-file temp file after this command succeeds or fails.",
-      "",
-      "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
-    ]);
-    return;
-  }
-  if (command === "validate-state") {
-    write_([
-      "Usage: " + usage,
-      "",
-      "Validate a state.toon file without writing anything. Outputs parsed fields as JSON.",
-      "",
-      "Options:",
-      "  --path <path>    Path to state.toon (required)",
-      "",
-      "Exit codes: 0 = valid, 1 = validation error, 2 = usage error",
-    ]);
-    return;
-  }
-  if (command === "set") {
-    write_([
-      "Usage: " + usage,
-      "",
-      "Set state fields atomically with validation and derived defaults.",
-      "Accepts key=value pairs for canonical v0.0.3 state fields.",
-      "last_green_commit accepts HEAD or a short SHA; Git resolves it to the full SHA.",
-      "",
-      "Options:",
-      "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
-      "  --takeover             Allow owner= to replace another session's recorded owner",
-      "",
-      "Fields:",
-      ...STATE_FIELD_ORDER.map((f) => `  ${f}`),
-      "",
-      "Defaults:",
-      "  schema                 v0.0.3",
-      "  feature                basename of --feature-dir",
-      "  owner                  none (pass the session GSD_SESSION token)",
-      "  phase                  approved",
-      "  next_action            derived from phase when omitted",
-      "  plan_path              .scratch/<feature>/plan.md",
-      "  wip_branch             wip/<feature>",
-      "  checkpoint_revision    incremented if existing state.toon, else 1",
-      "",
-      "Exit codes: 0 = success, 1 = validation error, 2 = usage error",
-    ]);
-    return;
-  }
-  if (command === "session") {
-    write_([
-      "Usage: " + usage,
-      "",
-      "Print a new unique session token for a session that no host hook named.",
-      "Use the printed token as GSD_SESSION, and so as owner=, for the rest of the session.",
-      "",
-      "Exit codes: 0 = success, 2 = usage error",
-    ]);
+  const help = COMMAND_HELP.get(command);
+  if (help) {
+    write_(["Usage: " + commandUsage(command), "", ...help]);
     return;
   }
   write_([
@@ -155,12 +144,8 @@ function emitHelp(command) {
   ]);
 }
 
-function quote(value) {
-  return JSON.stringify(String(value));
-}
-
 function failUsage(message, command = null) {
-  write_(["status: error", "code: usage", `error: ${quote(message)}`, `help: ${quote(commandUsage(command))}`]);
+  write_(errorRows("usage", message, commandUsage(command)));
   process.exit(2);
 }
 
@@ -182,12 +167,11 @@ function checkpointAge(statePath) {
 // silently takes it back from the session the user handed it to, and both keep executing.
 function refuseOwnerChange(feature, recorded, requested, command, takeover, statePath) {
   if (recorded === "none" || requested === recorded || takeover) return;
-  write_([
-    "status: error",
-    "code: owner-mismatch",
-    `error: ${quote(`packet ${feature} is owned by ${recorded}, not ${requested}; its last checkpoint was ${checkpointAge(statePath)}`)}`,
-    `help: ${quote(`leave it alone unless the user named this packet; then rerun this ${command} with --takeover, telling the user the owner and checkpoint age, since a recent checkpoint means that session may still be running`)}`,
-  ]);
+  write_(errorRows(
+    "owner-mismatch",
+    `packet ${feature} is owned by ${recorded}, not ${requested}; its last checkpoint was ${checkpointAge(statePath)}`,
+    `leave it alone unless the user named this packet; then rerun this ${command} with --takeover, telling the user the owner and checkpoint age, since a recent checkpoint means that session may still be running`,
+  ));
   process.exit(1);
 }
 
@@ -195,12 +179,11 @@ function refuseOwnerChange(feature, recorded, requested, command, takeover, stat
 // from could still overwrite the new owner's checkpoint.
 function requireOwner(feature, recorded) {
   if (recorded === "none") return;
-  write_([
-    "status: error",
-    "code: owner-required",
-    `error: ${quote(`packet ${feature} is owned by ${recorded}, and this set names no owner`)}`,
-    `help: ${quote(`rerun this set with owner=<GSD_SESSION> added; if ${recorded} is not your GSD_SESSION, leave the packet alone unless the user named it`)}`,
-  ]);
+  write_(errorRows(
+    "owner-required",
+    `packet ${feature} is owned by ${recorded}, and this set names no owner`,
+    `rerun this set with owner=<GSD_SESSION> added; if ${recorded} is not your GSD_SESSION, leave the packet alone unless the user named it`,
+  ));
   process.exit(1);
 }
 
@@ -221,12 +204,11 @@ function resolveCommitRef(value, featureDir) {
   const resolved = spawned?.status === 0 ? spawned.stdout.trim() : "";
   if (FULL_SHA_RE.test(resolved)) return resolved;
   const shown = value.replace(/[\x00-\x1F\x7F]+/g, " ").slice(0, 100);
-  write_([
-    "status: error",
-    "code: invalid-artifact",
-    `error: ${quote(`last_green_commit ${shown} does not name a commit in ${root}`)}`,
-    `help: ${quote("pass a commit Git resolves in this repository, such as the output of git rev-parse HEAD, or the full 40-character SHA for a commit in another repository listed in ## Repos")}`,
-  ]);
+  write_(errorRows(
+    "invalid-artifact",
+    `last_green_commit ${shown} does not name a commit in ${root}`,
+    "pass a commit Git resolves in this repository, such as the output of git rev-parse HEAD, or the full 40-character SHA for a commit in another repository listed in ## Repos",
+  ));
   process.exit(1);
 }
 
@@ -234,11 +216,11 @@ function failArtifact(error, command) {
   const message = String(error?.message ?? error)
     .replace(/[\x00-\x1F\x7F]+/g, " ")
     .trim()
-    .slice(0, 500) || "state validation failed";
+    .slice(0, ERROR_TEXT_MAX_CHARS) || "state validation failed";
   const code = error?.contractFailure === "io-error" || error?.contractFailure === "state-busy"
     ? error.contractFailure
     : "invalid-artifact";
-  write_(["status: error", `code: ${code}`, `error: ${quote(message)}`, `help: ${quote(remediation(message, command))}`]);
+  write_(errorRows(code, message, remediation(message, command)));
   process.exit(1);
 }
 
@@ -257,25 +239,9 @@ function remediation(message, command) {
   );
 }
 
-function parseArguments(argv) {
-  const result = { command: null, help: false, path: null, featureDir: null, json: null, jsonFile: null, takeover: false, pairs: [] };
-
-  let i = 0;
-  if (i < argv.length && (argv[i] === "--help" || argv[i] === "-h")) {
-    result.help = true;
-    i++;
-  }
-
-  if (i < argv.length && !argv[i].startsWith("-")) {
-    result.command = argv[i];
-    i++;
-  }
-
-  if (result.help && i < argv.length) {
-    result.command = argv[i];
-    return result;
-  }
-
+// Reads the arguments after the command into `result`, failing on the first one misused.
+function readFlags(argv, start, result) {
+  let i = start;
   while (i < argv.length) {
     const arg = argv[i];
     if (arg === "--help" || arg === "-h") {
@@ -319,6 +285,28 @@ function parseArguments(argv) {
     }
     failUsage(`unknown argument: ${arg}`, result.command);
   }
+}
+
+function parseArguments(argv) {
+  const result = { command: null, help: false, path: null, featureDir: null, json: null, jsonFile: null, takeover: false, pairs: [] };
+
+  let i = 0;
+  if (i < argv.length && (argv[i] === "--help" || argv[i] === "-h")) {
+    result.help = true;
+    i++;
+  }
+
+  if (i < argv.length && !argv[i].startsWith("-")) {
+    result.command = argv[i];
+    i++;
+  }
+
+  if (result.help && i < argv.length) {
+    result.command = argv[i];
+    return result;
+  }
+
+  readFlags(argv, i, result);
 
   if (!result.command) {
     if (result.help) {
@@ -494,13 +482,12 @@ function refuseInvalidPlan(state, featureDir) {
     validatePlanFile(state.plan_path, { cwd: root, expectedBase: state.base_ref !== "none" ? state.base_ref : null });
   } catch (error) {
     const more = error?.additionalErrors?.length ?? 0;
-    const message = String(error?.message ?? error).replace(/[\x00-\x1F\x7F]+/g, " ").trim().slice(0, 500);
-    write_([
-      "status: error",
-      "code: invalid-artifact",
-      `error: ${quote(`plan ${state.plan_path} does not validate${more ? ` (${more + 1} errors)` : ""}: ${message}`)}`,
-      `help: ${quote(`nothing was written; fix the plan, check it with bun ${JSON.stringify(path.join(path.dirname(SCRIPT_PATH), "gsd-contract.mjs"))} validate-plan --path ${state.plan_path}, then rerun this set`)}`,
-    ]);
+    const message = String(error?.message ?? error).replace(/[\x00-\x1F\x7F]+/g, " ").trim().slice(0, ERROR_TEXT_MAX_CHARS);
+    write_(errorRows(
+      "invalid-artifact",
+      `plan ${state.plan_path} does not validate${more ? ` (${more + 1} errors)` : ""}: ${message}`,
+      `nothing was written; fix the plan, check it with ${invocationOf(path.join(path.dirname(SCRIPT_PATH), "gsd-contract.mjs"))} validate-plan --path ${state.plan_path}, then rerun this set`,
+    ));
     process.exit(1);
   }
 }

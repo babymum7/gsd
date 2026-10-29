@@ -1049,6 +1049,19 @@ test("writeStateAtomic keeps the previous state and leaves no temp file when the
   );
   assert.equal(readFileSync(join(scratch, "state.toon"), "utf8"), before);
   assert.deepEqual(leftoverTemps(scratch), []);
+
+  // A failed rename leaves a complete temp file behind, which must go as well.
+  const realRenameSync = fs.renameSync;
+  fs.renameSync = () => {
+    throw Object.assign(new Error("EXDEV: cross-device link not permitted"), { code: "EXDEV" });
+  };
+  try {
+    assert.throws(() => writeStateAtomic(scratch, { ...VALID_STATE, checkpoint_revision: "2" }), /EXDEV/);
+  } finally {
+    fs.renameSync = realRenameSync;
+  }
+  assert.equal(readFileSync(join(scratch, "state.toon"), "utf8"), before);
+  assert.deepEqual(leftoverTemps(scratch), []);
 });
 
 test("a write-side system failure is an io-error, not an invalid artifact", () => {
