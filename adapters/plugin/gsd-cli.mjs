@@ -619,5 +619,3 @@ export function runCli(argv, options = {}) {
     return { status: 1, stdout: '', stderr: `${error.message}\n` };
   }
 }
-
-export const CLI_AGENTS = AGENTS;
