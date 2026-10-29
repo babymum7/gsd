@@ -311,7 +311,7 @@ function parseArguments(argv) {
       const key = arg.slice(0, eqIdx);
       const value = arg.slice(eqIdx + 1);
       if (!STATE_FIELD_SET.has(key)) {
-        failUsage(`unknown key: ${key}`, result.command);
+        failUsage(`unknown key: ${key} (keys: ${STATE_FIELD_ORDER.join(", ")})`, result.command);
       }
       result.pairs.push({ key, value });
       i++;

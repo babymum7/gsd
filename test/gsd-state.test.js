@@ -1104,6 +1104,45 @@ test("CLI set names a feature directory that does not exist", () => {
   assert.match(r.stdout, /feature directory .*gsd-no-such-dir.* does not exist/);
 });
 
+// Sessions creating a packet without base_ref read "git identity is required" and had to grep
+// this repository to learn which field it meant.
+test("CLI set creating a packet without base_ref names that field", () => {
+  const { dir, scratch } = tmpFeatureDir("test-feature");
+  try {
+    const r = cli(["set", "--feature-dir", scratch, "owner=claude-test"]);
+    assert.equal(r.exitCode, 1, r.stdout + r.stderr);
+    assert.match(r.stdout, /base_ref is required: set base_ref=<branch>/);
+    assert.equal(existsSync(join(scratch, "state.toon")), false, "nothing is written");
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+// A session that tried to close a delivered feature with phase=closed learned only that the
+// phase was unsupported.
+test("CLI set with an unsupported phase lists the phases and how a feature closes", () => {
+  const { dir, scratch } = tmpFeatureDir("test-feature");
+  try {
+    const r = cli(["set", "--feature-dir", scratch, "owner=claude-test", "base_ref=main", "phase=closed"]);
+    assert.equal(r.exitCode, 1, r.stdout + r.stderr);
+    assert.match(r.stdout, /unsupported phase: closed \(phases: approved, executing, paused, verifying, repair, ready;/);
+    assert.match(r.stdout, /removing \.scratch\/test-feature\//);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("CLI set with an unknown key lists the state keys", () => {
+  const { dir, scratch } = tmpFeatureDir("test-feature");
+  try {
+    const r = cli(["set", "--feature-dir", scratch, "owner=claude-test", "branch=wip/test-feature"]);
+    assert.equal(r.exitCode, 2, r.stdout + r.stderr);
+    assert.match(r.stdout, /unknown key: branch \(keys: schema, feature, owner, phase, next_action, plan_path, base_ref, wip_branch, last_green_task, last_green_commit, checkpoint_revision\)/);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("a half-set checkpoint names the missing field", () => {
   const { dir, scratch } = tmpFeatureDir("test-feature");
   try {

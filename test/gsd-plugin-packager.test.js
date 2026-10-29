@@ -97,7 +97,7 @@ test("buildPluginBundle creates a self-contained plugin with a hidden runtime co
   assert.equal(marketplace.name, "gsd-local");
   assert.equal(marketplace.description, "GSD workflow skills and session adapters");
   assert.deepEqual(marketplace.owner, { name: "GSD" });
-  assert.equal(marketplace.plugins[0].description, "GSD workflow skills, contract validators, and the OMP, Claude Code, and Codex session adapters.");
+  assert.equal(marketplace.plugins[0].description, "GSD workflow skills, contract validators, and the OMP, Claude Code, Codex, dsh, and opencode session adapters.");
   assert.equal(marketplace.plugins[0].source, "./gsd");
 
   const project = mkdtempSync(join(tmpdir(), "gsd-plugin-project-"));

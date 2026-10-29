@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "GSD workflow skills, contract validators, and the OMP, Claude Code, and Codex session adapters.",
+  "description": "GSD workflow skills, contract validators, and the OMP, Claude Code, Codex, dsh, and opencode session adapters.",
   "types": "extensions/gsd-context.d.ts",
   "bin": {
     "gsd": "./bin/gsd.mjs"
