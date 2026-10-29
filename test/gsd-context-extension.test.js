@@ -251,7 +251,9 @@ describe("capsule extension production API contract", () => {
 
   // 6. No model-specific wording
   test("proves no model-specific wording exists in the capsule", () => {
-    const capsule = createCapsule(["feature-a"], ROOT);
+    // The root is the user's path, not GSD wording: render under a model-named root and mask it.
+    const root = join(tmpdir(), "claude-gemini-gpt", "gsd");
+    const capsule = createCapsule(["feature-a"], root).split(root).join("<GSD_ROOT>");
     
     // List of model-specific keywords to ban
     const banned = ["gpt", "gemini", "claude", "llama", "openai", "anthropic", "google", "deepmind", "copilot", "chatgpt"];

@@ -21,7 +21,7 @@ When the user asks for comments on a PR, post the same findings as one PR review
 
 ## Terminal gate
 
-From step 1 on, the gate never edits `plan.md` for bookkeeping (`Files`, `Status`, wording): `.scratch` is deleted after the merge, and the merge message reads only the Summary and criteria. Only a material amendment under § Plan amendment edits it, recorded as a decision.
+From step 1 on, the gate never edits `plan.md` for bookkeeping (`Files`, `Status`, wording): `.scratch` is deleted after the merge, and the merge message reads only the Summary, criteria, and decisions. Only a material amendment under § Plan amendment edits it, recorded as a decision.
 
 1. Set `phase=verifying` (`set` with `owner=<GSD_SESSION>`, as in every state write), then run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`. Exit 0 continues. A malformed plan or base mismatch stops as Spec escalation. Exit 2 corrects invocation.
    Then run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .scratch/<feature>` once before any check, so nothing it finds costs a rerun of the slow suites: `dirty-worktree` commits the feature's own paths on `wip/<feature>` (asking about any it does not own), `base-advanced` merges `base_ref` into `wip/<feature>`, `wip-missing` follows its message, and any other block stops as Spec escalation.
@@ -42,7 +42,7 @@ From step 1 on, the gate never edits `plan.md` for bookkeeping (`Files`, `Status
    Without `## Delivery`, ask one question: merge `wip/<feature>` into `base_ref`, or open a pull request from it. Offer the pull request only when `git remote` lists a remote (in every listed repository); without one, ask only to confirm the merge. A cross-repo plan asks once for all repositories.
 
 The merge target is exactly the recorded `base_ref` under § Base derivation and merge target.
-- Message: `bun "<GSD_ROOT>/tools/gsd-contract.mjs" merge-message --path .scratch/<feature>/plan.md --expected-base <state.base_ref> > .scratch/<feature>/merge-message.txt`. It carries the Summary and active criteria past the scratch deletion.
+- Message: `bun "<GSD_ROOT>/tools/gsd-contract.mjs" merge-message --path .scratch/<feature>/plan.md --expected-base <state.base_ref> > .scratch/<feature>/merge-message.txt`. It carries the Summary, active criteria, and decisions past the scratch deletion.
 - Merge: check out `base_ref` and run `git merge --no-ff -F <absolute path of merge-message.txt> wip/<feature>`; a cross-repo plan merges each listed repository against its row's Base first, with the same message file, and this repository last. Only after every merge landed, clean up under § Feature cleanup.
 - Pull request: push `wip/<feature>` (in every listed repository) and open the PR with the host's tooling, using the message after its first line as the body; keep the branch and scratch until the user says it merged.
 

@@ -70,7 +70,7 @@ function makePlanWorkspace(feature, content) {
   return { workspace, planPath };
 }
 
-test("merge-message prints the Summary and active criteria as a git merge message", () => {
+test("merge-message prints the Summary, active criteria, and decisions as a git merge message", () => {
   const plan = canonicalPlan("merge-note").replace(
     "## Decisions",
     [
@@ -78,6 +78,18 @@ test("merge-message prints the Summary and active criteria as a git merge messag
       "- **State:** superseded",
       "- **Scenario:** GIVEN a retired criterion WHEN the plan is merged THEN it is left out of the message.",
       "## Decisions",
+    ].join("\n"),
+  );
+  const decided = plan.replace(
+    "## Decisions\nNone.",
+    [
+      "## Decisions",
+      "### D-1: Validate through the production command",
+      "- **Decision:** The fixture runs `merge-message` through the CLI, not a private helper.",
+      "- **Rationale:** The CLI is the seam that writes the merge message.",
+      "### D-2: Keep the fixture canonical",
+      "- **Decision:** The fixture changes no production term, so Domain Impact stays none.",
+      "- **Rationale:** A canonical fixture isolates the merge message from every other section.",
     ].join("\n"),
   );
   const { workspace, planPath } = makePlanWorkspace("merge-note", plan);
@@ -106,6 +118,33 @@ test("merge-message prints the Summary and active criteria as a git merge messag
     });
     assert.equal(drifted.status, 1);
     assert.match(drifted.stdout, /^status: error$/m);
+
+    writeFileSync(planPath, decided);
+    const withDecisions = spawnSync(process.execPath, [CLI, "merge-message", "--path", planPath, "--expected-base", "main"], {
+      cwd: workspace,
+      encoding: "utf8",
+    });
+    assert.equal(withDecisions.status, 0, withDecisions.stdout + withDecisions.stderr);
+    assert.equal(
+      withDecisions.stdout,
+      [
+        "Merge wip/merge-note into main",
+        "",
+        "Validate one canonical GSD plan through the production command.",
+        "",
+        "Acceptance criteria:",
+        "- AC-1: Validate canonical plan",
+        "",
+        "Decisions:",
+        "- D-1: Validate through the production command",
+        "  Decision: The fixture runs `merge-message` through the CLI, not a private helper.",
+        "  Rationale: The CLI is the seam that writes the merge message.",
+        "- D-2: Keep the fixture canonical",
+        "  Decision: The fixture changes no production term, so Domain Impact stays none.",
+        "  Rationale: A canonical fixture isolates the merge message from every other section.",
+        "",
+      ].join("\n"),
+    );
   } finally {
     rmSync(workspace, { recursive: true, force: true });
   }
