@@ -10,7 +10,15 @@ import {
   renderMergeMessage,
   validatePlanFile,
 } from "../lib/gsd-contract.mjs";
-import { commandsOf, unknownCommandMessage } from "../lib/gsd-commands.mjs";
+import {
+  ERROR_TEXT_MAX_CHARS,
+  MAX_LISTED_ERRORS,
+  commandsOf,
+  errorRows,
+  invocationOf,
+  quote,
+  unknownCommandMessage,
+} from "../lib/gsd-commands.mjs";
 
 const COMMANDS = commandsOf("gsd-contract.mjs");
 
@@ -19,11 +27,7 @@ const COMMANDS = commandsOf("gsd-contract.mjs");
 // would re-teach the one invocation that never resolves outside the GSD checkout, and a
 // `<GSD_ROOT>` placeholder is bootstrap text no shell expands.
 const SCRIPT_PATH = fileURLToPath(import.meta.url);
-const INVOCATION = `bun ${JSON.stringify(SCRIPT_PATH)}`;
-
-function quote(value) {
-  return JSON.stringify(String(value));
-}
+const INVOCATION = invocationOf(SCRIPT_PATH);
 
 function write(lines) {
   process.stdout.write(lines.join("\n"));
@@ -56,23 +60,17 @@ function emitHelp(command) {
 }
 
 function failUsage(message, command = null) {
-  write([
-    "status: error",
-    "code: usage",
-    `error: ${quote(message)}`,
-    `help: ${quote(commandUsage(command))}`,
-  ]);
+  write(errorRows("usage", message, commandUsage(command)));
   process.exitCode = 2;
 }
 
-const MAX_LISTED_ERRORS = 10;
 const clean = (value) => String(value ?? "").replace(/[\x00-\x1F\x7F]+/g, " ").trim();
 
 function failArtifact(error, command) {
   const message = String(error?.message ?? error)
     .replace(/[\x00-\x1F\x7F]+/g, " ")
     .trim()
-    .slice(0, 500) || "plan validation failed";
+    .slice(0, ERROR_TEXT_MAX_CHARS) || "plan validation failed";
   // Only the library's own tag selects `io-error`; anything else stays malformed
   // authority, so an unexpected tag value can never invent a third code.
   const code =
@@ -106,7 +104,7 @@ function failArtifact(error, command) {
   const more = Array.isArray(error?.additionalErrors) ? error.additionalErrors : [];
   more.slice(0, MAX_LISTED_ERRORS - 1).forEach((extra, index) => {
     const n = index + 2;
-    rows.push(`error_${n}: ${quote(clean(extra?.message).slice(0, 500))}`);
+    rows.push(`error_${n}: ${quote(clean(extra?.message).slice(0, ERROR_TEXT_MAX_CHARS))}`);
     if (Number.isInteger(extra?.contractLine) && extra.contractLine > 0) rows.push(`line_${n}: ${extra.contractLine}`);
     if (extra?.hint) rows.push(`help_${n}: ${quote(clean(extra.hint))}`);
   });

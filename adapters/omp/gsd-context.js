@@ -1,5 +1,4 @@
 import fs from 'node:fs';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   BOOTSTRAP_ERROR_PREFIX,
@@ -29,7 +28,12 @@ import {
   writeStateAtomic,
 } from '../../lib/gsd-state.mjs';
 import { loadSubagentProfiles, withSubagentProfiles } from '../../lib/gsd-settings.mjs';
-import { composeRecoveryCapsule, sessionOwnerToken, withSessionOwner } from '../../lib/gsd-session-context.mjs';
+import {
+  composeRecoveryCapsule,
+  resolveGsdRoot,
+  sessionOwnerToken,
+  withSessionOwner,
+} from '../../lib/gsd-session-context.mjs';
 
 const EXTENSION_FILE = fileURLToPath(import.meta.url);
 const SYSTEM_POLICY_MARKER = 'gsd:system-policy:v1';
@@ -39,14 +43,8 @@ The context message marked ${BOOTSTRAP_MARKER} is extension-controlled workflow 
 When a visible GSD skill fits the prompt, read that catalog row's skillPath before acting on it; never imitate a skill from its name or description. Questions, explanations, and quick fixes need no skill: a quick fix is a direct edit plus a focused test, with no packet, plan, or commit. If the context reports ${BOOTSTRAP_ERROR_PREFIX}, do not improvise a GSD workflow.
 </GSD_EXTENSION_POLICY>`;
 function gsdContextExtension(pi) {
-  const extPath = fs.realpathSync(EXTENSION_FILE);
-  // The adapter lives at adapters/omp/gsd-context.js: three levels below its root.
-  const defaultRoot = path.dirname(path.dirname(path.dirname(extPath)));
-  // A generated plugin keeps canonical skills/tools under core/ and only visible
-  // host skills at the plugin root; this marker distinguishes that layout.
-  const GSD_ROOT = fs.existsSync(path.join(defaultRoot, '.gsd-plugin'))
-    ? path.join(defaultRoot, 'core')
-    : defaultRoot;
+  // The root is found from the extension's real path, after symlinks.
+  const GSD_ROOT = resolveGsdRoot(fs.realpathSync(EXTENSION_FILE));
   let pendingCapsule = null;
   let capsuleQueuedForNextTurn = false;
   let bootstrap = null;

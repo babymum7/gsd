@@ -20,23 +20,16 @@
 // Ordinary prompts add nothing, so per-turn token cost stays at zero. Child sessions (sub-agents)
 // get nothing, and opencode gets no sub-agent profiles.
 
-import fs from 'node:fs';
-import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createBootstrap, sanitizeBootstrapError } from '../../lib/gsd-bootstrap.mjs';
 import {
   renderRecoveryCapsule,
+  resolveGsdRoot,
   sessionOwnerToken,
   withSessionOwner,
 } from '../../lib/gsd-session-context.mjs';
 
-const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
-const DEFAULT_GSD_ROOT = path.resolve(SCRIPT_DIR, '..', '..');
-// A generated plugin keeps canonical skills/tools under core/ and only the visible
-// host skills at the plugin root; this marker distinguishes that layout.
-const GSD_ROOT = fs.existsSync(path.join(DEFAULT_GSD_ROOT, '.gsd-plugin'))
-  ? path.join(DEFAULT_GSD_ROOT, 'core')
-  : DEFAULT_GSD_ROOT;
+const GSD_ROOT = resolveGsdRoot(fileURLToPath(import.meta.url));
 const TAG = 'gsd/bootstrap';
 
 // Session ID -> the compaction ID (or '' before any) a sent message the context does not show
