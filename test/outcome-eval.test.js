@@ -4,7 +4,6 @@ import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
 import {
   MODEL_ROLES,
   WRAPPER_CONFIG_FILE,
@@ -65,14 +64,14 @@ function writeTree(root, files) {
   }
 }
 
-// The stub stands in for omp inside the sandbox. In the GSD arm it loads the `-e` wrapper with a
-// fake extension host and fires two context events, as omp does before each model request.
+// The stub stands in for omp inside the sandbox. In the GSD arm it imports the `-e` wrapper as omp
+// does, by path with an `?mtime=` query that bun keeps in `import.meta.url`, gives it a fake
+// extension host, and fires two context events, as omp does before each model request.
 function stubSource(mode, extra) {
   return `#!/usr/bin/env bun
 import { existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join } from "node:path";
-import { pathToFileURL } from "node:url";
 const MODE = ${JSON.stringify(mode)};
 const EXTRA = ${JSON.stringify(extra)};
 const argv = process.argv.slice(2);
@@ -88,7 +87,7 @@ writeFileSync(join(runDir, "stub-record.json"), JSON.stringify({ argv, env: proc
 if (wrapper && MODE !== "no-evidence") {
   const handlers = {};
   const host = { on: (name, handler) => { handlers[name] = handler; }, logger: { error() {} } };
-  (await import(pathToFileURL(wrapper).href)).default(host);
+  (await import(\`\${wrapper}?mtime=\${Date.now()}\`)).default(host);
   for (let turn = 0; turn < 2; turn += 1) {
     await handlers.context({ messages: [{ role: "user", content: argv.at(-1) }] }, { sessionManager: { getSessionId: () => "stub-session" } });
   }
@@ -297,7 +296,8 @@ test("AC-5: the wrapper returns the adapter's messages and records only a render
       const evidence = join(dir, "evidence.jsonl");
       writeFileSync(join(dir, WRAPPER_CONFIG_FILE), JSON.stringify({ adapter: bundle.adapterPath, evidence }));
       const handlers = {};
-      (await import(pathToFileURL(join(dir, WRAPPER_FILE)).href)).default({
+      // omp imports an extension by path with an `?mtime=` query, which bun keeps in import.meta.url.
+      (await import(`${join(dir, WRAPPER_FILE)}?mtime=${Date.now()}`)).default({
         on: (event, handler) => {
           handlers[event] = handler;
         },

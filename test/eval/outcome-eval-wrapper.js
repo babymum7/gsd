@@ -1,11 +1,12 @@
 // The GSD arm's only extension in the outcome benchmark (decision 0044). It loads the omp adapter
 // named in its config and appends one line to the evidence file for every outgoing request whose
 // messages carry the rendered bootstrap, because omp's JSON events never show injected context.
-// The config sits beside this file under the same name with a .json extension.
+// The config sits beside this file under the same name with a .json extension. omp imports this
+// file with an `?mtime=` query on its URL, so the name comes from the path, which drops it.
 import { appendFileSync, readFileSync } from "node:fs";
-import { pathToFileURL } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
-const config = JSON.parse(readFileSync(new URL(import.meta.url.replace(/\.js$/, ".json")), "utf8"));
+const config = JSON.parse(readFileSync(fileURLToPath(import.meta.url).replace(/\.js$/, ".json"), "utf8"));
 const adapterUrl = pathToFileURL(config.adapter);
 const adapter = await import(adapterUrl.href);
 const { messageContainsBootstrap } = await import(new URL("../../lib/gsd-bootstrap.mjs", adapterUrl).href);
