@@ -1099,15 +1099,17 @@ test("lifecycle owners use the production validator and document inert experimen
   const absolutePlan = /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" validate-plan --path/;
   assert.match(files.get("reference"), absolutePlan);
   assert.match(files.get("reference"), /--expected-base/);
-  assert.match(files.get("planner"), absolutePlan);
   // `analyze-waves` runs the same validator with the same base binding before it schedules.
-  for (const owner of ["execution", "verify"]) {
+  for (const owner of ["planner", "execution"]) {
     assert.match(
       files.get(owner),
       /"<GSD_ROOT>\/tools\/gsd-contract\.mjs" (?:validate-plan|analyze-waves) --path[\s\S]*--expected-base/,
       `${owner} must bind validation to the recorded base`,
     );
   }
+  // Preflight validates the plan against the recorded base, so the gate runs no separate
+  // validator (decision 0045).
+  assert.match(files.get("verify"), /"<GSD_ROOT>\/tools\/gsd-git\.mjs" preflight --feature-dir/);
   assert.match(files.get("readme"), absolutePlan);
   for (const [label, content] of files) {
     assert.doesNotMatch(

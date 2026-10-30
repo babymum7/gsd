@@ -10,3 +10,7 @@ Every Markdown file under `skills/` has a word budget in `test/skills-word-budge
 ## Rationale
 
 Only the bootstrap had a cap, and skill text grew from 13,245 to 15,395 words in the month after 2026-09-26 as each session review added rules; an earlier peak of 22,283 words in July had needed a dedicated cut. Agents pay for these words on every feature, and some models read a whole file instead of the cited section. A per-file budget makes growth visible in the diff that causes it, and the 5% ratchet keeps a cut from being spent again silently.
+
+## Amendment
+
+Amended 2026-10-30. Decision 0045 raises the bootstrap cap to 520 words, and this suite's budget is its only owner.

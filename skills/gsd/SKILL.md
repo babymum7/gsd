@@ -39,6 +39,10 @@ The session owner plans, repairs, verifies, and merges without check-ins: never 
 
 Understand the whole behavior, then stop at the first rung that works: does it need to exist, reuse from this codebase, the standard library, a platform feature, an installed dependency, and only then new code. Add no unrequested abstraction, configuration, or scaffolding. Never simplify away validation, authorization, data safety, security, required error handling, or explicit user scope.
 
+## Turn economy
+
+Each turn resends the whole context. Batch independent calls in one message (files, searches, status checks), and read a skill only when you reach it. Run skill commands as written, without `--help`. Never re-read an unchanged file. Run the final checks (tests, `git status`, `git diff`) in one message, then report without re-running any. Todo updates ride along with other calls, never alone.
+
 ## Canon
 
 `GSD_ROOT/skills/gsd/REFERENCE.md` holds the contracts; a selected skill reads it by `§` section. A malformed packet stops only the work that depends on it, named; it never blocks unrelated work.

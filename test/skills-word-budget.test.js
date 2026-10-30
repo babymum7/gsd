@@ -11,24 +11,24 @@ const ROOT = join(import.meta.dir, "..");
 // budget must lower it, so a cut is never spent again without review.
 const BUDGETS = {
   "skills/gsd-brainstorming/PARTS.md": 412,
-  "skills/gsd-brainstorming/SKILL.md": 943,
+  "skills/gsd-brainstorming/SKILL.md": 949,
   "skills/gsd-cleanup/SKILL.md": 758,
   "skills/gsd-codebase-architecture/DEEPENING.md": 386,
   "skills/gsd-codebase-architecture/DESIGN-IT-TWICE.md": 287,
   "skills/gsd-codebase-architecture/SKILL.md": 877,
   "skills/gsd-diagnosing-bugs/SKILL.md": 560,
   "skills/gsd-domain-modeling/SKILL.md": 1177,
-  "skills/gsd-executing-plans/SKILL.md": 1003,
+  "skills/gsd-executing-plans/SKILL.md": 1046,
   "skills/gsd-refactor/SKILL.md": 1254,
   "skills/gsd-tdd/SKILL.md": 373,
   "skills/gsd-tdd/refactoring.md": 688,
   "skills/gsd-to-plan/PLAN-GRAMMAR.md": 705,
-  "skills/gsd-to-plan/SKILL.md": 507,
+  "skills/gsd-to-plan/SKILL.md": 549,
   "skills/gsd-upgrade/SKILL.md": 588,
-  "skills/gsd-verify/SKILL.md": 1068,
+  "skills/gsd-verify/SKILL.md": 1122,
   "skills/gsd/REFERENCE.md": 2577,
-  // Decision 0021 caps the bootstrap at 450.
-  "skills/gsd/SKILL.md": 450,
+  // Decision 0045 caps the bootstrap at 520.
+  "skills/gsd/SKILL.md": 520,
 };
 const SLACK = 0.05;
 
