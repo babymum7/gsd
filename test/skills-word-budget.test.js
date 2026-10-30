@@ -27,8 +27,8 @@ const BUDGETS = {
   "skills/gsd-upgrade/SKILL.md": 588,
   "skills/gsd-verify/SKILL.md": 1068,
   "skills/gsd/REFERENCE.md": 2577,
-  // Decision 0021 caps the bootstrap at 450.
-  "skills/gsd/SKILL.md": 450,
+  // Decision 0045 caps the bootstrap at 520.
+  "skills/gsd/SKILL.md": 520,
 };
 const SLACK = 0.05;
 

@@ -95,9 +95,9 @@ If the checkout, hidden bootstrap, or visible catalog cannot be validated, the e
 GSD is built to stay out of the way most of the time. The figures below describe the
 current tree; the tests named in each bullet pin only the cap or budget it names.
 
-- One bootstrap per session. `skills/gsd/SKILL.md` caps at 450 words
-  (`test/bootstrap-first-action.test.js`), and the rendered bootstrap (the master body
-  plus the sorted catalog) currently measures 537 words; that is the `bootstrap_words`
+- One bootstrap per session. `skills/gsd/SKILL.md` caps at 520 words
+  (`test/skills-word-budget.test.js`), and the rendered bootstrap (the master body
+  plus the sorted catalog) currently measures 601 words; that is the `bootstrap_words`
   value in every committed eval report.
 - Nothing per turn. An ordinary prompt injects zero bytes: the adapters emit only at
   session boundaries and deduplicate against the payload already in the transcript. A
