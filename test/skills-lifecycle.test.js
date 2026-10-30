@@ -607,3 +607,13 @@ test("diagnosis batches its opening reads, its fix, and its final checks", () =>
   assert.match(diagnosing, /one confirming probe plus a search for the pattern's other call sites/);
   assert.match(diagnosing, /with its focused regression test in one message and runs the final checks in the next/);
 });
+
+// A skill that named `gsd-verify` ahead of time made every round-two feature run read it while
+// planning (decision 0045), so planning names it only where the last checkpoint loads it.
+test("planning names gsd-verify only where the last checkpoint loads it", () => {
+  assert.doesNotMatch(read("skills/gsd-brainstorming/SKILL.md"), /gsd-verify/);
+  assert.doesNotMatch(read("skills/gsd-to-plan/SKILL.md"), /gsd-verify/);
+  const mentions = read("skills/gsd-executing-plans/SKILL.md").split("\n").filter((line) => line.includes("gsd-verify"));
+  assert.equal(mentions.length, 1);
+  assert.match(mentions[0], /load `gsd-verify` in the same message as the last checkpoint/);
+});

@@ -54,7 +54,7 @@ When one feature needs several pieces that each need their own discussion, read 
 ## Delivery question
 
 Before the transition, ask one question with a recommendation, batched with any other open ones: how the finished work lands. `merge` merges into the base, `merge-push` also pushes the base, `pull-request` pushes the WIP branch and opens a pull request, and `branch` leaves the work on `wip/<feature>`. Offer the push and pull request only when `git remote` lists a remote.
-When the user already named how it lands, record that answer without asking. When the repository's instructions say how work from the checked-out branch lands, record `merge` without asking: the plan merges into that branch, and `gsd-verify` then runs those landing steps. If they forbid merging into the checked-out branch, first cut the branch they prescribe, which `derive-base` then records. A general instruction to follow your recommendations may record `merge` or `branch` without asking, never a push or a pull request. Execution then runs to the end without check-in questions.
+When the user already named how it lands, record that answer without asking. When the repository's instructions say how work from the checked-out branch lands, record `merge` without asking: the plan merges into that branch, and delivery then runs those landing steps. If they forbid merging into the checked-out branch, first cut the branch they prescribe, which `derive-base` then records. A general instruction to follow your recommendations may record `merge` or `branch` without asking, never a push or a pull request. Execution then runs to the end without check-in questions.
 
 ## Convergence transition
 
