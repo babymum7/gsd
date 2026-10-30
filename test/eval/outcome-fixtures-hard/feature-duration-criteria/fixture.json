@@ -1,0 +1,5 @@
+{
+  "id": "feature-duration-criteria",
+  "kind": "feature",
+  "summary": "Whether an agent meets seven acceptance criteria whose own examples break the obvious parser: `ms` against `m`, letter case, unit order, spacing, decimals, exact half-up rounding, the sign, and the exact error text."
+}

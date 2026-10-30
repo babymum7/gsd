@@ -17,6 +17,7 @@ import {
   liveOutcomeFingerprint,
   validateOutcomeReport,
 } from "./eval/outcome-eval-contract.mjs";
+import { HARD_REPORT_PATH, liveHardFingerprint } from "./eval/outcome-hard-set.mjs";
 
 // `--tools read` let an eval session reach the user's MCP servers through `write xd://mcp__…`,
 // so eval sessions run on a linked copy of the agent directory with no MCP server.
@@ -504,13 +505,18 @@ test("the committed eval reports keep their shape and flag stale bytes", () => {
     }
   }
 
-  // The outcome benchmark's report has its own shape (decision 0044) and exists once a live run
-  // is committed. Its fingerprint also binds the plugin bundle, fixture, and harness bytes.
-  if (existsSync(join(ROOT, OUTCOME_REPORT_PATH))) {
-    const outcome = JSON.parse(read(OUTCOME_REPORT_PATH));
-    assert.deepEqual(validateOutcomeReport(outcome), { ok: true }, `${OUTCOME_REPORT_PATH} must keep its shape`);
-    for (const field of fingerprintMismatches(outcome.fingerprint, liveOutcomeFingerprint(ROOT))) {
-      warnStale(OUTCOME_REPORT_PATH, `a different ${field}`);
+  // The outcome benchmark's reports have their own shape (decision 0044) and exist once a live run
+  // is committed. Each fingerprint also binds the plugin bundle, its fixture set, and harness
+  // bytes; the hard set (decision 0046) runs the same harness on its own fixtures.
+  for (const [path, liveFingerprint] of [
+    [OUTCOME_REPORT_PATH, liveOutcomeFingerprint],
+    [HARD_REPORT_PATH, liveHardFingerprint],
+  ]) {
+    if (!existsSync(join(ROOT, path))) continue;
+    const outcome = JSON.parse(read(path));
+    assert.deepEqual(validateOutcomeReport(outcome), { ok: true }, `${path} must keep its shape`);
+    for (const field of fingerprintMismatches(outcome.fingerprint, liveFingerprint(ROOT))) {
+      warnStale(path, `a different ${field}`);
     }
   }
 });

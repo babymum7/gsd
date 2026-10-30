@@ -1,0 +1,5 @@
+{
+  "id": "bug-scattered-cause",
+  "kind": "bug",
+  "summary": "Whether the agent normalizes email addresses at every lookup and write behind a reported mixed-case login failure, including the password reset and email change no report names, instead of patching the login path alone."
+}
