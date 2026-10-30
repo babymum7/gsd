@@ -9,13 +9,17 @@ import { outcomeFingerprint, prepareBundle } from "./outcome-eval-contract.mjs";
 export const HARD_FIXTURES_DIR = "test/eval/outcome-fixtures-hard";
 export const HARD_REPORT_PATH = "test/eval/outcome-report-hard.json";
 
-// The fingerprint a hard-set run of this checkout would record, from a bundle built and removed
-// here, as the runner builds it.
-export function liveHardFingerprint(root) {
-  const base = realpathSync(mkdtempSync(join(tmpdir(), "gsd-outcome-hard-")));
+// The fingerprint a run of this checkout over fixturesDir would record, from a bundle built and
+// removed here, as the runner builds it. The repository-knowledge set (decision 0047) shares it.
+export function liveSetFingerprint(root, fixturesDir) {
+  const base = realpathSync(mkdtempSync(join(tmpdir(), "gsd-outcome-set-")));
   try {
-    return outcomeFingerprint(prepareBundle(root, join(base, "bundle")), join(root, HARD_FIXTURES_DIR));
+    return outcomeFingerprint(prepareBundle(root, join(base, "bundle")), join(root, fixturesDir));
   } finally {
     rmSync(base, { recursive: true, force: true });
   }
+}
+
+export function liveHardFingerprint(root) {
+  return liveSetFingerprint(root, HARD_FIXTURES_DIR);
 }

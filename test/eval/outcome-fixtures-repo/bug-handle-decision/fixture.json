@@ -1,0 +1,5 @@
+{
+  "id": "bug-handle-decision",
+  "kind": "bug",
+  "summary": "Whether the agent fixes duplicate handles under every decision record that bears on them, uniqueness regardless of case (0004), names stored and shown as typed (0008), and lookups and mentions that follow the uniqueness rule (0009), rather than under the record named after handles alone."
+}
