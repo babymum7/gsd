@@ -1,4 +1,4 @@
-# 0046 — A hard outcome fixture set can show a quality difference
+# 0046 — The outcome benchmark has a hard fixture set
 
 - **Status:** Accepted
 - **Date:** 2026-10-30
@@ -14,3 +14,5 @@
 ## Rationale
 
 Decision 0044's run and the rounds of decision 0045 had both arms pass every hidden test, so those fixtures can show a difference in tokens and turns but never in quality. Before any session ran, a plausible one-step change failed 6 of the bug fixture's 12 hidden tests by fixing only the login lookup, 6 of the feature's 32 by stripping spaces and accepting parts in any order, and 8 of the refactor's 18 by switching to `Number`, `??`, and a numeric sort, while each reference solution passes them all. Keeping the harness unchanged keeps the round-three report current, and fixing the verdict rule before the measurement keeps it from being chosen afterwards.
+
+The measured run, recorded in `test/eval/outcome-report-hard.json`, did not separate the arms on `google-antigravity/gemini-3.8-flash`: both passed all 186 hidden tests in 9 of 9 sessions, so no fixture favors either arm and the hard set shows no quality difference on that model. No fixture was revised, since no pilot transcript showed a prompt and a hidden test disagreeing. The GSD arm used 7,930,394 tokens against vanilla's 9,375,169 and 2.44 USD against 2.74: 1,093,265 against 3,578,819 on bug-scattered-cause, where every GSD session stayed below the cheapest vanilla one, 1,481,713 against 1,836,137 on refactor-modernize-trap, and 5,355,416 against 3,960,213 on feature-duration-criteria, where the lifecycle added turns, 35.3 against 26.3 on average.
