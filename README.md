@@ -97,7 +97,7 @@ current tree; the tests named in each bullet pin only the cap or budget it names
 
 - One bootstrap per session. `skills/gsd/SKILL.md` caps at 520 words
   (`test/skills-word-budget.test.js`), and the rendered bootstrap (the master body
-  plus the sorted catalog) currently measures 601 words; that is the `bootstrap_words`
+  plus the sorted catalog) currently measures 603 words; that is the `bootstrap_words`
   value in every committed eval report.
 - Nothing per turn. An ordinary prompt injects zero bytes: the adapters emit only at
   session boundaries and deduplicate against the payload already in the transcript. A

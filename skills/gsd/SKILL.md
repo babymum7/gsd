@@ -41,7 +41,7 @@ Understand the whole behavior, then stop at the first rung that works: does it n
 
 ## Turn economy
 
-Each turn resends the whole context. Batch independent calls in one message: files the task names, searches, status checks, and files a skill says to read; read a skill only when you reach it. Run skill commands as written, without `--help`. Never re-read an unchanged file; once the final checks pass, report without re-checking. Todo updates ride along with other calls.
+Each turn resends the whole context. Batch independent calls in one message (files, searches, status checks), and read a skill only when you reach it. Run skill commands as written, without `--help`. Never re-read an unchanged file. Run the final checks (tests, `git status`, `git diff`) in one message, then report without re-running any. Todo updates ride along with other calls, never alone.
 
 ## Canon
 
