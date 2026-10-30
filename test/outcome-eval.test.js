@@ -5,6 +5,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, 
 import { homedir, tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import {
+  DEFAULT_FIXTURES_DIR,
   MODEL_ROLES,
   WRAPPER_CONFIG_FILE,
   WRAPPER_FILE,
@@ -16,6 +17,7 @@ import {
   resolveCommand,
   validateOutcomeReport,
 } from "./eval/outcome-eval-contract.mjs";
+import { HARD_FIXTURES_DIR } from "./eval/outcome-hard-set.mjs";
 
 const ROOT = join(import.meta.dir, "..");
 const RUNNER = join(ROOT, "test/eval/outcome-eval.mjs");
@@ -446,15 +448,19 @@ test("session outcomes keep caps apart from failures", () => {
   assert.equal(classifyOutcome({ status: 1, killed: false, wallMs: 1000 }), "error");
 });
 
-const FIXTURES = loadFixtures(join(ROOT, "test/eval/outcome-fixtures"));
-test("the outcome fixture set loads", () => {
-  assert.equal(FIXTURES.ok, true, FIXTURES.detail);
-});
-for (const fixture of FIXTURES.fixtures ?? []) {
-  test(`fixture ${fixture.id}: the initial tree passes visible and fails hidden tests; the solution passes both`, () => {
-    const result = checkFixture(fixture);
-    assert.equal(result.ok, true, result.detail);
+// The default set and the hard set of decision 0046 pass the same instrument check.
+for (const dir of [DEFAULT_FIXTURES_DIR, HARD_FIXTURES_DIR]) {
+  const loaded = loadFixtures(join(ROOT, dir));
+  test(`the outcome fixture set in ${dir} loads`, () => {
+    assert.equal(loaded.ok, true, loaded.detail);
+    assert.ok(loaded.fixtures.length > 0, `${dir} holds no fixture`);
   });
+  for (const fixture of loaded.fixtures ?? []) {
+    test(`fixture ${fixture.id}: the initial tree passes visible and fails hidden tests; the solution passes both`, () => {
+      const result = checkFixture(fixture);
+      assert.equal(result.ok, true, result.detail);
+    });
+  }
 }
 
 test("the synthetic fixture passes the same checker, which works on copies", () => {

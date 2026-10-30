@@ -1,0 +1,5 @@
+{
+  "id": "refactor-modernize-trap",
+  "kind": "refactor",
+  "summary": "Whether modernizing and splitting an old-style summary keeps every coercion a modernizer tends to change: skipped null and undefined items, `parseInt` text quantities, `||` placeholders, `+` prices, and SKUs sorted as text."
+}
