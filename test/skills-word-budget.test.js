@@ -16,7 +16,7 @@ const BUDGETS = {
   "skills/gsd-codebase-architecture/DEEPENING.md": 386,
   "skills/gsd-codebase-architecture/DESIGN-IT-TWICE.md": 287,
   "skills/gsd-codebase-architecture/SKILL.md": 877,
-  "skills/gsd-diagnosing-bugs/SKILL.md": 560,
+  "skills/gsd-diagnosing-bugs/SKILL.md": 602,
   "skills/gsd-domain-modeling/SKILL.md": 1177,
   "skills/gsd-executing-plans/SKILL.md": 1046,
   "skills/gsd-refactor/SKILL.md": 1254,

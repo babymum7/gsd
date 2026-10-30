@@ -597,3 +597,13 @@ test("AC-2, AC-3, AC-4: the documented bind, checkpoint, and delivery commands r
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+// Diagnosis spends one message on each step it batches (decision 0045): the file listing with the
+// standalone `derive-base`, the failing path's files with their test run, the confirming probe
+// with the call-site search, and the fix with its regression test before the final checks.
+test("diagnosis batches its opening reads, its fix, and its final checks", () => {
+  const diagnosing = read("skills/gsd-diagnosing-bugs/SKILL.md");
+  assert.match(diagnosing, /Open with two messages: list the files \(with the quick-fix `derive-base` when standalone\), then read every file on the failing path and run its tests\./);
+  assert.match(diagnosing, /one confirming probe plus a search for the pattern's other call sites/);
+  assert.match(diagnosing, /with its focused regression test in one message and runs the final checks in the next/);
+});

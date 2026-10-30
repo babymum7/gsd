@@ -7,11 +7,11 @@ consumes: [docs/domain/index.md, docs/domain/<scope>.md]
 
 # Diagnosing Bugs
 
-A discipline for hard bugs, run inline by the session owner. It produces root-cause evidence and never implements or commits the fix; a prompt that already names the file, line, or exact failure is a quick fix instead. Afterwards the owner fixes a confirmed non-architectural cause with a focused regression test (after the quick-fix `derive-base` check), and an architectural cause goes to `gsd-brainstorming` first.
+A discipline for hard bugs, run inline by the session owner. It produces root-cause evidence and never implements or commits the fix; a prompt that already names the file, line, or exact failure is a quick fix instead. Afterwards the owner writes the fix for a confirmed non-architectural cause with its focused regression test in one message and runs the final checks in the next; an architectural cause goes to `gsd-brainstorming` first.
 
 Two entries: standalone (from the catalog), and inside bound execution when a red check has no located cause. Inside execution ask the user nothing: missing access, a missing artifact, or an ambiguous criterion is Spec escalation, and the evidence returns to `gsd-executing-plans` for inline repair.
 
-Work the phases as a checklist, not todo items. When the first red run isolates the cause, Phases 2 to 4 shrink to one confirming probe; skip any other phase only with explicit justification. Read Git history only for a regression.
+Work the phases as a checklist, not todo items. Open with two messages: list the files (with the quick-fix `derive-base` when standalone), then read every file on the failing path and run its tests. When the first red run isolates the cause, Phases 2 to 4 shrink to one confirming probe plus a search for the pattern's other call sites; skip any other phase only with explicit justification. Read Git history only for a regression.
 
 ## Phase 1 — Build a feedback loop (this is the skill)
 
