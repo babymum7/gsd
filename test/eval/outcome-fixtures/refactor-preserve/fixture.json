@@ -1,0 +1,5 @@
+{
+  "id": "refactor-preserve",
+  "kind": "refactor",
+  "summary": "Whether splitting a report renderer in three keeps its edge-case output identical."
+}
