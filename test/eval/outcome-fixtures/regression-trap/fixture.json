@@ -1,0 +1,5 @@
+{
+  "id": "regression-trap",
+  "kind": "regression",
+  "summary": "Whether an agent adds Vietnamese transliteration to slugify while keeping the rules no visible test covers: apostrophes, punctuation, dash runs, trimming, and the length limit."
+}
