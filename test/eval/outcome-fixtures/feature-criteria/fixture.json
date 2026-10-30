@@ -1,0 +1,5 @@
+{
+  "id": "feature-criteria",
+  "kind": "feature",
+  "summary": "Whether an agent meets every stated acceptance criterion, not only the main path."
+}
