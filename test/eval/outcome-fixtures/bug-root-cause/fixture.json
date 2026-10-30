@@ -1,0 +1,5 @@
+{
+  "id": "bug-root-cause",
+  "kind": "bug",
+  "summary": "Whether the agent fixes the shared cent conversion behind a reported one-cent invoice error instead of patching the invoice total where the symptom shows."
+}
