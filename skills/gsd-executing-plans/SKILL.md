@@ -16,7 +16,7 @@ Write `state.toon` only with `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature
 ## Entry, pause, and resume
 
 - **Resume:** with no feature named, list owned candidates under § Candidate discovery; one resumes, several ask which. A packet another session owns resumes only when the user names it, writing your own `owner` with `set --takeover`.
-- **Validate** at entry and resume with `bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`: it validates and prints `waves:`. Exit 1 is Spec escalation (a base mismatch always stops, since the merge target never changes); exit 2 corrects invocation. Then follow the skill `next_action` names under § Skill derivation from phase and next_action.
+- **Validate** at entry and resume with `bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/plan.md --expected-base <state.base_ref>`: it validates and prints `waves:`, and the `gsd-to-plan` bind command already ran it for a plan bound in this session. Exit 1 is Spec escalation (a base mismatch always stops, since the merge target never changes); exit 2 corrects invocation. Then follow the skill `next_action` names under § Skill derivation from phase and next_action.
 - **Pause:** at a user request or context pressure, set `phase=paused`; the interrupted `next_action` is kept. A hard blocker writes `next_action=Spec-escalation`. Resuming a paused packet sets the phase its kept `next_action` implies: `executing` for a task, `verifying` for terminal verification, `ready` for delivery under `plan.md` § Delivery.
 - **Amend:** when work shows the plan is wrong or the user changes a requirement, amend `plan.md` under § Plan amendment, revalidate, and continue the same task. A material amendment is decided by your recommendation and recorded as a decision, not asked. New product scope exits to `gsd-brainstorming`.
 
@@ -31,9 +31,11 @@ Before the first task, prove `state.toon` is bound and `wip/<feature>` is checke
 3. Follow `GSD_ROOT/skills/gsd-tdd/SKILL.md`: RED, GREEN, refactor, with Fast TDD Checks only.
 4. A non-`none` `Domain Impact` task updates its named shards in the same commit.
 5. A red check repairs inline. When its cause cannot be located, follow `GSD_ROOT/skills/gsd-diagnosing-bugs/SKILL.md` inline without asking questions; missing access or an ambiguous criterion is Spec escalation.
-6. Commit only green task-owned paths on `wip/<feature>`, then set `last_green_task`, `last_green_commit`, and `next_action="start/continue task"`. `Tn+1` starts only from a committed green `Tn`.
+6. Commit only green task-owned paths on `wip/<feature>` and checkpoint in one command:
+   `git add <task paths> && git commit -m "<message>" && bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> owner=<GSD_SESSION> last_green_task=<Tn> last_green_commit=HEAD`
+   The last task appends `phase=verifying`, which enters terminal verification. `Tn+1` starts only from a committed green `Tn`.
 
-Record settled UI/UX decisions as `docs/design/NNNN-slug.md` under § Durable decision and design records. When every task is green, set `next_action="enter terminal verification/repair"` and load `gsd-verify`. Report progress and blockers only.
+Record settled UI/UX decisions as `docs/design/NNNN-slug.md` under § Durable decision and design records. When every task is green, load `gsd-verify` in the same message as the last checkpoint. Report progress and blockers only.
 
 Run tasks, the terminal gate, and delivery back to back under § Post-plan pipeline contract. Never end a turn by announcing the next task or asking whether to continue while owned work remains: start it instead. Only a stop listed in § Plan amendment ends a turn early.
 

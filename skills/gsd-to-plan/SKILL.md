@@ -16,7 +16,7 @@ Read `plan.md` § Base from the work tree, never from convention: run `bun "<GSD
 
 ## Write plan.md
 
-Write `.scratch/<feature>/plan.md` exactly from [PLAN-GRAMMAR.md](PLAN-GRAMMAR.md). You may start from `bun "<GSD_ROOT>/tools/gsd-contract.mjs" init-plan --path .scratch/<feature>/plan.md --base <branch>`, which refuses to overwrite a plan; replace every `<slot>` and delete optional sections that carry nothing, since the gate rejects a leftover slot.
+Write `.scratch/<feature>/plan.md` in one write, exactly from [PLAN-GRAMMAR.md](PLAN-GRAMMAR.md), leaving out optional sections that carry nothing.
 
 - Plan complete observable behavior, not layers. Tasks are sequential `T1`…`TN`, order encodes dependencies, and every active criterion occurs in at least one task.
 - Pin the highest deterministic fast public seam per criterion; `none` is only for mechanically verified non-behavioral work. Slow checks are Deferred Slow E2E under § Fast TDD and task-loop constraints, never focused task checks.
@@ -29,6 +29,8 @@ Write `.scratch/<feature>/plan.md` exactly from [PLAN-GRAMMAR.md](PLAN-GRAMMAR.m
 
 ## Validate and bind
 
-Run `bun "<GSD_ROOT>/tools/gsd-contract.mjs" validate-plan --path .scratch/<feature>/plan.md`. Only exit 0 with `kind: plan`, the matching feature and base, and the expected task count binds; exit 1 returns to `gsd-brainstorming`, exit 2 corrects invocation.
+Without an approval prompt, validate, bind, and cut the WIP branch with one unpiped command, which stops at its first failure:
 
-Then, without an approval prompt, run `bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> owner=<GSD_SESSION> phase=approved plan_path=.scratch/<feature>/plan.md base_ref=<base> wip_branch=wip/<feature>`; the tool fills `next_action` and `checkpoint_revision` and reads the record back. A fresh binding after Spec escalation overwrites the old one; over a packet another session owns, which the user named, add `--takeover`. Then load `gsd-executing-plans`.
+`bun "<GSD_ROOT>/tools/gsd-contract.mjs" analyze-waves --path .scratch/<feature>/plan.md --expected-base <base> && bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> owner=<GSD_SESSION> phase=approved plan_path=.scratch/<feature>/plan.md base_ref=<base> wip_branch=wip/<feature> && git switch -c wip/<feature> <base> && bun "<GSD_ROOT>/tools/gsd-state.mjs" set --feature-dir .scratch/<feature> owner=<GSD_SESSION> phase=executing`
+
+Its validation must print `kind: plan`, the matching feature and base, and the expected task count; exit 1 returns to `gsd-brainstorming`, exit 2 corrects invocation. `set` fills `next_action` and `checkpoint_revision` and reads the record back. A fresh binding after Spec escalation overwrites the old one and switches to an existing `wip/<feature>` without `-c`; over a packet another session owns, which the user named, add `--takeover` to the first `set`. In the same message, load `gsd-executing-plans` and read `GSD_ROOT/skills/gsd-tdd/SKILL.md`.

@@ -2,7 +2,7 @@ import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
-import { read, ROOT } from "./support/skills-fixtures.js";
+import { canonicalPacket, read, replaceOnce, ROOT } from "./support/skills-fixtures.js";
 import { chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -515,3 +515,85 @@ test("the committed eval reports keep their shape and flag stale bytes", () => {
   }
 });
 
+
+// The lifecycle skills write binding, a task checkpoint, and merge delivery as one command each
+// (decision 0045). Running each as written, with its placeholders filled, catches a broken chain
+// here instead of in a session.
+function documentedCommand(file, pattern) {
+  const commands = [...read(file).matchAll(/`([^`\n]+)`/g)].map((match) => match[1]).filter((span) => pattern.test(span));
+  assert.equal(commands.length, 1, `${file} writes one command matching ${pattern}`);
+  return commands[0];
+}
+
+function fillSlots(command, values) {
+  return command.replace(/<([A-Za-z_ ]+)>/g, (slot, name) => {
+    assert.ok(Object.hasOwn(values, name), `no value for ${slot}`);
+    return values[name];
+  });
+}
+
+test("AC-2, AC-3, AC-4: the documented bind, checkpoint, and delivery commands run as written", () => {
+  const bind = documentedCommand("skills/gsd-to-plan/SKILL.md", /git switch -c/);
+  const checkpoint = documentedCommand("skills/gsd-executing-plans/SKILL.md", /^git add .*last_green_commit=HEAD/);
+  const deliver = documentedCommand("skills/gsd-verify/SKILL.md", /preflight .*git merge --no-ff/);
+  const feature = "canonical-fixture";
+  const values = {
+    GSD_ROOT: ROOT, GSD_SESSION: "chain-session", feature, base: "main", base_ref: "main",
+    Tn: "T1", "task paths": "test/skills.test.js", message: "test: exercise the fixture",
+  };
+  const root = mkdtempSync(join(tmpdir(), "gsd-chain-"));
+  const featureDir = join(root, ".scratch", feature);
+  const sh = (command) => spawnSync("sh", ["-c", command], { cwd: root, encoding: "utf8" });
+  const git = (...args) => spawnSync("git", args, { cwd: root, encoding: "utf8" }).stdout.trim();
+  const state = () => Object.fromEntries(readFileSync(join(featureDir, "state.toon"), "utf8").trim().split("\n")
+    .map((line) => [line.slice(0, line.indexOf(":")), line.slice(line.indexOf(":") + 1)]));
+  try {
+    git("init", "-q", "--initial-branch", "main", ".");
+    git("config", "user.email", "test@example.com");
+    git("config", "user.name", "test");
+    mkdirSync(join(root, "test"));
+    writeFileSync(join(root, ".gitignore"), ".scratch/\n");
+    writeFileSync(join(root, "test", "skills.test.js"), "// fixture\n");
+    git("add", ".gitignore", "test/skills.test.js");
+    git("commit", "-qm", "init");
+    mkdirSync(featureDir, { recursive: true });
+    const plan = canonicalPacket()["plan.md"];
+
+    writeFileSync(join(featureDir, "plan.md"), replaceOnce(plan, "GIVEN a canonical plan", "given a canonical plan"));
+    assert.notEqual(sh(fillSlots(bind, values)).status, 0);
+    assert.equal(existsSync(join(featureDir, "state.toon")), false);
+    assert.equal(git("branch", "--list", `wip/${feature}`), "");
+
+    writeFileSync(join(featureDir, "plan.md"), plan);
+    const bound = sh(fillSlots(bind, values));
+    assert.equal(bound.status, 0, bound.stdout + bound.stderr);
+    assert.equal(git("branch", "--show-current"), `wip/${feature}`);
+    assert.deepEqual([state().phase, state().base_ref, state().owner], ["executing", "main", "chain-session"]);
+
+    writeFileSync(join(root, "test", "skills.test.js"), "// fixture, exercised\n");
+    const checkpointed = sh(`${fillSlots(checkpoint, values)} phase=verifying`);
+    assert.equal(checkpointed.status, 0, checkpointed.stdout + checkpointed.stderr);
+    const recorded = state();
+    assert.deepEqual(
+      [recorded.last_green_task, recorded.last_green_commit, recorded.phase, recorded.next_action],
+      ["T1", git("rev-parse", "HEAD"), "verifying", "enter terminal verification/repair"],
+    );
+    assert.equal(git("show", "--format=", "--name-only", "HEAD"), "test/skills.test.js");
+
+    const base = git("rev-parse", "main");
+    writeFileSync(join(root, "stray.txt"), "unreviewed\n");
+    assert.notEqual(sh(fillSlots(deliver, values)).status, 0);
+    assert.deepEqual([git("rev-parse", "main"), git("branch", "--show-current")], [base, `wip/${feature}`]);
+    rmSync(join(root, "stray.txt"));
+
+    const delivered = sh(fillSlots(deliver, values));
+    assert.equal(delivered.status, 0, delivered.stdout + delivered.stderr);
+    assert.equal(git("branch", "--show-current"), "main");
+    assert.equal(git("log", "-1", "--format=%P").split(" ").length, 2);
+    assert.equal(git("log", "-1", "--format=%s"), `Merge wip/${feature} into main`);
+    assert.equal(git("branch", "--list", `wip/${feature}`), "");
+    assert.equal(existsSync(featureDir), false);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});

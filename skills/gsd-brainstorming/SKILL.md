@@ -58,6 +58,6 @@ When the user already named how it lands, record that answer without asking. Whe
 
 ## Convergence transition
 
-When requirements, tradeoffs, criteria, invariants, non-goals, test seams, and the Delivery converge, or the user asks to finalize an unbound draft `plan.md`, read `GSD_ROOT/skills/gsd-to-plan/SKILL.md` and follow it: it writes and validates `plan.md`, binds `state.toon`, and loads `gsd-executing-plans` without another prompt. A Spec-gap revision of a bound plan instead returns its revised contract to `gsd-executing-plans`, which amends `plan.md` under § Plan amendment.
+When requirements, tradeoffs, criteria, invariants, non-goals, test seams, and the Delivery converge, or the user asks to finalize an unbound draft `plan.md`, read `GSD_ROOT/skills/gsd-to-plan/SKILL.md` and its `PLAN-GRAMMAR.md` in one message and follow them: they write and validate `plan.md`, bind `state.toon`, and load `gsd-executing-plans` without another prompt. A Spec-gap revision of a bound plan instead returns its revised contract to `gsd-executing-plans`, which amends `plan.md` under § Plan amendment.
 
 Before transitioning, summarize recommendations and expose only the next human decision; never present command menus or skill names as user choices.
