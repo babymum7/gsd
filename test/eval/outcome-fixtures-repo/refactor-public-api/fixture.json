@@ -1,0 +1,5 @@
+{
+  "id": "refactor-public-api",
+  "kind": "refactor",
+  "summary": "Whether the agent cleaning up src/text/ keeps what the README says is published, a legacy module nothing in the repository imports and the names plugins import from index.js, while it removes dead code and duplication, keeps every helper's behavior, and extracts the slugWords step the request names."
+}

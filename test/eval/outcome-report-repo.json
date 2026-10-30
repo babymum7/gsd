@@ -1,0 +1,779 @@
+{
+  "scope": "omp sessions with and without GSD (outcome axis)",
+  "fingerprint": {
+    "bootstrap_sha256": "a30140705fbd03d2b3da500e9263158fbf80347e05fa075a08c8e3f368caf3f2",
+    "bootstrap_words": 603,
+    "bundle_sha256": "d1ebb6bdd89dab8c103d86b33f059f7005a001e03b298b2ebf15b7db64dc0de3",
+    "fixtures_sha256": "9293e4d7ce7f7ee71374938233c68e957fc766159d4ed818a8860dec6d73887e",
+    "harness_sha256": "31d8bdef41be01c63e6625bacbe051a658e6193ec1909d85453963f37349cefd"
+  },
+  "omp_version": "omp/18.13.1",
+  "settings": {
+    "thinking": "high",
+    "max_cost_usd": 1,
+    "max_time": "20m",
+    "tools": [
+      "read",
+      "bash",
+      "edit",
+      "write",
+      "grep",
+      "glob",
+      "task",
+      "todo"
+    ],
+    "pinned_roles": [
+      "default",
+      "smol",
+      "slow",
+      "plan",
+      "task",
+      "vision",
+      "designer",
+      "commit",
+      "advisor",
+      "tiny"
+    ],
+    "sandbox": "bwrap"
+  },
+  "fixtures": [
+    {
+      "id": "bug-handle-decision",
+      "kind": "bug"
+    },
+    {
+      "id": "feature-domain-pricing",
+      "kind": "feature"
+    },
+    {
+      "id": "refactor-public-api",
+      "kind": "refactor"
+    }
+  ],
+  "summary": {
+    "google-antigravity/gemini-2.5-flash-lite": {
+      "vanilla": {
+        "rows": 9,
+        "valid": 9,
+        "outcomes": {
+          "ok": 9,
+          "cost-cap": 0,
+          "time-cap": 0,
+          "error": 0
+        },
+        "all_hidden_passed": 9,
+        "hidden_passed": 105,
+        "hidden_total": 105,
+        "regressions": 0,
+        "visible_tests_edited": 9,
+        "cost_usd": 0.13762613,
+        "tokens": 3843740,
+        "wall_ms": 393509
+      },
+      "gsd": {
+        "rows": 9,
+        "valid": 9,
+        "outcomes": {
+          "ok": 9,
+          "cost-cap": 0,
+          "time-cap": 0,
+          "error": 0
+        },
+        "all_hidden_passed": 9,
+        "hidden_passed": 105,
+        "hidden_total": 105,
+        "regressions": 0,
+        "visible_tests_edited": 9,
+        "cost_usd": 0.1299545,
+        "tokens": 3710060,
+        "wall_ms": 376630
+      }
+    }
+  },
+  "rows": [
+    {
+      "fixture": "bug-handle-decision",
+      "kind": "bug",
+      "arm": "vanilla",
+      "repeat": 1,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": null,
+      "hidden": {
+        "passed": 10,
+        "total": 10,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "tokens": {
+        "input": 65895,
+        "output": 3792,
+        "cache_read": 203275,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 272962
+      },
+      "cost_usd": 0.01013905,
+      "turns": 19,
+      "tool_calls": 26,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 32969
+    },
+    {
+      "fixture": "bug-handle-decision",
+      "kind": "bug",
+      "arm": "gsd",
+      "repeat": 1,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": 17,
+      "hidden": {
+        "passed": 10,
+        "total": 10,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "tokens": {
+        "input": 61837,
+        "output": 3692,
+        "cache_read": 197731,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 263260
+      },
+      "cost_usd": 0.00963781,
+      "turns": 17,
+      "tool_calls": 19,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 30354
+    },
+    {
+      "fixture": "bug-handle-decision",
+      "kind": "bug",
+      "arm": "vanilla",
+      "repeat": 2,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": null,
+      "hidden": {
+        "passed": 10,
+        "total": 10,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "tokens": {
+        "input": 37179,
+        "output": 3460,
+        "cache_read": 106121,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 146760
+      },
+      "cost_usd": 0.00616311,
+      "turns": 11,
+      "tool_calls": 23,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 20186
+    },
+    {
+      "fixture": "bug-handle-decision",
+      "kind": "bug",
+      "arm": "gsd",
+      "repeat": 2,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": 15,
+      "hidden": {
+        "passed": 10,
+        "total": 10,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "tokens": {
+        "input": 56228,
+        "output": 3651,
+        "cache_read": 167581,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 227460
+      },
+      "cost_usd": 0.00875901,
+      "turns": 15,
+      "tool_calls": 17,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 22806
+    },
+    {
+      "fixture": "bug-handle-decision",
+      "kind": "bug",
+      "arm": "vanilla",
+      "repeat": 3,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": null,
+      "hidden": {
+        "passed": 10,
+        "total": 10,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "tokens": {
+        "input": 53510,
+        "output": 3577,
+        "cache_read": 157966,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 215053
+      },
+      "cost_usd": 0.00836146,
+      "turns": 15,
+      "tool_calls": 24,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 23417
+    },
+    {
+      "fixture": "bug-handle-decision",
+      "kind": "bug",
+      "arm": "gsd",
+      "repeat": 3,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": 18,
+      "hidden": {
+        "passed": 10,
+        "total": 10,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "tokens": {
+        "input": 65584,
+        "output": 3961,
+        "cache_read": 220768,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 290313
+      },
+      "cost_usd": 0.01035048,
+      "turns": 18,
+      "tool_calls": 22,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 26491
+    },
+    {
+      "fixture": "feature-domain-pricing",
+      "kind": "feature",
+      "arm": "vanilla",
+      "repeat": 1,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": null,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/checkout.test.js"
+      ],
+      "tokens": {
+        "input": 117214,
+        "output": 17125,
+        "cache_read": 608609,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 742948
+      },
+      "cost_usd": 0.02465749,
+      "turns": 25,
+      "tool_calls": 34,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 72896
+    },
+    {
+      "fixture": "feature-domain-pricing",
+      "kind": "feature",
+      "arm": "gsd",
+      "repeat": 1,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": 36,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/checkout.test.js"
+      ],
+      "tokens": {
+        "input": 149794,
+        "output": 19269,
+        "cache_read": 1076087,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 1245150
+      },
+      "cost_usd": 0.03344787,
+      "turns": 36,
+      "tool_calls": 41,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 87405
+    },
+    {
+      "fixture": "feature-domain-pricing",
+      "kind": "feature",
+      "arm": "vanilla",
+      "repeat": 2,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": null,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/checkout.test.js"
+      ],
+      "tokens": {
+        "input": 116743,
+        "output": 15125,
+        "cache_read": 485720,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 617588
+      },
+      "cost_usd": 0.0225815,
+      "turns": 24,
+      "tool_calls": 31,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 62089
+    },
+    {
+      "fixture": "feature-domain-pricing",
+      "kind": "feature",
+      "arm": "gsd",
+      "repeat": 2,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": 23,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/checkout.test.js"
+      ],
+      "tokens": {
+        "input": 93104,
+        "output": 9910,
+        "cache_read": 360367,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 463381
+      },
+      "cost_usd": 0.01687807,
+      "turns": 23,
+      "tool_calls": 22,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 51790
+    },
+    {
+      "fixture": "feature-domain-pricing",
+      "kind": "feature",
+      "arm": "vanilla",
+      "repeat": 3,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": null,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/checkout.test.js"
+      ],
+      "tokens": {
+        "input": 71549,
+        "output": 11814,
+        "cache_read": 310476,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 393839
+      },
+      "cost_usd": 0.01498526,
+      "turns": 18,
+      "tool_calls": 28,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 46918
+    },
+    {
+      "fixture": "feature-domain-pricing",
+      "kind": "feature",
+      "arm": "gsd",
+      "repeat": 3,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": 22,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/checkout.test.js"
+      ],
+      "tokens": {
+        "input": 99413,
+        "output": 13308,
+        "cache_read": 371594,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 484315
+      },
+      "cost_usd": 0.01898044,
+      "turns": 22,
+      "tool_calls": 21,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 54169
+    },
+    {
+      "fixture": "refactor-public-api",
+      "kind": "refactor",
+      "arm": "vanilla",
+      "repeat": 1,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": null,
+      "hidden": {
+        "passed": 17,
+        "total": 17,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/text.test.js"
+      ],
+      "tokens": {
+        "input": 120539,
+        "output": 8365,
+        "cache_read": 476930,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 605834
+      },
+      "cost_usd": 0.0201692,
+      "turns": 32,
+      "tool_calls": 31,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 50652
+    },
+    {
+      "fixture": "refactor-public-api",
+      "kind": "refactor",
+      "arm": "gsd",
+      "repeat": 1,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": 16,
+      "hidden": {
+        "passed": 17,
+        "total": 17,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/text.test.js"
+      ],
+      "tokens": {
+        "input": 64209,
+        "output": 7251,
+        "cache_read": 222043,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 293503
+      },
+      "cost_usd": 0.01154173,
+      "turns": 16,
+      "tool_calls": 26,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 34075
+    },
+    {
+      "fixture": "refactor-public-api",
+      "kind": "refactor",
+      "arm": "vanilla",
+      "repeat": 2,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": null,
+      "hidden": {
+        "passed": 17,
+        "total": 17,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/text.test.js"
+      ],
+      "tokens": {
+        "input": 84992,
+        "output": 7252,
+        "cache_read": 324757,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 417001
+      },
+      "cost_usd": 0.01464757,
+      "turns": 22,
+      "tool_calls": 30,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 38707
+    },
+    {
+      "fixture": "refactor-public-api",
+      "kind": "refactor",
+      "arm": "gsd",
+      "repeat": 2,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": 11,
+      "hidden": {
+        "passed": 17,
+        "total": 17,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/text.test.js"
+      ],
+      "tokens": {
+        "input": 48573,
+        "output": 8576,
+        "cache_read": 134518,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 191667
+      },
+      "cost_usd": 0.00963288,
+      "turns": 11,
+      "tool_calls": 17,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 32624
+    },
+    {
+      "fixture": "refactor-public-api",
+      "kind": "refactor",
+      "arm": "vanilla",
+      "repeat": 3,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": null,
+      "hidden": {
+        "passed": 17,
+        "total": 17,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/text.test.js"
+      ],
+      "tokens": {
+        "input": 94240,
+        "output": 8006,
+        "cache_read": 329509,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 431755
+      },
+      "cost_usd": 0.01592149,
+      "turns": 25,
+      "tool_calls": 26,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 45675
+    },
+    {
+      "fixture": "refactor-public-api",
+      "kind": "refactor",
+      "arm": "gsd",
+      "repeat": 3,
+      "model": "google-antigravity/gemini-2.5-flash-lite",
+      "outcome": "ok",
+      "exit_code": 0,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_injections": 13,
+      "hidden": {
+        "passed": 17,
+        "total": 17,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/text.test.js"
+      ],
+      "tokens": {
+        "input": 53083,
+        "output": 8817,
+        "cache_read": 189111,
+        "cache_write": 0,
+        "subagent": 0,
+        "total": 251011
+      },
+      "cost_usd": 0.01072621,
+      "turns": 13,
+      "tool_calls": 21,
+      "subagents": {
+        "count": 0,
+        "requests": 0,
+        "tool_calls": 0
+      },
+      "wall_ms": 36916
+    }
+  ]
+}

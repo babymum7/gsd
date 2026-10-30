@@ -18,6 +18,7 @@ import {
   validateOutcomeReport,
 } from "./eval/outcome-eval-contract.mjs";
 import { HARD_FIXTURES_DIR } from "./eval/outcome-hard-set.mjs";
+import { REPO_FIXTURES_DIR } from "./eval/outcome-repo-set.mjs";
 
 const ROOT = join(import.meta.dir, "..");
 const RUNNER = join(ROOT, "test/eval/outcome-eval.mjs");
@@ -448,8 +449,9 @@ test("session outcomes keep caps apart from failures", () => {
   assert.equal(classifyOutcome({ status: 1, killed: false, wallMs: 1000 }), "error");
 });
 
-// The default set and the hard set of decision 0046 pass the same instrument check.
-for (const dir of [DEFAULT_FIXTURES_DIR, HARD_FIXTURES_DIR]) {
+// The default set, the hard set of decision 0046, and the repository-knowledge set of decision 0047
+// pass the same instrument check.
+for (const dir of [DEFAULT_FIXTURES_DIR, HARD_FIXTURES_DIR, REPO_FIXTURES_DIR]) {
   const loaded = loadFixtures(join(ROOT, dir));
   test(`the outcome fixture set in ${dir} loads`, () => {
     assert.equal(loaded.ok, true, loaded.detail);

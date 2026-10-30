@@ -1,0 +1,5 @@
+{
+  "id": "feature-domain-pricing",
+  "kind": "feature",
+  "summary": "Whether the agent follows pricing rules spread over three of the repository's domain docs, whole cents, half-even rounding, and a cap on reductions in money.md, tax after discounts in tax.md, and codes matched without regard to case or spaces in checkout.md, when adding discount codes the request describes only by name and amount."
+}

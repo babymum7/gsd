@@ -18,6 +18,7 @@ import {
   validateOutcomeReport,
 } from "./eval/outcome-eval-contract.mjs";
 import { HARD_REPORT_PATH, liveHardFingerprint } from "./eval/outcome-hard-set.mjs";
+import { REPO_REPORT_PATH, liveRepoFingerprint } from "./eval/outcome-repo-set.mjs";
 
 // `--tools read` let an eval session reach the user's MCP servers through `write xd://mcp__…`,
 // so eval sessions run on a linked copy of the agent directory with no MCP server.
@@ -507,10 +508,12 @@ test("the committed eval reports keep their shape and flag stale bytes", () => {
 
   // The outcome benchmark's reports have their own shape (decision 0044) and exist once a live run
   // is committed. Each fingerprint also binds the plugin bundle, its fixture set, and harness
-  // bytes; the hard set (decision 0046) runs the same harness on its own fixtures.
+  // bytes; the hard set (decision 0046) and the repository-knowledge set (decision 0047) run the
+  // same harness on their own fixtures.
   for (const [path, liveFingerprint] of [
     [OUTCOME_REPORT_PATH, liveOutcomeFingerprint],
     [HARD_REPORT_PATH, liveHardFingerprint],
+    [REPO_REPORT_PATH, liveRepoFingerprint],
   ]) {
     if (!existsSync(join(ROOT, path))) continue;
     const outcome = JSON.parse(read(path));
