@@ -4,7 +4,7 @@
   "bootstrap_words": 603,
   "canon_sha256": "deff0aab55362979c913eda2a468e2bd0f8b89cd66f919c21ce7f19bfc47a345",
   "canon_words": 2577,
-  "owner_skills_sha256": "5ec04019ce3a51b5fc9c331a1b1979a2ef966b88b297286ff96a12b0fd76a5ce",
+  "owner_skills_sha256": "22b9705a5c7bc0b63bc72de3a43e762bdf8e6da5416eb06a78d50101112ab684",
   "pass": {
     "google-antigravity/gemini-3.8-flash": {
       "passed": 28,
@@ -13,7 +13,7 @@
     }
   },
   "canon_reads": {
-    "google-antigravity/gemini-3.8-flash": 10
+    "google-antigravity/gemini-3.8-flash": 9
   },
   "failures": {}
 }

@@ -7,7 +7,7 @@ consumes: [plan.md, state.toon, docs/domain/index.md, docs/domain/<scope>.md, AG
 
 # Executing Plans
 
-Owns a bound feature on `wip/<feature>`: execute, pause, resume, close after a merged pull request, or abandon. Needs a valid `plan.md` and bound `state.toon`; a missing or malformed one stops and names the file, and work is never invented from conversation, dirty files, or plan prose status. When every task is green, hands off to `gsd-verify`.
+Owns a bound feature on `wip/<feature>`: execute, pause, resume, close after a merged pull request, or abandon. Needs a valid `plan.md` and bound `state.toon`; a missing or malformed one stops and names the file, and work is never invented from conversation, dirty files, or plan prose status.
 
 ## State writes
 
