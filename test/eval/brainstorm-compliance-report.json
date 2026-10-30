@@ -4,7 +4,7 @@
   "bootstrap_words": 603,
   "canon_sha256": null,
   "canon_words": null,
-  "brainstorm_skill_sha256": "e87f8be073b8511c9475f856444da4742383f869f931108446f9363bd4e755cc",
+  "brainstorm_skill_sha256": "3c93bef33c43c473716617b16574bb31915953f6b9ff522a70e9f05449398d5f",
   "pass": {
     "google-antigravity/gemini-3.8-flash": {
       "passed": 5,
