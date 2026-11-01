@@ -166,7 +166,10 @@ function renumber(path, kind) {
   const oldStem = oldName.replace(/\.md$/, "");
   const here = realpathSync(process.cwd());
   const shown = (absolute) => relative(here, join(realpathSync(dirname(absolute)), basename(absolute)));
-  const references = trackedFilesNaming(dir, oldStem).filter((file) => resolve(file) !== oldPath);
+  // Git reports real paths, so the record itself is recognised by its real path: rewriting it
+  // after the unlink below would bring the old name back.
+  const oldReal = realpathSync(oldPath);
+  const references = trackedFilesNaming(dir, oldStem).filter((file) => realpathSync(file) !== oldReal);
   const fromShown = shown(oldPath);
   try {
     writeFileSync(newPath, renumberRecordContent(content, oldName, newName));
