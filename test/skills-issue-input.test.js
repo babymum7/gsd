@@ -24,8 +24,11 @@ test("the bootstrap lets a quick fix commit only when the user or repository ask
   assert.match(route, /No packet or plan/);
   assert.match(route, /[Cc]ommit only when the user or repository asks/);
   assert.match(route, /never `wip\/\*`/);
-  assert.match(route, /preflight --base <base>/);
+  // A commit on the branch the user stands on lands nowhere else; only a branch that does
+  // passes the packet-less preflight, which blocks on the base itself.
+  assert.match(route, /a branch landing elsewhere first passes `gsd-git\.mjs preflight --base <base>`/);
   assert.doesNotMatch(route, /or commit\./);
+  assert.ok(route.length <= 600, `the quick-fix route is ${route.length} characters`);
 });
 
 test("brainstorming takes an issue from any tracker as converged input", () => {

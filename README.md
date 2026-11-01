@@ -141,7 +141,7 @@ A pause updates `.scratch/<feature>/state.toon`. A later “Continue the active 
 | You say | Primary behavior |
 |---|---|
 | “Fix this typo” | Direct Nano edit; no scratch, branch, commit, or GSD skill. |
-| “Fix this small behavioral bug” | Direct quick fix: a `derive-base` branch check, then edit plus a focused test; no packet, plan, or verification gate. It commits only when you or the repository ask, on a branch that is never `wip/*`, after `gsd-git.mjs preflight --base <base>` passes. |
+| “Fix this small behavioral bug” | Direct quick fix: a `derive-base` branch check, then edit plus a focused test; no packet, plan, or verification gate. It commits only when you or the repository ask, on your branch and never on `wip/*`; a branch that lands elsewhere (a pull request, or a merge into the base) first passes `gsd-git.mjs preflight --base <base>`. |
 | “Rename this helper everywhere” / “Update the install docs” / “Bump this dependency” | Also a quick fix: the existing suite or build is the proof when behavior does not change. |
 | “The PR merged, clean up” / “Abandon this feature” | `gsd-executing-plans` deletes the branch and scratch under canon § Feature cleanup; unmerged work is never force-deleted without confirmation. |
 | “Review this diff” | Standalone read-only review; no merge mechanics. |
