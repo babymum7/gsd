@@ -7,6 +7,21 @@ const ROOT = join(import.meta.dir, "..");
 const read = (path) => readFileSync(join(ROOT, path), "utf8");
 const section = (content, heading) => content.split(`\n## ${heading}\n`)[1]?.split("\n## ")[0] ?? "";
 
+// Haiku with GSD skipped every route's steps on vague requests and built a default it announced,
+// so the ask rule leads the list, holds on any path, and calls a stated default a guess (decision 0050).
+test("the bootstrap asks for an unstated testable outcome before editing, on any path", () => {
+  const bootstrap = read("skills/gsd/SKILL.md");
+  const first = section(bootstrap, "Routing")
+    .split("\n")
+    .find((line) => line.startsWith("- "));
+  assert.match(first, /^- \*\*Unstated outcome\*\*, on any path:/);
+  assert.match(first, /a result a test would pin unstated/);
+  assert.match(first, /end the turn with one question proposing defaults, before editing/);
+  assert.match(first, /a default you pick and state is still a guess/);
+  assert.match(first, /Never ask what the request or code settles/);
+  assert.doesNotMatch(bootstrap, /\*\*Unclear intent\*\*/);
+});
+
 test("the bootstrap routes a well-specified issue to brainstorming", () => {
   const route = read("skills/gsd/SKILL.md")
     .split("\n")
