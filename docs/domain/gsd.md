@@ -134,7 +134,7 @@ A read-only diff review by the session owner along two independent axes: **Stand
 
 1. In a Git work tree the session owner first derives the base; a HEAD on a `wip/*` branch this session does not own stops the edit until the user says where the fix belongs.
 2. The session owner edits the bounded change directly and runs its focused test, or the existing suite or build for a mechanical refactor, docs-only edit, or version bump that changes no behavior.
-3. It writes no packet, plan, `state.toon`, or commit; the user owns review and commit.
+3. It writes no packet, plan, or `state.toon`. It commits only when the user or the repository's instructions ask for a commit, branch, or pull request: on the branch they prescribe, never `wip/*`, after `tools/gsd-git.mjs preflight --base <base>` proves that branch (HEAD on a branch other than the base, a local base the branch contains, a clean tree, and free record numbers), then lands the way they say. Otherwise the user owns review and commit.
 
 ### Escalate a quick fix
 
@@ -184,7 +184,7 @@ A read-only diff review by the session owner along two independent axes: **Stand
 | Prompt arrives | Session Owner | Triage classifies exactly one route and one depth before any lifecycle work begins. |
 | Plan converges | Session Owner | Canonical plan bytes bind and ordered execution starts without a prompt. |
 | Validate plan authority | Session Owner | Canonical plan bytes and grammar are accepted with their feature, base, and task count or rejected without mutation. |
-| Fix bounded behavior | Session Owner | A direct edit proven by a focused test; no packet or commit. |
+| Fix bounded behavior | Session Owner | A direct edit proven by a focused test; no packet, and a commit only when the user or repository asks. |
 | Continue active feature | User | Validated state selects one resumable owner action. |
 | Domain drift detected | Session Owner | Completion is blocked until code and affected shards agree. |
 | Wave reconciled | Session Owner | Mechanical proof and the merged focused checks pass before the checkpoint. |
@@ -242,8 +242,8 @@ None.
 
 ### P-gsd-9: Keep quick fixes direct
 
-- **Policy:** A quick fix is a direct edit proven by a focused test (or, when no behavior changes, the existing suite or build), admitted by converged acceptance without prior diagnosis; in a Git work tree it first runs `derive-base`, and only a `head-is-wip` naming another owner, or no packet, stops it; it writes no packet, plan, `state.toon`, or commit and loads no verification gate. It still updates an affected domain shard in the same edit when one exists.
-- **Reason:** A bounded change does not need lifecycle ceremony; the user reviews and commits it.
+- **Policy:** A quick fix is a direct edit proven by a focused test (or, when no behavior changes, the existing suite or build), admitted by converged acceptance without prior diagnosis; in a Git work tree it first runs `derive-base`, and only a `head-is-wip` naming another owner, or no packet, stops it; it writes no packet, plan, or `state.toon`, loads no verification gate, and commits only when the user or repository asks, on a branch that is never `wip/*`, once `preflight --base` passes. It still updates an affected domain shard in the same edit when one exists.
+- **Reason:** A bounded change does not need lifecycle ceremony; the user reviews and commits it unless they or the repository want it shipped as a branch or pull request, which a forbidden commit sent around GSD entirely.
 
 ### P-gsd-10: Deliver a cross-repository feature as one plan
 

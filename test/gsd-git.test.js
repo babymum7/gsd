@@ -841,7 +841,7 @@ test("no Git call can reach a process except through the guard", () => {
 test("usage errors name the flag and exit 2", () => {
   const { root, relative } = makePacket({ feature: "usage-demo", base: "trunk" });
   try {
-    for (const args of [["preflight"], ["preflight", "--feature-dir"], ["nonsense"], []]) {
+    for (const args of [["preflight"], ["preflight", "--feature-dir"], ["preflight", "--feature-dir", relative, "--base", "trunk"], ["nonsense"], []]) {
       const result = cli(args, root);
       assert.equal(result.status, 2, `${args.join(" ")}: ${result.stdout}${result.stderr}`);
       assert.match(result.stdout, /^status: error$/m);
@@ -1664,6 +1664,54 @@ test("preflight blocks a record the branch added whose number the base already t
     git(["commit", "-qm", "renumber"], root);
     const fixed = cli(["preflight", "--feature-dir", relative], root);
     assert.equal(fixed.status, 0, fixed.stdout);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+// A quick fix the user or repository wants committed lands from its own branch with no packet:
+// preflight --base proves that branch the way the gate proves a WIP branch.
+test("preflight --base proves a quick-fix branch without a packet", () => {
+  const root = mkdtempSync(join(tmpdir(), "gsd-git-test-"));
+  try {
+    git(["init", "-q", "--initial-branch", "main", "."], root);
+    git(["config", "user.email", "test@example.com"], root);
+    git(["config", "user.name", "test"], root);
+    mkdirSync(join(root, "src"));
+    writeFileSync(join(root, "src", "app.js"), "typo\n");
+    git(["add", "src"], root);
+    git(["commit", "-qm", "init"], root);
+
+    const onBase = cli(["preflight", "--base", "main"], root);
+    assert.equal(onBase.status, 1, onBase.stdout);
+    assert.match(onBase.stdout, /^code: head-is-base$/m);
+    assert.match(onBase.stdout, /git switch -c <branch> main/);
+
+    git(["switch", "-q", "-c", "fix/typo"], root);
+    writeFileSync(join(root, "src", "app.js"), "fixed\n");
+    const dirty = cli(["preflight", "--base", "main"], root);
+    assert.equal(dirty.status, 1, dirty.stdout);
+    assert.match(dirty.stdout, /^code: dirty-worktree$/m);
+
+    git(["commit", "-qam", "fix typo"], root);
+    writeFileSync(join(root, "mine.md"), "the user's\n");
+    const ready = cli(["preflight", "--base", "main"], root);
+    assert.equal(ready.status, 0, ready.stdout);
+    assert.match(ready.stdout, /^status: ready$/m);
+    assert.match(ready.stdout, /^base: main$/m);
+    assert.match(ready.stdout, /^head: fix\/typo$/m);
+    assert.match(ready.stdout, /^kept_untracked: mine\.md$/m);
+    assert.match(ready.stdout, /^exit=0$/m);
+    assert.doesNotMatch(ready.stdout, /wip:|outside_files/);
+
+    git(["switch", "-q", "main"], root);
+    writeFileSync(join(root, "src", "other.js"), "base moved\n");
+    git(["add", "src"], root);
+    git(["commit", "-qm", "base moves"], root);
+    git(["switch", "-q", "fix/typo"], root);
+    const advanced = cli(["preflight", "--base", "main"], root);
+    assert.equal(advanced.status, 1, advanced.stdout);
+    assert.match(advanced.stdout, /^code: base-advanced$/m);
   } finally {
     rmSync(root, { recursive: true, force: true });
   }

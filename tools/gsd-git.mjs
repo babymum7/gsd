@@ -13,7 +13,7 @@ import { RECORD_KINDS, takenRecordNames } from "../lib/gsd-record.mjs";
 import { commandsOf, errorRows, invocationOf, quote, unknownCommandMessage } from "../lib/gsd-commands.mjs";
 
 const COMMANDS = commandsOf("gsd-git.mjs");
-const VALUE_FLAGS = new Set(["--feature-dir", "--cwd", "--task", "--branch", "--wave-base"]);
+const VALUE_FLAGS = new Set(["--feature-dir", "--cwd", "--task", "--branch", "--wave-base", "--base"]);
 
 // A subcommand name is not a permission: `git symbolic-ref <name> <ref>` writes a ref and
 // `git symbolic-ref --delete <name>` removes one, so the boundary is the whole argv. These
@@ -108,7 +108,7 @@ function write_(lines) {
 
 function commandUsage(command) {
   if (command === "derive-base") return `${INVOCATION} derive-base [--cwd <dir>]`;
-  if (command === "preflight") return `${INVOCATION} preflight --feature-dir .scratch/<feature> [--cwd <dir>]`;
+  if (command === "preflight") return `${INVOCATION} preflight (--feature-dir .scratch/<feature> | --base <branch>) [--cwd <dir>]`;
   if (command === "verify-task-branch") {
     return `${INVOCATION} verify-task-branch --feature-dir .scratch/<feature> --task <id> --branch <branch> --wave-base <ref> [--cwd <dir>]`;
   }
@@ -156,8 +156,14 @@ function emitHelp(command) {
       "",
       "Blocked means the gate stops; it never retargets the merge.",
       "",
+      "With --base instead, it proves a quick fix's checked-out branch with no packet:",
+      "HEAD is attached to a branch other than the base (head-is-base otherwise), the",
+      "base is a local branch the branch contains, the tree is clean as above, and",
+      "no record number the branch added is taken.",
+      "",
       "Options:",
-      "  --feature-dir <dir>    Feature directory (.scratch/<feature>) (required)",
+      "  --feature-dir <dir>    Feature directory (.scratch/<feature>)",
+      "  --base <branch>        Base of a quick-fix branch (instead of --feature-dir)",
       "  --cwd <dir>            Work tree to inspect (default: current directory)",
       "",
       "Exit codes: 0 = ready, 1 = blocked, 2 = usage error",
@@ -528,6 +534,7 @@ function parseArguments(argv) {
     task: null,
     branch: null,
     waveBase: null,
+    base: null,
     cwd: process.cwd(),
   };
   let index = 0;
@@ -555,14 +562,15 @@ function parseArguments(argv) {
     else if (flag === "--task") result.task = value;
     else if (flag === "--branch") result.branch = value;
     else if (flag === "--wave-base") result.waveBase = value;
+    else if (flag === "--base") result.base = value;
     else result.cwd = value;
     index += 2;
   }
 
   if (!result.command) result.usageError = "missing command";
   else if (!COMMANDS.has(result.command)) result.usageError = unknownCommandMessage("gsd-git.mjs", result.command);
-  else if (result.command === "preflight" && result.featureDir === null) {
-    result.usageError = "--feature-dir is required";
+  else if (result.command === "preflight" && (result.featureDir === null) === (result.base === null)) {
+    result.usageError = "preflight takes exactly one of --feature-dir (a feature's packet) or --base (a quick-fix branch)";
   }
   else if (result.command === "verify-task-branch") {
     if (result.featureDir === null) result.usageError = "--feature-dir is required";
@@ -745,6 +753,25 @@ function preflight(cwd, featureDir) {
   ]);
 }
 
+// A quick fix the user or repository wants committed has no packet: the checked-out branch is
+// its WIP branch, proven like one. Nothing here merges, so the base may be checked out elsewhere.
+function preflightBranch(cwd, baseArg) {
+  requireWorkTree(cwd);
+  const base = requireBranchName(baseArg, "--base");
+  const branch = currentBranch(cwd);
+  if (branch === null) {
+    blocked("detached-head", "HEAD is detached, so no branch holds the fix: check out the fix's branch and rerun");
+  }
+  if (branch === base) {
+    blocked(
+      "head-is-base",
+      `HEAD rests on the base ${base}, so no branch holds the fix: cut one with \`git switch -c <branch> ${base}\` (the name the user or repository prescribes, never wip/*), commit the fix there, and rerun`,
+    );
+  }
+  const { head, kept } = proveBranchIdentity(cwd, base, branch, "", true);
+  write_(["status: ready", `base: ${base}`, `head: ${head}`, ...treeLines(kept), "exit=0"]);
+}
+
 function verifyTaskBranch(cwd, featureDir, taskId, branch, waveBase) {
   requireWorkTree(cwd);
 
@@ -842,6 +869,8 @@ if (isMain()) {
     failUsage(input.usageError, input.command);
   } else if (input.command === "derive-base") {
     write_(["status: ok", `base: ${deriveBase(input.cwd)}`]);
+  } else if (input.command === "preflight" && input.base !== null) {
+    preflightBranch(input.cwd, input.base);
   } else if (input.command === "preflight") {
     preflight(input.cwd, input.featureDir);
   } else {

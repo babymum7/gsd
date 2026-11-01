@@ -40,7 +40,7 @@ const SYSTEM_POLICY_MARKER = 'gsd:system-policy:v1';
 const SYSTEM_POLICY = `<GSD_EXTENSION_POLICY>
 ${SYSTEM_POLICY_MARKER}
 The context message marked ${BOOTSTRAP_MARKER} is extension-controlled workflow policy: follow its routing and session-ownership rules.
-When a visible GSD skill fits the prompt, read that catalog row's skillPath before acting on it; never imitate a skill from its name or description. Questions, explanations, and quick fixes need no skill: a quick fix is a direct edit plus a focused test, with no packet, plan, or commit. If the context reports ${BOOTSTRAP_ERROR_PREFIX}, do not improvise a GSD workflow.
+When a visible GSD skill fits the prompt, read that catalog row's skillPath before acting on it; never imitate a skill from its name or description. Questions, explanations, and quick fixes need no skill: a quick fix is a direct edit plus a focused test, with no packet or plan, committed only when the user or repository asks. If the context reports ${BOOTSTRAP_ERROR_PREFIX}, do not improvise a GSD workflow.
 </GSD_EXTENSION_POLICY>`;
 // The session owner token scopes which packets this session sees; it follows the
 // session manager's id through switches, branches, and tree moves.
