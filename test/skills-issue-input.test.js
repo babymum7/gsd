@@ -15,6 +15,19 @@ test("the bootstrap routes a well-specified issue to brainstorming", () => {
   assert.match(route, /`gsd-brainstorming`/);
 });
 
+// Most tracker fixes ship as a branch and pull request; a quick fix that could never commit sent
+// that work around GSD entirely (decision 0048).
+test("the bootstrap lets a quick fix commit only when the user or repository asks", () => {
+  const route = read("skills/gsd/SKILL.md")
+    .split("\n")
+    .find((line) => line.startsWith("- **Quick fix**"));
+  assert.match(route, /No packet or plan/);
+  assert.match(route, /[Cc]ommit only when the user or repository asks/);
+  assert.match(route, /never `wip\/\*`/);
+  assert.match(route, /preflight --base <base>/);
+  assert.doesNotMatch(route, /or commit\./);
+});
+
 test("brainstorming takes an issue from any tracker as converged input", () => {
   const issue = section(read("skills/gsd-brainstorming/SKILL.md"), "Tracked issue");
   assert.match(issue, /with their comments/);

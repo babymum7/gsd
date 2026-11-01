@@ -1,14 +1,19 @@
 #!/usr/bin/env bun
 // Durable record grammar validator (docs/decisions/ and docs/design/).
 // Parses canonical UTF-8/LF records and verifies mandatory header grammar:
-// # NNNN — Title, Status, Date, and non-empty Decision section.
-import { readFileSync, statSync } from "node:fs";
-import { basename } from "node:path";
+// # NNNN — Title, Status, Date, and non-empty Decision section. `renumber` moves a record whose
+// number a parallel branch took to the next free one.
+import { spawnSync } from "node:child_process";
+import { readdirSync, readFileSync, realpathSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { basename, dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
   RECORD_FILE_MAX_BYTES,
   RECORD_KINDS,
+  RECORD_NAME_RE,
+  nextRecordName,
   parseRecordHeader,
+  renumberRecordContent,
 } from "../lib/gsd-record.mjs";
 import { commandsOf, errorRows, invocationOf, quote, unknownCommandMessage } from "../lib/gsd-commands.mjs";
 
@@ -23,8 +28,8 @@ function write(lines) {
 }
 
 function commandUsage(command) {
-  if (command === "validate") {
-    return `${INVOCATION} validate --path <path> --kind <decisions|design>`;
+  if (command === "renumber") {
+    return `${INVOCATION} renumber --path <path> --kind <decisions|design>`;
   }
   return `${INVOCATION} validate --path <path> --kind <decisions|design>`;
 }
@@ -38,6 +43,9 @@ function emitHelp(command) {
     "  validate  Parse and validate a durable decision or design record; exit 0 reports",
     "            status: valid, or status: skipped for a file whose name does not start",
     "            with digits; exit 1 reports an invalid record or io error.",
+    "  renumber  Move a record to the highest number in its directory plus one, rewrite",
+    "            its title line and every tracked file's link to its old name, and list",
+    "            the paths to stage; a bare number is never rewritten.",
     "",
     "Flags:",
     "  --path    Path to the record markdown file.",
@@ -124,6 +132,65 @@ function readRecord(path, command) {
   return content;
 }
 
+// The tracked files of the repository holding `dir` that name `needle`, as absolute paths;
+// none when `dir` is not in a Git work tree.
+function trackedFilesNaming(dir, needle) {
+  const options = { cwd: dir, encoding: "utf8", shell: false };
+  const top = spawnSync("git", ["rev-parse", "--show-toplevel"], options);
+  if (top.status !== 0) return [];
+  const root = top.stdout.trim();
+  const found = spawnSync("git", ["grep", "-l", "-z", "-F", "-e", needle], { ...options, cwd: root });
+  // `git grep` exits 1 when nothing matches.
+  if (found.status !== 0) return [];
+  return found.stdout.split("\0").filter(Boolean).map((path) => join(root, path));
+}
+
+function renumber(path, kind) {
+  const oldName = basename(path);
+  if (!RECORD_NAME_RE.test(oldName)) {
+    failRecord(`${oldName} is not a numbered record name (NNNN-slug.md)`, "renumber");
+    return;
+  }
+  const content = readRecord(path, "renumber");
+  if (content === null) return;
+  try {
+    parseRecordHeader(content, kind);
+  } catch (error) {
+    failRecord(`${path}: ${error.message}`, "renumber");
+    return;
+  }
+  const dir = dirname(resolve(path));
+  const newName = nextRecordName(readdirSync(dir), oldName);
+  const oldPath = join(dir, oldName);
+  const newPath = join(dir, newName);
+  const oldStem = oldName.replace(/\.md$/, "");
+  const here = realpathSync(process.cwd());
+  const shown = (absolute) => relative(here, join(realpathSync(dirname(absolute)), basename(absolute)));
+  // Git reports real paths, so the record itself is recognised by its real path: rewriting it
+  // after the unlink below would bring the old name back.
+  const oldReal = realpathSync(oldPath);
+  const references = trackedFilesNaming(dir, oldStem).filter((file) => realpathSync(file) !== oldReal);
+  const fromShown = shown(oldPath);
+  try {
+    writeFileSync(newPath, renumberRecordContent(content, oldName, newName));
+    unlinkSync(oldPath);
+    for (const file of references) {
+      writeFileSync(file, readFileSync(file, "utf8").replaceAll(oldStem, newName.replace(/\.md$/, "")));
+    }
+  } catch (error) {
+    failIo(`cannot renumber ${path}: ${error.message}`, "renumber");
+    return;
+  }
+  const staged = [fromShown, shown(newPath), ...references.map(shown)];
+  write([
+    "status: renumbered",
+    `from: ${fromShown}`,
+    `to: ${shown(newPath)}`,
+    ...staged.map((file) => `stage: ${file}`),
+    `next: ${quote(`git add -- ${staged.join(" ")}, commit, and rerun the gate; a mention of number ${oldName.match(RECORD_NAME_RE)[1]} without the name ${oldStem} stays as written, since it may name another record`)}`,
+  ]);
+}
+
 const input = parseArguments(process.argv.slice(2));
 if (input.usageError) {
   failUsage(input.usageError, input.command);
@@ -136,6 +203,8 @@ if (input.usageError) {
     "status: skipped",
     `reason: ${quote(`${basename(input.path)} does not start with digits, so it is not a numbered record`)}`,
   ]);
+} else if (input.command === "renumber") {
+  renumber(input.path, input.kind);
 } else if (input.command === "validate") {
   const content = readRecord(input.path, input.command);
   if (content !== null) {

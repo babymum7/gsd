@@ -15,7 +15,7 @@ The host already loaded this; never reload it. Respond in the latest user messag
 Pick the lightest fitting path. Read only what the prompt names; never scan the repository or `.scratch/` to decide.
 
 - **Answer directly**: questions, explanations, obvious errors, typos, one-line edits; no skill, scratch, or commit.
-- **Quick fix**: one bounded change with a known target (file, line, exact failure), including a mechanical refactor, docs-only edit, or version bump. In Git, first run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base`; only a `head-is-wip` that does not name your `GSD_SESSION` stops you. Edit, prove it with the focused test (the existing suite or build when behavior is unchanged), report. No packet, plan, or commit. If the scope grows, switch to `gsd-brainstorming`.
+- **Quick fix**: one bounded change with a known target (file, line, exact failure), including a mechanical refactor, docs-only edit, or version bump. In Git, first run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base`; only a `head-is-wip` not naming your `GSD_SESSION` stops you. Edit, prove it with the focused test (the existing suite or build when behavior is unchanged), report. No packet or plan. Commit only when the user or repository asks: on their branch, never `wip/*`; land it their way once `gsd-git.mjs preflight --base <base>` passes. If the scope grows, switch to `gsd-brainstorming`.
 - **Unknown cause** of a concrete symptom: `gsd-diagnosing-bugs`.
 - **New or changed behavior**, even a well-specified issue: features, interfaces, architecture, domain, integrations, or an unbound draft plan go to `gsd-brainstorming`; repository issue/PR flows set Delivery, never skip GSD.
 - **Review a diff or PR**: `gsd-verify`.
@@ -37,12 +37,12 @@ The session owner plans, repairs, verifies, and merges without check-ins: never 
 
 ## Lean delivery
 
-Understand the whole behavior, then stop at the first rung that works: does it need to exist, reuse from this codebase, the standard library, a platform feature, an installed dependency, and only then new code. Add no unrequested abstraction, configuration, or scaffolding. Never simplify away validation, authorization, data safety, security, required error handling, or explicit user scope.
+Understand the whole behavior, then take the first working rung: not building it, this codebase, the standard library, a platform feature, an installed dependency, then new code. Add no unrequested abstraction, configuration, or scaffolding. Never simplify away validation, authorization, data safety, security, required error handling, or explicit user scope.
 
 ## Turn economy
 
-Each turn resends the whole context. Batch independent calls in one message (files, searches, status checks), and read a skill only when you reach it. Run skill commands as written, without `--help`. Never re-read an unchanged file. Run the final checks (tests, `git status`, `git diff`) in one message, then report without re-running any. Todo updates ride along with other calls, never alone.
+Batch independent calls in one message (files, searches, status checks), and read a skill only when you reach it. Run skill commands as written, without `--help`. Never re-read an unchanged file. Run the final checks (tests, `git status`, `git diff`) together, then report without re-running any. Todo updates ride along with other calls, never alone.
 
 ## Canon
 
-`GSD_ROOT/skills/gsd/REFERENCE.md` holds the contracts; a selected skill reads it by `§` section. A malformed packet stops only the work that depends on it, named; it never blocks unrelated work.
+`GSD_ROOT/skills/gsd/REFERENCE.md` holds the contracts; a selected skill reads it by `§` section. A malformed packet stops only the work depending on it, named, never unrelated work.

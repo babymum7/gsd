@@ -1,6 +1,6 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
-import { mkdtempSync, writeFileSync, rmSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync, rmSync } from "node:fs";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
@@ -15,8 +15,8 @@ import {
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const CLI = join(__dirname, "..", "tools", "gsd-record.mjs");
 
-function run(args) {
-  return spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8" });
+function run(args, cwd = undefined) {
+  return spawnSync(process.execPath, [CLI, ...args], { encoding: "utf8", cwd });
 }
 
 function tmpRecord(content) {
@@ -474,5 +474,50 @@ test("CLI --help exits 0 and prints usage", () => {
     assert.match(result.stdout, /Usage:/);
     assert.match(result.stdout, /--path/);
     assert.match(result.stdout, /--kind/);
+  }
+});
+
+// Two branches that each added a decision record took the same number; once the base is merged
+// in, renumber gives the branch's record the next free number and fixes every link to it.
+test("CLI renumber moves a record to the next free number and rewrites links to its stem", () => {
+  const root = mkdtempSync(join(tmpdir(), "gsd-record-renumber-"));
+  try {
+    const git = (...args) => spawnSync("git", args, { cwd: root, encoding: "utf8" });
+    git("init", "-q");
+    git("config", "user.email", "test@example.com");
+    git("config", "user.name", "test");
+    const decisions = join(root, "docs", "decisions");
+    mkdirSync(decisions, { recursive: true });
+    writeFileSync(join(decisions, "0002-foo.md"), sampleRecord({ number: "0002", title: "Foo" }));
+    writeFileSync(join(decisions, "0002-bar.md"), sampleRecord({ number: "0002", title: "Bar", decision: "See [0002-bar](0002-bar.md)." }));
+    writeFileSync(join(decisions, "0003-baz.md"), sampleRecord({ number: "0003", title: "Baz" }));
+    writeFileSync(join(decisions, "README.md"), "- [Foo](0002-foo.md)\n- [Bar](0002-bar.md)\n");
+    writeFileSync(join(root, "notes.md"), "decision 0002 is ambiguous here\n");
+    git("add", "-A");
+    git("commit", "-qm", "collide");
+
+    const result = run(["renumber", "--path", "docs/decisions/0002-bar.md", "--kind", "decisions"], root);
+    assert.equal(result.status, 0, result.stdout + result.stderr);
+    assert.match(result.stdout, /^status: renumbered$/m);
+    assert.match(result.stdout, /^from: docs\/decisions\/0002-bar\.md$/m);
+    assert.match(result.stdout, /^to: docs\/decisions\/0004-bar\.md$/m);
+    for (const path of ["docs/decisions/0002-bar.md", "docs/decisions/0004-bar.md", "docs/decisions/README.md"]) {
+      assert.match(result.stdout, new RegExp(`^stage: ${path.replace(/\./g, "\\.")}$`, "m"));
+    }
+    assert.doesNotMatch(result.stdout, /^stage: notes\.md$/m);
+
+    assert.equal(existsSync(join(decisions, "0002-bar.md")), false);
+    const moved = readFileSync(join(decisions, "0004-bar.md"), "utf8");
+    assert.equal(moved.split("\n")[0], "# 0004 \u2014 Bar");
+    assert.match(moved, /See \[0004-bar\]\(0004-bar\.md\)\./);
+    assert.equal(readFileSync(join(decisions, "README.md"), "utf8"), "- [Foo](0002-foo.md)\n- [Bar](0004-bar.md)\n");
+    assert.equal(readFileSync(join(decisions, "0002-foo.md"), "utf8").split("\n")[0], "# 0002 \u2014 Foo");
+    assert.equal(readFileSync(join(root, "notes.md"), "utf8"), "decision 0002 is ambiguous here\n");
+
+    const missing = run(["renumber", "--path", "docs/decisions/0009-none.md", "--kind", "decisions"], root);
+    assert.equal(missing.status, 1);
+    assert.match(missing.stdout, /code: io-error/);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
   }
 });
