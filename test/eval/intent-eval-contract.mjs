@@ -189,10 +189,12 @@ export function buildTurn({ backend, model, arm, message, sessionId, turn, bundl
     };
   }
   if (backend === "codex") {
+    // After a reinstall codex holds the plugin's hooks untrusted and `exec` skips them, but a
+    // bypass also runs a disabled plugin's hooks, so only the GSD arm bypasses hook trust.
     const options = [
       "--json",
       "--skip-git-repo-check",
-      "--dangerously-bypass-hook-trust",
+      ...(arm === "gsd" ? ["--dangerously-bypass-hook-trust"] : []),
       "-c", `model="${model}"`,
       "-c", `plugins."${INSTALLED_PLUGIN}".enabled=${arm === "gsd"}`,
     ];

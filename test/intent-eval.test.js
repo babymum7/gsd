@@ -144,13 +144,16 @@ test("codex turns toggle the installed plugin per arm and resume by thread id", 
   const first = turn({});
   assert.equal(first.command, "codex");
   assert.equal(first.args[0], "exec");
-  assert.ok(first.args.includes("--json") && first.args.includes("--dangerously-bypass-hook-trust"));
+  assert.ok(first.args.includes("--json"));
+  // Codex runs a disabled plugin's hooks too when hook trust is bypassed, so only the GSD arm bypasses it.
+  assert.ok(!first.args.includes("--dangerously-bypass-hook-trust"));
   assert.ok(first.args.includes('plugins."gsd@gsd-local".enabled=false'));
   assert.ok(first.args.includes('model="gpt-6-luna"'));
   assert.equal(first.args.at(-1), "hi");
   const next = turn({ arm: "gsd", message: "more", sessionId: "t-9", turn: 2 });
   assert.deepEqual(next.args.slice(0, 3), ["exec", "resume", "t-9"]);
   assert.ok(next.args.includes('plugins."gsd@gsd-local".enabled=true'));
+  assert.ok(next.args.includes("--dangerously-bypass-hook-trust"));
   assert.equal(next.args.at(-1), "more");
 });
 
