@@ -27,6 +27,7 @@ import {
 import { homedir, tmpdir } from "node:os";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { zstdDecompressSync } from "node:zlib";
 import { buildPluginBundle } from "../../adapters/plugin/gsd-plugin-packager.mjs";
 import { skillsDirNames, writeSkillsDir } from "../../adapters/plugin/gsd-skills-dir.mjs";
 import {
@@ -39,13 +40,13 @@ import {
   buildTurn,
   cellKey,
   containsBootstrapMarker,
-  endsWithQuestion,
   firstPrompt,
   keepMatchingRows,
   loadIntentFixtures,
   nextUserMessage,
   parseAgents,
   parseTurn,
+  turnAsks,
   validateIntentReport,
 } from "./intent-eval-contract.mjs";
 import { checkFixture, gitIdentityEnv, gradeSandboxArgs, gradeWorkspace, resolveCommand, sandboxEnv } from "./outcome-eval-contract.mjs";
@@ -304,9 +305,30 @@ function sessionSandboxArgs(runDir, stores) {
   return args;
 }
 
+const insideHidden = (path) => HIDDEN_DIRS.some((dir) => path === dir || path.startsWith(`${dir}/`));
+
+// A version manager such as fnm puts its shims under /run/user, which the sandbox hides, so a
+// PATH entry there is replaced by the directory it resolves to, or dropped when that is hidden too.
+function sandboxPath(value) {
+  const entries = [];
+  for (const entry of String(value ?? "").split(":").filter(Boolean)) {
+    if (!insideHidden(entry)) {
+      entries.push(entry);
+      continue;
+    }
+    try {
+      const real = realpathSync(entry);
+      if (!insideHidden(real)) entries.push(real);
+    } catch {
+      // a missing directory adds nothing to PATH
+    }
+  }
+  return [...new Set(entries)].join(":");
+}
+
 function sessionEnv(extra) {
   const env = Object.fromEntries(Object.entries(process.env).filter(([name]) => !DROPPED_ENV.test(name)));
-  return { ...env, TMPDIR: "/tmp", NO_COLOR: "1", ...extra };
+  return { ...env, PATH: sandboxPath(env.PATH), TMPDIR: "/tmp", NO_COLOR: "1", ...extra };
 }
 
 function spawnTurn(args, env, timeoutMs) {
@@ -335,7 +357,18 @@ function storeEvidence(dir) {
   if (!existsSync(dir)) return null;
   const files = listFiles(dir).filter((path) => lstatSync(path).size <= EVIDENCE_FILE_MAX_BYTES);
   if (files.length === 0) return null;
-  return files.some((path) => containsBootstrapMarker(readFileSync(path, "utf8")));
+  return files.some((path) => containsBootstrapMarker(sessionText(path)));
+}
+
+// dsh compresses its session log with zstd; the cap bounds the decompressed text too.
+function sessionText(path) {
+  const bytes = readFileSync(path);
+  if (!path.endsWith(".zstd")) return bytes.toString("utf8");
+  try {
+    return zstdDecompressSync(bytes, { maxOutputLength: EVIDENCE_FILE_MAX_BYTES }).toString("utf8");
+  } catch {
+    return "";
+  }
 }
 
 function grade(fixture, runDir) {
@@ -399,11 +432,15 @@ async function runCell({ agent, fixture, arm }) {
     spent += parsedTurn.costUsd ?? 0;
     if (evidenceDir) parsedTurn.bootstrapSeen = storeEvidence(evidenceDir);
     last = grade(fixture, runDir);
-    const decision = nextUserMessage({ fixture, turn, passed: last.passed, text: parsedTurn.text, disclosed, recommended });
+    const changed = treeState(ws) !== before;
+    // A turn the agent never answered leaves nobody to reply to.
+    const decision = parsedTurn.replied
+      ? nextUserMessage({ fixture, turn, passed: last.passed, text: parsedTurn.text, changed, disclosed, recommended })
+      : { action: "stop" };
     turns.push({
       ...parsedTurn,
-      changed: treeState(ws) !== before,
-      question: endsWithQuestion(parsedTurn.text),
+      changed,
+      question: parsedTurn.replied && turnAsks({ text: parsedTurn.text, changed }),
       event: decision.action === "reply" ? decision.event : null,
       passed: last.passed,
     });

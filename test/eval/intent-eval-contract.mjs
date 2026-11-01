@@ -117,9 +117,15 @@ export function endsWithQuestion(text) {
   return prose.includes("?");
 }
 
-export function nextUserMessage({ fixture, turn, passed, text, disclosed, recommended }) {
+// A turn asks when its prose holds a question or it replied without touching the tree: an
+// agent that stops to wait for an answer may phrase it as "reply go" with no `?`.
+export function turnAsks({ text, changed }) {
+  return endsWithQuestion(text) || !changed;
+}
+
+export function nextUserMessage({ fixture, turn, passed, text, changed, disclosed, recommended }) {
   if (passed || turn >= MAX_AGENT_TURNS) return { action: "stop" };
-  const asks = endsWithQuestion(text);
+  const asks = turnAsks({ text, changed });
   if (!disclosed) {
     return asks
       ? { action: "reply", event: "asked", message: fixture.clarification }

@@ -46,7 +46,16 @@ test(
 const MARKER_LINE = "gsd:session-bootstrap:v2";
 const vague = { id: "discount-codes", kind: "vague", clarification: "Codes are SAVE10 and FLAT5." };
 const decide = (overrides) =>
-  nextUserMessage({ fixture: vague, turn: 1, passed: false, text: "Done.", disclosed: false, recommended: false, ...overrides });
+  nextUserMessage({
+    fixture: vague,
+    turn: 1,
+    passed: false,
+    text: "Done.",
+    changed: true,
+    disclosed: false,
+    recommended: false,
+    ...overrides,
+  });
 
 test("the simulated user stops on a pass and on the turn budget", () => {
   assert.deepEqual(decide({ passed: true, text: "Which code?" }), { action: "stop" });
@@ -63,6 +72,12 @@ test("the first failing turn gets the clarification, as an answer or as a correc
     action: "reply",
     event: "corrected",
     message: `${CORRECTION_PREFIX} ${vague.clarification}`,
+  });
+  // A reply that leaves the tree untouched waits for the user, even phrased without a `?`.
+  assert.deepEqual(decide({ text: 'Reply "go with defaults" or name the changes you want.', changed: false }), {
+    action: "reply",
+    event: "asked",
+    message: vague.clarification,
   });
 });
 
