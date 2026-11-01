@@ -1631,6 +1631,44 @@ test("preflight counts the origin of a worktree-side rename as dirty", () => {
   }
 });
 
+// Parallel branches each add the next decision record; once the base is merged in, two records
+// share a number, and the gate names the branch's one and the command that moves it.
+test("preflight blocks a record the branch added whose number the base already took", () => {
+  const { root, relative } = makePacket({ feature: "record-demo" });
+  const record = (number, title) => `# ${number} \u2014 ${title}\n\n- **Status:** Accepted\n- **Date:** 2026-11-01\n\n## Decision\n\nText.\n`;
+  try {
+    mkdirSync(join(root, "docs", "decisions"), { recursive: true });
+    writeFileSync(join(root, "docs", "decisions", "0001-start.md"), record("0001", "Start"));
+    writeFileSync(join(root, "src", "app.js"), "feature\n");
+    git(["add", "docs", "src"], root);
+    git(["commit", "-qm", "base-era record"], root);
+    git(["checkout", "-q", "main"], root);
+    git(["merge", "-q", "--ff-only", "wip/record-demo"], root);
+    writeFileSync(join(root, "docs", "decisions", "0002-foo.md"), record("0002", "Foo"));
+    git(["add", "docs"], root);
+    git(["commit", "-qm", "base adds 0002"], root);
+    git(["checkout", "-q", "wip/record-demo"], root);
+    writeFileSync(join(root, "docs", "decisions", "0002-bar.md"), record("0002", "Bar"));
+    git(["add", "docs"], root);
+    git(["commit", "-qm", "branch adds 0002"], root);
+    git(["merge", "-q", "--no-edit", "main"], root);
+
+    const result = cli(["preflight", "--feature-dir", relative], root);
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /^code: record-number-taken$/m);
+    assert.match(result.stdout, /docs\/decisions\/0002-bar\.md/);
+    assert.match(result.stdout, /gsd-record\.mjs\\?" renumber --path docs\/decisions\/0002-bar\.md --kind decisions/);
+    assert.doesNotMatch(result.stdout, /renumber --path docs\/decisions\/0002-foo\.md/);
+
+    git(["mv", "docs/decisions/0002-bar.md", "docs/decisions/0003-bar.md"], root);
+    git(["commit", "-qm", "renumber"], root);
+    const fixed = cli(["preflight", "--feature-dir", relative], root);
+    assert.equal(fixed.status, 0, fixed.stdout);
+  } finally {
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 // A hook that exports `GIT_DIR` would otherwise point every query at the hook's repository
 // whatever `--cwd` says, so the gate would prove the wrong repository.
 test("derive-base ignores an inherited GIT_DIR", () => {

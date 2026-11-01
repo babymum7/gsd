@@ -5,10 +5,11 @@
 // invocation goes through `git()`, which admits only the exact argv shapes below.
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { dirname, join, resolve } from "node:path";
-import { realpathSync, statSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
+import { readdirSync, realpathSync, statSync } from "node:fs";
 import { isSafeBranchRef, PLAN_FEATURE_RE, validatePlanFile } from "../lib/gsd-contract.mjs";
 import { inspectStateFile } from "../lib/gsd-state.mjs";
+import { RECORD_KINDS, takenRecordNames } from "../lib/gsd-record.mjs";
 import { commandsOf, errorRows, invocationOf, quote, unknownCommandMessage } from "../lib/gsd-commands.mjs";
 
 const COMMANDS = commandsOf("gsd-git.mjs");
@@ -72,14 +73,16 @@ export function assertReadOnlyGit(args) {
   // `--no-renames` lists the deleted source of a rename beside its destination, and `-z`
   // keeps every path byte-exact instead of C-quoting non-ASCII ones. The target is a full
   // `refs/heads/` path so a tag with the branch's name can never be read in its place.
+  // `--diff-filter=A` narrows the same listing to the paths the branch added.
+  const filtered = args.length === 6 && args[4] === "--diff-filter=A";
   if (
-    args.length === 5 &&
+    (args.length === 5 || filtered) &&
     args[0] === "diff" &&
     args[1] === "--name-only" &&
     args[2] === "--no-renames" &&
     args[3] === "-z"
   ) {
-    const range = args[4];
+    const range = args.at(-1);
     const tripleDot = range.indexOf("...");
     if (tripleDot > 0 && range.indexOf("...", tripleDot + 3) === -1) {
       const base = range.slice(0, tripleDot);
@@ -420,6 +423,36 @@ function branchChangedPaths(dir, base, wip, where) {
   return diff.raw.split("\0").filter(Boolean);
 }
 
+// Records live in `docs/<kind>/` with one number each. Parallel branches each take the next
+// one, so once the base is merged in two records can share a number with no conflict to show it.
+// The tree is clean by now, so the directory on disk is the WIP branch's. Each record the branch
+// added (`--diff-filter=A`) that shares its number blocks, naming the command that moves it.
+function requireFreeRecordNumbers(dir, base, wip, where) {
+  const range = `${base}...${BRANCH_REF_PREFIX}${wip}`;
+  const diff = git(["diff", "--name-only", "--no-renames", "-z", "--diff-filter=A", range], dir);
+  if (diff.status !== 0) blocked("git-query-failed", `git diff failed for ${range}${where}`);
+  const added = diff.raw.split("\0").filter(Boolean);
+  const taken = [];
+  for (const kind of RECORD_KINDS) {
+    const folder = `docs/${kind}`;
+    const mine = added.filter((path) => dirname(path) === folder).map((path) => path.slice(folder.length + 1));
+    if (mine.length === 0) continue;
+    let names;
+    try {
+      names = readdirSync(join(dir, folder));
+    } catch (error) {
+      blocked("git-query-failed", `cannot list ${folder}${where}: ${error.message}`);
+    }
+    for (const name of takenRecordNames(names, mine)) taken.push({ kind, path: relative(process.cwd(), join(dir, folder, name)) });
+  }
+  if (taken.length === 0) return;
+  const tool = invocationOf(join(dirname(SCRIPT_PATH), "gsd-record.mjs"));
+  blocked(
+    "record-number-taken",
+    `${taken.length} record(s) ${wip} added${where} share a number with another record in the same directory: ${taken.map((entry) => entry.path).join(", ")}. Run ${taken.map((entry) => `\`${tool} renumber --path ${entry.path} --kind ${entry.kind}\``).join(", then ")}, commit the paths it lists on ${wip}, and rerun the gate`,
+  );
+}
+
 // Whether an untracked path is the feature's: listed in a live task's Files, or inside a
 // directory holding a path the branch changed or a task lists. The root holds only the files
 // directly in it, so one changed README does not claim every untracked folder in the repository.
@@ -607,6 +640,7 @@ function proveBranchIdentity(dir, base, wip, where, baseMayBeElsewhere = false, 
       `${dirty.length} non-scratch path(s)${where} are uncommitted (${staged} staged), so the merge would carry unreviewed bytes: ${shown}${dirty.length > 3 ? ", …" : ""}. Commit the paths this feature owns on ${wip} (\`git add -- <path>…\`, then \`git commit\`), ask the user about any it does not own (never stash, move, or delete them), and rerun the gate`,
     );
   }
+  requireFreeRecordNumbers(dir, base, wip, where);
   return { head, kept };
 }
 
