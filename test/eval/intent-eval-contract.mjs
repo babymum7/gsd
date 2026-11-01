@@ -91,3 +91,233 @@ export function loadIntentFixtures(dir) {
   }
   return { ok: true, fixtures };
 }
+
+// ---------------------------------------------------------------------------------------------
+// The simulated user (decision 0049, D-1). It never improvises: after each agent turn the tree
+// is graded, and the reply is the fixture's clarification, one fixed recommendation reply, or
+// nothing.
+
+export const MAX_AGENT_TURNS = 3;
+export const RECOMMENDATION_REPLY = "Go with your recommendation and finish the change.";
+export const CORRECTION_PREFIX = "That is not what I meant.";
+// Both arms get it, so GSD never spends its one question on how the work lands.
+export const LANDING_NOTE =
+  "Leave the finished change in this repository's checked-out working tree; no push or pull request is needed.";
+
+export function firstPrompt(fixture) {
+  return `${fixture.prompt}\n\n${LANDING_NOTE}`;
+}
+
+// A question is a `?` in prose: fenced blocks and inline code are dropped first, since
+// `user?.name` or a ternary asks nothing.
+export function endsWithQuestion(text) {
+  const prose = String(text ?? "")
+    .replace(/```[\s\S]*?(```|$)/g, " ")
+    .replace(/`[^`\n]*`/g, " ");
+  return prose.includes("?");
+}
+
+export function nextUserMessage({ fixture, turn, passed, text, disclosed, recommended }) {
+  if (passed || turn >= MAX_AGENT_TURNS) return { action: "stop" };
+  const asks = endsWithQuestion(text);
+  if (!disclosed) {
+    return asks
+      ? { action: "reply", event: "asked", message: fixture.clarification }
+      : { action: "reply", event: "corrected", message: `${CORRECTION_PREFIX} ${fixture.clarification}` };
+  }
+  if (asks && !recommended) return { action: "reply", event: "recommended", message: RECOMMENDATION_REPLY };
+  return { action: "stop" };
+}
+
+// ---------------------------------------------------------------------------------------------
+// Backends (D-2, D-3). Each builds one turn's command line and parses that turn's stdout.
+
+export const BACKENDS = ["claude", "codex", "dsh"];
+export const INTENT_ARMS = ["vanilla", "gsd"];
+// The installed plugin both arms switch off, so only the checkout bundle (or nothing) is loaded.
+export const INSTALLED_PLUGIN = "gsd@gsd-local";
+const BOOTSTRAP_MARKER = "gsd:session-bootstrap:v2";
+// dsh picks its model from the headless profile; the harness cannot choose another one.
+const DSH_MODEL = "default";
+
+export function containsBootstrapMarker(text) {
+  return String(text ?? "").includes(BOOTSTRAP_MARKER);
+}
+
+export function parseAgents(value) {
+  const names = String(value ?? "")
+    .split(",")
+    .map((name) => name.trim())
+    .filter(Boolean);
+  if (names.length === 0) return { ok: false, detail: "no agents named" };
+  const agents = [];
+  for (const name of names) {
+    const split = name.indexOf(":");
+    if (split <= 0 || split === name.length - 1) return { ok: false, detail: `${name} is not backend:model` };
+    const backend = name.slice(0, split);
+    const model = name.slice(split + 1);
+    if (!BACKENDS.includes(backend)) return { ok: false, detail: `${backend} is not a backend; use one of ${BACKENDS.join(", ")}` };
+    if (backend === "dsh" && model !== DSH_MODEL) {
+      return { ok: false, detail: `dsh runs its headless profile's model; name it dsh:${DSH_MODEL}` };
+    }
+    agents.push({ backend, model });
+  }
+  return { ok: true, agents };
+}
+
+export function buildTurn({ backend, model, arm, message, sessionId, turn, bundle, budgetUsd }) {
+  if (backend === "claude") {
+    return {
+      command: "claude",
+      args: [
+        "-p", message,
+        "--output-format", "stream-json", "--verbose", "--include-hook-events",
+        "--model", model,
+        "--max-budget-usd", String(budgetUsd),
+        "--dangerously-skip-permissions",
+        "--disallowedTools", "AskUserQuestion",
+        "--settings", JSON.stringify({ enabledPlugins: { [INSTALLED_PLUGIN]: false } }),
+        ...(arm === "gsd" ? ["--plugin-dir", bundle.pluginRoot] : []),
+        ...(turn === 1 ? ["--session-id", sessionId] : ["--resume", sessionId]),
+      ],
+    };
+  }
+  if (backend === "codex") {
+    const options = [
+      "--json",
+      "--skip-git-repo-check",
+      "--dangerously-bypass-hook-trust",
+      "-c", `model="${model}"`,
+      "-c", `plugins."${INSTALLED_PLUGIN}".enabled=${arm === "gsd"}`,
+    ];
+    return { command: "codex", args: [...(turn === 1 ? ["exec"] : ["exec", "resume", sessionId]), ...options, message] };
+  }
+  return {
+    command: "dsh",
+    args: ["--profile", "headless", "--json", ...(turn === 1 ? [] : ["--session-id", sessionId]), message],
+  };
+}
+
+function jsonLines(stdout) {
+  const events = [];
+  for (const line of String(stdout ?? "").split("\n")) {
+    if (!line.trim().startsWith("{")) continue;
+    try {
+      events.push({ line, event: JSON.parse(line) });
+    } catch {
+      // a partial or foreign line carries nothing this parser reads
+    }
+  }
+  return events;
+}
+
+const count = (value) => (Number.isFinite(value) ? value : 0);
+
+function parseClaude(events) {
+  const result = events.map(({ event }) => event).findLast((event) => event.type === "result");
+  const usage = Object.values(result?.modelUsage ?? {});
+  const tokens = usage.reduce(
+    (sum, model) =>
+      sum + count(model.inputTokens) + count(model.outputTokens) + count(model.cacheReadInputTokens) + count(model.cacheCreationInputTokens),
+    0,
+  );
+  return {
+    text: typeof result?.result === "string" ? result.result : "",
+    sessionId: result?.session_id ?? null,
+    tokens,
+    costUsd: count(result?.total_cost_usd),
+    bootstrapSeen: events.some(({ event, line }) => event.type === "system" && containsBootstrapMarker(line)),
+    replied: events.some(({ event }) => event.type === "assistant"),
+  };
+}
+
+function parseCodex(events) {
+  let text = "";
+  let sessionId = null;
+  let tokens = 0;
+  let replied = false;
+  for (const { event } of events) {
+    if (event.type === "thread.started") sessionId = event.thread_id ?? sessionId;
+    if (event.type === "item.completed" && event.item?.type === "agent_message") {
+      text = String(event.item.text ?? "");
+      replied = true;
+    }
+    if (event.type === "turn.completed") tokens += count(event.usage?.input_tokens) + count(event.usage?.output_tokens);
+  }
+  return { text, sessionId, tokens, costUsd: null, bootstrapSeen: null, replied };
+}
+
+function parseDsh(events) {
+  let text = "";
+  let sessionId = null;
+  let tokens = 0;
+  let replied = false;
+  for (const { event } of events) {
+    if (event.type === "session") sessionId = event.sessionId ?? sessionId;
+    if (event.type === "status" && event.phase === "step_end") tokens += count(event.usage?.inputTokens) + count(event.usage?.outputTokens);
+    if (event.type === "final") {
+      text = String(event.text ?? "");
+      replied = true;
+    }
+  }
+  return { text, sessionId, tokens, costUsd: null, bootstrapSeen: null, replied };
+}
+
+// Codex and dsh print no hook output, so their bootstrap evidence comes from the session files
+// the runner reads afterwards; until then it is null, which a row treats as missing.
+export function parseTurn(backend, stdout) {
+  const events = jsonLines(stdout);
+  if (backend === "claude") return parseClaude(events);
+  if (backend === "codex") return parseCodex(events);
+  return parseDsh(events);
+}
+
+// ---------------------------------------------------------------------------------------------
+// Rows (D-5). A row is one session: every turn summed, the simulated user's events, the final
+// grade, and the fingerprint of the bytes it measured.
+
+const COST_DECIMALS = 9;
+
+function bootstrapEvidence(turns) {
+  if (turns.some((turn) => turn.bootstrapSeen === true)) return true;
+  if (turns.some((turn) => turn.bootstrapSeen === null)) return null;
+  return false;
+}
+
+function invalidReason(arm, turns, seen) {
+  if (!turns.some((turn) => turn.replied)) return "the agent gave no reply";
+  if (seen === null) return "no bootstrap evidence could be read for this session";
+  if (arm === "gsd" && !seen) return "the GSD arm shows no bootstrap evidence";
+  if (arm === "vanilla" && seen) return "the bootstrap reached the vanilla arm";
+  return null;
+}
+
+export function buildRow({ fixture, agent, arm, turns, grade, wallMs, fingerprint }) {
+  const seen = bootstrapEvidence(turns);
+  const reason = invalidReason(arm, turns, seen);
+  const costs = turns.map((turn) => turn.costUsd);
+  const first = turns[0] ?? { changed: false, question: false };
+  return {
+    fixture: fixture.id,
+    kind: fixture.kind,
+    backend: agent.backend,
+    model: agent.model,
+    arm,
+    valid: reason === null,
+    invalid_reason: reason,
+    bootstrap_seen: seen,
+    passed: grade.hidden.passed === grade.hidden.total && grade.regressions.length === 0,
+    hidden: grade.hidden,
+    regressions: grade.regressions,
+    visible_tests_edited: grade.visible_tests_edited,
+    agent_turns: turns.length,
+    asked: turns.some((turn) => turn.event === "asked"),
+    corrected: turns.some((turn) => turn.event === "corrected"),
+    recommended: turns.some((turn) => turn.event === "recommended"),
+    turn1: { changed: first.changed, question: first.question },
+    tokens: turns.reduce((sum, turn) => sum + count(turn.tokens), 0),
+    cost_usd: costs.some((cost) => cost === null) ? null : Number(costs.reduce((sum, cost) => sum + cost, 0).toFixed(COST_DECIMALS)),
+    wall_ms: wallMs,
+    ...fingerprint,
+  };
+}
