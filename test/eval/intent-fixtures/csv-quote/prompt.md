@@ -1,0 +1,1 @@
+In `src/csv.js`, make `toCsvRow` quote a field that contains a comma, a double quote, a carriage return, or a newline, doubling each double quote inside it. Other fields stay unquoted, non-string fields go through `String()`, fields are still joined with a comma, and no line ending is added.

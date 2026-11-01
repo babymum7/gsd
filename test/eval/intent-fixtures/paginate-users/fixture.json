@@ -1,0 +1,5 @@
+{
+  "id": "paginate-users",
+  "kind": "vague",
+  "summary": "pagination of a user list; the argument shape, defaults, cap, and result shape are only in the clarification"
+}

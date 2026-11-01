@@ -1,0 +1,5 @@
+{
+  "id": "discount-codes",
+  "kind": "vague",
+  "summary": "discount codes on a cart total; the code table, tax order, and error text are only in the clarification"
+}

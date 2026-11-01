@@ -1,0 +1,1 @@
+Give `cartTotal(items, code)` an optional second argument. There are two codes: `SAVE10` takes 10% off and `FLAT5` takes 5 off. Apply the discount to the subtotal before tax, never below 0, then add tax as today. Codes are case-insensitive. An unknown code throws an `Error` whose message is `Unknown discount code: <the code as given>`. Keep rounding the total to 2 decimals.

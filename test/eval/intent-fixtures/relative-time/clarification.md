@@ -1,0 +1,1 @@
+Add `formatRelative(date, now)` to `src/time.js`; both arguments are `Date`s. A difference under 60 seconds, or a `date` after `now`, reads `just now`; under 60 minutes `N min ago`; under 24 hours `N h ago`; under 7 days `N d ago`, with N rounded down; anything older falls back to `formatTimestamp(date)`.
