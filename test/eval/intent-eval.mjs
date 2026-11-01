@@ -63,8 +63,28 @@ const DSH_BEGIN = "# gsd:dsh-hooks begin";
 const DSH_END = "# gsd:dsh-hooks end";
 // Shared temp dirs and the user's runtime dir are hidden in every session sandbox.
 const HIDDEN_DIRS = ["/tmp", "/var/tmp", "/run/user"];
-// Background Claude jobs keep scratch files here, the fixture generator among them.
-const HIDDEN_HOME_DIRS = [".claude/jobs"];
+// Every user's data, not only this home, is hidden too: a vanilla dsh agent read an old run's
+// hidden tests from a world-writable /home/tmp. PATH entries under these are bound back below.
+const HIDDEN_DATA_DIRS = ["/home", "/mnt", "/media", "/srv"];
+// The only run entries a session sees: its tree, its history stores, and its dsh home. The
+// grade folder, which holds the hidden tests after turn 1, and the turn logs stay outside.
+const RUN_SESSION_ENTRIES = ["ws", "store", "dsh-home"];
+// The home directory is a tmpfs in every session: a vanilla dsh agent searched the whole home and
+// pulled a clarification out of another tool's session index. Only these paths come back.
+// The toolchain every agent runs, read-only.
+const TOOLCHAIN_PATHS = [".local/bin", ".local/share/fnm", ".bun", ".gitconfig"];
+// The backend's own home, writable for logins and session state.
+const CLAUDE_HOME_PATHS = [".claude", ".claude.json", ".local/share/claude", ".local/state/claude"];
+const CODEX_HOME_PATHS = [".local/state/codex"];
+// The only dsh home entries a run links to: credentials, provider config, and profiles.
+const DSH_LINKED = [".credentials.yaml", ".env", ".anonymous-user-id", "profiles", "llm-deepseek"];
+// Directories of the backend's own home that hold past sessions, jobs, or edits; each run
+// replaces them with its own empty store, which survives between that run's turns.
+const CLAUDE_HISTORY_DIRS = [
+  "projects", "sessions", "transcripts", "jobs", "tasks", "todos", "plans", "file-history",
+  "shell-snapshots", "session-env", "paste-cache", "debug", "backups", "context-mode", "feedback",
+];
+const CODEX_HISTORY_DIRS = ["sessions", "archived_sessions", "attachments", "context-mode", "shell_snapshots", "worktrees", "tmp"];
 // Variables of the session that launched the runner, which must not leak into the measured one.
 const DROPPED_ENV = /^(CLAUDECODE|CLAUDE_CODE_.*|CLAUDE_JOB_DIR|GSD_SESSION|XDG_RUNTIME_DIR|DSH_HOME|TMPDIR)$/;
 
@@ -260,9 +280,8 @@ function buildDshHome(runDir, arm) {
   mkdirSync(join(target, "sessions"), { recursive: true });
   mkdirSync(join(target, "skills"));
   const gsdSkills = new Set(skillsDirNames(join(pluginRoot, "core"), { router: false }));
-  for (const name of existsSync(dshHome) ? readdirSync(dshHome) : []) {
-    if (["sessions", "skills", "cordis.patch.yml"].includes(name)) continue;
-    symlinkSync(join(dshHome, name), join(target, name));
+  for (const name of DSH_LINKED) {
+    if (existsSync(join(dshHome, name))) symlinkSync(join(dshHome, name), join(target, name));
   }
   const skillsSource = join(dshHome, "skills");
   for (const name of existsSync(skillsSource) ? readdirSync(skillsSource) : []) {
@@ -283,7 +302,29 @@ function buildDshHome(runDir, arm) {
   return target;
 }
 
-function sessionSandboxArgs(runDir, stores, arm) {
+// The run's own store standing in for one history path of the agent's home.
+const storePath = (runDir, path) => join(runDir, "store", relative(home, path).replace(/[^A-Za-z0-9._-]+/g, "-"));
+
+// The paths a backend's session may see in its home, and the history inside them it may not.
+function backendHome(backend) {
+  if (backend === "claude") {
+    return {
+      writable: CLAUDE_HOME_PATHS.map((rel) => join(home, rel)),
+      history: CLAUDE_HISTORY_DIRS.map((name) => join(home, ".claude", name)),
+      emptyFiles: [join(home, ".claude", "history.jsonl")],
+    };
+  }
+  if (backend === "codex") {
+    return {
+      writable: [codexHome, ...CODEX_HOME_PATHS.map((rel) => join(home, rel))],
+      history: CODEX_HISTORY_DIRS.map((name) => join(codexHome, name)),
+      emptyFiles: [],
+    };
+  }
+  return { writable: DSH_LINKED.map((name) => join(dshHome, name)), history: [], emptyFiles: [] };
+}
+
+function sessionSandboxArgs(runDir, backend, arm) {
   const args = [
     "--ro-bind", "/", "/",
     "--dev", "/dev",
@@ -291,23 +332,32 @@ function sessionSandboxArgs(runDir, stores, arm) {
     "--unshare-pid", "--unshare-ipc", "--unshare-uts",
     "--new-session", "--die-with-parent",
   ];
-  for (const dir of HIDDEN_DIRS) if (existsSync(dir)) args.push("--tmpfs", dir);
-  args.push("--tmpfs", hiddenCheckout);
-  // Agent homes stay writable for logins and session state.
-  for (const rel of [".claude", ".claude.json", ".codex", ".dsh", ".cache", ".local/state", ".local/share/claude"]) {
+  for (const dir of [...HIDDEN_DIRS, ...HIDDEN_DATA_DIRS]) if (existsSync(dir)) args.push("--tmpfs", dir);
+  args.push("--tmpfs", home, "--tmpfs", hiddenCheckout);
+  for (const rel of TOOLCHAIN_PATHS) {
     const path = join(home, rel);
+    if (existsSync(path)) args.push("--ro-bind", path, path);
+  }
+  const own = backendHome(backend);
+  for (const path of own.writable) if (existsSync(path)) args.push("--bind", path, path);
+  // Past sessions are replaced by this run's own store, which survives between its turns.
+  for (const dir of own.history) {
+    if (!existsSync(dir)) continue;
+    const store = storePath(runDir, dir);
+    mkdirSync(store, { recursive: true });
+    args.push("--bind", store, dir);
+  }
+  for (const file of own.emptyFiles) {
+    if (!existsSync(file)) continue;
+    const store = storePath(runDir, file);
+    mkdirSync(dirname(store), { recursive: true });
+    if (!existsSync(store)) writeFileSync(store, "");
+    args.push("--bind", store, file);
+  }
+  for (const name of RUN_SESSION_ENTRIES) {
+    const path = join(runDir, name);
     if (existsSync(path)) args.push("--bind", path, path);
   }
-  for (const rel of HIDDEN_HOME_DIRS) {
-    const path = join(home, rel);
-    if (existsSync(path)) args.push("--tmpfs", path);
-  }
-  // Past transcripts are replaced by this run's own store, which survives between its turns.
-  for (const [store, dir] of stores) {
-    mkdirSync(store, { recursive: true });
-    if (existsSync(dir)) args.push("--bind", store, dir);
-  }
-  args.push("--bind", runDir, runDir);
   // Only the GSD arm may read the bundle, so the vanilla arm never sees GSD's skills.
   if (arm === "gsd") args.push("--ro-bind", pluginRoot, pluginRoot);
   args.push("--chdir", join(runDir, "ws"));
@@ -405,21 +455,15 @@ async function runCell({ agent, fixture, arm }) {
   cpSync(join(fixture.root, "repo"), ws, { recursive: true });
   initRepo(ws);
   const extraEnv = {};
-  // Every agent's past transcripts are replaced, whatever the backend: they may hold the fixtures,
-  // their clarifications, or the session that wrote them, and any agent can read another's home.
-  const stores = [
-    [join(runDir, "store", "claude-projects"), join(home, ".claude", "projects")],
-    [join(runDir, "store", "codex-sessions"), join(codexHome, "sessions")],
-    [join(runDir, "store", "codex-archived"), join(codexHome, "archived_sessions")],
-    [join(runDir, "store", "dsh-sessions"), join(dshHome, "sessions")],
-  ];
   let evidenceDir = null;
-  if (agent.backend === "codex") evidenceDir = join(runDir, "store", "codex-sessions");
+  if (agent.backend === "codex") {
+    evidenceDir = storePath(runDir, join(codexHome, "sessions"));
+  }
   if (agent.backend === "dsh") {
     extraEnv.DSH_HOME = buildDshHome(runDir, arm);
     evidenceDir = join(extraEnv.DSH_HOME, "sessions");
   }
-  const sandbox = sessionSandboxArgs(runDir, stores, arm);
+  const sandbox = sessionSandboxArgs(runDir, agent.backend, arm);
   const env = sessionEnv(extraEnv);
 
   const turns = [];
