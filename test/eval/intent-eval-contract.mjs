@@ -321,3 +321,118 @@ export function buildRow({ fixture, agent, arm, turns, grade, wallMs, fingerprin
     ...fingerprint,
   };
 }
+
+// ---------------------------------------------------------------------------------------------
+// The report. It keeps every raw row and sums valid rows per agent and arm; it states no
+// improvement figure, so a reader compares the arms themselves.
+
+export const INTENT_REPORT_SCOPE = "agent CLI sessions with and without GSD (intent axis)";
+export const DEFAULT_INTENT_REPORT_PATH = "test/eval/intent-report.json";
+export const FINGERPRINT_KEYS = ["fixture_sha256", "harness_sha256", "cli_version", "bundle_sha256"];
+const ROW_KEYS = {
+  fixture: "string",
+  kind: "string",
+  backend: "string",
+  model: "string",
+  arm: "string",
+  valid: "boolean",
+  passed: "boolean",
+  agent_turns: "number",
+  asked: "boolean",
+  corrected: "boolean",
+  recommended: "boolean",
+  tokens: "number",
+  wall_ms: "number",
+};
+
+export function cellKey(row) {
+  return `${row.backend}:${row.model}|${row.fixture}|${row.arm}`;
+}
+
+function emptySums() {
+  return {
+    rows: 0,
+    valid: 0,
+    passed: 0,
+    first_try: 0,
+    vague: 0,
+    asked_vague: 0,
+    clear: 0,
+    over_asked: 0,
+    corrected: 0,
+    agent_turns: 0,
+    tokens: 0,
+    cost_usd: 0,
+    wall_ms: 0,
+  };
+}
+
+export function summarizeIntentRows(rows) {
+  const summary = {};
+  for (const row of rows) {
+    const agent = `${row.backend}:${row.model}`;
+    summary[agent] ??= Object.fromEntries(INTENT_ARMS.map((arm) => [arm, emptySums()]));
+    const sums = summary[agent][row.arm];
+    sums.rows += 1;
+    if (!row.valid) continue;
+    sums.valid += 1;
+    if (row.passed) sums.passed += 1;
+    if (row.passed && !row.corrected) sums.first_try += 1;
+    if (row.kind === "vague") {
+      sums.vague += 1;
+      if (row.asked) sums.asked_vague += 1;
+    } else {
+      sums.clear += 1;
+      if (row.asked) sums.over_asked += 1;
+    }
+    if (row.corrected) sums.corrected += 1;
+    sums.agent_turns += row.agent_turns;
+    sums.tokens += row.tokens;
+    sums.cost_usd =
+      sums.cost_usd === null || row.cost_usd === null ? null : Number((sums.cost_usd + row.cost_usd).toFixed(COST_DECIMALS));
+    sums.wall_ms += row.wall_ms;
+  }
+  return summary;
+}
+
+export function buildIntentReport({ rows }) {
+  const sorted = [...rows].sort((left, right) => compareText(cellKey(left), cellKey(right)));
+  return { scope: INTENT_REPORT_SCOPE, rows: sorted, summary: summarizeIntentRows(sorted) };
+}
+
+function rowProblem(row) {
+  for (const [key, type] of Object.entries(ROW_KEYS)) {
+    if (typeof row?.[key] !== type) return `${key} must be a ${type}`;
+  }
+  if (!INTENT_KINDS.includes(row.kind)) return `kind must be one of ${INTENT_KINDS.join(", ")}`;
+  if (!BACKENDS.includes(row.backend)) return `backend must be one of ${BACKENDS.join(", ")}`;
+  if (!INTENT_ARMS.includes(row.arm)) return `arm must be one of ${INTENT_ARMS.join(", ")}`;
+  if (row.cost_usd !== null && typeof row.cost_usd !== "number") return "cost_usd must be a number or null";
+  const badKey = FINGERPRINT_KEYS.find((key) => row[key] !== null && typeof row[key] !== "string");
+  return badKey ? `${badKey} must be a string or null` : null;
+}
+
+export function validateIntentReport(report) {
+  if (report?.scope !== INTENT_REPORT_SCOPE) return { ok: false, detail: `scope must be "${INTENT_REPORT_SCOPE}"` };
+  if (!Array.isArray(report.rows)) return { ok: false, detail: "rows must be an array" };
+  const seen = new Set();
+  for (const [index, row] of report.rows.entries()) {
+    const problem = rowProblem(row);
+    if (problem) return { ok: false, detail: `row ${index}: ${problem}` };
+    if (seen.has(cellKey(row))) return { ok: false, detail: `row ${index}: ${cellKey(row)} appears twice` };
+    seen.add(cellKey(row));
+  }
+  if (JSON.stringify(report.summary) !== JSON.stringify(summarizeIntentRows(report.rows))) {
+    return { ok: false, detail: "summary does not match the rows" };
+  }
+  return { ok: true };
+}
+
+// `live(row)` returns the fingerprint that row's cell would be measured with now.
+export function keepMatchingRows(rows, live) {
+  const kept = rows.filter((row) => {
+    const expected = live(row);
+    return FINGERPRINT_KEYS.every((key) => (row[key] ?? null) === (expected[key] ?? null));
+  });
+  return { kept, dropped: rows.length - kept.length };
+}

@@ -1,5 +1,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
+import { spawnSync } from "node:child_process";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkFixture } from "./eval/outcome-eval-contract.mjs";
 import {
@@ -8,8 +10,12 @@ import {
   LANDING_NOTE,
   MAX_AGENT_TURNS,
   RECOMMENDATION_REPLY,
+  buildIntentReport,
   buildRow,
   buildTurn,
+  cellKey,
+  keepMatchingRows,
+  validateIntentReport,
   endsWithQuestion,
   firstPrompt,
   loadIntentFixtures,
@@ -248,4 +254,65 @@ test("a session that ran the wrong arm or never replied is invalid", () => {
   assert.match(buildRow(rowInput({ turns: [turnRecord({ bootstrapSeen: null })] })).invalid_reason, /evidence/);
   assert.match(buildRow(rowInput({ turns: [turnRecord({ replied: false })] })).invalid_reason, /no reply/);
   assert.equal(buildRow(rowInput({ arm: "vanilla", turns: [turnRecord({ bootstrapSeen: false })] })).valid, true);
+});
+
+const failedGrade = { hidden: { passed: 2, total: 6, failing: ["x"] }, regressions: [], visible_tests_edited: [] };
+
+test("the report sums valid rows per agent and arm, and counts asking by fixture kind", () => {
+  const rows = [
+    buildRow(rowInput({ turns: [turnRecord({ passed: false, question: true, event: "asked", costUsd: 0.2 }), turnRecord({ costUsd: 0.1 })] })),
+    buildRow(rowInput({ fixture: { id: "csv-quote", kind: "clear" }, turns: [turnRecord({ question: true, passed: false, event: "asked" }), turnRecord()] })),
+    buildRow(rowInput({ arm: "vanilla", turns: [turnRecord({ bootstrapSeen: false, passed: false, event: "corrected" }), turnRecord({ bootstrapSeen: false })] })),
+    buildRow(rowInput({ arm: "vanilla", fixture: { id: "slug-vietnamese", kind: "vague" }, grade: failedGrade, turns: [turnRecord({ bootstrapSeen: false })] })),
+    buildRow(rowInput({ fixture: { id: "paginate-users", kind: "vague" }, turns: [turnRecord({ bootstrapSeen: false })] })),
+  ];
+  const report = buildIntentReport({ rows });
+  assert.equal(validateIntentReport(report).ok, true, validateIntentReport(report).detail);
+  const gsd = report.summary["claude:claude-haiku-5-5"].gsd;
+  assert.deepEqual(
+    { rows: gsd.rows, valid: gsd.valid, passed: gsd.passed, first_try: gsd.first_try, asked_vague: gsd.asked_vague, vague: gsd.vague },
+    { rows: 3, valid: 2, passed: 2, first_try: 2, asked_vague: 1, vague: 1 },
+  );
+  assert.deepEqual({ over_asked: gsd.over_asked, clear: gsd.clear, corrected: gsd.corrected, agent_turns: gsd.agent_turns }, { over_asked: 1, clear: 1, corrected: 0, agent_turns: 4 });
+  assert.equal(gsd.cost_usd, 0.5);
+  const vanilla = report.summary["claude:claude-haiku-5-5"].vanilla;
+  assert.deepEqual({ valid: vanilla.valid, passed: vanilla.passed, first_try: vanilla.first_try, corrected: vanilla.corrected }, { valid: 2, passed: 1, first_try: 0, corrected: 1 });
+});
+
+test("a tampered report or a malformed row fails validation", () => {
+  const report = buildIntentReport({ rows: [buildRow(rowInput())] });
+  const tampered = structuredClone(report);
+  tampered.summary["claude:claude-haiku-5-5"].gsd.passed = 9;
+  assert.match(validateIntentReport(tampered).detail, /summary/);
+  const broken = structuredClone(report);
+  delete broken.rows[0].arm;
+  assert.match(validateIntentReport(broken).detail, /row 0/);
+});
+
+test("rows measured on other bytes are dropped before a rerun", () => {
+  const kept = buildRow(rowInput());
+  const stale = buildRow(rowInput({ fixture: { id: "csv-quote", kind: "clear" }, fingerprint: { ...rowInput().fingerprint, fixture_sha256: "old" } }));
+  const live = (row) => ({ ...rowInput().fingerprint, fixture_sha256: row.fixture === "csv-quote" ? "new" : "a" });
+  assert.deepEqual(keepMatchingRows([kept, stale], live), { kept: [kept], dropped: 1 });
+  assert.equal(cellKey(kept), "claude:claude-haiku-5-5|discount-codes|gsd");
+});
+
+const RUNNER = join(ROOT, "test/eval/intent-eval.mjs");
+const runRunner = (env) =>
+  spawnSync(process.execPath, [RUNNER], { cwd: ROOT, encoding: "utf8", env: { PATH: "/usr/bin:/bin", HOME: tmpdir(), ...env } });
+
+test("the runner names its agents explicitly before spending a session", () => {
+  const unset = runRunner({});
+  assert.equal(unset.status, 2);
+  assert.match(unset.stderr, /GSD_EVAL_AGENTS/);
+  assert.match(unset.stderr, /claude:claude-haiku-5-5/);
+  const unknown = runRunner({ GSD_EVAL_AGENTS: "omp:gemini" });
+  assert.equal(unknown.status, 2);
+  assert.match(unknown.stderr, /omp is not a backend/);
+});
+
+test("a backend whose CLI is not on PATH is named and skipped", () => {
+  const skipped = runRunner({ GSD_EVAL_AGENTS: "claude:claude-haiku-5-5" });
+  assert.match(skipped.stdout, /skip: claude is not on PATH/);
+  assert.equal(skipped.status, 0);
 });
