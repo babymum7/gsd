@@ -200,6 +200,12 @@ test("claude stream-json parses into text, session, tokens, cost, and bootstrap 
     bootstrapSeen: false,
     replied: false,
   });
+  // A CLI that cannot reach the model answers with a synthetic message, such as a login refusal.
+  const loggedOut = [
+    JSON.stringify({ type: "assistant", message: { model: "<synthetic>", content: [{ type: "text", text: "Not logged in · Please run /login" }] } }),
+    JSON.stringify({ type: "result", subtype: "success", session_id: "s-2", result: "Not logged in · Please run /login" }),
+  ].join("\n");
+  assert.equal(parseTurn("claude", loggedOut).replied, false);
 });
 
 test("codex and dsh JSON events parse into text, session, and tokens without a cost", () => {

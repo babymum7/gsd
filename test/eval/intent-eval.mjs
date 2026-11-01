@@ -74,8 +74,9 @@ const RUN_SESSION_ENTRIES = ["ws", "store", "dsh-home"];
 // The toolchain every agent runs, read-only. Only bun's binaries: its install cache keeps
 // transpiled copies of the eval harness and fixtures, which a vanilla dsh agent read.
 const TOOLCHAIN_PATHS = [".local/bin", ".local/share/fnm", ".bun/bin", ".gitconfig"];
-// The backend's own home, writable for logins and session state.
-const CLAUDE_HOME_PATHS = [".claude", ".claude.json", ".local/share/claude", ".local/state/claude"];
+// The backend's own home, writable for logins and session state. Claude's config directory
+// comes from CLAUDE_CONFIG_DIR, which a profile manager such as Orca points under another path.
+const CLAUDE_SHARED_PATHS = [".local/share/claude", ".local/state/claude"];
 const CODEX_HOME_PATHS = [".local/state/codex"];
 // The only dsh home entries a run links to: credentials, provider config, and profiles.
 const DSH_LINKED = [".credentials.yaml", ".env", ".anonymous-user-id", "profiles", "llm-deepseek"];
@@ -189,6 +190,15 @@ process.on("SIGINT", () => process.exit(130));
 const { pluginRoot } = buildPluginBundle(root, join(work, "bundle"));
 const bundleDigest = treeDigest(pluginRoot);
 const codexHome = process.env.CODEX_HOME || join(home, ".codex");
+// Without CLAUDE_CONFIG_DIR, Claude keeps its config in ~/.claude and its state in ~/.claude.json;
+// with it, both live in that directory.
+const claudeConfig = process.env.CLAUDE_CONFIG_DIR || join(home, ".claude");
+const claudeState = process.env.CLAUDE_CONFIG_DIR ? [] : [join(home, ".claude.json")];
+// A profile directory links most of its entries into ~/.claude, so both come back, and each
+// history store is bound at the real path its entry resolves to.
+const claudeRoots = [...new Set([claudeConfig, join(home, ".claude")])];
+const realPath = (path) => (existsSync(path) ? realpathSync(path) : path);
+const unique = (paths) => [...new Set(paths)];
 const dshHome = process.env.DSH_HOME || join(home, ".dsh");
 const codexPlugin = join(codexHome, "plugins", "cache", "gsd-local", "gsd");
 const fingerprintBase = {
@@ -310,9 +320,9 @@ const storePath = (runDir, path) => join(runDir, "store", relative(home, path).r
 function backendHome(backend) {
   if (backend === "claude") {
     return {
-      writable: CLAUDE_HOME_PATHS.map((rel) => join(home, rel)),
-      history: CLAUDE_HISTORY_DIRS.map((name) => join(home, ".claude", name)),
-      emptyFiles: [join(home, ".claude", "history.jsonl")],
+      writable: [...claudeRoots, ...claudeState, ...CLAUDE_SHARED_PATHS.map((rel) => join(home, rel))],
+      history: unique(claudeRoots.flatMap((root) => CLAUDE_HISTORY_DIRS.map((name) => realPath(join(root, name))))),
+      emptyFiles: unique(claudeRoots.map((root) => realPath(join(root, "history.jsonl")))),
     };
   }
   if (backend === "codex") {

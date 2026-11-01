@@ -220,6 +220,7 @@ function jsonLines(stdout) {
 }
 
 const count = (value) => (Number.isFinite(value) ? value : 0);
+const CLAUDE_SYNTHETIC_MODEL = "<synthetic>";
 
 function parseClaude(events) {
   const result = events.map(({ event }) => event).findLast((event) => event.type === "result");
@@ -235,7 +236,8 @@ function parseClaude(events) {
     tokens,
     costUsd: count(result?.total_cost_usd),
     bootstrapSeen: events.some(({ event, line }) => event.type === "system" && containsBootstrapMarker(line)),
-    replied: events.some(({ event }) => event.type === "assistant"),
+    // A synthetic message is the CLI's own answer, such as a login refusal, not the model's.
+    replied: events.some(({ event }) => event.type === "assistant" && event.message?.model !== CLAUDE_SYNTHETIC_MODEL),
   };
 }
 
