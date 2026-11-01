@@ -1,0 +1,1 @@
+Call it as `listUsers(users, { page, pageSize })`. Pages start at 1; `page` defaults to 1 and `pageSize` to 20, and a `pageSize` above 100 counts as 100. Return `{ items, page, pageSize, total, totalPages }`, with users still sorted by name. A page past the end returns an empty `items` array, not an error, and with no users `totalPages` is 0.
