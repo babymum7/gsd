@@ -14,6 +14,7 @@ The host already loaded this; never reload it. Respond in the latest user messag
 
 Pick the lightest fitting path. Read only what the prompt names; never scan the repository or `.scratch/` to decide.
 
+- **Unstated outcome**, on any path: when the request leaves a result a test would pin unstated (format, rule, threshold, wording), end the turn with one question proposing defaults, before editing; a default you pick and state is still a guess. Never ask what the request or code settles.
 - **Answer directly**: questions, explanations, obvious errors, typos, one-line edits; no skill, scratch, or commit.
 - **Quick fix**: one bounded change with a known target (file, line, exact failure), including mechanical refactors, docs-only edits, version bumps. In Git, first run `bun "<GSD_ROOT>/tools/gsd-git.mjs" derive-base`; only a `head-is-wip` not naming your `GSD_SESSION` stops you. Edit, prove it by the focused test (the existing suite or build if behavior is unchanged), report. No packet or plan. Commit only when the user or repository asks, on their branch, never `wip/*`; a branch landing elsewhere first passes `gsd-git.mjs preflight --base <base>`. If scope grows, switch to `gsd-brainstorming`.
 - **Unknown cause** of a concrete symptom: `gsd-diagnosing-bugs`.
@@ -21,9 +22,8 @@ Pick the lightest fitting path. Read only what the prompt names; never scan the 
 - **Review a diff or PR**: `gsd-verify`.
 - **Continue, pause, resume, close, or abandon a feature**: `gsd-executing-plans`.
 - **Explicit request to refactor, clean up, or upgrade the repository**: read `GSD_ROOT/skills/<gsd-refactor|gsd-cleanup|gsd-upgrade>/SKILL.md`, not a Skill tool.
-- **Unclear intent**: ask one question with a recommended default.
 
-When a skill fits, read its `skillPath` before acting on it. Every choice you offer names a recommendation and its cost; await the real answer.
+Read a fitting skill's `skillPath` before acting on it. Every choice you offer names a recommendation and its cost; await the real answer.
 
 ## Session ownership
 
@@ -41,8 +41,8 @@ Understand the whole behavior, then take the first working rung: not building it
 
 ## Turn economy
 
-Batch independent calls in one message (files, searches, status checks), and read a skill only when you reach it. Run skill commands as written, without `--help`. Never re-read an unchanged file. Run the final checks (tests, `git status`, `git diff`) together, then report without re-running any. Todo updates ride along with other calls, never alone.
+Batch independent calls in one message; read a skill only when you reach it. Run skill commands as written, without `--help`. Never re-read an unchanged file. Run the final checks (tests, `git status`, `git diff`) together, then report without re-running any. Todo updates ride along with other calls, never alone.
 
 ## Canon
 
-`GSD_ROOT/skills/gsd/REFERENCE.md` holds the contracts; a selected skill reads it by `§` section. A malformed packet stops only the work depending on it, named, never unrelated work.
+`GSD_ROOT/skills/gsd/REFERENCE.md` holds the contracts; a selected skill reads it by `§` section. A malformed packet stops, by name, only the work that depends on it.
