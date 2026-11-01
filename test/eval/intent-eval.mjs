@@ -71,8 +71,9 @@ const HIDDEN_DATA_DIRS = ["/home", "/mnt", "/media", "/srv"];
 const RUN_SESSION_ENTRIES = ["ws", "store", "dsh-home"];
 // The home directory is a tmpfs in every session: a vanilla dsh agent searched the whole home and
 // pulled a clarification out of another tool's session index. Only these paths come back.
-// The toolchain every agent runs, read-only.
-const TOOLCHAIN_PATHS = [".local/bin", ".local/share/fnm", ".bun", ".gitconfig"];
+// The toolchain every agent runs, read-only. Only bun's binaries: its install cache keeps
+// transpiled copies of the eval harness and fixtures, which a vanilla dsh agent read.
+const TOOLCHAIN_PATHS = [".local/bin", ".local/share/fnm", ".bun/bin", ".gitconfig"];
 // The backend's own home, writable for logins and session state.
 const CLAUDE_HOME_PATHS = [".claude", ".claude.json", ".local/share/claude", ".local/state/claude"];
 const CODEX_HOME_PATHS = [".local/state/codex"];
