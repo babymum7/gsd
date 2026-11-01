@@ -164,7 +164,7 @@ Before merge run `bun "<GSD_ROOT>/tools/gsd-git.mjs" preflight --feature-dir .sc
 - Exit 0 prints `status: ready`, the observed base, WIP branch, and HEAD (equal to `wip_branch`), one `repo:` line per other listed repository, and a trailing `exit=0` line.
 - Exit 1 prints `status: blocked`, a `code:`, and `exit=1`; it blocks as Spec escalation and never retargets the merge, except `base-advanced`, which merges `base_ref` into `wip/<feature>` and repeats the terminal gate. Exit 2 corrects invocation.
 - Codes include `detached-head`, `head-not-wip`, `base-advanced` (the base gained commits the WIP branch lacks), `base-changed` (a listed repository's Repos row differs from its WIP branch's pin), `base-missing`, `wip-missing`, `base-checked-out-elsewhere` (another worktree holds the base; ask the user, never move the ref), `base-is-wip`, `dirty-worktree`, `not-a-repository-root` (a listed repository that is only a folder inside another one), `plan-invalid`, and Git-query failures; an unanswered query blocks.
-- `dirty-worktree` counts staged, modified, and untracked paths outside `.scratch/`, both sides of a rename included. Both commands are read-only.
+- `dirty-worktree` counts staged and modified paths outside `.scratch/`, both sides of a rename included, and untracked paths a live task lists or that sit in a directory the branch changed or a task lists (the root only for files directly in it). Other untracked paths never block: the ready report lists them as `kept_untracked:`, and they stay untouched. Both commands are read-only.
 
 The merge or pull request targets exactly the recorded `base_ref`; never widen to repository defaults. Promoting base onward is separate user-owned work.
 

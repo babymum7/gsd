@@ -317,9 +317,10 @@ test("preflight blocks a dirty non-scratch tree and ignores scratch churn", () =
       },
     },
     {
+      // Beside a path a live task lists, an untracked file is one the feature forgot to commit.
       label: "new untracked file",
-      paths: ["notes.md"],
-      prepare: ({ root }) => writeFileSync(join(root, "notes.md"), "note\n"),
+      paths: ["src/notes.md"],
+      prepare: ({ root }) => writeFileSync(join(root, "src", "notes.md"), "note\n"),
     },
     {
       // A rename affects both of its paths: the origin is deleted and the destination added.
@@ -349,6 +350,7 @@ test("preflight blocks a dirty non-scratch tree and ignores scratch churn", () =
       if (label === "staged change") assert.match(result.stdout, /\(1 staged\)/);
       if (label === "new untracked file") assert.match(result.stdout, /\(0 staged\)/);
       assert.match(result.stdout, /Commit the paths this feature owns on wip\/dirty-demo/, label);
+      assert.match(result.stdout, /never stash, move, or delete/, label);
       for (const path of paths) {
         assert.match(result.stdout, new RegExp(path.replace(/\./g, "\\.")), label);
       }
@@ -366,6 +368,32 @@ test("preflight blocks a dirty non-scratch tree and ignores scratch churn", () =
     assert.match(result.stdout, /^tree: clean outside \.scratch\/$/m);
   } finally {
     rmSync(packet.root, { recursive: true, force: true });
+  }
+
+  // An untracked file outside every directory the feature touches never enters the index the
+  // merge commits, so it is the user's and stays where it is; the root counts only for files
+  // directly in it, and only once the branch changes one there.
+  const kept = makePacket({ feature: "dirty-demo", base: "trunk" });
+  try {
+    mkdirSync(join(kept.root, "docs", "research"), { recursive: true });
+    writeFileSync(join(kept.root, "docs", "research", "notes.md"), "mine\n");
+    writeFileSync(join(kept.root, "todo.md"), "mine\n");
+    const result = cli(["preflight", "--feature-dir", kept.relative], kept.root);
+    assert.equal(result.status, 0, `an untracked file outside the feature must not block: ${result.stdout}`);
+    assert.match(result.stdout, /^kept_untracked: docs\/research\/notes\.md$/m);
+    assert.match(result.stdout, /^kept_untracked: todo\.md$/m);
+    assert.match(result.stdout, /^tree: clean outside \.scratch\/ except 2 kept untracked path\(s\)$/m);
+
+    writeFileSync(join(kept.root, "file.txt"), "feature\n");
+    git(["commit", "-qam", "touch the root"], kept.root);
+    const root = cli(["preflight", "--feature-dir", kept.relative], kept.root);
+    assert.equal(root.status, 1, `a changed root file makes root-level untracked files the feature's: ${root.stdout}`);
+    assert.match(root.stdout, /^code: dirty-worktree$/m);
+    assert.match(root.stdout, /1 non-scratch path\(s\)/);
+    assert.match(root.stdout, /todo\.md/);
+    assert.doesNotMatch(root.stdout, /docs\/research/);
+  } finally {
+    rmSync(kept.root, { recursive: true, force: true });
   }
 });
 
@@ -590,7 +618,7 @@ test("preflight reads a status listing larger than the default child-process buf
   // the gate must say so.
   const { root, relative } = makePacket({ feature: "buffer-demo" });
   try {
-    const noise = join(root, "noise");
+    const noise = join(root, "src", "noise");
     mkdirSync(noise);
     for (let index = 0; index < 5000; index += 1) {
       writeFileSync(join(noise, `${String(index).padStart(5, "0")}-${"a".repeat(230)}`), "");

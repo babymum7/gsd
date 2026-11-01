@@ -25,8 +25,8 @@ const BUDGETS = {
   "skills/gsd-to-plan/PLAN-GRAMMAR.md": 705,
   "skills/gsd-to-plan/SKILL.md": 542,
   "skills/gsd-upgrade/SKILL.md": 588,
-  "skills/gsd-verify/SKILL.md": 1122,
-  "skills/gsd/REFERENCE.md": 2577,
+  "skills/gsd-verify/SKILL.md": 1128,
+  "skills/gsd/REFERENCE.md": 2620,
   // Decision 0045 caps the bootstrap at 520.
   "skills/gsd/SKILL.md": 520,
 };

@@ -5,7 +5,7 @@
 // invocation goes through `git()`, which admits only the exact argv shapes below.
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
-import { join, resolve } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { realpathSync, statSync } from "node:fs";
 import { isSafeBranchRef, PLAN_FEATURE_RE, validatePlanFile } from "../lib/gsd-contract.mjs";
 import { inspectStateFile } from "../lib/gsd-state.mjs";
@@ -35,6 +35,8 @@ const SKILLS_ONLY_SESSION = "skills-only";
 // The child-process runner fails with ENOBUFS once captured output passes its 1 MiB default, and
 // a tree with thousands of untracked files lists past that. The largest query is `status -z`.
 const GIT_OUTPUT_LIMIT = 64 * 1024 * 1024;
+// Most kept untracked paths a ready report names one per line; the rest are counted.
+const KEPT_UNTRACKED_SHOWN = 10;
 // Longest part of Git's own refusal quoted back in a block message.
 const GIT_REASON_MAX_CHARS = 300;
 
@@ -140,7 +142,9 @@ function emitHelp(command) {
       "  - base_ref resolves to a local branch able to receive the merge",
       "  - base_ref is not checked out in another worktree, main or linked",
       "  - wip_branch resolves to a local branch",
-      "  - no path outside .scratch/ is uncommitted, staged, or untracked",
+      "  - no path outside .scratch/ is uncommitted or staged, and no untracked path",
+      "    sits in a directory the branch changed or a live task lists (the root only",
+      "    for files directly in it); other untracked paths print as kept_untracked:",
       "  - plan.md validates and names base_ref as its Base",
       "",
       "It also prints one outside_files: line per path the WIP branch changed that",
@@ -358,7 +362,8 @@ function nestedWorktrees(cwd) {
 // Canon requires the reviewed non-scratch tree to be clean before the
 // merge. It is not cosmetic: the merge commit `git merge` records takes the whole
 // index, so anything staged outside `.scratch/` rides into the merge without being reviewed
-// or covered by the conformance run, which proved only the current commit.
+// or covered by the conformance run, which proved only the current commit. Untracked paths come
+// back apart: they never enter that index, so only the caller can say whether one is the feature's.
 function dirtyNonScratchPaths(cwd) {
   const report = git(
     ["--no-optional-locks", "status", "--porcelain=v1", "--untracked-files=all", "-z"],
@@ -370,6 +375,7 @@ function dirtyNonScratchPaths(cwd) {
   const records = report.raw.split("\0").filter((record) => record !== "");
   const nested = nestedWorktrees(cwd);
   const dirty = new Set();
+  const untracked = [];
   // The index column tells work that only lacks a commit from edits nobody staged.
   const staged = new Set();
   for (let index = 0; index < records.length; index += 1) {
@@ -386,13 +392,49 @@ function dirtyNonScratchPaths(cwd) {
     // A linked worktree registered inside this one shows as an untracked folder, but it is
     // another checkout, never bytes this merge would carry.
     if (record.startsWith("?? ") && nested.has(paths[0].replace(/\/$/, ""))) continue;
+    if (record.startsWith("?? ")) {
+      if (!paths[0].startsWith(".scratch/")) untracked.push(paths[0]);
+      continue;
+    }
     for (const path of paths) {
       if (path.startsWith(".scratch/")) continue;
       dirty.add(path);
       if (record[0] !== " " && record[0] !== "?") staged.add(path);
     }
   }
-  return { paths: [...dirty], staged: staged.size };
+  return { paths: [...dirty], untracked, staged: staged.size };
+}
+
+// The paths a live task lists in one repository: the Files of every task that is not superseded.
+function liveTaskFiles(tasks, repoName) {
+  return tasks
+    .filter((task) => task.status !== "superseded" && (task.repo ?? null) === repoName)
+    .flatMap((task) => task.files);
+}
+
+// Every path the WIP branch changed since it left the base, byte-exact.
+function branchChangedPaths(dir, base, wip, where) {
+  const range = `${base}...${BRANCH_REF_PREFIX}${wip}`;
+  const diff = git(["diff", "--name-only", "--no-renames", "-z", range], dir);
+  if (diff.status !== 0) blocked("git-query-failed", `git diff failed for ${range}${where}`);
+  return diff.raw.split("\0").filter(Boolean);
+}
+
+// Whether an untracked path is the feature's: listed in a live task's Files, or inside a
+// directory holding a path the branch changed or a task lists. The root holds only the files
+// directly in it, so one changed README does not claim every untracked folder in the repository.
+function featurePathTest(changed, listed) {
+  const listedSet = new Set(listed);
+  const dirs = new Set([...changed, ...listed].map((path) => dirname(path)));
+  return (path) => {
+    if (listedSet.has(path)) return true;
+    const parent = dirname(path);
+    if (parent === ".") return dirs.has(".");
+    for (const dir of dirs) {
+      if (dir !== "." && (parent === dir || parent.startsWith(`${dir}/`))) return true;
+    }
+    return false;
+  };
 }
 
 function deriveBase(cwd) {
@@ -501,7 +543,9 @@ function parseArguments(argv) {
 // One repository's branch identity: base and WIP resolve locally, the base is free to
 // receive the merge, HEAD rests on the WIP branch, and nothing outside .scratch/ is dirty.
 // `baseMayBeElsewhere` is true for a delivery that never checks out or moves the base.
-function proveBranchIdentity(dir, base, wip, where, baseMayBeElsewhere = false) {
+// `listed` holds the paths live tasks list in this repository; untracked paths outside the
+// feature come back as `kept` instead of blocking.
+function proveBranchIdentity(dir, base, wip, where, baseMayBeElsewhere = false, listed = []) {
   if (base === wip) blocked("base-is-wip", `base_ref ${base}${where} is the branch being merged`);
   if (!localBranchExists(base, dir)) {
     blocked("base-missing", `base_ref ${base}${where} no longer resolves to a local branch, so the merge has no target`);
@@ -552,15 +596,18 @@ function proveBranchIdentity(dir, base, wip, where, baseMayBeElsewhere = false) 
       `base_ref ${base}${where} has commits that ${wip} does not contain, so the merged result was never verified: merge ${base} into ${wip}, then rerun the terminal gate`,
     );
   }
-  const { paths: dirty, staged } = dirtyNonScratchPaths(dir);
+  const { paths: tracked, untracked, staged } = dirtyNonScratchPaths(dir);
+  const isFeaturePath = featurePathTest(branchChangedPaths(dir, base, wip, where), listed);
+  const dirty = [...tracked, ...untracked.filter(isFeaturePath)];
+  const kept = untracked.filter((path) => !isFeaturePath(path));
   if (dirty.length > 0) {
     const shown = dirty.slice(0, 3).join(", ");
     blocked(
       "dirty-worktree",
-      `${dirty.length} non-scratch path(s)${where} are uncommitted (${staged} staged), so the merge would carry unreviewed bytes: ${shown}${dirty.length > 3 ? ", …" : ""}. Commit the paths this feature owns on ${wip} (\`git add -- <path>…\`, then \`git commit\`), ask the user about any it does not own, and rerun the gate`,
+      `${dirty.length} non-scratch path(s)${where} are uncommitted (${staged} staged), so the merge would carry unreviewed bytes: ${shown}${dirty.length > 3 ? ", …" : ""}. Commit the paths this feature owns on ${wip} (\`git add -- <path>…\`, then \`git commit\`), ask the user about any it does not own (never stash, move, or delete them), and rerun the gate`,
     );
   }
-  return head;
+  return { head, kept };
 }
 
 // A listed repository's base lives only in plan.md, which stays editable, so its WIP branch
@@ -579,21 +626,22 @@ function outsideFiles(cwd, base, wip, repos, tasks) {
   const targets = [{ name: home?.name ?? null, path: ".", base }, ...repos.filter((entry) => entry.path !== ".")];
   const outside = [];
   for (const target of targets) {
-    const listed = new Set(
-      tasks
-        .filter((task) => task.status !== "superseded" && (task.repo ?? null) === target.name)
-        .flatMap((task) => task.files),
-    );
+    const listed = new Set(liveTaskFiles(tasks, target.name));
     const dir = resolve(cwd, target.path);
-    const range = `${target.base}...${BRANCH_REF_PREFIX}${wip}`;
-    const diff = git(["diff", "--name-only", "--no-renames", "-z", range], dir);
-    if (diff.status !== 0) blocked("git-query-failed", `git diff failed for ${range} in ${target.path}`);
-    for (const path of diff.raw.split("\0").filter(Boolean)) {
+    for (const path of branchChangedPaths(dir, target.base, wip, ` in ${target.path}`)) {
       if (path === ".scratch" || path.startsWith(".scratch/") || listed.has(path)) continue;
       outside.push(target.path === "." ? path : `${target.path}/${path}`);
     }
   }
   return outside;
+}
+
+// The tree verdict of a ready report, naming the untracked paths the gate left to the user.
+function treeLines(kept) {
+  if (kept.length === 0) return ["tree: clean outside .scratch/"];
+  const shown = kept.slice(0, KEPT_UNTRACKED_SHOWN).map((path) => `kept_untracked: ${path}`);
+  const more = kept.length > KEPT_UNTRACKED_SHOWN ? [`kept_untracked_more: ${kept.length - KEPT_UNTRACKED_SHOWN}`] : [];
+  return [`tree: clean outside .scratch/ except ${kept.length} kept untracked path(s)`, ...shown, ...more];
 }
 
 function preflight(cwd, featureDir) {
@@ -618,7 +666,8 @@ function preflight(cwd, featureDir) {
   }
   // A pull request or a kept branch never checks out the base, so another worktree may hold it.
   const baseMayBeElsewhere = delivery === "pull-request" || delivery === "branch";
-  const head = proveBranchIdentity(cwd, base, wip, "", baseMayBeElsewhere);
+  const homeName = repos.find((entry) => entry.path === ".")?.name ?? null;
+  const { head, kept } = proveBranchIdentity(cwd, base, wip, "", baseMayBeElsewhere, liveTaskFiles(tasks, homeName));
   const repoLines = [];
   for (const repo of repos.filter((entry) => entry.path !== ".")) {
     const dir = resolve(cwd, repo.path);
@@ -641,7 +690,8 @@ function preflight(cwd, featureDir) {
       repoLines.push(`repo: ${repo.name} base=${repo.base} wip=${wip} merged${unpinned}`);
       continue;
     }
-    proveBranchIdentity(dir, repo.base, wip, ` in repo ${repo.name}`, baseMayBeElsewhere);
+    const proven = proveBranchIdentity(dir, repo.base, wip, ` in repo ${repo.name}`, baseMayBeElsewhere, liveTaskFiles(tasks, repo.name));
+    kept.push(...proven.kept.map((path) => `${repo.path}/${path}`));
     repoLines.push(`repo: ${repo.name} base=${repo.base} wip=${wip}${unpinned}`);
   }
   const outsideLines = outsideFiles(cwd, base, wip, repos, tasks).map((path) => `outside_files: ${path}`);
@@ -654,7 +704,7 @@ function preflight(cwd, featureDir) {
     `base: ${base}`,
     `wip: ${wip}`,
     `head: ${head}`,
-    "tree: clean outside .scratch/",
+    ...treeLines(kept),
     ...repoLines,
     ...(outsideLines.length > 0 ? outsideLines : ["outside_files: none"]),
     "exit=0",
