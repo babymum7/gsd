@@ -65,6 +65,9 @@ const EVAL_GIT_IDENTITY = {
 // Shared temp dirs and the user's runtime dir (ssh-agent, keyring, D-Bus) are hidden in every
 // sandbox. The home directory is replaced instead, so tools still find a writable $HOME.
 const HIDDEN_DIRS = ["/tmp", "/var/tmp", "/run/user"];
+// Every user's data is hidden too, not only this home: /tmp can be a bind of a directory under
+// /home, which showed every run's grade folder, hidden tests included, through the other path.
+const HIDDEN_DATA_DIRS =["/home", "/mnt", "/media", "/srv"];
 const DOCKER_SOCKET = "/run/docker.sock";
 const SYSTEM_PATH = ["/usr/local/bin", "/usr/bin", "/bin"];
 // Agent-dir entries that would carry the user's history or setup into a session.
@@ -368,11 +371,11 @@ function baseSandboxArgs({ realHome, scratchHome, checkout }) {
     "--unshare-pid", "--unshare-ipc", "--unshare-uts",
     "--new-session", "--die-with-parent",
   ];
-  for (const dir of HIDDEN_DIRS) if (existsSync(dir)) args.push("--tmpfs", dir);
+  for (const dir of [...HIDDEN_DIRS, ...HIDDEN_DATA_DIRS]) if (existsSync(dir)) args.push("--tmpfs", dir);
   if (existsSync(DOCKER_SOCKET)) args.push("--ro-bind", "/dev/null", DOCKER_SOCKET);
   args.push("--bind", scratchHome, realHome);
   // A checkout outside the home and temp dirs is not covered by the binds above.
-  if (!isInside(checkout, realHome) && !HIDDEN_DIRS.some((dir) => isInside(checkout, dir))) {
+  if (!isInside(checkout, realHome) && ![...HIDDEN_DIRS, ...HIDDEN_DATA_DIRS].some((dir) => isInside(checkout, dir))) {
     args.push("--tmpfs", checkout);
   }
   return args;

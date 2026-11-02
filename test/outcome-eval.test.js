@@ -117,6 +117,8 @@ if (MODE === "probe") {
     checkout: existsSync(join(EXTRA.checkout, "package.json")),
     hidden: existsSync(EXTRA.hidden),
     sessions: readdirSync(join(EXTRA.agentDir, "sessions")).length,
+    // /tmp can be a bind of a directory under /home, which showed every run's hidden tests.
+    homeNeighbors: existsSync("/home") ? readdirSync("/home").filter((name) => join("/home", name) !== homedir()) : [],
   }));
 }
 for (const event of wrapper ? EXTRA.gsdEvents : EXTRA.vanillaEvents) process.stdout.write(JSON.stringify(event) + "\\n");
@@ -339,6 +341,7 @@ test.skipIf(!HAS_BWRAP)(
         checkout: false,
         hidden: false,
         sessions: 0,
+        homeNeighbors: [],
       });
       assert.ok(existsSync(join(runDir, "home", workspace.marker)), "the home write lands in the run's scratch home");
       assert.ok(!existsSync(join(homedir(), workspace.marker)), "the real home is untouched");
