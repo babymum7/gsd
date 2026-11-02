@@ -1,0 +1,2235 @@
+{
+  "scope": "agent CLI sessions with and without GSD (intent axis)",
+  "rows": [
+    {
+      "fixture": "average-empty",
+      "kind": "clear",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 3,
+        "total": 3,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 117851,
+      "cost_usd": 0.00528541,
+      "wall_ms": 13222,
+      "fixture_sha256": "3c7e9d22e2ce3dfb2f7f54f2cffc4b11c52c5e1572120c92d9fbf10d88feba0f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "average-empty",
+      "kind": "clear",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 3,
+        "total": 3,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 80158,
+      "cost_usd": 0.00412428,
+      "wall_ms": 11772,
+      "fixture_sha256": "3c7e9d22e2ce3dfb2f7f54f2cffc4b11c52c5e1572120c92d9fbf10d88feba0f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "csv-quote",
+      "kind": "clear",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 121173,
+      "cost_usd": 0.00593303,
+      "wall_ms": 14425,
+      "fixture_sha256": "e1a8f92388af392381d3605d9ccc298703370da1e2824f6edf0a40a4392ca0d0",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "csv-quote",
+      "kind": "clear",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 111599,
+      "cost_usd": 0.00551977,
+      "wall_ms": 14992,
+      "fixture_sha256": "e1a8f92388af392381d3605d9ccc298703370da1e2824f6edf0a40a4392ca0d0",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "discount-codes",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/cart.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 328104,
+      "cost_usd": 0.01475142,
+      "wall_ms": 32878,
+      "fixture_sha256": "972080c85d5181b22432686b0cfbb2d4902cfdbf6429f3ae65964b2251fe932f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "discount-codes",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/cart.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 433896,
+      "cost_usd": 0.01799788,
+      "wall_ms": 37028,
+      "fixture_sha256": "972080c85d5181b22432686b0cfbb2d4902cfdbf6429f3ae65964b2251fe932f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "paginate-users",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 5,
+        "total": 5,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 302276,
+      "cost_usd": 0.015682,
+      "wall_ms": 33158,
+      "fixture_sha256": "1bb5b52286e07d0861fbd7fe33222bc6bd74944835709dec3b6933cd6afde226",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "paginate-users",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 5,
+        "total": 5,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 370672,
+      "cost_usd": 0.01611665,
+      "wall_ms": 32005,
+      "fixture_sha256": "1bb5b52286e07d0861fbd7fe33222bc6bd74944835709dec3b6933cd6afde226",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "relative-time",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 7,
+        "total": 7,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/time.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 259101,
+      "cost_usd": 0.01377085,
+      "wall_ms": 26758,
+      "fixture_sha256": "4527f0bb7ff712e214490853c82f7871847400600847e4d1ca7ce2ffa6522a48",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "relative-time",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 7,
+        "total": 7,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/time.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 543085,
+      "cost_usd": 0.01951654,
+      "wall_ms": 40460,
+      "fixture_sha256": "4527f0bb7ff712e214490853c82f7871847400600847e4d1ca7ce2ffa6522a48",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "slug-vietnamese",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 4,
+        "total": 4,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/slug.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 156279,
+      "cost_usd": 0.0073028,
+      "wall_ms": 19500,
+      "fixture_sha256": "cd6c96f728cda5039948a5e1b4fb03f2d110565535798ac5c86345e907cf0cc4",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "slug-vietnamese",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 4,
+        "total": 4,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/slug.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 113723,
+      "cost_usd": 0.00595302,
+      "wall_ms": 16676,
+      "fixture_sha256": "cd6c96f728cda5039948a5e1b4fb03f2d110565535798ac5c86345e907cf0cc4",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "average-empty",
+      "kind": "clear",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 3,
+        "total": 3,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/stats.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 117611,
+      "cost_usd": 0.2051342,
+      "wall_ms": 18446,
+      "fixture_sha256": "3c7e9d22e2ce3dfb2f7f54f2cffc4b11c52c5e1572120c92d9fbf10d88feba0f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "average-empty",
+      "kind": "clear",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 3,
+        "total": 3,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/stats.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 109913,
+      "cost_usd": 0.191627,
+      "wall_ms": 24018,
+      "fixture_sha256": "3c7e9d22e2ce3dfb2f7f54f2cffc4b11c52c5e1572120c92d9fbf10d88feba0f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "csv-quote",
+      "kind": "clear",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/csv.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 120127,
+      "cost_usd": 0.2062032,
+      "wall_ms": 23093,
+      "fixture_sha256": "e1a8f92388af392381d3605d9ccc298703370da1e2824f6edf0a40a4392ca0d0",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "csv-quote",
+      "kind": "clear",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 109373,
+      "cost_usd": 0.1854242,
+      "wall_ms": 23203,
+      "fixture_sha256": "e1a8f92388af392381d3605d9ccc298703370da1e2824f6edf0a40a4392ca0d0",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "discount-codes",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/cart.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 323653,
+      "cost_usd": 0.5640344,
+      "wall_ms": 58196,
+      "fixture_sha256": "972080c85d5181b22432686b0cfbb2d4902cfdbf6429f3ae65964b2251fe932f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "discount-codes",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/cart.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 470792,
+      "cost_usd": 0.8623062,
+      "wall_ms": 66795,
+      "fixture_sha256": "972080c85d5181b22432686b0cfbb2d4902cfdbf6429f3ae65964b2251fe932f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "paginate-users",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 5,
+        "total": 5,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 219196,
+      "cost_usd": 0.4544922,
+      "wall_ms": 49990,
+      "fixture_sha256": "1bb5b52286e07d0861fbd7fe33222bc6bd74944835709dec3b6933cd6afde226",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "paginate-users",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 5,
+        "total": 5,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 562877,
+      "cost_usd": 1.0077548,
+      "wall_ms": 83242,
+      "fixture_sha256": "1bb5b52286e07d0861fbd7fe33222bc6bd74944835709dec3b6933cd6afde226",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "relative-time",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 7,
+        "total": 7,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/time.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 598767,
+      "cost_usd": 0.7655076,
+      "wall_ms": 90609,
+      "fixture_sha256": "4527f0bb7ff712e214490853c82f7871847400600847e4d1ca7ce2ffa6522a48",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "relative-time",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 7,
+        "total": 7,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/time.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 297841,
+      "cost_usd": 0.5405982,
+      "wall_ms": 48869,
+      "fixture_sha256": "4527f0bb7ff712e214490853c82f7871847400600847e4d1ca7ce2ffa6522a48",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "slug-vietnamese",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 4,
+        "total": 4,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/slug.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 150857,
+      "cost_usd": 0.2261262,
+      "wall_ms": 29699,
+      "fixture_sha256": "cd6c96f728cda5039948a5e1b4fb03f2d110565535798ac5c86345e907cf0cc4",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "slug-vietnamese",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 4,
+        "total": 4,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/slug.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 78751,
+      "cost_usd": 0.1552568,
+      "wall_ms": 17156,
+      "fixture_sha256": "cd6c96f728cda5039948a5e1b4fb03f2d110565535798ac5c86345e907cf0cc4",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "average-empty",
+      "kind": "clear",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 3,
+        "total": 3,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/stats.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 145089,
+      "cost_usd": 0.1009825,
+      "wall_ms": 15264,
+      "fixture_sha256": "3c7e9d22e2ce3dfb2f7f54f2cffc4b11c52c5e1572120c92d9fbf10d88feba0f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "average-empty",
+      "kind": "clear",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 3,
+        "total": 3,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 76165,
+      "cost_usd": 0.0636121,
+      "wall_ms": 9271,
+      "fixture_sha256": "3c7e9d22e2ce3dfb2f7f54f2cffc4b11c52c5e1572120c92d9fbf10d88feba0f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "csv-quote",
+      "kind": "clear",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/csv.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 149662,
+      "cost_usd": 0.103235,
+      "wall_ms": 17836,
+      "fixture_sha256": "e1a8f92388af392381d3605d9ccc298703370da1e2824f6edf0a40a4392ca0d0",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "csv-quote",
+      "kind": "clear",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/csv.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 138597,
+      "cost_usd": 0.0948517,
+      "wall_ms": 17991,
+      "fixture_sha256": "e1a8f92388af392381d3605d9ccc298703370da1e2824f6edf0a40a4392ca0d0",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "discount-codes",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/cart.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 320735,
+      "cost_usd": 0.241192,
+      "wall_ms": 34976,
+      "fixture_sha256": "972080c85d5181b22432686b0cfbb2d4902cfdbf6429f3ae65964b2251fe932f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "discount-codes",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/cart.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 286912,
+      "cost_usd": 0.2403201,
+      "wall_ms": 37689,
+      "fixture_sha256": "972080c85d5181b22432686b0cfbb2d4902cfdbf6429f3ae65964b2251fe932f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "paginate-users",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 5,
+        "total": 5,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 289710,
+      "cost_usd": 0.2565606,
+      "wall_ms": 41234,
+      "fixture_sha256": "1bb5b52286e07d0861fbd7fe33222bc6bd74944835709dec3b6933cd6afde226",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "paginate-users",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 5,
+        "total": 5,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 287694,
+      "cost_usd": 0.2568776,
+      "wall_ms": 41385,
+      "fixture_sha256": "1bb5b52286e07d0861fbd7fe33222bc6bd74944835709dec3b6933cd6afde226",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "relative-time",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 7,
+        "total": 7,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/time.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 273887,
+      "cost_usd": 0.2236244,
+      "wall_ms": 33260,
+      "fixture_sha256": "4527f0bb7ff712e214490853c82f7871847400600847e4d1ca7ce2ffa6522a48",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "relative-time",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 7,
+        "total": 7,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/time.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 284693,
+      "cost_usd": 0.2380879,
+      "wall_ms": 36927,
+      "fixture_sha256": "4527f0bb7ff712e214490853c82f7871847400600847e4d1ca7ce2ffa6522a48",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "slug-vietnamese",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 4,
+        "total": 4,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/slug.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 181907,
+      "cost_usd": 0.1143302,
+      "wall_ms": 21849,
+      "fixture_sha256": "cd6c96f728cda5039948a5e1b4fb03f2d110565535798ac5c86345e907cf0cc4",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "slug-vietnamese",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 4,
+        "total": 4,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/slug.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 105150,
+      "cost_usd": 0.079583,
+      "wall_ms": 14190,
+      "fixture_sha256": "cd6c96f728cda5039948a5e1b4fb03f2d110565535798ac5c86345e907cf0cc4",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "average-empty",
+      "kind": "clear",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 3,
+        "total": 3,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 89745,
+      "cost_usd": null,
+      "wall_ms": 29291,
+      "fixture_sha256": "3c7e9d22e2ce3dfb2f7f54f2cffc4b11c52c5e1572120c92d9fbf10d88feba0f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.164.0",
+      "bundle_sha256": "bc734bd05ab3ac2b2ba3f04b686361c78d44047d338639b168b5c5b13e8a4e30"
+    },
+    {
+      "fixture": "average-empty",
+      "kind": "clear",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 3,
+        "total": 3,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 61901,
+      "cost_usd": null,
+      "wall_ms": 18421,
+      "fixture_sha256": "3c7e9d22e2ce3dfb2f7f54f2cffc4b11c52c5e1572120c92d9fbf10d88feba0f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.164.0",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "csv-quote",
+      "kind": "clear",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 92515,
+      "cost_usd": null,
+      "wall_ms": 30519,
+      "fixture_sha256": "e1a8f92388af392381d3605d9ccc298703370da1e2824f6edf0a40a4392ca0d0",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.164.0",
+      "bundle_sha256": "bc734bd05ab3ac2b2ba3f04b686361c78d44047d338639b168b5c5b13e8a4e30"
+    },
+    {
+      "fixture": "csv-quote",
+      "kind": "clear",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 48705,
+      "cost_usd": null,
+      "wall_ms": 18892,
+      "fixture_sha256": "e1a8f92388af392381d3605d9ccc298703370da1e2824f6edf0a40a4392ca0d0",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.164.0",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "discount-codes",
+      "kind": "vague",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 651485,
+      "cost_usd": null,
+      "wall_ms": 252868,
+      "fixture_sha256": "972080c85d5181b22432686b0cfbb2d4902cfdbf6429f3ae65964b2251fe932f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.164.0",
+      "bundle_sha256": "bc734bd05ab3ac2b2ba3f04b686361c78d44047d338639b168b5c5b13e8a4e30"
+    },
+    {
+      "fixture": "discount-codes",
+      "kind": "vague",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 947898,
+      "cost_usd": null,
+      "wall_ms": 232559,
+      "fixture_sha256": "972080c85d5181b22432686b0cfbb2d4902cfdbf6429f3ae65964b2251fe932f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.164.0",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "paginate-users",
+      "kind": "vague",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 5,
+        "total": 5,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 882502,
+      "cost_usd": null,
+      "wall_ms": 378321,
+      "fixture_sha256": "1bb5b52286e07d0861fbd7fe33222bc6bd74944835709dec3b6933cd6afde226",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.164.0",
+      "bundle_sha256": "bc734bd05ab3ac2b2ba3f04b686361c78d44047d338639b168b5c5b13e8a4e30"
+    },
+    {
+      "fixture": "paginate-users",
+      "kind": "vague",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 5,
+        "total": 5,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 414960,
+      "cost_usd": null,
+      "wall_ms": 85460,
+      "fixture_sha256": "1bb5b52286e07d0861fbd7fe33222bc6bd74944835709dec3b6933cd6afde226",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.164.0",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "relative-time",
+      "kind": "vague",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 7,
+        "total": 7,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 1088203,
+      "cost_usd": null,
+      "wall_ms": 402023,
+      "fixture_sha256": "4527f0bb7ff712e214490853c82f7871847400600847e4d1ca7ce2ffa6522a48",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.164.0",
+      "bundle_sha256": "bc734bd05ab3ac2b2ba3f04b686361c78d44047d338639b168b5c5b13e8a4e30"
+    },
+    {
+      "fixture": "relative-time",
+      "kind": "vague",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 7,
+        "total": 7,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 484309,
+      "cost_usd": null,
+      "wall_ms": 104526,
+      "fixture_sha256": "4527f0bb7ff712e214490853c82f7871847400600847e4d1ca7ce2ffa6522a48",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.164.0",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "slug-vietnamese",
+      "kind": "vague",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 4,
+        "total": 4,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 309250,
+      "cost_usd": null,
+      "wall_ms": 75280,
+      "fixture_sha256": "cd6c96f728cda5039948a5e1b4fb03f2d110565535798ac5c86345e907cf0cc4",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.164.0",
+      "bundle_sha256": "bc734bd05ab3ac2b2ba3f04b686361c78d44047d338639b168b5c5b13e8a4e30"
+    },
+    {
+      "fixture": "slug-vietnamese",
+      "kind": "vague",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 4,
+        "total": 4,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 87527,
+      "cost_usd": null,
+      "wall_ms": 35761,
+      "fixture_sha256": "cd6c96f728cda5039948a5e1b4fb03f2d110565535798ac5c86345e907cf0cc4",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.164.0",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "average-empty",
+      "kind": "clear",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 3,
+        "total": 3,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/stats.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 5319,
+      "cost_usd": null,
+      "wall_ms": 22986,
+      "fixture_sha256": "3c7e9d22e2ce3dfb2f7f54f2cffc4b11c52c5e1572120c92d9fbf10d88feba0f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "average-empty",
+      "kind": "clear",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 3,
+        "total": 3,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 2474,
+      "cost_usd": null,
+      "wall_ms": 20131,
+      "fixture_sha256": "3c7e9d22e2ce3dfb2f7f54f2cffc4b11c52c5e1572120c92d9fbf10d88feba0f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "csv-quote",
+      "kind": "clear",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 3927,
+      "cost_usd": null,
+      "wall_ms": 22634,
+      "fixture_sha256": "e1a8f92388af392381d3605d9ccc298703370da1e2824f6edf0a40a4392ca0d0",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "csv-quote",
+      "kind": "clear",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 2766,
+      "cost_usd": null,
+      "wall_ms": 20903,
+      "fixture_sha256": "e1a8f92388af392381d3605d9ccc298703370da1e2824f6edf0a40a4392ca0d0",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "discount-codes",
+      "kind": "vague",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/cart.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 41374,
+      "cost_usd": null,
+      "wall_ms": 158505,
+      "fixture_sha256": "972080c85d5181b22432686b0cfbb2d4902cfdbf6429f3ae65964b2251fe932f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "discount-codes",
+      "kind": "vague",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 6,
+        "total": 6,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/cart.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 119143,
+      "cost_usd": null,
+      "wall_ms": 448569,
+      "fixture_sha256": "972080c85d5181b22432686b0cfbb2d4902cfdbf6429f3ae65964b2251fe932f",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "paginate-users",
+      "kind": "vague",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 5,
+        "total": 5,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 45919,
+      "cost_usd": null,
+      "wall_ms": 179545,
+      "fixture_sha256": "1bb5b52286e07d0861fbd7fe33222bc6bd74944835709dec3b6933cd6afde226",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "paginate-users",
+      "kind": "vague",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 5,
+        "total": 5,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/users.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 176188,
+      "cost_usd": null,
+      "wall_ms": 697252,
+      "fixture_sha256": "1bb5b52286e07d0861fbd7fe33222bc6bd74944835709dec3b6933cd6afde226",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "relative-time",
+      "kind": "vague",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 7,
+        "total": 7,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/time.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": true
+      },
+      "tokens": 34084,
+      "cost_usd": null,
+      "wall_ms": 175392,
+      "fixture_sha256": "4527f0bb7ff712e214490853c82f7871847400600847e4d1ca7ce2ffa6522a48",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "relative-time",
+      "kind": "vague",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "vanilla",
+      "valid": false,
+      "invalid_reason": "the agent gave no reply",
+      "bootstrap_seen": false,
+      "passed": false,
+      "hidden": {
+        "passed": 0,
+        "total": 7,
+        "failing": [
+          "test/time.intent.test.js > formatRelative > a future date is just now",
+          "test/time.intent.test.js > formatRelative > a week or more falls back to the date",
+          "test/time.intent.test.js > formatRelative > days",
+          "test/time.intent.test.js > formatRelative > hours",
+          "test/time.intent.test.js > formatRelative > minutes",
+          "test/time.intent.test.js > formatRelative > minutes round down",
+          "test/time.intent.test.js > formatRelative > under a minute is just now"
+        ]
+      },
+      "regressions": [
+        "test/time.test.js > formatTimestamp shows the UTC date"
+      ],
+      "visible_tests_edited": [
+        "test/time.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 259820,
+      "cost_usd": null,
+      "wall_ms": 1200057,
+      "fixture_sha256": "4527f0bb7ff712e214490853c82f7871847400600847e4d1ca7ce2ffa6522a48",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "slug-vietnamese",
+      "kind": "vague",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 4,
+        "total": 4,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/slug.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 8505,
+      "cost_usd": null,
+      "wall_ms": 41612,
+      "fixture_sha256": "cd6c96f728cda5039948a5e1b4fb03f2d110565535798ac5c86345e907cf0cc4",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": "5238b22846fd6f21be4080d4b010b37ff8fde358a7ba32613ab8340919686370"
+    },
+    {
+      "fixture": "slug-vietnamese",
+      "kind": "vague",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 4,
+        "total": 4,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/slug.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 7576,
+      "cost_usd": null,
+      "wall_ms": 37903,
+      "fixture_sha256": "cd6c96f728cda5039948a5e1b4fb03f2d110565535798ac5c86345e907cf0cc4",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": null
+    }
+  ],
+  "summary": {
+    "claude:claude-haiku-5-5": {
+      "vanilla": {
+        "rows": 6,
+        "valid": 6,
+        "passed": 6,
+        "first_try": 3,
+        "vague": 4,
+        "asked_vague": 0,
+        "clear": 2,
+        "over_asked": 0,
+        "corrected": 3,
+        "agent_turns": 9,
+        "tokens": 1653133,
+        "cost_usd": 0.06922814,
+        "wall_ms": 152933
+      },
+      "gsd": {
+        "rows": 6,
+        "valid": 6,
+        "passed": 6,
+        "first_try": 6,
+        "vague": 4,
+        "asked_vague": 3,
+        "clear": 2,
+        "over_asked": 0,
+        "corrected": 0,
+        "agent_turns": 9,
+        "tokens": 1284784,
+        "cost_usd": 0.06272551,
+        "wall_ms": 139941
+      }
+    },
+    "claude:claude-opus-5-5": {
+      "vanilla": {
+        "rows": 6,
+        "valid": 6,
+        "passed": 6,
+        "first_try": 3,
+        "vague": 4,
+        "asked_vague": 0,
+        "clear": 2,
+        "over_asked": 0,
+        "corrected": 3,
+        "agent_turns": 9,
+        "tokens": 1629547,
+        "cost_usd": 2.9429672,
+        "wall_ms": 263283
+      },
+      "gsd": {
+        "rows": 6,
+        "valid": 6,
+        "passed": 6,
+        "first_try": 6,
+        "vague": 4,
+        "asked_vague": 3,
+        "clear": 2,
+        "over_asked": 0,
+        "corrected": 0,
+        "agent_turns": 9,
+        "tokens": 1530211,
+        "cost_usd": 2.4214978,
+        "wall_ms": 270033
+      }
+    },
+    "claude:claude-sonnet-5-5": {
+      "vanilla": {
+        "rows": 6,
+        "valid": 6,
+        "passed": 6,
+        "first_try": 3,
+        "vague": 4,
+        "asked_vague": 0,
+        "clear": 2,
+        "over_asked": 0,
+        "corrected": 3,
+        "agent_turns": 9,
+        "tokens": 1179211,
+        "cost_usd": 0.9733324,
+        "wall_ms": 157453
+      },
+      "gsd": {
+        "rows": 6,
+        "valid": 6,
+        "passed": 6,
+        "first_try": 6,
+        "vague": 4,
+        "asked_vague": 3,
+        "clear": 2,
+        "over_asked": 0,
+        "corrected": 0,
+        "agent_turns": 9,
+        "tokens": 1360990,
+        "cost_usd": 1.0399247,
+        "wall_ms": 164419
+      }
+    },
+    "codex:gpt-6-luna": {
+      "vanilla": {
+        "rows": 6,
+        "valid": 6,
+        "passed": 6,
+        "first_try": 3,
+        "vague": 4,
+        "asked_vague": 0,
+        "clear": 2,
+        "over_asked": 0,
+        "corrected": 3,
+        "agent_turns": 9,
+        "tokens": 2045300,
+        "cost_usd": null,
+        "wall_ms": 495619
+      },
+      "gsd": {
+        "rows": 6,
+        "valid": 6,
+        "passed": 6,
+        "first_try": 6,
+        "vague": 4,
+        "asked_vague": 4,
+        "clear": 2,
+        "over_asked": 0,
+        "corrected": 0,
+        "agent_turns": 10,
+        "tokens": 3113700,
+        "cost_usd": null,
+        "wall_ms": 1168302
+      }
+    },
+    "dsh:default": {
+      "vanilla": {
+        "rows": 6,
+        "valid": 5,
+        "passed": 5,
+        "first_try": 3,
+        "vague": 3,
+        "asked_vague": 0,
+        "clear": 2,
+        "over_asked": 0,
+        "corrected": 2,
+        "agent_turns": 7,
+        "tokens": 308147,
+        "cost_usd": null,
+        "wall_ms": 1224758
+      },
+      "gsd": {
+        "rows": 6,
+        "valid": 6,
+        "passed": 6,
+        "first_try": 6,
+        "vague": 4,
+        "asked_vague": 3,
+        "clear": 2,
+        "over_asked": 0,
+        "corrected": 0,
+        "agent_turns": 9,
+        "tokens": 139128,
+        "cost_usd": null,
+        "wall_ms": 600674
+      }
+    }
+  }
+}
