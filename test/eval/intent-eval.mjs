@@ -39,6 +39,8 @@ import {
   buildRow,
   buildTurn,
   cellKey,
+  cliBindRoot,
+  commandCandidates,
   containsBootstrapMarker,
   firstPrompt,
   keepMatchingRows,
@@ -56,6 +58,7 @@ const SESSION_MAX_COST_USD = 1;
 const MIN_TURN_BUDGET_USD = 0.05;
 const SESSION_MAX_MS = 20 * 60_000;
 const SESSION_CONCURRENCY = 2;
+const CLI_PROBE_MS = 60_000;
 // Session files larger than this are not scanned for bootstrap evidence.
 const EVIDENCE_FILE_MAX_BYTES = 20 * 1024 * 1024;
 const HARNESS_FILES = ["intent-eval.mjs", "intent-eval-contract.mjs"];
@@ -129,13 +132,13 @@ if (!String(process.env.GSD_EVAL_AGENTS ?? "").trim()) {
 }
 const parsed = parseAgents(process.env.GSD_EVAL_AGENTS);
 if (!parsed.ok) fail(`GSD_EVAL_AGENTS: ${parsed.detail}`);
-const cli = {};
+const candidates = {};
 for (const backend of new Set(parsed.agents.map((agent) => agent.backend))) {
-  const found = resolveCommand(backend, process.env.PATH);
-  if (found) cli[backend] = realpathSync(found);
+  const found = commandCandidates(backend, process.env.PATH);
+  if (found.length > 0) candidates[backend] = [...new Set(found.map((path) => realpathSync(path)))];
   else console.log(`skip: ${backend} is not on PATH, so its agents are not run`);
 }
-const agents = parsed.agents.filter((agent) => cli[agent.backend]);
+const agents = parsed.agents.filter((agent) => candidates[agent.backend]);
 if (agents.length === 0) {
   console.log("nothing to run: no named agent CLI is on PATH");
   process.exit(0);
@@ -201,6 +204,41 @@ const realPath = (path) => (existsSync(path) ? realpathSync(path) : path);
 const unique = (paths) => [...new Set(paths)];
 const dshHome = process.env.DSH_HOME || join(home, ".dsh");
 const codexPlugin = join(codexHome, "plugins", "cache", "gsd-local", "gsd");
+const hiddenCheckout = checkoutRoot();
+// The run's own store standing in for one history path of the agent's home.
+const storePath = (runDir, path) => join(runDir, "store", relative(home, path).replace(/[^A-Za-z0-9._-]+/g, "-"));
+const insideHidden = (path) => HIDDEN_DIRS.some((dir) => path === dir || path.startsWith(`${dir}/`));
+
+// A shim, or a CLI installed under the home, can be missing inside the session sandbox, where
+// every turn would end with no reply. Each backend runs the first PATH candidate that prints its
+// version there: first as the sandbox stands, then with the candidate's package bound read-only.
+const cli = {};
+const cliBinds = {};
+for (const [backend, paths] of Object.entries(candidates)) {
+  const probeDir = join(work, "probe", backend);
+  mkdirSync(join(probeDir, "ws"), { recursive: true });
+  const errors = [];
+  for (const attempt of [...paths.map((path) => ({ path, bind: null })), ...paths.map((path) => ({ path, bind: cliBindRoot(path) }))]) {
+    cliBinds[backend] = attempt.bind ? [attempt.bind] : [];
+    const probe = spawnSync(bwrap, [...sessionSandboxArgs(probeDir, backend, "vanilla"), "--", attempt.path, "--version"], {
+      env: sessionEnv({}),
+      encoding: "utf8",
+      timeout: CLI_PROBE_MS,
+    });
+    if (probe.status === 0 && String(probe.stdout ?? "").trim() !== "") {
+      cli[backend] = attempt.path;
+      break;
+    }
+    const why = String(probe.stderr ?? "").trim().split("\n")[0] || probe.error?.message || `exit ${probe.status}`;
+    errors.push(`${attempt.path}${attempt.bind ? ` with ${attempt.bind} bound` : ""}: ${why}`);
+  }
+  if (!cli[backend]) {
+    fail(`${backend} does not run inside the session sandbox, so every turn would end with no reply:\n  ${errors.join("\n  ")}\ninstall ${backend} outside ${home} or under ${TOOLCHAIN_PATHS.map((rel) => join(home, rel)).join(", ")}, then rerun`);
+  }
+  if (cli[backend] !== paths[0] || cliBinds[backend].length > 0) {
+    console.log(`${backend}: runs ${cli[backend]}${cliBinds[backend].length > 0 ? ` with ${cliBinds[backend][0]} bound read-only` : ""}, since ${paths[0]} does not run in the sandbox`);
+  }
+}
 const fingerprintBase = {
   harness_sha256: createHash("sha256")
     .update(HARNESS_FILES.map((name) => readFileSync(join(here, name), "utf8")).join("\0"))
@@ -281,7 +319,6 @@ function checkoutRoot() {
   const common = git(["rev-parse", "--path-format=absolute", "--git-common-dir"], root).stdout.trim();
   return common ? dirname(common) : root;
 }
-const hiddenCheckout = checkoutRoot();
 
 // dsh reads its whole configuration from DSH_HOME, so each run gets its own: the user's entries
 // linked, its own sessions, the patch without GSD's row, and in the GSD arm the bundle's row and
@@ -313,8 +350,6 @@ function buildDshHome(runDir, arm) {
   return target;
 }
 
-// The run's own store standing in for one history path of the agent's home.
-const storePath = (runDir, path) => join(runDir, "store", relative(home, path).replace(/[^A-Za-z0-9._-]+/g, "-"));
 
 // The paths a backend's session may see in its home, and the history inside them it may not.
 function backendHome(backend) {
@@ -349,6 +384,7 @@ function sessionSandboxArgs(runDir, backend, arm) {
     const path = join(home, rel);
     if (existsSync(path)) args.push("--ro-bind", path, path);
   }
+  for (const dir of cliBinds[backend] ?? []) args.push("--ro-bind", dir, dir);
   const own = backendHome(backend);
   for (const path of own.writable) if (existsSync(path)) args.push("--bind", path, path);
   // Past sessions are replaced by this run's own store, which survives between its turns.
@@ -375,7 +411,6 @@ function sessionSandboxArgs(runDir, backend, arm) {
   return args;
 }
 
-const insideHidden = (path) => HIDDEN_DIRS.some((dir) => path === dir || path.startsWith(`${dir}/`));
 
 // A version manager such as fnm puts its shims under /run/user, which the sandbox hides, so a
 // PATH entry there is replaced by the directory it resolves to, or dropped when that is hidden too.

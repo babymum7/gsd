@@ -1894,30 +1894,34 @@
       "backend": "codex",
       "model": "gpt-6-luna",
       "arm": "vanilla",
-      "valid": false,
-      "invalid_reason": "the bootstrap reached the vanilla arm",
-      "bootstrap_seen": true,
-      "passed": true,
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": false,
       "hidden": {
         "passed": 8,
         "total": 8,
         "failing": []
       },
-      "regressions": [],
-      "visible_tests_edited": [],
-      "agent_turns": 2,
-      "asked": true,
-      "corrected": false,
-      "recommended": false,
+      "regressions": [
+        "test/money.test.js > formatUsd shows dollars and cents"
+      ],
+      "visible_tests_edited": [
+        "test/money.test.js"
+      ],
+      "agent_turns": 3,
+      "asked": false,
+      "corrected": true,
+      "recommended": true,
       "turn1": {
-        "changed": false,
-        "question": true
+        "changed": true,
+        "question": false
       },
-      "tokens": 264966,
+      "tokens": 368755,
       "cost_usd": null,
-      "wall_ms": 94697,
+      "wall_ms": 78007,
       "fixture_sha256": "cb85f0d6996da16ed92f1d3043543b1a290c0b41fa9dbb8f422a22931e91afcd",
-      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "harness_sha256": "a0bff040880f91660f353d20bf542e21482575a7f85d8e7907e47e6e8fd53473",
       "cli_version": "codex-cli 0.166.0",
       "bundle_sha256": null
     },
@@ -2516,18 +2520,18 @@
     "codex:gpt-6-luna": {
       "vanilla": {
         "rows": 7,
-        "valid": 6,
+        "valid": 7,
         "passed": 6,
         "first_try": 3,
-        "vague": 4,
+        "vague": 5,
         "asked_vague": 0,
         "clear": 2,
         "over_asked": 0,
-        "corrected": 3,
-        "agent_turns": 9,
-        "tokens": 2045300,
+        "corrected": 4,
+        "agent_turns": 12,
+        "tokens": 2414055,
         "cost_usd": null,
-        "wall_ms": 495619
+        "wall_ms": 573626
       },
       "gsd": {
         "rows": 7,

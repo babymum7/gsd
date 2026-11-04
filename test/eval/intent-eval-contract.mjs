@@ -2,7 +2,7 @@
 // protocol, backend turn builders and parsers, rows, and the report. The runner beside it owns
 // every process, file write, and print.
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
+import { basename, delimiter, dirname, join } from "node:path";
 
 export const INTENT_KINDS = ["vague", "clear"];
 export const DEFAULT_INTENT_FIXTURES_DIR = "test/eval/intent-fixtures";
@@ -146,6 +146,29 @@ const BOOTSTRAP_MARKER = "gsd:session-bootstrap:v2";
 // dsh picks its model from the headless profile; the harness cannot choose another one.
 const DSH_MODEL = "default";
 
+// Every file named `name` on PATH, in order and once each, so a wrapper the session sandbox
+// cannot run gives way to the binary behind it.
+export function commandCandidates(name, pathEnv) {
+  const found = [];
+  for (const dir of String(pathEnv ?? "").split(delimiter)) {
+    if (!dir) continue;
+    const candidate = join(dir, name);
+    try {
+      if (statSync(candidate).isFile() && !found.includes(candidate)) found.push(candidate);
+    } catch {
+      // not in this directory
+    }
+  }
+  return found;
+}
+
+// What the sandbox binds read-only so a CLI installed under a hidden directory runs: its package
+// when the binary sits in the package's bin directory, else the binary's own directory.
+export function cliBindRoot(realPath) {
+  const dir = dirname(realPath);
+  return basename(dir) === "bin" ? dirname(dir) : dir;
+}
+
 export function containsBootstrapMarker(text) {
   return String(text ?? "").includes(BOOTSTRAP_MARKER);
 }
@@ -196,7 +219,8 @@ export function buildTurn({ backend, model, arm, message, sessionId, turn, bundl
       "--skip-git-repo-check",
       ...(arm === "gsd" ? ["--dangerously-bypass-hook-trust"] : []),
       "-c", `model="${model}"`,
-      "-c", `plugins."${INSTALLED_PLUGIN}".enabled=${arm === "gsd"}`,
+      // Codex splits a -c key on every dot and keeps quotes, so a quoted plugin id names no plugin.
+      "-c", `plugins.${INSTALLED_PLUGIN}.enabled=${arm === "gsd"}`,
     ];
     return { command: "codex", args: [...(turn === 1 ? ["exec"] : ["exec", "resume", sessionId]), ...options, message] };
   }

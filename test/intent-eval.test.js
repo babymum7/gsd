@@ -1,6 +1,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { checkFixture } from "./eval/outcome-eval-contract.mjs";
@@ -14,6 +15,8 @@ import {
   buildRow,
   buildTurn,
   cellKey,
+  cliBindRoot,
+  commandCandidates,
   keepMatchingRows,
   validateIntentReport,
   endsWithQuestion,
@@ -145,14 +148,15 @@ test("codex turns toggle the installed plugin per arm and resume by thread id", 
   assert.equal(first.command, "codex");
   assert.equal(first.args[0], "exec");
   assert.ok(first.args.includes("--json"));
-  // Codex runs a disabled plugin's hooks too when hook trust is bypassed, so only the GSD arm bypasses it.
+  // Only the GSD arm bypasses hook trust, so a vanilla turn never runs a plugin hook.
   assert.ok(!first.args.includes("--dangerously-bypass-hook-trust"));
-  assert.ok(first.args.includes('plugins."gsd@gsd-local".enabled=false'));
+  // Codex splits a -c key on every dot and keeps quotes, so the plugin id goes unquoted.
+  assert.ok(first.args.includes("plugins.gsd@gsd-local.enabled=false"));
   assert.ok(first.args.includes('model="gpt-6-luna"'));
   assert.equal(first.args.at(-1), "hi");
   const next = turn({ arm: "gsd", message: "more", sessionId: "t-9", turn: 2 });
   assert.deepEqual(next.args.slice(0, 3), ["exec", "resume", "t-9"]);
-  assert.ok(next.args.includes('plugins."gsd@gsd-local".enabled=true'));
+  assert.ok(next.args.includes("plugins.gsd@gsd-local.enabled=true"));
   assert.ok(next.args.includes("--dangerously-bypass-hook-trust"));
   assert.equal(next.args.at(-1), "more");
 });
@@ -339,4 +343,27 @@ test("a backend whose CLI is not on PATH is named and skipped", () => {
   const skipped = runRunner({ GSD_EVAL_AGENTS: "claude:claude-haiku-5-5" });
   assert.match(skipped.stdout, /skip: claude is not on PATH/);
   assert.equal(skipped.status, 0);
+});
+
+test("every PATH candidate is tried, and a CLI the sandbox cannot run stops the runner first", () => {
+  const dir = mkdtempSync(join(tmpdir(), "gsd-intent-cli-"));
+  try {
+    for (const name of ["shim", "real"]) {
+      mkdirSync(join(dir, name));
+      writeFileSync(join(dir, name, "claude"), "#!/bin/sh\nexit 3\n", { mode: 0o755 });
+    }
+    const path = [join(dir, "shim"), join(dir, "real"), join(dir, "shim"), join(dir, "none")].join(":");
+    assert.deepEqual(commandCandidates("claude", path), [join(dir, "shim", "claude"), join(dir, "real", "claude")]);
+    assert.equal(cliBindRoot("/home/u/.codex/packages/standalone/releases/1.0/bin/codex"), "/home/u/.codex/packages/standalone/releases/1.0");
+    assert.equal(cliBindRoot("/home/u/.local/share/claude/versions/2.1"), "/home/u/.local/share/claude/versions");
+    if (!existsSync("/usr/bin/bwrap")) return;
+    const refused = runRunner({ GSD_EVAL_AGENTS: "claude:claude-haiku-5-5", PATH: `${path}:/usr/bin:/bin` });
+    assert.equal(refused.status, 2);
+    assert.match(refused.stderr, /claude does not run inside the session sandbox, so every turn would end with no reply/);
+    // Unbound, the sandbox hides the temp directory; bound, the CLI itself runs and fails.
+    assert.match(refused.stderr, new RegExp(`${join(dir, "real", "claude")}: bwrap: execvp`));
+    assert.match(refused.stderr, new RegExp(`${join(dir, "real", "claude")} with ${join(dir, "real")} bound: exit 3`));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
