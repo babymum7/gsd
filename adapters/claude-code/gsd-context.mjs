@@ -77,6 +77,56 @@ function sourceOf(input) {
   return typeof input.source === 'string' && input.source !== '' ? input.source : 'startup';
 }
 
+// A transcript Claude Code continues under a new session id starts with the id it began with,
+// and its first GSD hook outputs carry that earlier token. Only the head of the file is read,
+// since a transcript can be tens of megabytes and those outputs come first.
+const TRANSCRIPT_HEAD_BYTES = 4 * 1024 * 1024;
+const GSD_HOOK_EVENTS = new Set(['SessionStart', 'UserPromptSubmit']);
+const OWNER_TOKEN_PATTERN = /GSD_SESSION: (claude-[A-Za-z0-9._:-]+)/g;
+
+function readTranscriptHead(transcriptPath) {
+  let fd = null;
+  try {
+    fd = fs.openSync(transcriptPath, 'r');
+    const buffer = Buffer.alloc(TRANSCRIPT_HEAD_BYTES);
+    const read = fs.readSync(fd, buffer, 0, TRANSCRIPT_HEAD_BYTES, 0);
+    return buffer.toString('utf8', 0, read);
+  } catch {
+    return '';
+  } finally {
+    if (fd !== null) {
+      try {
+        fs.closeSync(fd);
+      } catch {
+        // nothing is left open that a later read needs
+      }
+    }
+  }
+}
+
+// Only GSD's own hook attachments count: a tool result or message that quotes a token is not
+// a session this transcript ran under. A final line the byte limit cut fails to parse and is skipped.
+function inheritedOwners(input, current) {
+  const transcriptPath = input.transcript_path;
+  if (typeof transcriptPath !== 'string' || transcriptPath === '') return [];
+  const tokens = new Set();
+  for (const line of readTranscriptHead(transcriptPath).split('\n')) {
+    if (!line.includes('GSD_SESSION: ')) continue;
+    let record;
+    try {
+      record = JSON.parse(line);
+    } catch {
+      continue;
+    }
+    const attachment = record?.type === 'attachment' ? record.attachment : null;
+    if (!attachment || !GSD_HOOK_EVENTS.has(attachment.hookEvent)) continue;
+    for (const match of JSON.stringify(attachment).matchAll(OWNER_TOKEN_PATTERN)) {
+      if (match[1] !== current) tokens.add(match[1]);
+    }
+  }
+  return [...tokens];
+}
+
 function handleSessionStart(input) {
   const store = createMarkerStore(STATE_ROOT, input.session_id);
   const source = sourceOf(input);
@@ -91,7 +141,7 @@ function handleSessionStart(input) {
   // bootstrap injected earlier, so it comes back first; a resume replays it with the transcript.
   const capsule =
     source === 'compact' || source === 'resume'
-      ? renderRecoveryCapsule(GSD_ROOT, cwdOf(input), ownerOf(input))
+      ? renderRecoveryCapsule(GSD_ROOT, cwdOf(input), ownerOf(input), inheritedOwners(input, ownerOf(input)))
       : null;
   if (capsule) {
     store.write('bootstrap-emitted', digest);
