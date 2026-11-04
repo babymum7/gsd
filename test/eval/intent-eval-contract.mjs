@@ -169,6 +169,21 @@ export function cliBindRoot(realPath) {
   return basename(dir) === "bin" ? dirname(dir) : dir;
 }
 
+// Codex records each directory it runs in as a trusted project in its config.toml. These are the
+// tables whose path starts with `prefix`, an eval's workspaces; every other line stays as it is.
+export function dropProjectTables(text, prefix) {
+  const kept = [];
+  let dropping = false;
+  for (const line of String(text).split("\n")) {
+    if (/^\s*\[/.test(line)) {
+      const match = /^\s*\[projects\."((?:[^"\\]|\\.)*)"\]\s*$/.exec(line);
+      dropping = match !== null && match[1].startsWith(prefix);
+    }
+    if (!dropping) kept.push(line);
+  }
+  return kept.join("\n");
+}
+
 export function containsBootstrapMarker(text) {
   return String(text ?? "").includes(BOOTSTRAP_MARKER);
 }

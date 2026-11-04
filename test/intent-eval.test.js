@@ -17,6 +17,7 @@ import {
   cellKey,
   cliBindRoot,
   commandCandidates,
+  dropProjectTables,
   keepMatchingRows,
   validateIntentReport,
   endsWithQuestion,
@@ -343,6 +344,29 @@ test("a backend whose CLI is not on PATH is named and skipped", () => {
   const skipped = runRunner({ GSD_EVAL_AGENTS: "claude:claude-haiku-5-5" });
   assert.match(skipped.stdout, /skip: claude is not on PATH/);
   assert.equal(skipped.status, 0);
+});
+
+test("only the eval's own trusted-project tables leave the Codex config", () => {
+  const config = [
+    'model = "gpt-6.1-sol"',
+    "",
+    '[projects."/home/u/app"]',
+    'trust_level = "trusted"',
+    "",
+    '[projects."/tmp/gsd-intent-ab12/runs/vnd-price-vanilla-codex-gpt-6-luna/ws"]',
+    'trust_level = "trusted"',
+    "",
+    '[projects."/tmp/other"]',
+    'trust_level = "trusted"',
+    "",
+    '[plugins."gsd@gsd-local"]',
+    "enabled = true",
+    "",
+  ].join("\n");
+  const scrubbed = dropProjectTables(config, "/tmp/gsd-intent-");
+  assert.ok(!scrubbed.includes("gsd-intent-ab12"));
+  assert.equal(scrubbed, config.replace('[projects."/tmp/gsd-intent-ab12/runs/vnd-price-vanilla-codex-gpt-6-luna/ws"]\ntrust_level = "trusted"\n\n', ""));
+  assert.equal(dropProjectTables(scrubbed, "/tmp/gsd-intent-"), scrubbed);
 });
 
 test("every PATH candidate is tried, and a CLI the sandbox cannot run stops the runner first", () => {

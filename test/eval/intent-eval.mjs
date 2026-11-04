@@ -21,6 +21,7 @@ import {
   realpathSync,
   renameSync,
   rmSync,
+  statSync,
   symlinkSync,
   writeFileSync,
 } from "node:fs";
@@ -42,6 +43,7 @@ import {
   cliBindRoot,
   commandCandidates,
   containsBootstrapMarker,
+  dropProjectTables,
   firstPrompt,
   keepMatchingRows,
   loadIntentFixtures,
@@ -193,6 +195,29 @@ process.on("SIGINT", () => process.exit(130));
 const { pluginRoot } = buildPluginBundle(root, join(work, "bundle"));
 const bundleDigest = treeDigest(pluginRoot);
 const codexHome = process.env.CODEX_HOME || join(home, ".codex");
+// Codex trusts each workspace it runs in by rewriting config.toml, which it replaces by rename, so
+// the file cannot be bound to a run's own copy. The runner drops those tables instead, this run's
+// and any a killed run left, after every Codex session and on exit.
+const RUN_PROJECT_PREFIX = join(realpathSync(tmpdir()), "gsd-intent-");
+function scrubCodexConfig() {
+  let path;
+  let text;
+  try {
+    path = realpathSync(join(codexHome, "config.toml"));
+    text = readFileSync(path, "utf8");
+  } catch {
+    return;
+  }
+  const next = dropProjectTables(text, RUN_PROJECT_PREFIX);
+  if (next === text) return;
+  const temp = `${path}.gsd-intent-${process.pid}`;
+  writeFileSync(temp, next, { mode: statSync(path).mode & 0o777 });
+  renameSync(temp, path);
+}
+if (agents.some((agent) => agent.backend === "codex")) {
+  scrubCodexConfig();
+  process.on("exit", scrubCodexConfig);
+}
 // Without CLAUDE_CONFIG_DIR, Claude keeps its config in ~/.claude and its state in ~/.claude.json;
 // with it, both live in that directory.
 const claudeConfig = process.env.CLAUDE_CONFIG_DIR || join(home, ".claude");
@@ -551,6 +576,7 @@ async function runCell({ agent, fixture, arm }) {
     else disclosed = true;
     message = decision.message;
   }
+  if (agent.backend === "codex") scrubCodexConfig();
   return buildRow({
     fixture,
     agent,
