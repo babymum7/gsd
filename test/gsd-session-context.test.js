@@ -80,6 +80,12 @@ test("packet notes cap their lists and stay silent when nothing was skipped", ()
   assert.equal(composeRecoveryCapsule(null, "/gsd", "s1"), null);
   const notes = renderPacketNotes({ malformed: ["a", "b", "c", "d", "e", "f", "g"] });
   assert.match(notes, /: a, b, c, d, e \(and 2 more\)$/);
+  assert.equal(
+    renderPacketNotes({ inherited: [{ token: "old", features: ["a", "b", "c", "d", "e", "f"] }] }, "new"),
+    "[GSD Packet Notes]\nGSD features recorded under this session's earlier token old; re-own each before resuming with " +
+      "gsd-state.mjs set --feature-dir .scratch/<feature> --takeover owner=new: a, b, c, d, e (and 1 more)",
+  );
+  assert.match(composeRecoveryCapsule({ inherited: [{ token: "old", features: ["a"] }] }, "/gsd", "new"), /\nGSD_SESSION: new$/);
 });
 
 test("reading a retired schema names the rebind instead of the flag list", () => {
