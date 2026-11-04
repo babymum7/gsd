@@ -1,0 +1,5 @@
+{
+  "id": "vnd-price",
+  "kind": "vague",
+  "summary": "Vietnamese-language prompt about showing prices the Vietnamese way; the function, thousands separator, currency symbol, and rounding are only in the clarification"
+}
