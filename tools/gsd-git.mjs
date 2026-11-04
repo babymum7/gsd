@@ -38,6 +38,9 @@ const SKILLS_ONLY_SESSION = "skills-only";
 const GIT_OUTPUT_LIMIT = 64 * 1024 * 1024;
 // Most kept untracked paths a ready report names one per line; the rest are counted.
 const KEPT_UNTRACKED_SHOWN = 10;
+// The line a ready report adds under its kept untracked paths, so the agent leaves them be.
+const KEPT_UNTRACKED_NOTE =
+  "kept_untracked_note: these paths never enter the merge; leave them where they are, never stash, move, ignore, or delete them";
 // Longest part of Git's own refusal quoted back in a block message.
 const GIT_REASON_MAX_CHARS = 300;
 
@@ -459,21 +462,12 @@ function requireFreeRecordNumbers(dir, base, wip, where) {
   );
 }
 
-// Whether an untracked path is the feature's: listed in a live task's Files, or inside a
-// directory holding a path the branch changed or a task lists. The root holds only the files
-// directly in it, so one changed README does not claim every untracked folder in the repository.
-function featurePathTest(changed, listed) {
+// Whether an untracked path is the feature's: a live task's Files lists it, or lists a
+// directory holding it. Every other untracked path is the user's and never enters the merge.
+function featurePathTest(listed) {
   const listedSet = new Set(listed);
-  const dirs = new Set([...changed, ...listed].map((path) => dirname(path)));
-  return (path) => {
-    if (listedSet.has(path)) return true;
-    const parent = dirname(path);
-    if (parent === ".") return dirs.has(".");
-    for (const dir of dirs) {
-      if (dir !== "." && (parent === dir || parent.startsWith(`${dir}/`))) return true;
-    }
-    return false;
-  };
+  const dirs = listed.map((entry) => entry.replace(/\/+$/, "")).filter((entry) => entry !== "");
+  return (path) => listedSet.has(path) || dirs.some((dir) => path.startsWith(`${dir}/`));
 }
 
 function deriveBase(cwd) {
@@ -638,7 +632,7 @@ function proveBranchIdentity(dir, base, wip, where, baseMayBeElsewhere = false, 
     );
   }
   const { paths: tracked, untracked, staged } = dirtyNonScratchPaths(dir);
-  const isFeaturePath = featurePathTest(branchChangedPaths(dir, base, wip, where), listed);
+  const isFeaturePath = featurePathTest(listed);
   const dirty = [...tracked, ...untracked.filter(isFeaturePath)];
   const kept = untracked.filter((path) => !isFeaturePath(path));
   if (dirty.length > 0) {
@@ -683,7 +677,7 @@ function treeLines(kept) {
   if (kept.length === 0) return ["tree: clean outside .scratch/"];
   const shown = kept.slice(0, KEPT_UNTRACKED_SHOWN).map((path) => `kept_untracked: ${path}`);
   const more = kept.length > KEPT_UNTRACKED_SHOWN ? [`kept_untracked_more: ${kept.length - KEPT_UNTRACKED_SHOWN}`] : [];
-  return [`tree: clean outside .scratch/ except ${kept.length} kept untracked path(s)`, ...shown, ...more];
+  return [`tree: clean outside .scratch/ except ${kept.length} kept untracked path(s)`, ...shown, ...more, KEPT_UNTRACKED_NOTE];
 }
 
 function preflight(cwd, featureDir) {

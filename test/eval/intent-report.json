@@ -414,6 +414,76 @@
       "bundle_sha256": null
     },
     {
+      "fixture": "vnd-price",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/money.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 433459,
+      "cost_usd": 0.0228994,
+      "wall_ms": 38570,
+      "fixture_sha256": "cb85f0d6996da16ed92f1d3043543b1a290c0b41fa9dbb8f422a22931e91afcd",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.318 (Claude Code)",
+      "bundle_sha256": "483b7ff65ce3033f07c3fc731737c4a1084a6361123e1bf3b44668d7221bfdea"
+    },
+    {
+      "fixture": "vnd-price",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-haiku-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/money.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": true
+      },
+      "tokens": 139848,
+      "cost_usd": 0.00866283,
+      "wall_ms": 23793,
+      "fixture_sha256": "cb85f0d6996da16ed92f1d3043543b1a290c0b41fa9dbb8f422a22931e91afcd",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.318 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
       "fixture": "average-empty",
       "kind": "clear",
       "backend": "claude",
@@ -829,6 +899,76 @@
       "fixture_sha256": "cd6c96f728cda5039948a5e1b4fb03f2d110565535798ac5c86345e907cf0cc4",
       "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
       "cli_version": "2.1.316 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "vnd-price",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/money.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 273185,
+      "cost_usd": 0.4717138,
+      "wall_ms": 42971,
+      "fixture_sha256": "cb85f0d6996da16ed92f1d3043543b1a290c0b41fa9dbb8f422a22931e91afcd",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.318 (Claude Code)",
+      "bundle_sha256": "483b7ff65ce3033f07c3fc731737c4a1084a6361123e1bf3b44668d7221bfdea"
+    },
+    {
+      "fixture": "vnd-price",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-opus-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/money.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 340240,
+      "cost_usd": 0.7441682,
+      "wall_ms": 55139,
+      "fixture_sha256": "cb85f0d6996da16ed92f1d3043543b1a290c0b41fa9dbb8f422a22931e91afcd",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.318 (Claude Code)",
       "bundle_sha256": null
     },
     {
@@ -1250,6 +1390,76 @@
       "bundle_sha256": null
     },
     {
+      "fixture": "vnd-price",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/money.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 255693,
+      "cost_usd": 0.2033058,
+      "wall_ms": 33324,
+      "fixture_sha256": "cb85f0d6996da16ed92f1d3043543b1a290c0b41fa9dbb8f422a22931e91afcd",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.318 (Claude Code)",
+      "bundle_sha256": "483b7ff65ce3033f07c3fc731737c4a1084a6361123e1bf3b44668d7221bfdea"
+    },
+    {
+      "fixture": "vnd-price",
+      "kind": "vague",
+      "backend": "claude",
+      "model": "claude-sonnet-5-5",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/money.test.js"
+      ],
+      "agent_turns": 1,
+      "asked": false,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 101209,
+      "cost_usd": 0.1323861,
+      "wall_ms": 18503,
+      "fixture_sha256": "cb85f0d6996da16ed92f1d3043543b1a290c0b41fa9dbb8f422a22931e91afcd",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "2.1.318 (Claude Code)",
+      "bundle_sha256": null
+    },
+    {
       "fixture": "average-empty",
       "kind": "clear",
       "backend": "codex",
@@ -1643,6 +1853,72 @@
       "fixture_sha256": "cd6c96f728cda5039948a5e1b4fb03f2d110565535798ac5c86345e907cf0cc4",
       "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
       "cli_version": "codex-cli 0.164.0",
+      "bundle_sha256": null
+    },
+    {
+      "fixture": "vnd-price",
+      "kind": "vague",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 413520,
+      "cost_usd": null,
+      "wall_ms": 114559,
+      "fixture_sha256": "cb85f0d6996da16ed92f1d3043543b1a290c0b41fa9dbb8f422a22931e91afcd",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.166.0",
+      "bundle_sha256": "bc734bd05ab3ac2b2ba3f04b686361c78d44047d338639b168b5c5b13e8a4e30"
+    },
+    {
+      "fixture": "vnd-price",
+      "kind": "vague",
+      "backend": "codex",
+      "model": "gpt-6-luna",
+      "arm": "vanilla",
+      "valid": false,
+      "invalid_reason": "the bootstrap reached the vanilla arm",
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 264966,
+      "cost_usd": null,
+      "wall_ms": 94697,
+      "fixture_sha256": "cb85f0d6996da16ed92f1d3043543b1a290c0b41fa9dbb8f422a22931e91afcd",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "codex-cli 0.166.0",
       "bundle_sha256": null
     },
     {
@@ -2068,108 +2344,178 @@
       "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
       "cli_version": "0.2.1-rc.5",
       "bundle_sha256": null
+    },
+    {
+      "fixture": "vnd-price",
+      "kind": "vague",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "gsd",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": true,
+      "passed": true,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/money.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": true,
+      "corrected": false,
+      "recommended": false,
+      "turn1": {
+        "changed": false,
+        "question": true
+      },
+      "tokens": 31938,
+      "cost_usd": null,
+      "wall_ms": 79069,
+      "fixture_sha256": "cb85f0d6996da16ed92f1d3043543b1a290c0b41fa9dbb8f422a22931e91afcd",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": "483b7ff65ce3033f07c3fc731737c4a1084a6361123e1bf3b44668d7221bfdea"
+    },
+    {
+      "fixture": "vnd-price",
+      "kind": "vague",
+      "backend": "dsh",
+      "model": "default",
+      "arm": "vanilla",
+      "valid": true,
+      "invalid_reason": null,
+      "bootstrap_seen": false,
+      "passed": true,
+      "hidden": {
+        "passed": 8,
+        "total": 8,
+        "failing": []
+      },
+      "regressions": [],
+      "visible_tests_edited": [
+        "test/money.test.js"
+      ],
+      "agent_turns": 2,
+      "asked": false,
+      "corrected": true,
+      "recommended": false,
+      "turn1": {
+        "changed": true,
+        "question": false
+      },
+      "tokens": 140531,
+      "cost_usd": null,
+      "wall_ms": 224946,
+      "fixture_sha256": "cb85f0d6996da16ed92f1d3043543b1a290c0b41fa9dbb8f422a22931e91afcd",
+      "harness_sha256": "ab7158a25e2865001d36f42cd0ce675c06d08fbd1b1d8fd7b3436bf5e9e9e1bb",
+      "cli_version": "0.2.1-rc.5",
+      "bundle_sha256": null
     }
   ],
   "summary": {
     "claude:claude-haiku-5-5": {
       "vanilla": {
-        "rows": 6,
-        "valid": 6,
-        "passed": 6,
-        "first_try": 3,
-        "vague": 4,
+        "rows": 7,
+        "valid": 7,
+        "passed": 7,
+        "first_try": 4,
+        "vague": 5,
         "asked_vague": 0,
         "clear": 2,
         "over_asked": 0,
         "corrected": 3,
-        "agent_turns": 9,
-        "tokens": 1653133,
-        "cost_usd": 0.06922814,
-        "wall_ms": 152933
+        "agent_turns": 10,
+        "tokens": 1792981,
+        "cost_usd": 0.07789097,
+        "wall_ms": 176726
       },
       "gsd": {
-        "rows": 6,
-        "valid": 6,
-        "passed": 6,
+        "rows": 7,
+        "valid": 7,
+        "passed": 7,
         "first_try": 6,
-        "vague": 4,
+        "vague": 5,
         "asked_vague": 3,
         "clear": 2,
         "over_asked": 0,
-        "corrected": 0,
-        "agent_turns": 9,
-        "tokens": 1284784,
-        "cost_usd": 0.06272551,
-        "wall_ms": 139941
+        "corrected": 1,
+        "agent_turns": 11,
+        "tokens": 1718243,
+        "cost_usd": 0.08562491,
+        "wall_ms": 178511
       }
     },
     "claude:claude-opus-5-5": {
       "vanilla": {
-        "rows": 6,
-        "valid": 6,
-        "passed": 6,
+        "rows": 7,
+        "valid": 7,
+        "passed": 7,
         "first_try": 3,
-        "vague": 4,
+        "vague": 5,
         "asked_vague": 0,
         "clear": 2,
         "over_asked": 0,
-        "corrected": 3,
-        "agent_turns": 9,
-        "tokens": 1629547,
-        "cost_usd": 2.9429672,
-        "wall_ms": 263283
+        "corrected": 4,
+        "agent_turns": 11,
+        "tokens": 1969787,
+        "cost_usd": 3.6871354,
+        "wall_ms": 318422
       },
       "gsd": {
-        "rows": 6,
-        "valid": 6,
-        "passed": 6,
-        "first_try": 6,
-        "vague": 4,
-        "asked_vague": 3,
+        "rows": 7,
+        "valid": 7,
+        "passed": 7,
+        "first_try": 7,
+        "vague": 5,
+        "asked_vague": 4,
         "clear": 2,
         "over_asked": 0,
         "corrected": 0,
-        "agent_turns": 9,
-        "tokens": 1530211,
-        "cost_usd": 2.4214978,
-        "wall_ms": 270033
+        "agent_turns": 11,
+        "tokens": 1803396,
+        "cost_usd": 2.8932116,
+        "wall_ms": 313004
       }
     },
     "claude:claude-sonnet-5-5": {
       "vanilla": {
-        "rows": 6,
-        "valid": 6,
-        "passed": 6,
-        "first_try": 3,
-        "vague": 4,
+        "rows": 7,
+        "valid": 7,
+        "passed": 7,
+        "first_try": 4,
+        "vague": 5,
         "asked_vague": 0,
         "clear": 2,
         "over_asked": 0,
         "corrected": 3,
-        "agent_turns": 9,
-        "tokens": 1179211,
-        "cost_usd": 0.9733324,
-        "wall_ms": 157453
+        "agent_turns": 10,
+        "tokens": 1280420,
+        "cost_usd": 1.1057185,
+        "wall_ms": 175956
       },
       "gsd": {
-        "rows": 6,
-        "valid": 6,
-        "passed": 6,
-        "first_try": 6,
-        "vague": 4,
-        "asked_vague": 3,
+        "rows": 7,
+        "valid": 7,
+        "passed": 7,
+        "first_try": 7,
+        "vague": 5,
+        "asked_vague": 4,
         "clear": 2,
         "over_asked": 0,
         "corrected": 0,
-        "agent_turns": 9,
-        "tokens": 1360990,
-        "cost_usd": 1.0399247,
-        "wall_ms": 164419
+        "agent_turns": 11,
+        "tokens": 1616683,
+        "cost_usd": 1.2432305,
+        "wall_ms": 197743
       }
     },
     "codex:gpt-6-luna": {
       "vanilla": {
-        "rows": 6,
+        "rows": 7,
         "valid": 6,
         "passed": 6,
         "first_try": 3,
@@ -2184,51 +2530,51 @@
         "wall_ms": 495619
       },
       "gsd": {
-        "rows": 6,
-        "valid": 6,
-        "passed": 6,
-        "first_try": 6,
-        "vague": 4,
-        "asked_vague": 4,
+        "rows": 7,
+        "valid": 7,
+        "passed": 7,
+        "first_try": 7,
+        "vague": 5,
+        "asked_vague": 5,
         "clear": 2,
         "over_asked": 0,
         "corrected": 0,
-        "agent_turns": 10,
-        "tokens": 3113700,
+        "agent_turns": 12,
+        "tokens": 3527220,
         "cost_usd": null,
-        "wall_ms": 1168302
+        "wall_ms": 1282861
       }
     },
     "dsh:default": {
       "vanilla": {
-        "rows": 6,
-        "valid": 5,
-        "passed": 5,
+        "rows": 7,
+        "valid": 6,
+        "passed": 6,
         "first_try": 3,
-        "vague": 3,
+        "vague": 4,
         "asked_vague": 0,
         "clear": 2,
         "over_asked": 0,
-        "corrected": 2,
-        "agent_turns": 7,
-        "tokens": 308147,
+        "corrected": 3,
+        "agent_turns": 9,
+        "tokens": 448678,
         "cost_usd": null,
-        "wall_ms": 1224758
+        "wall_ms": 1449704
       },
       "gsd": {
-        "rows": 6,
-        "valid": 6,
-        "passed": 6,
-        "first_try": 6,
-        "vague": 4,
-        "asked_vague": 3,
+        "rows": 7,
+        "valid": 7,
+        "passed": 7,
+        "first_try": 7,
+        "vague": 5,
+        "asked_vague": 4,
         "clear": 2,
         "over_asked": 0,
         "corrected": 0,
-        "agent_turns": 9,
-        "tokens": 139128,
+        "agent_turns": 11,
+        "tokens": 171066,
         "cost_usd": null,
-        "wall_ms": 600674
+        "wall_ms": 679743
       }
     }
   }

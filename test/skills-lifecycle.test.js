@@ -590,11 +590,11 @@ test("AC-2, AC-3, AC-4: the documented bind, checkpoint, and delivery commands r
     assert.equal(git("show", "--format=", "--name-only", "HEAD"), "test/skills.test.js");
 
     const base = git("rev-parse", "main");
-    // Beside the feature's own test, an untracked file is one it forgot to commit.
-    writeFileSync(join(root, "test", "stray.txt"), "unreviewed\n");
+    // An uncommitted edit to the feature's own test is unreviewed bytes, so delivery stops before any write.
+    writeFileSync(join(root, "test", "skills.test.js"), "// fixture, edited after review\n");
     assert.notEqual(sh(fillSlots(deliver, values)).status, 0);
     assert.deepEqual([git("rev-parse", "main"), git("branch", "--show-current")], [base, `wip/${feature}`]);
-    rmSync(join(root, "test", "stray.txt"));
+    git("checkout", "--", "test/skills.test.js");
 
     const delivered = sh(fillSlots(deliver, values));
     assert.equal(delivered.status, 0, delivered.stdout + delivered.stderr);

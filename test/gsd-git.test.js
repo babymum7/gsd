@@ -48,7 +48,7 @@ function fakeGitPath(failWhen) {
 }
 
 // The smallest plan the validator accepts: only the required sections.
-function minimalPlan(feature, base, { repos = null, repo = null } = {}) {
+function minimalPlan(feature, base, { repos = null, repo = null, files = ["src/app.js"] } = {}) {
   return [
     "# Plan",
     "## Feature",
@@ -68,7 +68,7 @@ function minimalPlan(feature, base, { repos = null, repo = null } = {}) {
     "- **Satisfies:** AC-1",
     ...(repo ? [`- **Repo:** ${repo}`] : []),
     "- **Files:**",
-    "  - `src/app.js` — modify: update the app file",
+    ...files.map((path) => `  - \`${path}\` — modify: update the app file`),
     "- **Test:** `bun test`",
     "- **Status:** pending",
     "",
@@ -76,7 +76,7 @@ function minimalPlan(feature, base, { repos = null, repo = null } = {}) {
 }
 
 // A packet the preflight can read: a real repo on a WIP branch cut from a real base.
-function makePacket({ feature = "git-demo", base = "main" } = {}) {
+function makePacket({ feature = "git-demo", base = "main", files } = {}) {
   const root = mkdtempSync(join(tmpdir(), "gsd-git-test-"));
   git(["init", "-q", "--initial-branch", base, "."], root);
   git(["config", "user.email", "test@example.com"], root);
@@ -91,7 +91,7 @@ function makePacket({ feature = "git-demo", base = "main" } = {}) {
   const featureDir = join(root, ".scratch", feature);
   mkdirSync(featureDir, { recursive: true });
   const planPath = join(featureDir, "plan.md");
-  writeFileSync(planPath, minimalPlan(feature, base));
+  writeFileSync(planPath, minimalPlan(feature, base, { files }));
   writeStateAtomic(featureDir, {
     schema: "v0.0.3",
     feature,
@@ -317,8 +317,9 @@ test("preflight blocks a dirty non-scratch tree and ignores scratch churn", () =
       },
     },
     {
-      // Beside a path a live task lists, an untracked file is one the feature forgot to commit.
+      // An untracked file a live task lists is one the feature forgot to commit.
       label: "new untracked file",
+      files: ["src/app.js", "src/notes.md"],
       paths: ["src/notes.md"],
       prepare: ({ root }) => writeFileSync(join(root, "src", "notes.md"), "note\n"),
     },
@@ -337,8 +338,8 @@ test("preflight blocks a dirty non-scratch tree and ignores scratch churn", () =
     },
   ];
 
-  for (const { label, paths, prepare } of dirtyCases) {
-    const packet = makePacket({ feature: "dirty-demo", base: "trunk" });
+  for (const { label, files, paths, prepare } of dirtyCases) {
+    const packet = makePacket({ feature: "dirty-demo", base: "trunk", files });
     try {
       prepare(packet);
       const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
@@ -366,34 +367,57 @@ test("preflight blocks a dirty non-scratch tree and ignores scratch churn", () =
     const result = cli(["preflight", "--feature-dir", packet.relative], packet.root);
     assert.equal(result.status, 0, `scratch churn must not block: ${result.stdout}`);
     assert.match(result.stdout, /^tree: clean outside \.scratch\/$/m);
+    assert.doesNotMatch(result.stdout, /kept_untracked/);
   } finally {
     rmSync(packet.root, { recursive: true, force: true });
   }
 
-  // An untracked file outside every directory the feature touches never enters the index the
-  // merge commits, so it is the user's and stays where it is; the root counts only for files
-  // directly in it, and only once the branch changes one there.
-  const kept = makePacket({ feature: "dirty-demo", base: "trunk" });
+  // Only a path a live task lists, or one inside a directory it lists, blocks. Every other
+  // untracked file never enters the index the merge commits, so it is the user's and stays
+  // where it is, however many directories the branch changed.
+  const kept = makePacket({ feature: "dirty-demo", base: "trunk", files: ["src/app.js", "src/new.js"] });
   try {
     mkdirSync(join(kept.root, "docs", "research"), { recursive: true });
+    writeFileSync(join(kept.root, "docs", "OPERATIONS.md"), "ops\n");
+    writeFileSync(join(kept.root, "README.md"), "readme\n");
+    git(["add", "-A"], kept.root);
+    git(["commit", "-qm", "touch docs and the root"], kept.root);
     writeFileSync(join(kept.root, "docs", "research", "notes.md"), "mine\n");
     writeFileSync(join(kept.root, "todo.md"), "mine\n");
-    const result = cli(["preflight", "--feature-dir", kept.relative], kept.root);
-    assert.equal(result.status, 0, `an untracked file outside the feature must not block: ${result.stdout}`);
-    assert.match(result.stdout, /^kept_untracked: docs\/research\/notes\.md$/m);
-    assert.match(result.stdout, /^kept_untracked: todo\.md$/m);
-    assert.match(result.stdout, /^tree: clean outside \.scratch\/ except 2 kept untracked path\(s\)$/m);
+    writeFileSync(join(kept.root, "src", "notes.md"), "beside a listed path\n");
+    writeFileSync(join(kept.root, "src", "new.js"), "feature\n");
+    const blockedRun = cli(["preflight", "--feature-dir", kept.relative], kept.root);
+    assert.equal(blockedRun.status, 1, `an untracked file a task lists must block: ${blockedRun.stdout}`);
+    assert.match(blockedRun.stdout, /^code: dirty-worktree$/m);
+    assert.match(blockedRun.stdout, /1 non-scratch path\(s\)/);
+    assert.match(blockedRun.stdout, /src\/new\.js/);
+    assert.doesNotMatch(blockedRun.stdout, /notes\.md|todo\.md/);
 
-    writeFileSync(join(kept.root, "file.txt"), "feature\n");
-    git(["commit", "-qam", "touch the root"], kept.root);
-    const root = cli(["preflight", "--feature-dir", kept.relative], kept.root);
-    assert.equal(root.status, 1, `a changed root file makes root-level untracked files the feature's: ${root.stdout}`);
-    assert.match(root.stdout, /^code: dirty-worktree$/m);
-    assert.match(root.stdout, /1 non-scratch path\(s\)/);
-    assert.match(root.stdout, /todo\.md/);
-    assert.doesNotMatch(root.stdout, /docs\/research/);
+    git(["add", "src/new.js"], kept.root);
+    git(["commit", "-qm", "add the listed file"], kept.root);
+    const result = cli(["preflight", "--feature-dir", kept.relative], kept.root);
+    assert.equal(result.status, 0, `untracked files no task lists must not block: ${result.stdout}`);
+    assert.match(result.stdout, /^kept_untracked: docs\/research\/notes\.md$/m);
+    assert.match(result.stdout, /^kept_untracked: src\/notes\.md$/m);
+    assert.match(result.stdout, /^kept_untracked: todo\.md$/m);
+    assert.match(result.stdout, /^tree: clean outside \.scratch\/ except 3 kept untracked path\(s\)$/m);
+    assert.equal(result.stdout.match(/^kept_untracked_note: .*never enter the merge.*never stash, move, ignore, or delete them$/gm)?.length, 1);
   } finally {
     rmSync(kept.root, { recursive: true, force: true });
+  }
+
+  // A listed directory claims every untracked path inside it, and only those.
+  const listedDir = makePacket({ feature: "dirty-demo", base: "trunk", files: ["src"] });
+  try {
+    writeFileSync(join(listedDir.root, "src", "deep.js"), "feature\n");
+    writeFileSync(join(listedDir.root, "srcs.md"), "mine\n");
+    const result = cli(["preflight", "--feature-dir", listedDir.relative], listedDir.root);
+    assert.equal(result.status, 1, result.stdout);
+    assert.match(result.stdout, /1 non-scratch path\(s\)/);
+    assert.match(result.stdout, /src\/deep\.js/);
+    assert.doesNotMatch(result.stdout, /srcs\.md/);
+  } finally {
+    rmSync(listedDir.root, { recursive: true, force: true });
   }
 });
 
@@ -616,7 +640,7 @@ test("preflight reads a status listing larger than the default child-process buf
   // `spawnSync` caps captured output at 1 MiB and fails with ENOBUFS beyond it, which the
   // gate reported as a missing git. A tree with thousands of untracked files is dirty, and
   // the gate must say so.
-  const { root, relative } = makePacket({ feature: "buffer-demo" });
+  const { root, relative } = makePacket({ feature: "buffer-demo", files: ["src/noise"] });
   try {
     const noise = join(root, "src", "noise");
     mkdirSync(noise);
@@ -1701,6 +1725,7 @@ test("preflight --base proves a quick-fix branch without a packet", () => {
     assert.match(ready.stdout, /^base: main$/m);
     assert.match(ready.stdout, /^head: fix\/typo$/m);
     assert.match(ready.stdout, /^kept_untracked: mine\.md$/m);
+    assert.match(ready.stdout, /^kept_untracked_note: /m);
     assert.match(ready.stdout, /^exit=0$/m);
     assert.doesNotMatch(ready.stdout, /wip:|outside_files/);
 

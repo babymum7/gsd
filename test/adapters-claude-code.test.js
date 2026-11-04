@@ -40,22 +40,21 @@ function parseContext(stdout, event) {
   return parsed.hookSpecificOutput.additionalContext;
 }
 
-function projectWithActiveFeature(owner = "none") {
-  const project = mkdtempSync(join(tmpdir(), "gsd-cc-project-"));
-  const featureDir = join(project, ".scratch", "demo");
+function projectWithActiveFeature(owner = "none", feature = "demo", project = mkdtempSync(join(tmpdir(), "gsd-cc-project-"))) {
+  const featureDir = join(project, ".scratch", feature);
   mkdirSync(featureDir, { recursive: true });
   writeFileSync(join(featureDir, "plan.md"), "# Plan\n");
   writeFileSync(
     join(featureDir, "state.toon"),
     [
       "schema:v0.0.3",
-      "feature:demo",
+      `feature:${feature}`,
       `owner:${owner}`,
       "phase:approved",
       "next_action:start task",
-      "plan_path:.scratch/demo/plan.md",
+      `plan_path:.scratch/${feature}/plan.md`,
       "base_ref:main",
-      "wip_branch:wip/demo",
+      `wip_branch:wip/${feature}`,
       "last_green_task:none",
       "last_green_commit:none",
       "checkpoint_revision:1",
@@ -173,6 +172,76 @@ test("a compact SessionStart delivers the bootstrap, then the capsule with the p
     `${bootstrapFor("s3")}\n\n${withCurrentRequest(renderRecoveryCapsule(CORE_ROOT, project, owner("s3")), "continue")}`,
     "the compact payload is the core bootstrap, then the capsule with the preserved request, byte for byte",
   );
+});
+
+// Claude Code continues a transcript under a new session id, so the GSD hook outputs at its
+// head carry the earlier token and the packets recorded under it are the continued session's.
+function transcriptWith(records) {
+  const file = join(mkdtempSync(join(tmpdir(), "gsd-cc-transcript-")), "session.jsonl");
+  writeFileSync(file, records.map((record) => JSON.stringify(record)).join("\n") + "\n");
+  return file;
+}
+
+test("compact and resume list packets owned by an earlier token the transcript head carries", () => {
+  const project = projectWithActiveFeature(owner("old"), "old-feature");
+  projectWithActiveFeature(owner("other"), "other-feature", project);
+  const transcript = transcriptWith([
+    {
+      type: "attachment",
+      attachment: {
+        type: "hook_success",
+        hookName: "SessionStart:compact",
+        hookEvent: "SessionStart",
+        stdout: JSON.stringify({
+          hookSpecificOutput: {
+            hookEventName: "SessionStart",
+            additionalContext: `<GSD_BOOTSTRAP>\nbody\nGSD_SESSION: ${owner("old")}\n</GSD_BOOTSTRAP>`,
+          },
+        }),
+      },
+    },
+    {
+      type: "user",
+      message: {
+        role: "user",
+        content: [{ type: "tool_result", content: `quoted GSD_SESSION: ${owner("other")}\n` }],
+      },
+    },
+  ]);
+  for (const source of ["compact", "resume"]) {
+    const stateRoot = mkdtempSync(join(tmpdir(), "gsd-cc-state-"));
+    const after = parseContext(
+      run(
+        { hook_event_name: "SessionStart", source, session_id: "new", cwd: project, transcript_path: transcript },
+        project,
+        stateRoot,
+      ),
+      "SessionStart",
+    );
+    const capsule = renderRecoveryCapsule(CORE_ROOT, project, owner("new"), [owner("old")]);
+    assert.equal(
+      after,
+      source === "compact" ? `${bootstrapFor("new")}\n\n${capsule}` : capsule,
+      `${source} payload is the core capsule, byte for byte`,
+    );
+    assert.match(after, new RegExp(`earlier token ${owner("old")}.*--takeover owner=${owner("new")}: old-feature`));
+    assert.doesNotMatch(after, /other-feature/);
+  }
+
+  // Without a readable transcript the capsule is exactly what it was before inheritance.
+  const missing = run(
+    { hook_event_name: "SessionStart", source: "resume", session_id: "new", cwd: project, transcript_path: join(project, "absent.jsonl") },
+    project,
+    mkdtempSync(join(tmpdir(), "gsd-cc-state-")),
+  );
+  assert.equal(missing, "", "no readable transcript and no owned packet is no capsule");
+  const owned = projectWithActiveFeature(owner("new"));
+  const plain = run(
+    { hook_event_name: "SessionStart", source: "resume", session_id: "new", cwd: owned, transcript_path: join(owned, "absent.jsonl") },
+    owned,
+    mkdtempSync(join(tmpdir(), "gsd-cc-state-")),
+  );
+  assert.equal(parseContext(plain, "SessionStart"), renderRecoveryCapsule(CORE_ROOT, owned, owner("new")));
 });
 
 // Claude Code delivers a finished background task as a prompt that opens with
