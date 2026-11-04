@@ -1,0 +1,1 @@
+Thêm `formatVnd(amount)` vào `src/money.js`; `amount` là một số đồng. Làm tròn đến đồng nguyên gần nhất bằng `Math.round`, rồi nhóm hàng nghìn bằng dấu chấm `.`, rồi thêm một dấu cách thường (không phải dấu cách không ngắt) và `₫`: kết quả có dạng `1.234.567 ₫`. Số âm bắt đầu bằng `-` trước các chữ số (`-50.000 ₫`); `0` cho `0 ₫`.
