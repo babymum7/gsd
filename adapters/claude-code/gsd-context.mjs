@@ -82,6 +82,7 @@ function sourceOf(input) {
 // since a transcript can be tens of megabytes and those outputs come first.
 const TRANSCRIPT_HEAD_BYTES = 4 * 1024 * 1024;
 const GSD_HOOK_EVENTS = new Set(['SessionStart', 'UserPromptSubmit']);
+const FORK_HOOK_NAME = 'SessionStart:fork';
 const OWNER_TOKEN_PATTERN = /GSD_SESSION: (claude-[A-Za-z0-9._:-]+)/g;
 
 function readTranscriptHead(transcriptPath) {
@@ -106,7 +107,8 @@ function readTranscriptHead(transcriptPath) {
 
 // Only GSD's own hook attachments count: a tool result or message that quotes a token is not
 // a session this transcript ran under. A final line the byte limit cut fails to parse and is skipped.
-function inheritedOwners(input, current) {
+function inheritedOwners(input, current, forked) {
+  if (forked) return [];
   const transcriptPath = input.transcript_path;
   if (typeof transcriptPath !== 'string' || transcriptPath === '') return [];
   const tokens = new Set();
@@ -120,7 +122,10 @@ function inheritedOwners(input, current) {
     }
     const attachment = record?.type === 'attachment' ? record.attachment : null;
     if (!attachment || !GSD_HOOK_EVENTS.has(attachment.hookEvent)) continue;
-    for (const match of JSON.stringify(attachment).matchAll(OWNER_TOKEN_PATTERN)) {
+    const text = JSON.stringify(attachment);
+    // A fork copies its parent's history but is a second session; the parent may still run.
+    if (attachment.hookName === FORK_HOOK_NAME && text.includes(`GSD_SESSION: ${current}`)) return [];
+    for (const match of text.matchAll(OWNER_TOKEN_PATTERN)) {
       if (match[1] !== current) tokens.add(match[1]);
     }
   }
@@ -130,6 +135,8 @@ function inheritedOwners(input, current) {
 function handleSessionStart(input) {
   const store = createMarkerStore(STATE_ROOT, input.session_id);
   const source = sourceOf(input);
+  // A fork's transcript head carries its parent's token, so the fork never inherits from it.
+  if (source === 'fork') store.write('forked');
   const bootstrap = renderBootstrap(ownerOf(input));
   const digest = bootstrapDigest(bootstrap);
   // A resumed transcript replays the bootstrap it got; when GSD has since changed it, such as
@@ -141,7 +148,12 @@ function handleSessionStart(input) {
   // bootstrap injected earlier, so it comes back first; a resume replays it with the transcript.
   const capsule =
     source === 'compact' || source === 'resume'
-      ? renderRecoveryCapsule(GSD_ROOT, cwdOf(input), ownerOf(input), inheritedOwners(input, ownerOf(input)))
+      ? renderRecoveryCapsule(
+          GSD_ROOT,
+          cwdOf(input),
+          ownerOf(input),
+          inheritedOwners(input, ownerOf(input), store.read('forked') !== null),
+        )
       : null;
   if (capsule) {
     store.write('bootstrap-emitted', digest);

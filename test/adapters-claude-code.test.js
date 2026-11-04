@@ -1,7 +1,7 @@
 import { test } from "bun:test";
 import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -227,6 +227,33 @@ test("compact and resume list packets owned by an earlier token the transcript h
     assert.match(after, new RegExp(`earlier token ${owner("old")}.*--takeover owner=${owner("new")}: old-feature`));
     assert.doesNotMatch(after, /other-feature/);
   }
+
+  // A fork copies its parent's history, and the parent may still run, so a fork inherits nothing:
+  // neither once its own fork hook output names it, nor after a fork start the hook saw itself.
+  const forkHook = {
+    type: "attachment",
+    attachment: {
+      type: "hook_success",
+      hookName: "SessionStart:fork",
+      hookEvent: "SessionStart",
+      stdout: `{"additionalContext":"<GSD_BOOTSTRAP>\\nGSD_SESSION: ${owner("new")}\\n</GSD_BOOTSTRAP>"}`,
+    },
+  };
+  const forked = transcriptWith([...JSON.parse(`[${readFileSync(transcript, "utf8").trim().split("\n").join(",")}]`), forkHook]);
+  const fromTranscript = run(
+    { hook_event_name: "SessionStart", source: "compact", session_id: "new", cwd: project, transcript_path: forked },
+    project,
+    mkdtempSync(join(tmpdir(), "gsd-cc-state-")),
+  );
+  assert.equal(parseContext(fromTranscript, "SessionStart"), bootstrapFor("new"));
+  const forkState = mkdtempSync(join(tmpdir(), "gsd-cc-state-"));
+  run({ hook_event_name: "SessionStart", source: "fork", session_id: "new", cwd: project }, project, forkState);
+  const fromMarker = run(
+    { hook_event_name: "SessionStart", source: "compact", session_id: "new", cwd: project, transcript_path: transcript },
+    project,
+    forkState,
+  );
+  assert.equal(parseContext(fromMarker, "SessionStart"), bootstrapFor("new"));
 
   // Without a readable transcript the capsule is exactly what it was before inheritance.
   const missing = run(
