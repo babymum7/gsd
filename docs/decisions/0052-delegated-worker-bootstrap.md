@@ -18,3 +18,16 @@ The coordinator measured 15 dispatched worker transcripts on 2026-11-06. None ma
 At this checkout's root, the default core render is 5074 bytes and the delegated one 2395 (47%). With the `GSD_SESSION` line and a two-profile sub-agent block appended to both, they are 5307 and 2628 bytes (49.5%). A test pins the delegated core render at no more than half the default. Another test pins the default to its composition from `skills/gsd/SKILL.md` and the catalog, so the switch cannot move a default byte.
 
 No intent eval has measured the delegated arm. A run with briefs that leave a question open and forbid branches would show whether workers ask through the channel and report the gate's verdict.
+
+## Amendment
+
+Amended 2026-11-06. The body gains context-economy rules, and the size pin moves from half to three fifths of the default.
+
+1. **Targeted reads.** Locate with `grep -n` or codegraph first, then read only the needed range, about 80 lines at a time. Never `cat` a whole large file. Give `git show` and `git diff` a path, or run `--stat` first.
+2. **No re-reads.** A file is read again only if it changed. After a compaction the worker trusts the summary and its commits (`git log`, `git diff --stat`) instead of re-reading files it already handled. This replaces the shorter re-read clause in **Turn economy**.
+3. **A capped advisor.** When the advisor tool exists, a worker makes at most 2 calls per task: one before the approach, one before done.
+4. **A short report.** The brief's report format wins, and its summary stays short.
+
+The coordinator measured 6 worker sessions on 2026-11-06. File reads were 61% of all tool-result characters: `sed` 220 calls / 839k characters, `grep` 292 / 527k, `cat` 100 / 395k, and `git show` 29 / 175k, about 6k per call. One session read one file 6 times. In the first 15 calls after each compaction, up to 58% of result characters were re-reads of files already read. 23 advisor calls cost 3.55M uncached input tokens, and one worker made 5 of them (825k tokens).
+
+The rules add 561 bytes, loaded at every worker start and after every compaction. That is small next to the read volume they target. At this checkout's root the default core render stays 5069 bytes and the delegated one is 2953 (58%). The test now pins the delegated core render at no more than three fifths of the default. The default is still pinned to its composition, so it stays byte-identical.

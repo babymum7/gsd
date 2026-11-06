@@ -1216,12 +1216,18 @@ describe("automatic GSD bootstrap metadata and catalog contract", () => {
     assert.equal(messageContainsBootstrap({ role: "user", content: delegated, timestamp: 1 }), true);
     assert.match(withSessionOwner(delegated, "claude-w1"), /\n\nGSD_SESSION: claude-w1\n<\/GSD_BOOTSTRAP>$/);
     const [delegatedBytes, defaultBytes] = [Buffer.byteLength(delegated), Buffer.byteLength(expectedDefault)];
-    assert.ok(delegatedBytes * 2 <= defaultBytes, `delegated ${delegatedBytes} bytes, default ${defaultBytes}`);
+    assert.ok(delegatedBytes * 5 <= defaultBytes * 3, `delegated ${delegatedBytes} bytes, default ${defaultBytes}`);
     // The worker's own rules, and none of the convergence or merge lifecycle a brief replaces.
     assert.match(delegated, /only through the channel the brief names, then end the turn/);
     assert.match(delegated, /never end a turn on a plain-text question/);
     assert.match(delegated, /Never create a `wip\/\*` or task branch/);
     assert.match(delegated, /## Verification gate[\s\S]*`Done when`[\s\S]*never its terminal gate/);
+    // Its context economy: targeted reads, no re-reads after a compaction, a capped advisor.
+    assert.match(delegated, /`grep -n` or codegraph first[\s\S]*about 80 lines at a time; never `cat` a whole large file/);
+    assert.match(delegated, /`git show` and `git diff` a path, or run `--stat` first/);
+    assert.match(delegated, /After a compaction, trust the summary and your commits \(`git log`, `git diff --stat`\)/);
+    assert.match(delegated, /at most 2 advisor calls per task: one before the approach, one before done/);
+    assert.match(delegated, /the brief's report format wins/);
     assert.doesNotMatch(delegated, /Unstated outcome|gsd-brainstorming|gsd-executing-plans|await the real answer|already loaded/);
 
     // A worker skill missing from the catalog, or a missing body, fails closed by name.

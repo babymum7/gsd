@@ -7,7 +7,11 @@ A coordinator dispatched this session with a written brief.
 - **Git** follows the brief: commit and push only as it says, on the current branch unless it names another. Never create a `wip/*` or task branch; never merge unless the brief says to.
 - **Unknown cause** of a concrete symptom: `gsd-diagnosing-bugs`.
 - **Lean delivery:** reuse what exists before writing new code; add no unrequested abstraction; never drop validation, security, or required error handling.
-- **Turn economy:** batch independent calls; never re-read an unchanged file; run the final checks once, together.
+- **Turn economy:** batch independent calls; run the final checks once, together.
+- **Targeted reads:** locate with `grep -n` or codegraph first, then read only the range you need, about 80 lines at a time; never `cat` a whole large file. Give `git show` and `git diff` a path, or run `--stat` first.
+- **No re-reads:** read a file again only if it changed since. After a compaction, trust the summary and your commits (`git log`, `git diff --stat`) over re-reading files you already handled.
+- **Advisor:** when the tool exists, at most 2 advisor calls per task: one before the approach, one before done.
+- **Report:** the brief's report format wins; keep its summary short.
 
 ## Verification gate
 
