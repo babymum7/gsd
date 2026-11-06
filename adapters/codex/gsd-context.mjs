@@ -17,7 +17,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createBootstrap, sanitizeBootstrapError } from '../../lib/gsd-bootstrap.mjs';
+import { createBootstrap, isDelegated, sanitizeBootstrapError } from '../../lib/gsd-bootstrap.mjs';
 import { loadSubagentProfiles, withSubagentProfiles } from '../../lib/gsd-settings.mjs';
 import {
   bootstrapDigest,
@@ -51,7 +51,7 @@ function readInput() {
 // session owner token that scopes which packets this session may see.
 function renderBootstrap(owner) {
   return withSessionOwner(
-    withSubagentProfiles(createBootstrap(GSD_ROOT), loadSubagentProfiles('codex', '`spawn_agent` `model`')),
+    withSubagentProfiles(createBootstrap(GSD_ROOT, { delegated: isDelegated() }), loadSubagentProfiles('codex', '`spawn_agent` `model`')),
     owner,
   );
 }

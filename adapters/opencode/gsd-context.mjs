@@ -21,7 +21,7 @@
 // get nothing, and opencode gets no sub-agent profiles.
 
 import { fileURLToPath } from 'node:url';
-import { createBootstrap, sanitizeBootstrapError } from '../../lib/gsd-bootstrap.mjs';
+import { createBootstrap, isDelegated, sanitizeBootstrapError } from '../../lib/gsd-bootstrap.mjs';
 import {
   renderRecoveryCapsule,
   resolveGsdRoot,
@@ -49,7 +49,7 @@ function release(sessionID, epoch) {
 }
 
 function renderBootstrap(sessionID) {
-  return withSessionOwner(createBootstrap(GSD_ROOT), sessionOwnerToken('opencode', sessionID));
+  return withSessionOwner(createBootstrap(GSD_ROOT, { delegated: isDelegated() }), sessionOwnerToken('opencode', sessionID));
 }
 
 function renderAfterCompaction(sessionID, cwd) {

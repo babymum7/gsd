@@ -9,6 +9,7 @@ import {
   discoverSkillCatalog,
   extractLastUserRequest,
   firstNonCompactionSummaryIndex,
+  isDelegated,
   messageContainsBootstrap,
   messageText,
   parseSkillMetadata,
@@ -55,7 +56,7 @@ function trackOwner(state, ctx) {
 
 function rebuildBootstrap(state) {
   try {
-    state.bootstrap = withSubagentProfiles(createBootstrap(state.root), loadSubagentProfiles('omp', 'the task tool `agent`'));
+    state.bootstrap = withSubagentProfiles(createBootstrap(state.root, { delegated: isDelegated() }), loadSubagentProfiles('omp', 'the task tool `agent`'));
     state.bootstrapError = null;
     state.lastLoggedBootstrapError = null;
   } catch (error) {

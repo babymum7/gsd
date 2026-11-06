@@ -22,7 +22,7 @@ import { randomUUID } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createBootstrap, sanitizeBootstrapError } from '../../lib/gsd-bootstrap.mjs';
+import { createBootstrap, isDelegated, sanitizeBootstrapError } from '../../lib/gsd-bootstrap.mjs';
 import {
   bootstrapDigest,
   createMarkerStore,
@@ -50,7 +50,7 @@ function userMessage(text) {
 
 // The core render plus the session owner token that scopes which packets this session may see.
 function renderBootstrap(owner) {
-  return withSessionOwner(createBootstrap(GSD_ROOT), owner);
+  return withSessionOwner(createBootstrap(GSD_ROOT, { delegated: isDelegated() }), owner);
 }
 
 function cwdOf(agent) {

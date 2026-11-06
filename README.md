@@ -171,6 +171,10 @@ One work tree has one checked-out branch, so a second agent (say Codex while Cla
 
 The same holds for every repository a cross-repo plan lists: if another feature's branch is checked out there, give that repository a worktree too and list its path under `## Repos`. Within a shared work tree, agents create a WIP branch only from a clean tree, stage their own paths by name, and never stash, clean, or reset paths their task does not own. A packet has one owner: `gsd-state.mjs set` refuses an `owner=` that differs from the recorded one unless the user handed the packet over and the session passes `--takeover`. Before a merge, `preflight` blocks with `base-advanced` when another feature already merged into the base, so the combination is re-verified before it lands.
 
+### Dispatched workers
+
+A coordinator that launches an agent with a complete written brief (goal, requirements, done-when, rules) sets `GSD_DELEGATED=1` in the launch command, for example `GSD_DELEGATED=1 claude ...`. Every adapter then injects the short worker bootstrap from `skills/gsd/DELEGATED.md` instead of the default (decision 0052). The worker treats the brief as converged acceptance, asks only through the channel the brief names, follows the brief's branch and commit rules without creating `wip/*` branches or merging, and runs a scaled verification gate before it reports done. Only the exact value `1` selects it; without it the bootstrap is unchanged.
+
 ## State and repository layout
 
 - `.scratch/` is ignored and machine-local by default.

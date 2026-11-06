@@ -86,6 +86,18 @@ test("SessionStart injects the bootstrap once and ordinary prompts stay silent",
     stateRoot,
   );
   assert.equal(prompt, "", "an ordinary prompt after SessionStart emits nothing");
+
+  // Decision 0052: a coordinator's GSD_DELEGATED=1 makes the hook inject the worker variant.
+  process.env.GSD_DELEGATED = "1";
+  try {
+    const delegated = parseContext(
+      run({ hook_event_name: "SessionStart", session_id: "c1-w", cwd: project, source: "startup" }, project, stateRoot),
+      "SessionStart",
+    );
+    assert.equal(delegated, withSessionOwner(createBootstrap(CORE_ROOT, { delegated: true }), owner("c1-w")));
+  } finally {
+    delete process.env.GSD_DELEGATED;
+  }
 });
 
 // The same boundary as the Claude Code adapter: a fresh start carries the bootstrap even

@@ -85,6 +85,18 @@ test("SessionStart injects the shared bootstrap exactly once per session", () =>
     stateRoot,
   );
   assert.equal(prompt, "", "an ordinary prompt after bootstrap emits nothing");
+
+  // Decision 0052: a coordinator's GSD_DELEGATED=1 makes the hook inject the worker variant.
+  process.env.GSD_DELEGATED = "1";
+  try {
+    const delegated = parseContext(
+      run({ hook_event_name: "SessionStart", session_id: "s1-w", cwd: project }, project, stateRoot),
+      "SessionStart",
+    );
+    assert.equal(delegated, withSessionOwner(createBootstrap(CORE_ROOT, { delegated: true }), owner("s1-w")));
+  } finally {
+    delete process.env.GSD_DELEGATED;
+  }
 });
 
 // A capsule belongs to compaction and resume. A fresh start already has the transcript and

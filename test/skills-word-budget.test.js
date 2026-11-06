@@ -26,6 +26,8 @@ const BUDGETS = {
   "skills/gsd-to-plan/SKILL.md": 542,
   "skills/gsd-upgrade/SKILL.md": 588,
   "skills/gsd-verify/SKILL.md": 1140,
+  // Decision 0052: the delegated-worker bootstrap body, kept under half the default's bytes.
+  "skills/gsd/DELEGATED.md": 282,
   "skills/gsd/REFERENCE.md": 2763,
   // Decision 0050 raises the bootstrap cap of decision 0045 from 520 to 545.
   "skills/gsd/SKILL.md": 545,

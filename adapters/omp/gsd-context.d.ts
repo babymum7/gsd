@@ -152,9 +152,10 @@ export function writeStateAtomic(featureDir: string, input: State): State;
 /**
  * Create the full GSD bootstrap injection string.
  * @param gsdRoot - Absolute path to the GSD repository root.
+ * @param options.delegated - Render the short delegated-worker variant (decision 0052).
  * @returns Bootstrap XML string for session injection.
  */
-export function createBootstrap(gsdRoot: string): string;
+export function createBootstrap(gsdRoot: string, options?: { delegated?: boolean }): string;
 
 /** Default export: the OMP context extension factory function. */
 export default function gsdContextExtension(pi: unknown): void;
