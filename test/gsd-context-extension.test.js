@@ -5,7 +5,7 @@ import { basename, join, dirname, isAbsolute } from "node:path";
 import { tmpdir } from "node:os";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
-import { discoverHostSkills, sanitizeBootstrapError } from "../lib/gsd-bootstrap.mjs";
+import { DELEGATED_SKILLS, discoverHostSkills, isDelegated, sanitizeBootstrapError } from "../lib/gsd-bootstrap.mjs";
 import { withSessionOwner } from "../lib/gsd-session-context.mjs";
 
 const require = createRequire(import.meta.url);
@@ -1187,6 +1187,55 @@ describe("automatic GSD bootstrap metadata and catalog contract", () => {
       assert.equal(messageContainsBootstrap({ role: "user", content: "ordinary prompt", timestamp: 1 }), false);
     } finally {
       rmSync(root, { recursive: true, force: true });
+    }
+  });
+
+  // Decision 0052. The default is pinned to its composition from SKILL.md and the catalog, so
+  // the switch cannot move a default byte; only GSD_DELEGATED=1 selects the worker variant.
+  test("only GSD_DELEGATED=1 selects the short worker bootstrap; the default keeps its bytes", () => {
+    for (const value of [undefined, "", "0", "true", "yes", " 1", "1 "]) {
+      assert.equal(isDelegated(value === undefined ? {} : { GSD_DELEGATED: value }), false, JSON.stringify(value));
+    }
+    assert.equal(isDelegated({ GSD_DELEGATED: "1" }), true);
+
+    const root = realpathSync(ROOT);
+    const master = readFileSync(join(root, "skills/gsd/SKILL.md"), "utf8");
+    const masterBody = master.slice(master.indexOf("\n---\n", 4) + 5).replace(/^\n/, "").trimEnd();
+    const catalog = discoverSkillCatalog(root);
+    const rows = (list) => list.map((row) => `- ${JSON.stringify(row)}`).join("\n");
+    const head = `<GSD_BOOTSTRAP>\ngsd:session-bootstrap:v2\nGSD_ROOT: ${JSON.stringify(root)}\n`;
+    const expectedDefault = `${head}The hidden gsd master bootstrap below is already loaded. Do not load it again.\n\n${masterBody}\n\n## Available GSD skills\n${rows(catalog)}\n</GSD_BOOTSTRAP>`;
+    assert.equal(createBootstrap(root), expectedDefault);
+    assert.equal(createBootstrap(root, { delegated: false }), expectedDefault);
+
+    const delegated = createBootstrap(root, { delegated: true });
+    const body = readFileSync(join(root, "skills/gsd/DELEGATED.md"), "utf8").trimEnd();
+    const workerRows = catalog.filter(({ name }) => DELEGATED_SKILLS.includes(name));
+    assert.deepEqual(workerRows.map(({ name }) => name), ["gsd-diagnosing-bugs", "gsd-verify"]);
+    assert.equal(delegated, `${head}\n${body}\n\n## Available GSD skills\n${rows(workerRows)}\n</GSD_BOOTSTRAP>`);
+    assert.equal(messageContainsBootstrap({ role: "user", content: delegated, timestamp: 1 }), true);
+    assert.match(withSessionOwner(delegated, "claude-w1"), /\n\nGSD_SESSION: claude-w1\n<\/GSD_BOOTSTRAP>$/);
+    const [delegatedBytes, defaultBytes] = [Buffer.byteLength(delegated), Buffer.byteLength(expectedDefault)];
+    assert.ok(delegatedBytes * 2 <= defaultBytes, `delegated ${delegatedBytes} bytes, default ${defaultBytes}`);
+    // The worker's own rules, and none of the convergence or merge lifecycle a brief replaces.
+    assert.match(delegated, /only through the channel the brief names, then end the turn/);
+    assert.match(delegated, /never end a turn on a plain-text question/);
+    assert.match(delegated, /Never create a `wip\/\*` or task branch/);
+    assert.match(delegated, /## Verification gate[\s\S]*`Done when`[\s\S]*never its terminal gate/);
+    assert.doesNotMatch(delegated, /Unstated outcome|gsd-brainstorming|gsd-executing-plans|await the real answer|already loaded/);
+
+    // A worker skill missing from the catalog, or a missing body, fails closed by name.
+    const sandbox = makeRoot();
+    try {
+      writeSkill(sandbox, "gsd", "Hidden bootstrap", "# Bootstrap", "hide: true\n");
+      writeSkill(sandbox, "gsd-diagnosing-bugs", "Bug diagnosis", "# Diagnosing Bugs");
+      assert.throws(() => createBootstrap(sandbox, { delegated: true }), /DELEGATED\.md/);
+      writeFileSync(join(sandbox, "skills", "gsd", "DELEGATED.md"), "# Worker\n");
+      assert.throws(() => createBootstrap(sandbox, { delegated: true }), /delegated skill gsd-verify is missing/);
+      writeSkill(sandbox, "gsd-verify", "Verify", "# Verify");
+      assert.match(createBootstrap(sandbox, { delegated: true }), /\n# Worker\n\n## Available GSD skills\n/);
+    } finally {
+      rmSync(sandbox, { recursive: true, force: true });
     }
   });
 
