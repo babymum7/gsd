@@ -176,6 +176,11 @@ compare every injected payload against the same root's `createBootstrap` or
 `renderRecoveryCapsule` output, so a host-side paraphrase, prefix, or stray
 newline fails the suite instead of silently reaching the model.
 
+Every adapter renders with `createBootstrap(root, { delegated: isDelegated() })`, so a
+session launched with `GSD_DELEGATED=1` gets the delegated-worker bootstrap from
+`skills/gsd/DELEGATED.md` (decision 0052); a new adapter passes the same option. Hook
+adapters read the variable from the hook process, in-process ones from the host process.
+
 Rule 4 is pinned the same way: the Claude Code and Codex tests copy the hook into a
 sandbox with no core, force `createBootstrap` to throw, and require the emitted
 diagnostic to equal `sanitizeBootstrapError`'s own bytes. An adapter cannot reword,
