@@ -1,5 +1,33 @@
 # Agent instructions
 
+GSD Core: the GSD workflow skills, their contract validators, and one session adapter per
+host (`adapters/README.md` lists them). Bun, ES modules, no runtime dependencies.
+
+## Map
+
+- `skills/`: the skills, one `SKILL.md` each; `skills/gsd/REFERENCE.md` is the canonical reference.
+- `lib/`: host-free core (grammars, state, bootstrap); `tools/`: the CLIs over it.
+- `adapters/<host>/`: host glue; read `adapters/README.md` before changing an adapter.
+- `bin/gsd.mjs`: the plugin CLI; `extensions/`: stable re-exports of the OMP adapter.
+- `test/`: Bun tests; `test/eval/`: benchmark fixtures and reports.
+- `docs/domain/`, `docs/decisions/`: see the sections below.
+- Full layout: `README.md` § State and repository layout.
+
+## Check
+
+Check: `bun run test && bun run lint`
+
+- Format a file: `bun run format -- <path>`. Install (owner only): `bun bin/gsd.mjs install --agent all`.
+
+## Where facts go
+
+- Product behaviour lives in `docs/domain/`, settled choices in `docs/decisions/`, usage and
+  layout in `README.md`, adapter details in `adapters/README.md`, skill rules in `skills/`.
+- Never put feature behaviour, current state or growing lists here; this file changes only
+  when a policy changes.
+- The `<!-- gsd:… -->` sections below are upserted by GSD's own skills: keep their headings
+  and text as the skills write them.
+
 ## Domain documentation
 
 <!-- gsd:domain-documentation -->
